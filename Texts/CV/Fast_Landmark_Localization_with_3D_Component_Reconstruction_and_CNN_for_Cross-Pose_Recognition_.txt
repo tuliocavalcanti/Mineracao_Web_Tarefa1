@@ -1,0 +1,1476 @@
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 1
+Fast Landmark Localization
+with 3D Component Reconstruction and CNN for
+Cross-Pose Recognition
+?Gee-Sern (Jison) Hsu, Hung-Cheng Shie, Cheng-Hua Hsieh
+Abstract—Two approaches are proposed for cross-pose face
+recognition, one is based on the 3D reconstruction of facial com-
+ponents and the other is based on the deep Convolutional Neural
+Network (CNN). Unlike most 3D approaches that consider holistic
+faces, the proposed approach considers 3D facial components.
+It segments a 2D gallery face into components, reconstructs
+the 3D surface for each component, and recognizes a probe
+face by component features. The segmentation is based on the
+landmarks located by a hierarchical algorithm that combines
+the Faster R-CNN for face detection and the Reduced Tree
+Structured Model for landmark localization. The core part of the
+CNN-based approach is a revised VGG network. We study the
+performances with different settings on the training set, including
+the synthesized data from 3D reconstruction, the real-life data
+from an in-the-wild database, and both types of data combined.
+We investigate the performances of the network when it is
+employed as a classifier or designed as a feature extractor. The
+two recognition approaches and the fast landmark localization
+are evaluated in extensive experiments, and compared to state-
+of-the-art methods to demonstrate their efficacy.
+Index Terms—Face recognition, face alignment, deep learning,
+convolutional neural network
+I. INTRODUCTION
+Cross-pose face recognition is generally handled by 2D
+or 3D based approaches. The 2D-based approaches require
+a training set from which the cross-pose characteristics can
+be learned and applied for recognition [1], [2]. The 3D-based
+approaches are generally built on the holistic 3D surface re-
+construction of a 2D face [3], [4], [5], [6], [7]. Two approaches
+are proposed in this study, one is based 3D and the other is
+based on the Convolutional Neural Network (CNN). The 3D-
+based one differs from most 3D approaches in that it is built
+on the 3D reconstruction of facial components, instead of the
+whole face. Although component-based methods are popular
+in 2D approaches [1], [2], component-based 3D approaches
+for recognition are rarely seen.
+In many 3D approaches, facial landmarks are exploited to
+align a 2D face to a 3D model. Various landmark detection
+approaches have been used, for example, the Active Appear-
+ance Model (AAM) [3], [4], Active Shape Model (ASM)
+[6], [7], [8], Constrained Local Model (CLM) [9] and Tree
+Structured Model (TSM) [6]. Among these approaches, we
+consider the TSM the most advantageous because it offers
+two unique characteristics: 1) It detects faces and locates the
+Authors are with the Artificial Vision Laboratory,
+National Taiwan University of Science and Technology
+43 Sec.4 Keelung Rd., Daan Dist., Taipei 10607, Taiwan
+E-mail: ?jison@mail.ntust.edu.tw
+landmarks simultaneously in one unified model; and 2) It can
+detect landmarks in a wider pose range, e.g., up to 90o in
+yaw, whereas many other approaches only cover up to 45o,
+where both eyes are visible. The disadvantage of the TSM is
+its sluggish runtime speed, which makes it impractical when
+handling real applications. We propose the Fast Hierarchical
+Model (FHM) as a key module in our approach for tackling
+cross-pose recognition. The FHM takes the advantages of the
+state-of-the-art Faster R-CNN (Region-based Convolutional
+Neural Network) [10] and of an architecture-revised TSM,
+called RTSM (Regressive Tree Structured Model), for rapid
+cross-pose landmark detection.
+The proposed 3D-based approach operates in three phases.
+In Phase 1, the FHM locates the landmarks required for face
+alignment and facial component segmentation. The segmented
+facial components are then reconstructed in Phase 2. In Phase
+3, the reconstructed 3D components are exploited for tackling
+cross-pose recognition using an approach based on the Sparse
+Representation-based Classification (SRC).
+The proposed CNN-based approach strongly depends on the
+data employed to train the network. In this study, we train the
+network by three categories of data: 1) The data synthesized
+from the 3D reconstruction as in Phase 2 of the aforementioned
+3D-based approach; 2) The in-the-wild real-life face dataset;
+and 3) Both combined.
+The pros and cons of both approaches are highlighted and
+compared. The contributions of this work can be summarized
+as follows:
+1) A 3D component based reconstruction is proposed and
+validated with state-of-the-art performance for cross-
+pose recognition. It is better in the computational cost
+and performance than most 3D approaches that consider
+holistic faces.
+2) A CNN-based approach is proposed and validated with
+state-of-the-art performance as well. This study reveals
+the influences of training on real-life data, synthesized
+data and both types of data combined.
+3) The proposed FHM outperforms the TSM [11] and
+many state-of-the-art approaches for landmark localiza-
+tion across large poses, and it retains the aforementioned
+advantages of TSM.
+4) A comparison of the hand-crafted 3D component-based
+approach and a CNN-based solution is offered to show
+the individual advantages. The latter outperforms the
+former for cross-pose recognition only if the CNN is
+trained on a large collection of in-the-wild faces. If
+ar
+X
+iv
+:1
+70
+8.
+09
+58
+0v
+1 
+ [
+cs
+.C
+V
+] 
+ 3
+1 
+A
+ug
+ 2
+01
+7
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 2
+Probe imagesA frontal image
+Facial components
+Components aligned to the probe
+Match
+FTSM landmark 
+detection
+3D reconstruction
+Facial components
+3D component model
+G.E. ref. model
+RecognitionTraining 
+Pose estimation
+FTSM landmark detection
+Fig. 1. Workflow of the proposed method. At the training stage, each 2D face in the gallery is segmented into 6 components using the FHM landmarks (in
+Sec. III). These 6 components include 2 half faces and 4 quarter faces. For better visibility, the facial components boxes only show one half face on the left
+and two quarter faces on the right. Each component is reconstructed using an ethnic- and gender-oriented 3D reference model (in Sec. IV). At the recognition
+stage, the 2D image of each reconstructed component is aligned to the corresponding part of the query, and the match is determined by the approaches
+proposed in Sec. V.
+the large in-the-wild face collection is unavailable, the
+3D component-based approach can be one of the most
+effective solutions.
+The rest of this paper is organized as follows. A review
+on previous works is given in Sec. II. The development of
+the FHM for landmark localization is presented in Sec. III,
+followed by the landmark-based 3D component reconstruction
+in Sec. IV, and the two proposed pipelines for recognition in
+Sec. V. Experimental evaluations are presented in Sec. VI and
+VII. Sec. VIII gives a conclusion to this study.
+II. RELATED WORK
+A. Review on Cross-Pose Recognition
+The method proposed by Asthana et al. [4] exploits the
+View-based Active Appearance Model (VAAM) for landmark
+detection and support vector regression for pose normalization.
+However, because of the pose limitation of the VAAM, the
+method can handle poses up 45? only. The Generic Elastic
+Model (GEM) [3] presumes that the depth of a gallery face
+can be accurately reconstructed by a generic depth map, with
+2D dense meshes built on the MASM (Modified Active Shape
+Model) landmarks for both the gallery face and the generic
+model. The GEM has been improved later in an extension
+work [5]. Although the performance on the MPIE in the
+extension appears better than that of the original GEM [3],
+both ignore the performance for large rotation, i.e., yaw angle
+? 60? (the tests in [5] only covers up to 30?). The GEM
+has been used in several of the latest studies. The method
+proposed in [12] is built on the GEM, and it extracts sparse
+features by using subspace modeling and l1-minimization to
+induce pose-tolerance. However, the experiment on MPIE is
+again limited to ±45?. A latest approach [7] uses the GEM
+and extracts Walsh local binary patterns from the periocular
+region as the features. The coupled max-pooling kernel class-
+dependence feature analysis (CoMax-KCFA) is harnessed to
+learn the pose-invariant subspaces for classification. This
+method outperforms that of [3] on MPIE, but again the
+pose is still limited to 60?. Arguing that many 3D face
+models based on the Lambertian assumption ignore specular
+and diffuse reflection, a Heterogeneous Specular and Diffuse
+(HSD) approach with 3D surface approximation is proposed
+in [13]. This work considers the spatial variations of specular
+and diffuse reflections over a face, and it is experimentally
+shown effective for handling the extreme poses in the PIE
+database [14]. Nevertheless, the requirement that multiple
+frontal images with various illumination conditions are needed
+for the HSD surface approximation substantially impedes its
+practical application.
+The review given above reveals the fact that most 3D-
+based methods are holistic and rarely exploit facial compo-
+nents, especially when considering 3D reconstruction and pose
+normalization. This review also justifies the requirement of
+facial landmarks in 3D approaches. However, only limited
+work presents the details on the computation of the landmarks.
+One of the motivations for this study is to merge landmark
+localization into the pipeline of cross-pose face recognition.
+The deep learning approaches have been revolutionized
+many areas in computer vision, including face recognition.
+The structure proposed by Ding and Tao [15] is composed
+of a set of CNNs and a stacked auto-encoder (SAE). The
+CNNs, trained on the CASIA-WebFace [16], are used to
+extract facial features, and the SAE compresses the features. It
+achieves 98.43% verification rate on the LFW database [17].
+Trained on a private (FaceBook) database with 4.4 million
+faces, the DeepFace single gives 95.92% and the ensemble of
+3 networks attains 97.35% on LFW [18]. Singe and ensemble
+networks are employed elsewhere. Combining 25 CNNs and
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 3
+each trained on a different facial region, the DeepID2 reaches
+99.15%, however, the best single CNN yields 95.43% [19].
+To alleviate the issues with deeper and more complex CNNs,
+Wu et al. propose a lightened CNN framework that achieves
+98.13% [20]. Recently, the features extracted from a CNN,
+also trained on the CASIA-WebFace, are exploited with the
+joint Bayesian metric learning, yielding 97.15% on LFW [21].
+All these methods are compared with the proposed approach
+in Sec.VII-B.
+B. Review on Facial Landmark Localization
+Fully automatic facial landmark localization is split into
+two phases, the first is face detection and the second is the
+landmark localization on the detected faces. Most works on
+landmark localization and face alignment only focus on the
+second phase, assuming that the locations of faces can be
+obtained by a face detector [22], [23], [24], [25]. The popular
+Viola-Jones detector is used in [23], [24], and the TSM is
+used in [22]. However, the Viola-Jones detector cannot handle
+faces with large rotation, and the TSM detector is too slow
+to be able to handle practical applications. Another big issue
+with these and many other landmark localization approaches
+is that they can only handle 45? in yaw, while the cross-pose
+recognition considers profile-to-profile poses, i.e., up to 90?.
+The Constrained Local Models (CLMs) [22], [23], [24] and
+TSMs [11], [26] are among the most successful approaches
+for landmark localization. The Discriminative Response Map
+Fitting (DRMF), proposed in [22], exploits an discriminative
+regression-based approach for improving fitting accuracy. A
+group sparse learning approach, called the Cascaded De-
+formable Shape Model (CDSM), is proposed by Yu et al. [27]
+to select the most salient facial landmarks. The Supervised
+Descent Method (SDM) is proposed by Xiong and De la Torre
+[23] for minimizing a Non-linear Least Squares (NLS) func-
+tion formed by the initial and target landmark locations. The
+SDM learns a sequence of descent directions that minimizes
+the mean of the NLS functions sampled from the training set.
+Using a local binary feature set and a locality principle for
+learning those features, the Regressing Local Binary Feature
+(RLBF) achieves cutting-edge landmark precision and com-
+putational efficiency [24]. However, as mentioned above, the
+models considered in these approaches and many others are
+designed to capture faces with poses in which both eyes are
+visible, and therefore, they can be of limited use for tackling
+cross-pose recognition.
+Unlike most CLMs that consider landmark fitting on a
+detected face, the TSM solves face detection and landmark
+localization in a unified framework [11]. However, the major
+disadvantage of the TSM is the heavy computation required
+for runtime detection, which substantially impedes its capacity
+for handling practical applications. We propose the FHM
+(Fast Hierarchical Model) for solving this speed issue, while
+improving the performance of the original TSM.
+A few CNN-based approaches for landmark localization
+also deserve our attention. Zhang et al. [28] propose the Tasks-
+Constrained Deep Convolutional Network (TCDCN), which
+not only learns the inter-task correlation but also employs dy-
+namic task coefficients to facilitate the multi-task optimization.
+A three-level cascaded CNN, proposed by Sun et al. [29], first
+extracts global features by the first level for initializing the
+landmark localization, and refines the initial predictions by the
+next two levels. However, they only locate 5 sparse landmarks
+in the facial region without considering any landmarks on
+the contour. The Cascade Multi-Channel CNN (CMC-CNN)
+[30] locates the landmarks by performing bottom-up detection
+and top-down correction via a cascade of CNNs. Both local
+features and global constraints are exploited for locating
+the landmarks. Note that these CNN-based approaches only
+consider poses ? 45?, and cannot handle cross-pose landmark
+detection. The TCDCN and CMC-CNN are compared with the
+proposed approach in Sec.VI.
+III. FAST HIERARCHICAL MODEL FOR CROSS-POSE
+LANDMARK DETECTION
+The proposed FHM (Fast Hierarchical Model) is composed
+of the Faster R-CNN [10] for high-performance face detec-
+tion and the RTSM (Regressive Tree Structured Model), an
+improved TSM, for cross-pose landmark localization.
+A. Faster R-CNN for Face Detection
+The Faster R-CNN [10] is composed of a Region Proposal
+Network (RPN) and a Fast R-CNN detector [31], and both
+share the same convolutional layers. The RPN aims to generate
+region proposals on a given image. To generate the region
+proposals, a sliding window is used to scan over the feature
+map at the last shared convolutional layer. Multiple region
+proposals, called anchors, with different scales and aspect
+ratios are generated at each sliding-windowed location. The
+feature captured by each anchor is fed into two sibling fully
+connected layers, a regression layer and a classification layer.
+The regression layer gives the coordinates of the anchor and
+the classification layer verifies whether the anchor is an object.
+One the other hand, the Fast R-CNN [31] aims at improving
+the R-CNN [32] and SPPnet (Spatial Pyramid Pooling Net-
+work) [33] in both speed and accuracy. It takes the entire
+image and a set of object proposals as input. The network
+first processes the whole image with several convolutional and
+max pooling layers to produce a conv feature map. A region
+of interest (RoI) pooling layer is then used to extracts a fixed-
+length feature vector from the conv feature map for each object
+proposal. Each feature vector is fed into a sequence of fully
+connected layers that branch into two sibling output layers:
+one that produces softmax probability estimates over object
+classes plus a catch-all background class and another layer
+that outputs four real-valued bounding-box positions for each
+object class. The Fast R-CNN is trained end-to-end with a
+multitask loss.
+The following 4-step training algorithm is exploited in [10]
+to learn shared features via alternating optimization.
+1) The RPN is initialized with an ImageNet-pre-trained
+model and trained end-to-end for performing the region
+proposal task. To handle multi-scale localization, the
+pyramid of anchors is exploited for generating region
+proposals of different scales and aspect ratios.
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 4
+ 
+Fig. 2. Samples from the test set of the WIDER FACE [34] with detection
+bounding boxes given by the proposed Faster R-CNN face detector. Following
+the defined partition [34], the WIDER FACE is split into training set and
+validation set with 16,106 images (199k faces) and test set with 16,097 images
+(194k faces).
+2) A Fast R-CNN for detection is also initialized by an
+ImageNet-pre-trained model, but trained using the region
+proposals generated in Step 1. At this point the RPN and
+the Fast R-CNN have not shared the convolutional layers
+yet.
+3) The RoIs given by the Fast R-CNN in Step 2 are
+used to reinitialize the RPN, which is trained on the
+same convolutional layers and only the layers unique
+to RPN are fine tuned. The two networks start to share
+convolutional layers from this phase on.
+4) The Fast R-CNN is then reinitialize using the region
+proposals generated in Step 3, and trained on the shared
+convolutional layers with the unique layers of Fast R-
+CNN fine tuned. Step 3 and 4 can then be repeated on
+the same shared convolutional layers. The two networks
+finally form a unified network.
+We use the codes provided by the Ren et al. [10] on https:
+//github.com/ShaoqingRen/faster rcnn, and train the network
+using one of the latest large face databases, WIDER FACE
+[34]. The 393,703 labeled faces in the WIDER FACE reveal
+large variations in scale, pose, expression, skin color, illumina-
+tion and occlusion conditions. Figure 2 shows a few samples
+from the test partition of the database with the detection
+bounding boxes given by the Faster R-CNN. Details of the
+experiments are reported in Sec. VI.
+B. Regressive Tree Structured Model (RTSM)
+The RTSM is composed of two sub-models, the reduced
+Tree Structured Model (r-TSM) and the Bidirectional Regres-
+sion Model (BRM). The r-TSM is developed based on the
+TSM but only with a sparse set of parts, and defined on sam-
+ples of reduced dimension, making it more computationally
+efficient than the TSM. Given the sparse set of landmarks
+located by the r-TSM, the BRM generates the dense set of
+landmarks using the shape information learned from a training
+set. Figure 3 shows the sparse set of landmarks located by the
+r-TSM and the dense set located by the BRM.
+As the r-TSM is built on the TSM, we give a brief
+introduction to the TSM first. A TSM T consists of two
+components, V and E, where V is the set of parts, E is
+the geometrical connection of the parts. Given an image
+ 
+Fig. 3. The blue dots enclosed by the red bounding boxes are the sparse
+landmarks to be located by the r-TSM, and the blue dots without the bounding
+boxes are the dense landmarks to be located by the BRM.
+I , the model can be expressed as a scoring function of a
+configuration c ? T = (V,E) in the following form [11]:
+R(I, c) =
+K?
+k=0
+Fk · ?(I, sk) +
+?
+k,l?E
+b(k,l) · ?(I, sk, sl) + ? (1)
+where Fk is the filter for the k-th part associated with the local
+appearance feature ?(I, sk) extracted from the part patch at
+location sk in I; {b(k,l)} is coined the spring parameter in [11],
+associated with the shape deformation feature ?(I, sk, sl),
+which is dependent on the locations of the parts at sk and
+sl; and ? is a bias. When searching for the target object, one
+can maximize (1) over all possible c so that the one with the
+most appropriate configuration c? receives the highest score
+R(I, c?). The maximization of R(I, c) can be performed via
+dynamic programming, which computes the message that Part
+j passes to its parent Part i as follows:
+nj(si) = max
+sj
+(
+gj(sj) + b(i,j) · ?(I, si, sj)
+)
+(2)
+gj(sj) = Fj · ?(I, sj) +
+?
+k?K(j)
+nk(sj) (3)
+where K(j) is the set of children of Part j. (2) computes
+the highest scoring location of its child Part j for every
+location of Part i. (3) computes the local score of Part j,
+at all pixel locations sj , by collecting messages from K(j).
+When messages are passed to the root part (j = 0), g0(s0)
+gives the configuration with the best score for each root
+position. One can then use these root scores to generate
+multiple detections in I by thresholding them and applying
+non-maximum suppression, and then backtrack to find the
+location and type of each part in each best-scored configuration
+by keeping track of the indices with each maximum. In Zhu
+and Ramanan’s study [11] the histogram of oriented gradients
+(HoG) of the part patch is used as the part feature ?(I, sj) at
+location sj , and ?(I, sk, sl) = [dxk,l dx2k,l dyk,l dy
+2
+k,l], where
+dxk,l= xsk?xsl and dyk,l = ysk ? ysl .
+Given the dense set Ld with 68 landmarks, the r-TSM is
+defined on Ls, a sparse subset selected from Ld, and the BRM
+captures the relationship between Ls and Ld by using shape
+traits. The r-TSM is trained on the downsized images which
+are the originals down-scaled with a scale factor ?h. As the
+r-TSM has far fewer parts than the TSM and is defined on a
+reduced dimension, it is computationally more advantageous
+than the TSM. Given the sparse landmark set Ls, the BRM
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 5
+exploits the Support Vector Regression (SVR) [35] to locate
+the rest of the dense landmarks using the shape characteristics
+learned from a training set. The trained SVR, as written in
+the following form, can best describe the shape characteristics
+between the landmark locations µj ? Ls and the landmark
+locations ?j ? [Ld ? Ls].
+?j =
+M?
+i=1
+(??i ? ?i)K(µj , µi) + br (4)
+where ??i and ?i are the Lagrange multipliers; [µi] are the
+support vectors, in terms of landmark locations: br is the bias
+coefficient and K(·) is the kernel function. K(·) is chosen as
+the second-order polynomial as it leads to the best performance
+in our experiments.
+To improve the accuracy of landmark locations, we select
+the landmarks with low location errors from the estimated L(1)d
+as the reference input to the SVR and re-locate the landmarks
+to update the dense set to L(2)d . The selection of low-error
+landmarks is empirical and based on the landmark errors ob-
+tained in the training set. These low-error landmarks, denoted
+as Lr, are fixed at runtime. This processing is undertaken in
+a bidirectional way, as it starts using the r-TSM located Ls
+to estimate L(1)d , and selects L
+(1)
+r from L
+(1)
+d to relocate the
+rest of landmarks and update the dense set to L(2)d , and then
+selects L(2)r from L
+(2)
+d , and repeats until the difference between
+L
+(i?1)
+d and L
+(i)
+d falls below a predefined threshold.
+When applying the TSM at runtime, one first computes
+the part feature pyramid on an image, and then searches for
+the faces by computing the distance transform between each
+search region and the TSM at all pyramid levels. This is a time-
+consuming processing as each search region must undergo
+the computations described previously, and it repeats for all
+pyramid levels to search for faces of all scales. It takes p-99,
+the fastest TSM, 2.6 secs to locate the landmarks on a face
+in MPIE; and 8.8 secs for p-1050, the most accurate TSM,
+to do the same. However, when using the proposed FHM on
+Cuda 6.5 (see Sec. VI for details), there can be up to 300
+faces captured in an image in 65 milliseconds (ms). Each
+face is captured with a bounding box of an appropriate size,
+which makes the r-TSM focus on limited scales of faces only,
+substantially reducing the search time.
+For comparison purpose, we design a simplified version of
+the r-TSM, called the coarse TSM (c-TSM), for face detection.
+Like the r-TSM, the c-TSM is also built on the sparse landmark
+set, as those shown in Figure 3. However, the c-TSM is
+defined on the facial images half in scale of that defines the
+r-TSM. The training samples considered for the TSM [11] are
+around 2002 pixels. We define the RTSM with scale factor
+?h = 0.5, i.e., the r-TSM and BRM are trained on faces
+of 1002 pixels, and the c-TSM is trained on faces of 502
+pixels. Experiments on benchmark databases, as reported in
+Sec. VI, demonstrate the advantage of the proposed FHM
+over many contemporary approaches. The FHM landmarks are
+exploited in the following component-based reconstruction and
+recognition phases.
+IV. LANDMARK-BASED FACIAL COMPONENT
+RECONSTRUCTION
+Each 2D face in the gallery can be decomposed into six
+component regions by using the FHM landmarks, as shown
+in Figure 1. The six components are defined to meet two
+requirements: 1) Some components must be kept visible at
+large rotation; 2) Each component must enclose a sufficient
+amount of 3D surface curvature. The six component regions
+include two half faces and four quarter faces. For better visi-
+bility, the components in Figure 1 only show one half face on
+the left, and two quarter faces on the right. We have modified
+the approach proposed by Kemelmacher-Shlizerman and Basri
+[36], called KB reconstruction, for the 3D reconstruction of
+each component region. The reconstruction involves two steps:
+1) Surface smoothing and surface parameter estimation for the
+reference model, and 2) The gender- and ethnicity-oriented 3D
+reconstruction of the facial components.
+A. Surface Smoothing and Parameter Estimation for Refer-
+ence Model
+As in many reconstruction methods that require 3D face
+models as bases or references [3], [4], [36], our reconstruction
+also needs a 3D reference model for the initial values of the
+surface parameters, including the noise-free depth and surface
+normal. We exploit the 3D scans from the FRGC database
+[37], because the 3D scans offer plenty of 2D images good for
+estimating the albedo needed in the reconstruction. However
+the FRGC 3D face scans do not offer the aforementioned
+surface parameters, and we must estimate these surface pa-
+rameters by using the raw depth map and texture image that
+come with the face scan. Additionally, because the raw depth
+map is often corrupted to some extent by measurement noise,
+we need to smooth the raw depth map before estimating the
+surface parameters. This step is not described explicitly in the
+aforementioned papers or in others, but it is considered an
+essential part of the reconstruction when using a raw 3D face
+scan as the reference model.
+We revise the Moving Least Squares (MLS) [38] for
+smoothing zr,0 the raw depth data of the reference model,
+so that the measurement noise in zr,0 can be removed and the
+smoothed surface zr can best approximate zr,0. We use the
+FHM landmarks to define triangle mesh to decompose the face
+into hundreds of triangular regions in the form of point cloud,
+and consider each triangular region a point cloud subset. Given
+a subset Pk= {~pi}i=1,··· ,Nk ? zr,0, the goal is to determine
+a novel set of points, Rk= {~ri}i=1,··· ,Nk , on a low-order
+polynomial that minimizes the distance between Pk and Rk.
+The smoothed and noise-free surface zr can then be obtained
+from {Rk}?k. Our revised MLS includes the following steps:
+1) Use Pk to determine a local plane H0 with origin ~q0
+and normal ~n0 so that the following weighted sum can
+be computed,
+Nk?
+i=1
+(u0(xi, yi)? µi,0)2 ? (?~pi ? ~q0?) (5)
+where u0(xi, yi) is the distance of ~ri to H0 with the
+location of its projection onto H0 given by (xi, yi); µi,0
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 6
+is the distance of ~pi to H0, i.e., µi,0 = ~n0 · (~pi ? ~q0);
+and ?(·) is a Gaussian function by which the points
+closer to ~q0 are weighted more. Assuming that Rk are
+described by a low-order polynomial in terms of the
+coordinates (xi, yi) on H0, i.e., ~ri = f(xi, yi|?0) and
+u(xi, yi) = ~n0 · (f(xi, yi|?0)? ~q0), where f(xi, yi|?0)
+is the low-order polynomial surface with parameter ?0
+that defines the local geometry of Rk.
+2) As H0 can be uniquely defined given ~q0 and ~n0, we
+can change them to ~q1 and ~n1 and thereby obtain a
+novel plane H1. Given that the order of the polynomial
+f(xi, yi|?0) is fixed (so that the number of parameters
+of f(xi, yi|?0) is fixed), a parameter estimation problem
+can be defined as the minimization of the weighted sum:
+??k, ~n
+?
+k, ~q
+?
+k = argmin
+?,~n,~q
+Nk?
+i=1
+(u(xi, yi)? µi)2 ? (?~pi ? ~q?)
+(6)
+The above processing can be repeated on other subsets {Pk}?k
+for estimating {?k, ~nk, ~qk}?k and {Rk}?k. Based on our
+experiments, we find that the minimum principal component
+extracted from Pk offers a good initial estimate for ~n0, and
+the centroid of Pk can be considered as ~q0. Following the
+above approach, the surface normal ~nr can be obtained from
+the estimated polynomials f(xi, yi|?k).
+B. 3D Reconstruction of Facial Components using Ethnicity-
+and Gender-Oriented Reference Model
+The differences between the proposed algorithm and the
+original KB reconstruction [36] are summarized as follows:
+• The proposed approach exploits the 2D frontal images
+available in the FRGC database for approximating the
+albedo of the reference model, unlike the KB recon-
+struction which considers the albedo as an additional
+constraint;
+• The proposed approach exploits the ethnicity- and gender-
+oriented reference model, which gives better performance
+in facial depth reconstruction than the generic reference
+model considered in the KB reconstruction [36].
+• The minimization conducted in the KB reconstruction
+concerns the whole face. Hence, it works well on low fre-
+quency (or smooth) regions such as cheeks, but produces
+relatively large errors on the high frequency regions such
+as eyes, nose and mouth. The errors on the high frequency
+regions are evened out with errors on the low frequency
+regions when minimizing the overall depth error, thus
+making further error reduction difficult. The proposed
+scheme focuses on the errors at the component levels.
+As components reveal better discriminating features, the
+scheme leads to better recognition.
+• As only components are considered, the proposed scheme
+comes with a lower computational and storage cost.
+Our approach starts from the FHM-based face alignment.
+Each component segmented from a 2D gallery face is aligned
+to the same component as segmented from the 3D reference
+model by using the FHM landmarks. Given the 2D component
+as the target t(x, y) and the 3D component as the reference,
+and assuming that the face is Lambertian, the following
+formulation can be used to recursively estimate the surface
+reflectance R(x, y), the depth z(x, y) and the surface normal
+~n(x, y) of the target.
+min
+~l,~z,?
+?
+(t(x, y)? ?(x, y)R(x, y))2 + ?z(Lg ? dz)2dxdy (7)
+where ?(x, y) is the surface albedo at pixel coordinates
+(x, y); the reflectance R(x, y) is the inner product of the
+lighting intensity ~h(x, y) and the surface normal ~n(x, y), i.e.,
+R(x, y) = ~h(x, y) · ~n(x, y); dz is the difference between the
+unknown depth z(x, y) and the reference depth zr(x, y), i.e.,
+dz = z(x, y) ? zr(x, y). Lg? denotes the convolution with
+the Laplacian of Gaussian (LoG); ?z is a constant. Applying
+LoG serves to locate large depth differences, and to force the
+minimization focused on the large-difference spots. The first
+term in (7) describes the objective to be minimized, which
+is the difference between the target and the projection of the
+lighting ~h(x, y) that is cast on the surface at (x, y). This term
+cannot be solved alone. Therefore, the second term is added
+as a constraint imposed on the depth. The problem is then
+formulated as a constrained minimization, and the solution
+can be obtained in an iterative way.
+With a few assumptions [36], the reflectance R(x, y) can
+be approximated using the lighting coefficient vector ~l(x, y)
+and spherical harmonics ~Y (~n), i.e., R(x, y)? ~l·~Y (~n). For
+simplicity of notation, the coordinates (x, y) are dropped in the
+rest of the paper. Therefore, for example, ~n(x, y) is written as
+~n. The difference between ~h ·~n and ~l · ~Y (~n) is that the lighting
+intensity and direction are both merged into ~h in the former,
+but in the latter they are expanded in terms of the spherical
+harmonics ~Y (~n).
+To study the effects made by reference models of different
+races and genders, four ethnicity-gender (E+G) groups with
+16 samples in each group are arbitrarily selected from the 3D
+subset of the FRGC database. The four groups are Caucasian
+male (CM) and female (CF), and Asian male (AM) and female
+(AF). The faces in each group are aligned using the FHM
+landmarks, and averaged in all dimensions. The average is
+considered as the reference model contributed by each group.
+Figure 4 shows the depths along the landmarks on the nose
+and along the inner side of the eye socket. The Caucasians
+reveal higher nose and larger depth variation than the Asians.
+This depth difference is primarily caused by ethnicity rather
+than gender.
+The reconstruction processes the minimization in (7) by first
+solving for the spherical harmonic coefficients ~l(x, y) by using
+the reference ~nr and assuming z = zr. With ~l solved, we
+can recompute z(x, y), then update ?(x, y), and next update ~n
+as ~n = (p, q,?1)T /
+?
+(p2 + q2 + 1), where p = ?z/?x and
+p = ?z/?y. The spherical harmonic coefficients ~l can then be
+updated. This process is repeated until the estimates converge.
+V. RECOGNITION USING SRC AND CNN
+Two approaches are proposed, one exploits the Sparse
+Representation-based Classification (SRC) and the other ex-
+plores the Convolutional Neural Network (CNN). The former
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 7
+ 
+Fig. 4. (a) shows the depth map and depth variation at the nose, viewed in
+the front and 60? from the side. (b) shows the mean depth (in mm) along
+the landmarks on the nose (in yellow line). (c) shows the depth map and
+depth variation along the inner side of the eye socket, and (d) shows the
+mean depth (in mm) along the inner side of the eye socket (the green lines
+in (c)). Results obtained based on 16 samples arbitrarily selected from each
+of ethnicity-gender groups in the FRGC 3D scan subset. The depth of the
+deepest eye corner is taken as the ground level.
+is often associated with hand-crafted features and the latter
+extract deep features from a large dataset.
+A. Component-based Recognition with SRC
+When a query image is given, its pose is first estimated
+using the FHM landmarks, and its facial components are
+cropped accordingly. The reconstructed component models
+of the gallery set are then rotated to the estimated pose
+of the query so that the 2D projection of the reconstructed
+components can be aligned with the query components. The
+illumination normalization proposed by Tan and Triggs [39] is
+applied on both the query and the aligned model for removing
+unbalanced illumination.
+The SRC is shown to be effective for handling illumination,
+expression and occlusion [40], [41], but is rarely attempted for
+tackling pose and facial components. Therefore it is explored
+in this study. Given a set of the 2D projections of the aligned
+reconstructed components of the faces in the gallery, denoted
+as M = [m1,m2, · · · ,mk], and the same components of a
+query q, the core part of the SRC solves for the linear repre-
+sentation of q in the span of A, where A = [a1, a2, · · · , ak] is
+a matrix with its column ai being a feature vector extracted
+from mi. We can therefore write q? = Ar? + µ?, where r
+is a sparse vector and µ is a noise with bounded energy, i.e.,
+||µ||2 < . Following the rules in compressing sensing [40],
+r? can be obtained by solving the following l1-minimization:
+r?? = argmin ||r||1, subject to ||q ?Ar||2 ?  (8)
+A comprehensive discussion on the solutions for the afore-
+mentioned l1-minimization is given in [42], where five fast
+algorithms are evaluated. We select the best two algorithms,
+the TNIP (Truncated Newton Interior-Point) and Homotopy,
+to evaluate their performances against pose variations.
+TABLE I
+ARCHITECTURE OF THE VGG NETWORK EXPLOITED. EACH OF FIRST 5
+BLOCKS CONSISTS OF 2 OR 3 CONVOLUTION LAYERS AND ONE MAX
+POOLING LAYER. BLOCK 6 IS FOR DROPOUT PROCESSING. BLOCKS 7 AND
+8 ARE WITH SINGLE FULLY-CONNECTED LAYERS FC7 AND FC8, WITH
+OUTPUT DIMENSION 512 AND Nc , RESPECTIVELY. Nc IS THE NUMBER OF
+CLASSES/SUBJECTS TO IDENTIFY
+Name Type Output Filter Size/ ReLuNumber stride/pad
+Conv1 1 Conv 64 3/1/1 Yes
+Conv1 2 Conv 128 3/1/1 Yes
+Pool1 Max pool N/A 2/2/0 No
+Conv2 1 Conv 64 3/1/1 Yes
+Conv2 2 Conv 128 3/1/1 Yes
+Pool2 Max pool N/A 2/2/0 No
+Conv3 1 Conv 128 3/1/1 Yes
+Conv3 2 Conv 128 3/1/1 Yes
+Conv3 3 Conv 128 3/1/1 Yes
+Pool3 Max pool N/A 2/2/0 No
+Conv4 1 Conv 256 3/1/1 Yes
+Conv4 2 Conv 256 3/1/1 Yes
+Conv4 3 Conv 256 3/1/1 Yes
+Pool4 Max pool N/A 2/2/0 No
+Conv5 1 Conv 256 3/1/1 Yes
+Conv5 2 Conv 256 3/1/1 Yes
+Conv5 3 Conv 256 3/1/1 Yes
+Pool5 Max pool N/A 2/2/0 No
+Drop6 Dropout N/A N/A No
+Fc7 Fully conn 512 N/A Yes
+Fc8 Fully conn Nc N/A N/A
+Output Softmax Nc N/A N/A
+The TNIP exploits gradient projection (GP) and searches
+for the sparse vector r along certain gradient direction with
+fast convergence. It reformulates (8) into the following form:
+r?? = argmin
+r
+1
+2
+||q ?Ar||22 + ?||r||1 (9)
+where ? is the Lagrange multiplier. Such a formulation enables
+the solution using quadratic programming.
+The Homotopy finds a solution path Xh that varies with ?,
+Xh = {r?? : ? ? [0,?)} (10)
+When ???, r?? = 0, and when ?? 0, r?? converges to the
+solution. The Homotopy algorithm considers that the objective
+function in (9) changes as a homotopy from the l2 constraint to
+the l1 objective as ? decreases. We use the SparseLab Toolbox
+http://sparselab.stanford.edu for solving (8).
+We compare different features, including pixel intensities,
+LBP (Local Binary Patterns) and Gabor features (obtained by
+the Gabor transform). The recognition by each component is
+determined by the Rank-1 result, and the overall recognition is
+determined by the votes from all components. When the votes
+are tied, as is observed in some cases with four components,
+the Rank-2 results are taken into account. Our comparison
+study shows that the Homotopy with Gabor features delivers
+the best overall performance. We therefore only report the
+results with such settings in Sec.VII.
+B. CNN-based Recognition
+The CNN exploited in this study is a revised version of
+the VGG network as it shows state-of-the-art performance
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 8
+for object recognition [43]. We take the network from the
+open-source deep learning toolkit Caffe [44], and modify the
+input layer and the fully connected layers so that they fit the
+needed input and output settings. The network has 9 blocks
+and each block is composed of 1?3 layers, and there are 22
+layers overall, as summarized in Table I. The input to the
+network is a 128× 128 gray-scaled image. Each input image
+is filtered by a stack of convolutional layers, operated with a
+33 receptive field. The convolution stride is fixed to 1 pixel.
+The spatial padding of the convolutional layer input aims to
+keep the spatial resolution the same after the convolution,
+and is thus chosen as 1 pixel for the 33 convolutional layers.
+Five max-pooling layers follow the last convolutional layers
+in the first five blocks for pooling the outputs, which are the
+inputs to the next blocks. Max-pooling is carried out by a 22
+window, with stride 2. All hidden layers are equipped with the
+rectified linear units (ReLUs) as the activation functions. To
+reduce overfitting, the sixth block, Drop6 in Table I, is used
+for dropout operation [45], with dropout rate 0.5. The next
+two blocks, Fc7 and Fc8, are fully connected layers. They
+are the same as the convolutional layer, except that the size
+of the filters matches the size of the input data. The output
+dimension of Fc7 is 512, and that of Fc is the same as the
+number of classes to identify, which is denoted as Nc. The
+last output block consists of Nc channels and each channel is
+with a softmax activation function.
+The following two approaches are implemented to utilize
+the revised VGG network.
+1) The network is considered as a classifier trained to
+recognize multiple classes of faces, where each class
+corresponds to a subject. The identity of a query face
+presented to the network is determined by the soft-
+max activation at the output. This approach is called
+Activation-at-Output (AO), which is appropriate for
+solving multi-classification, such as face identification.
+2) The network is considered as a feature extractor for
+extracting facial features. The extracted features can
+be exploited with classifiers for handling verification
+or identification. We take the output of the first fully
+connected layer Fc7 as the feature, and call this approach
+Fully-Connected Feature (FCF).
+We train the VGG network on the recently released CASIA-
+WebFace database [16], which has 494,414 facial images of
+10,575 subjects collected in the wild. As the images in the
+CASIA-WebFace are collected in a semi-automatic way, part
+of the images are of poor quality or mislabeled. We remove
+most of these poor-quality and mislabeled images manually,
+and run the FHM to locate the landmarks on the remaining
+381,975 images of 8,984 subjects (it would have taken much
+longer time if we used the TSM). Nc in our experiments is
+thus chosen as 8,984.
+Given the faces with landmarks, we compare the CNN per-
+formances for face identification across three settings: 1) with
+original face images, 2) with faces scaled to the landmarks,
+and 3) with faces scaled and aligned to the landmarks. Using
+a 5-fold cross-validation test, we have verified that the third
+settings yield the best identification rate at 83.51%, which is
+better than 76.53% obtained by using the multimodal CNN
+proposed by Ding and Tao [15].
+The above study has verified the capacity of the VGG
+network trained on a large in-the-wild face database. This
+verification motivates us to investigate the following settings
+for handling the cross-pose recognition.
+1) Use the 3D reconstructed models of the faces in the
+gallery to generate a large set of synthetic 2D faces of all
+poses, and use this synthetic dataset to train the network,
+and then test the network by using the real 2D faces of
+non-frontal poses.
+2) Use the above trained-on-CASIA-WebFace network to
+test its performance on non-frontal faces.
+3) Use the above synthetic 2D faces combined with the
+CASIA-WebFace to train the network, and test on non-
+frontal faces.
+Note that the datasets for training the VGG network are too
+large and too complex to be segmented into facial components.
+Therefore, we only consider holistic faces when exploring
+the CNN-based pipeline. The FHM landmark localization is
+again considered a vital component for such a solution as it
+is required for the scale normalization and alignment of the
+training and testing samples in high speed.
+VI. EXPERIMENTS ON FHM LANDMARK LOCALIZATION
+In this section, we present the experiments on the FHM
+landmark localization, and the experiments on cross-pose
+recognition are given in the next section. All experiments were
+run on Cuda 6.5 with Caffe Matlab wrapper upon a Windows-
+7 PC with i7 (3.4GHz) CPU, RAM 16GB and Titan X GPU.
+A. Experimental Setup
+The FHM has two modules, the Faster R-CNN for face
+detection and the RTSM for the landmark localization. We
+keep the same settings for the Faster R-CNN as those adopted
+in [10], in which the network is employed for object de-
+tection. The codes for the Faster R-CNN were downloaded
+from https://github.com/ShaoqingRen/faster rcnn. The Faster
+R-CNN is trained on the WIDER FACE database [34], which
+is composed of 32,203 images and 393,703 labeled faces.
+These faces demonstrate a large degree of variability in scale,
+pose, expression and occlusion. This database also contains
+many extreme cases, such as faces smaller than 12 × 12 or
+poses with views from above or behind the faces. Human vi-
+sual detection of these extreme cases often requires other body
+parts as priors, and they can be hardly detectable to human
+eyes when the body parts are removed or occluded. According
+to our experiments, the inclusion of these extreme samples in
+the training set degrades the detection performance, we run
+a series of cross-validation tests to measure the performance
+with and without these extreme samples in the training set.
+We find that the training set without faces < 12× 12 yields a
+lower false positive and better Average Precision (AP).
+Two networks, the ZF [46] and VGG-16 [43], are considered
+in our experiments for sharing the convolution layers in
+the Faster R-CNN pipeline. The ZF network has 5 sharable
+convolutional layers, and the VGG-16 network has 13 sharable
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 9
+ 
+Fig. 5. Precision-recall rates on the AFW dataset with Average Precision (AP)
+in the parentheses. TSM is the p-1050 model [11]. The DPM and HeadHunter
+are both from Mathias et al. [48]
+ 
+Fig. 6. Precision-recall rates on the PASCAL FACE dataset with Average
+Precision (AP) in the parentheses.
+convolutional layers. The training of ZF took almost 12 hours,
+but it took 32 hours to train the VGG-16. However, the latter
+gives AP 97.92 and the former gives 97.06, with runtime speed
+65 ms (ZF) v.s. 169 ms (VGG) using 300 proposals per image.
+The face detector reported in the work [47] also uses the
+Faster R-CNN trained on the WIDER FACE. The differences
+are threefold: 1) We remove tiny (< 12× 12) faces, as men-
+tioned above, as the features learned from tiny faces degrade
+the performance; 2) We compared the performances between
+VGG and ZF networks used as the sharing convolution layers,
+but they only use VGG; 3) They modified some original
+settings in [10] but we follow most of the original settings.
+As addressed in Sec.III-B, we design the c-TSM (coarse
+TSM) for comparison purpose. The r-TSM and BRM are
+defined on faces of 1002 pixels, and the c-TSM is defined on
+faces of 502 pixels. The part size is chosen 6×6 for c-TSM
+and 10×10 for r-TSM as it is 20×20 for the TSM [11]. The
+settings for extracting the HOG features are empirically opti-
+mized for different scales. The training set for the RTSM and
+c-TSM is composed of 1126 faces selected from the MPIE,
+627 faces from the LFPW [49] and 1712 faces from the ALFW
+[50]. Note that the proposed FHM enables face detection and
+landmark localization to be trained independently, as the Faster
+R-CNN requires a huge training set, but the RTSM can be
+trained using thousands of training samples.
+To emphasize the performance for handling in-the-wild
+conditions, we choose the AFW [11] and the PASCAL Face
+[48] for evaluating face detection, and the AFW and 300W
+[51] for evaluating landmark localization. The PASCAL Face
+is used only for studying face detection as its samples are
+not landmark annotated. Although the 300W dataset is gen-
+erally accepted as a good benchmark for assessing landmark
+localization, it does not contain samples with poses large than
+45o in yaw, which restrains its effectiveness for evaluating
+the landmark localization on poses beyond that range. The
+AFW offers 468 in-the-wild faces with profile-to-profile poses,
+various illumination conditions and facial expressions. We split
+the AFW into ? 45? and > 45? subsets to highlight the
+performance on extreme poses.
+B. Experimental Results
+The face detection performance of the Faster R-CNN, in
+terms of the precision-recall rates, on the AFW and the
+PASCAL Face are shown in Figures 5 and 6, together with
+the performances of other approaches, including the c-TSM
+only, the c-TSM followed by the RTSM (c-TSM+RTSM), and
+three state-of-the-art methods, the TSM [11], the DPM and
+HeadHunter [48]. We follow the evaluation protocol proposed
+in the development of the DPM and HeadHunter detectors
+[48] when making Figures 5 and 6 for showing performances
+in precision and recall. The performance comparison on the
+PASCAL Face is shown in Figure 6. Both figures show the
+following observations.
+1) The Faster R-CNN face detector performs much better
+than the c-TSM+RTSM, and it is highly competitive to
+the state of the art with AP 97.07% on the AFW and
+94.45% on the PASCAL Face. It clearly outperforms the
+DPM and HeadHunter [48] on the PASCAL Face.
+2) The c-TSM can be a coarse face detector, but it must
+be followed by the RTSM to remove false positives.
+However, due to its low complexity, the c-TSM often
+generates many false positives, which extend the RTSM
+processing time.
+When tested on the AFW, the Faster R-CNN takes average
+65 ms per image, the c-TSM takes 1.64 sec. and the c-
+TSM+RTSM takes 2.38 sec. When tested on the MPIE, in
+which each image only contains a face, the Faster R-CNN
+takes 55 ms per image, the c-TSM takes 0.92 sec. and the
+c-TSM+RTSM takes 1.41 sec. However, this comparison does
+not seem to be a fair one as the c-TSM+RTSM combines
+both face detection and landmark localization. For a fair
+comparison, we provide the faces detected by the Faster R-
+CNN to the state-of-the-art landmark detectors, and show their
+performances in Table II.
+When calculating the landmark localization error, we adopt
+a common metric [52], [24] that normalizes the location error
+to the (horizontal) distance between the eyes for poses with
+yaw angle < 45o, or to the (vertical) distance between the eye
+and the mouth for poses beyond that range. This normalized
+location error is averaged over all landmarks and images in a
+dataset, and represented in terms of percentage.
+The codes of the state-of-the-art approaches in Table II are
+mostly released by the authors, except the CDSM [27] and
+CMC-CNN [30], which we do not have the codes and obtain
+its performance directly from their papers. The CDSM reports
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 10
+TABLE II
+LANDMARK ACCURACY AND LOCALIZATION-ONLY RUNTIME SPEEDS. THE LOCATION ERROR IS NORMALIZED TO EITHER INTER-PUPIL DISTANCE
+(? 45o) OR EYE-TO-MOUTH (> 45o) DISTANCE, IN TERMS OF %. (·) INDICATES THE TIME INCLUDING FACE DETECTION AND LANDMARK
+LOCALIZATION. ? INDICATES RUNNING ON MATLAB
+AFW 300-W Overall Runtime/Facein MPIE (ms)
+Runtime/Face
+in AFW (ms)Method > 45? ? 45? Common Challenge Full Set
+SDM [23] 39.20 8.80 5.57 15.40 7.50 18.50 25 29
+RLBF [24] 38.70 8.61 4.95 11.98 6.32 17.88 10 11
+DRMF [22] - 12.90 6.65 19.79 9.22 - 0.9k* 1.1k*
+TSM [11] 7.11 14.30 8.22 18.33 10.20 10.54 (8.8k), (25.6k)* (24.9k), (71.2k)*
+CDSM [27] 6.62 11.79 - - - - - (5.8k)*
+CMC-CNN [30] - - 4.91 12.03 6.30 - - -
+TCDCN [28] 38.23 7.41 4.80 8.60 5.54 17.06 19 19
+RTSM 6.40 10.93 6.02 16.52 8.06 8.46 42, 119* 67, 190*
+Fig. 7. Comparison of different landmark localization approaches. The first
+row is obtained by FHM, the second by RLBF [24], the third by SDM [23]
+and the bottom by TCDCN [28]. RLBF, SDM and TCDCN fail to handle
+profile or nearly profile faces, but FHM works well for all poses.
+performance on AFW only, and the CMC-CNN reports on
+300W only. For the five approaches that we have codes, the
+errors and the runtime speeds in the table are based on our
+tests on the same platform. The DRMF codes cease to run
+when presented a face with yaw angle > 45o, so we leave the
+corresponding grids empty. Since the 300W dataset can be
+split into a Common subset and a Challenging subset [24],
+we report the performances of the two subsets and of the
+overall full set. The Runtime/Face is the average time needed
+for landmark localization on each face. As some codes are
+in Matlab and some are in C/C++, we tag a star ”*” to
+those in Matlab, and we have both types of codes for the
+RTSM and TSM. Note that the TSM and the CDSM combine
+face detection and landmark localization in the model, we put
+their runtime in a parenthesis (·). The performances shown in
+Table II can be summarized as follows.
+1) The proposed RTSM (or FHM without the face detector)
+performs the best for poses > 45o, as the SDM [23],
+DRMF [22], TCDCN [28] and RLBF [24] cannot handle
+this pose range. This capacity makes the FHM one of the
+most appropriate landmark localization approaches for
+handling cross-pose recognition, which must consider
+extreme poses. Figure 7 shows samples with landmarks
+ 
+Fig. 8. Comparison of cases with specific and E+G (ethnicity and gender) ori-
+ented reference model on MPIE. Four different references include Caucasian
+male (CM) and female (CM), Asian male (AM) and female (AF).
+located by the best four algorithms, the FHM, RLBF,
+SDM and TCDCN in our test.
+2) Although the RTSM is slower than the RLBF, SDM and
+TCDCN, the embedded Faster R-CNN makes the FHM
+a favorable choice among the three when considering a
+total solution for face detection and landmark localiza-
+tion. Note that the original codes for the RLBF and SDM
+are accompanied with the Viola-Jones face detector,
+which cannot detect profile or nearly profile faces. We
+replaced it by the Faster R-CNN face detector for a fair
+comparison. Therefore, the numbers in Table II were
+obtained using the same set of detected faces, except
+for TSM and CDSM which integrate face detection and
+landmark in a unified model.
+3) When considering the poses ? 45o, the RLBF, SDM and
+TCDCN are among the most competitive algorithms, in
+both accuracy and processing time. However, for dealing
+with recognition for poses > 45o, it demands efforts to
+modify the model templates. These approaches optimize
+the locations of a fixed number of landmarks as defined
+by the original template. It can be difficult to consider
+multiple templates with different numbers of landmarks
+for different pose ranges.
+VII. PERFORMANCE EVALUATION FOR CROSS-POSE
+RECOGNITION
+In this section, we present the evaluation of the component-
+based SRC and the CNN-based solutions for face recognition.
+As mentioned above, only holistic faces are studied in the
+CNN solution as the datasets used for training the deep
+network are too large and too complex to have their faces
+segmented into components.
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 11
+ 
+Fig. 9. Comparison of the proposed 3D component reconstruction, 3D holistic
+reconstruction, CNN-based Hybrid-AO?, and contemporary 3D approaches,
+including Asthana et al. [4], FRAD [6], GE-GEM [5], Spartans [7] and
+Abiantun et al. [12] on the MPIE.
+ 
+Fig. 10. Comparison of the proposed 3D component reconstruction, 3D
+holistic reconstruction, CNN-based Hybrid-AO?, and contemporary 3D ap-
+proaches, including HSD [13], Asthana et al. [4], PAF [8] and FLM+PFER-
+GEM [9] on the PIE database
+A. Component-based SRC Solution
+The experiments were carried out on the PIE database (68
+subjects), the Session 1 of the MPIE database (249 subjects),
+and the LFW database [17], and the reference models were
+chosen from the FRGC database in the way described in
+Sec.IV-B. Each subject had one single frontal face in the
+gallery and the rest of the poses were all in the query set. All
+frontal faces were aligned and normalized in size to the eyes
+so that the distance between the eyes was kept in 60 pixels,
+other poses of the same subject were normalized so that the
+distance between the eyes and chin is kept the same as of
+the frontal. The pose range in PIE covered up to 90? in yaw,
+and up to 75? on MPIE. Experimental results were separately
+reported for the same and different illumination conditions.
+The experiments were designed to study the following issues:
+1) Effects caused by reference models of different ethnicity
+and gender.
+2) Comparison with the holistic counterpart of the proposed
+method, in which the reconstruction is carried out for
+the whole face. This comparison should reveal the
+advantages of the component-based approach over the
+holistic approach.
+3) Comparison with other state-of-the-art 3D-based ap-
+proaches. As 2D-based approaches for cross-pose recog-
+nition adopt different setups (for example, the require-
+ment for a multi-pose training set), only 3D-based
+approaches are considered in this comparison.
+Figure 8 shows the effects caused by reference models of dif-
+ferent gender and ethnicity. The best performance is observed
+when the reconstruction is based on the reference model of the
+same ethnicity and gender (E+G). The Caucasian male (CM)
+model can lead to the best performance if only one reference
+model is allowed. The Caucasian female (CF) comes as the
+close second. However, both Asian male and female models
+(AM and AF) perform relatively poorly. This result indicates
+that the effects caused by ethnicity appears much stronger than
+that caused by gender. This finding confirms the observation
+in Figure 4, which shows the depths of different reference
+models. These results also reflect the demographics of the
+MPIE, in which the largest subset is made of CMs, followed
+by CFs, then AMs, and least of AFs.
+The proposed component-based approach outperformed its
+holistic counterpart in both computation cost and in accuracy.
+The holistic model took 2.5 minutes for one single face
+reconstruction, but the component-based model took only 18
+secs. The comparisons of the holistic and component-based
+approaches with the state-of-the-art methods are shown in
+Figure 9 and Figure 10, on MPIE and PIE, respectively. With
+reference models of the same ethnicity and gender (E+G),
+both perform better than the contemporary methods. Quite
+a few 3D approaches that have been evaluated on the PIE
+pose subset show a significant drop in the recognition rate
+for yaw angle larger than 67.5?, as shown in Figure 10. This
+big drop in accuracy is also observed with the 3D holistic
+(E+G) models. However, the 3D component (E+G) maintains
+its performance at 67.5?, and it outperforms most of the
+contemporary methods.
+Among the selected contemporary methods, the EFF (Ef-
+fective Face Frontalization) [53] is a novel approach for face
+frontalization. We obtained the codes released by the authors
+and ran experiments with the SRC-based recognition. The per-
+formance, as shown in Figure 9, appears far from satisfactory.
+The Hybrid-AO? in both Figures 9 and 10 demonstrates the
+exceptional performance of our CNN solution. The details of
+our CNN solution are presented next.
+B. CNN-based Solution
+As presented in Sec.V-B, the revised VGG network is
+validated with a competitive identification rate 83.51% on the
+CASIA-WebFace. We exploit this trained network to study the
+performances of the following setups with the AO (Activation-
+at-Output) and FCF (Fully-Connected Feature) identification.
+1) Training on the 3D Reconstructed Models: The training
+set was composed of the synthesized 2D faces of all
+poses, generated by the 3D reconstructed facial models
+of the Ng subjects in the gallery. The network was con-
+figured to produce Ng outputs. Both the Reconstructed-
+AO and Reconstructed-FCF were evaluated.
+2) Training on the Reference Dataset: The network was
+trained on the CASIA-WebFace dataset, and exploited as
+a feature extractor. The 512D feature extracted from the
+first fully connected layer was considered a legitimate
+representation of a face. Only the Reference-FCF was
+tested with SVM classification in this setup.
+3) Training on the Hybrid Dataset: The training set was
+composed of the synthesized 2D faces and the CASIA-
+WebFace dataset. For Hybrid-AO, the network was con-
+figured to produce Ng+8984 outputs. This configuration
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 12
+ 
+Fig. 11. VGG nets with 6 different setups tested on MPIE: Reconstructed?
+training on 2D synthesized faces generated by the 3D holistic reconstruction;
+Reference? training on CASIA-WebFace dataset; Hybrid? training on 2D
+synthesized faces and CASIA-WebFace. AO refers to the Activation-at-Output
+and FCF refers to classification using the Fully-Connected Feature.
+is close to an open-set identification, in which a query
+face can be misclassified into any of the 8984 subjects,
+who is not in the gallery. We compared this case with
+Hybrid-AO?, the closed-set identification in which we
+disconnected the 8984 connections of the last fully
+connected layers to the output layer, and kept only
+the connections to the Ng outputs. We also tested the
+performance of the Hybrid-FCF.
+For the tests on MPIE, the training set for the Reconstructed
+case is made of 158,613 synthesized faces, which were the
+multi-view 2D projections of the 3D reconstructed faces for
+the overall Ng =249 subjects. The performances for the above
+setups are shown in Figure 11, and the observations and
+inferences can be summarized as follows.
+1) Both Reconstructed-AO and Reconstructed-FCF give the
+worse performances. The Reference-FCF outperforms
+many, especially for yaw angle ? 60o. These results
+show that the CNN solution can be much more effective
+when learning from in-the-wild data, such as the CASIA-
+WebFace. As the samples in the CASIA-WebFace are
+mostly ? 60o in yaw, the identification rate of the
+Reference-FCF drops sharply for yaw angle > 60o due
+to the lack of data in that pose range.
+2) The Hybrid cases generally perform well, except for
+the Hybrid-AO. The Hybrid-AO performs an open-set
+identification, in which a query image can be mistaken as
+one of the 8984 extra subjects in the expanded gallery. It
+performs poorly, even for the poses with slight rotations.
+The performance can be greatly improved if the network
+is switched to the closed-set identification, Hybrid-AO?,
+by disconnecting the connections to the extra subjects.
+3) Although the Hybrid-AO? outperforms all, the Hybrid-
+FCF also performs well for all poses. The Hybrid-FCF
+follows the open-set identification for feature extraction,
+but it handles classification by using the closed-set
+identification with Ng classes to identify. However, it
+is outperformed by the Reference-FCF for yaw ? 60o.
+This shows that the features extracted from synthesized
+data can degrade the CNN-based performance.
+As verified in the above experiments on MPIE, the Hybrid-
+AO? gives the best performance. The performance compar-
+isons with other state-of-the-art approaches are shown in
+Figure 9 and Figure 10 for MPIE and PIE, respectively. Both
+figures show that the Hybrid-AO? performs better than the 3D
+ 
+Fig. 12. Performance comparison with contemporary approaches CBVT [54]
+and IPDL [55] for cross-pose and cross-illumination recognition on MPIE.
+TABLE III
+FACE VERIFICATION RATES (%) ON LFW. ? WITHOUT E+G FEATURES
+ADDED ON. SELECTED METHODS ARE THE CNN ENSEMBLE WITH SAE
+(CESAE) [15], THE DEEPFACE [18], THE DEEPID2 [19] AND THE JOINT
+BAYESIAN METRIC LEARNING (JBML) [21]. (·) DENOTES FOR
+ENSEMBLES, 3 NETWORKS FOR DEEPFACE AND 25 NETWORKS FOR
+DEEPID2. FOR REFERENCE, HUMAN ATTAINS 97.53% ACCURACY [18]
+CESAE DeepFace DeepID2 JBML Hybrid-FCF
+98.43 95.92 (97.35) 95.43 (99.15) 97.15 98.06, 94.52?
+component (E+G) approach. The Hybrid-AO? performs the
+best on MPIE, and the second best on PIE when considering
+the accuracy at 90o.
+The performances in Figure 9 were measured under a
+common scenario that a frontal facial image of each subject
+with uniform illumination was registered to the gallery, and
+the rest of poses at the same illumination were taken as query
+images. To evaluate the performance for handling cross-pose
+and cross-illumination recognition, we ran an experiment with
+query images covering all poses and all illumination conditions
+in the MPIE. This is a rarely attempted scenario and we only
+found it in a couple contemporary approaches, namely the
+Coupled BiasVariance Tradeoff (CBVT) [54] and the Identity-
+Preserving Deep Learning (IPDL) [55]. The comparison of
+these approaches with the Hybrid-AO? and the 3D component
+(E+G) is shown in Figure 12. The Hybrid-AO? performs the
+best, with a clear gap from the rest, and the 3D component
+(E+G) performs similarly to CBVT and IPDL.
+To better understand the capacity of our solutions, we have
+extended the experiments to face verification in which we
+have to determine whether a pair of faces are of the same
+person. This scenario is difficult to solve by using the SRC-
+based approach that searches for the most likely subject from
+a gallery set for a given query. However, this is an appropriate
+scenario for the feature extraction network Hybrid-FCF to
+handle. The database used for this study is the LFW [17],
+which contains 13,233 images of 5,749 subjects collected in
+the wild. The images in the LFW are organized into two views.
+View 1 is for model selection and parameter tuning, while
+View 2 is for performance evaluation. We follow the standard
+protocol and report the mean verification rate by running 10-
+fold cross validation on the View 2 subset. We use the Hybrid-
+FCF to extract the feature of each face, and compute the
+Mahalanobis distances of the match pairs and mismatch pairs
+in the View 1 subset. An SVM classifier with linear kernel is
+then trained to classify the Mahalanobis distances of both types
+of pairs. The performance of this SVM classifier is tested on
+View 2 with each pair represented in the Mahalanobis distance.
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 13
+TABLE IV
+THE PROCESSING TIME OF EACH MODULE IN BOTH PROPOSED PIPELINES
+Face detection (Faster R-CNN, ZF Net) 65ms
+Training of Faster R-CNN/ZF Net on 393k faces 12.2h
+Landmark localization (RTSM) 42ms
+3D component reconstruction (per subject) 17.6s
+3D whole face reconstruction (per subject) 151.6s
+Feature extraction for a 3D component 1.6ms
+Identification by SRC (100 subjects in gallery) 1.85s
+CNN training on hybrid database (500k faces) 42h 26m
+Identification by CNN (100 subjects in gallery) 0.397s
+As the 3D component reconstruction performs better with
+an ethnicity- and gender-oriented (E+G) reference model,
+we also incorporate the E+G characteristics into the VGG-
+extracted facial features. We train two VGG networks, the
+VGG-E for ethnicity classification and the VGG-G for gender
+classification, by using the following datasets:
+1) Ethnicity: 8,600 faces/race are selected for training from
+each of the following databases, CAS-PEAL (Asian)
+[56], Morph (African) [57] and PubFig (European)
+[58]. Another 1,200 faces/race are selected from each
+database for validation, and another 1,200 faces/race are
+selected for evaluation.
+2) Gender: All follow the partitions designed for the
+CelebA database [59], 162,770 faces for training, 19,867
+for validation and 19,962 for evaluation.
+The VGG-E gains verification rate 95.11% and VGG-G
+gains 97.27%. When combining the E+G characteristics, the
+facial feature is concatenated with the ethnic feature and
+gender feature, extracted from the VGG-E and VGG-G nets,
+respectively. The concatenated feature is of 1,536 (512×3)
+dimension, yielding 98.06%. Table III shows the performances
+of the Hybrid-FCF with and without the E+G features added
+in, compared with state-of-the-art approaches (reviewed in
+Sec.II-A), including the CNN Ensemble with SAE (CESAE)
+[15], the DeepFace [18], the DeepID2 [19] and the joint
+Bayesian metric learning (JBML) [21]. Note that (·) denotes
+for ensembles, 3 networks were combined for DeepFace and
+25 networks combined for DeepID2, effectively boosting the
+performances. Considering the performance of single network,
+the Hybrid-FCF without E+G features performs comparably to
+others, it outperforms most with E+G features concatenated.
+As the processing time is one of the central concerns in this
+study, we summarize the time spent in each component of the
+proposed pipelines in Table VII-B.
+VIII. CONCLUSION
+Few works like this one that reports two pipelines for
+tackling cross-pose recognition, one is 3D component-based
+and the other is CNN-based. The former requires only a
+few 3D models for depth references, but the latter needs a
+huge (public) face databases, e.g., CASIA-WebFace. We have
+demonstrated the following essentials: 1) The 3D component-
+based approach outperforms its holistic counterpart and is
+among the most effective solutions. 2) The VGG-based so-
+lution outperforms the hand-crafted 3D component-based ap-
+proach, as the former can learn the in-the-wild characteristics
+that are hard to capture by the latter. 3) A comparison of the
+two approaches is provided to show the individual advantages.
+It offers a guideline for preferring one than the other when
+handling different scenarios. The preference can be decided
+based on the sufficiency of the training data. When the training
+data is insufficient, the 3D component-based one is preferred;
+when the data is abundant, the CNN-based is preferred. 4)
+3D-based face reconstruction and CNN-based face model are
+better built with the characteristics of the same ethnicity and
+gender as of the subject. 5) The FHM is a vital part for
+landmark localization across extreme poses.
+As the availability of large in-the-wild face databases is
+limited and the CASIA-WebFace is by far the most popular
+one used for CNN training, it can be a challenging and con-
+tributive research on the transformation of existing databases,
+e.g., MPIE and FRGC, to their in-the-wild expansions. We
+consider this one of the continuing research topics, and it has
+been carried out in our lab.
+REFERENCES
+[1] B. Heisele, T. Serre, and T. Poggio, “A Component-Based Framework
+for Face Detection and Identification,” IJCV, vol. 74, no. 2, pp. 167–181,
+2007.
+[2] P.-H. Lee, G.-S. Hsu, T. Chen, and Y.-P. Hung, “Facial trait code,”
+TCSVT, vol. 23, no. 4, pp. 648–660, 2013.
+[3] U. Prabhu, J. Heo, and M. Savvides, “Unconstrained pose-inv. recog.
+using 3d generic elastic models,” TPAMI, vol. 33, pp. 1952–2961, 2011.
+[4] A. Asthana, T. K. Marks, M. J. Jones, K. H. Tieu, and M. V. Rohith,
+“Fully automatic pose-invariant face recognition via 3d pose normaliza-
+tion,” in ICCV, 2011, pp. 937–944.
+[5] J. Heo and M. Savvides, “Gender and ethnicity specific generic elastic
+models from a single 2d image for novel 2d pose face synthesis and
+recognition,” TPAMI, vol. 34, no. 12, pp. 2341–2350, 2012.
+[6] A. M. Ali, “A 3d-based pose invariant face recognition at a distance
+framework,” IEEE Trans. Inf. Forensics and Security (TIFS), vol. 9,
+no. 12, pp. 2158–2169, Dec. 2014.
+[7] F. Juefei-Xu, K. Luu, and M. Savvides,, “Spartans: Single-sample
+periocular-based alignment-robust recognition technique applied to non-
+frontal scenarios,” TIP, vol. 24, no. 12, pp. 4780–4795, Dec. 2015.
+[8] D. Yi, Z. Lei, and S. Z. Li, “Towards pose robust face recognition,” in
+CVPR, 2013, pp. 3539–3545.
+[9] A. Moeini and H. Moeini, “Real-world and rapid face recognition toward
+pose and expression variations via feature library matrix,” TIFS, vol. 10,
+no. 5, pp. 969–984, MAY. 2015.
+[10] S. Ren, K. He, R. Girshick, and J. Sun, “Faster r-cnn: Towards real-time
+object detection with region proposal networks,” in Advances in neural
+information processing systems (ANIPS), 2015, pp. 91–99.
+[11] X. Zhu and D. Ramanan, “Face detection, pose estimation, and landmark
+localization in the wild,” in CVPR, 2012, pp. 2879–2866.
+[12] R. Abiantun, U. Prabhu, and M. Savvides, “Sparse feature ext. for
+posetolerant face recog.” TPAMI, vol. 36, no. 10, pp. 2061–2073,
+Oct. 2014.
+[13] X. Zhang and Y. Gao, “Heterogeneous specular and diffuse 3-D surface
+approx. for recog. across pose,” TIFS, vol. 7, pp. 1952–1961, 2012.
+[14] T. Sim, S. Baker, and M. Bsat, “The CMU pose, illumination, and
+expression database,” in AFGR, 2002, pp. 46–51.
+[15] C. Ding and D. Tao, “Robust face recognition via multimodal deep face
+representation,” TMM, vol. 11, no. 7, pp. 2049–2058, 2015.
+[16] D. Yi, Z. Lei, S. Liao, and S. Z. Li, “Learning face representation from
+scratch,” arXiv:1411.7923, 2014.
+[17] G. B. Huang, M. Ramesh, T. Berg, and E. Learned-Miller, “Labeled
+faces in the wild: A database for studying face recognition in uncon-
+strained environments,”Univ. Massachusetts, Tech. Rep. 07-49 , 2007.
+[18] Y. Taigman, M. Yang, M. Ranzato, and L. Wolf, “Deepface: Closing the
+gap to human-level performance in face verification,” in CVPR, 2014,
+pp. 1701–1708.
+IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY 14
+[19] Y. Sun, Y. Chen, X. Wang, and X. Tang, “Deep learning face represen-
+tation by joint identification-verification,” in NIPS, 2014.
+[20] X. Wu, R. He, and Z. Sun, “A lightened CNN for deep face representa-
+tion,” CoRR, 2015. [Online]. Available: http://arxiv.org/abs/1511.02683
+[21] J. C. Chen, V. M. Patel, and R. Chellappa, “Unconstrained face verifi-
+cation using deep cnn features,” in WACV, March 2016, pp. 1–9.
+[22] A. Asthana, S. Zafeiriou, S. Cheng, and M. Pantic, “Robust discrimina-
+tive response map fitting with constrained local models,” CVPR, 2013.
+[23] X. Xiong and F. De la Torre, “Supervised descent method and its
+applications to face alignment,” in CVPR, 2013, pp. 532–539.
+[24] S. Ren, X. Cao, Y. Wei, and J. Sun, “Face alignment at 3000 fps via
+regressing local binary features,” in CVPR, 2014, pp. 1685–1692.
+[25] J. M. Saragih, S. Lucey, and J. F. Cohn, “Deformable model fitting by
+regularized landmark mean-shift,” IJCV, vol. 91, no. 2, pp. 200–215,
+Sep 2011.
+[26] P. F. Felzenszwalb and D. P. Huttenlocher, “Pictorial structures for object
+recognition,” IJCV, vol. 61, no. 1, pp. 55–79, 2005.
+[27] X. Yu, J. Huang, S. Zhang, W. Yan, and D. N. Metaxas, “Pose-free facial
+landmark fitting via optimized part mixtures and cascaded deformable
+shape model,” in ICCV, 2013, pp. 1944–1951.
+[28] Z. Zhang, P. Luo, C. C. Loy, and X. Tang, “Learning deep representation
+for face alignment with auxiliary attributes,” TPAMI, vol. 38, no. 5,
+pp. 918–930, 2016.
+[29] Y. Sun, X. Wang, and X. Tang, “Deep convolutional network cascade
+for facial point detection,” in CVPR, 2013, pp. 3476–3483.
+[30] Q. Hou, J. Wang, and Y. Gong, “Facial landmark detection via cascade
+multi-channel convolutional neural network,” in ICIP, 2015, pp. 1800–
+1804.
+[31] R. Girshick, “Fast r-cnn,” in ICCV, 2015, pp. 1440–1448.
+[32] R. Girshick, J. Donahue, T. Darrell, and J. Malik, “Rich feature
+hierarchies for accurate object detection and semantic segmentation,”
+in CVPR, 2014, pp. 580–587.
+[33] K. He, X. Zhang, S. Ren, and J. Sun, “Spatial pyramid pooling in deep
+convolutional nets for visual recog.” in ECCV, 2014, pp. 346–361.
+[34] S. Yang, P. Luo, C. C. Loy, and X. Tang, “Wider face: A face detection
+benchmark,” in TCSVT, 2016, pp. 5525–5533.
+[35] A. J. Smola and B. Schlkopf, “A tutorial on support vector regression,”
+Statistics and Computing (SC), vol. 14, pp. 199–222, 2004.
+[36] I. Kemelmacher-Shlizerman and R. Basri, “3D face reconstruction from
+a single image using a single reference face shape,” TPAMI, vol. 33,
+no. 2, pp. 394–405, Feb. 2011.
+[37] P. Phillips, P. J. Flynn, T. Scruggs, K. W. Bowyer, J. Chang, K. Hoffman,
+J. Marques, J. Min, and W. Worek, “Overview of the face recognition
+grand challenge,” in CVPR, vol. 1, 2005, pp. 947–954.
+[38] M. Alexa, J. Behr, D. Cohen-Or, S. Fleishman, D. Levin, and C. T. Silva,
+“Computing and rendering point set surfaces,” TVCG, vol. 9, no. 1,
+pp. 3–15, 2003.
+[39] X. Tan and B. Triggs, “Enhanced local texture feature sets for face
+recognition under difficult lighting conditions,” tip, vol. 19, pp. 1635–
+1650, jUNE 2010.
+[40] J. Wright, A. Y. Yang, A. Ganesh, S. S. Sastry, and Y. Ma, “Robust face
+recognition via sparse representation,” TPAMI, vol. 31, no. 2, pp. 210–
+227, 2009.
+[41] W. Deng, J. Hu, and J. Guo, “Extended SRC: Undersampled face
+recognition via intraclass variant dictionary,” TPAMI, vol. 34, no. 9,
+pp. 1864–1870, 2012.
+[42] A. Y. Yang, S. S. Sastry, A. Ganesh, and Y. Ma, “Fast l1-minimization
+algorithms and an application in robust face recognition: A review,” in
+ICIP, 2010, pp. 1849–1852.
+[43] K. Simonyan and A. Zisserman, “Very deep convolutional networks for
+large-scale image recognition,” in ICLR, 2015.
+[44] Y. Jia, E. Shelhamer, J. Donahue, S. Karayev, J. Long, R. Girshick, and
+T. Darrell, “Caffe: Convolutional architecture for fast feature embed-
+ding,” in ACM Int. Conf. Multimedia (MM), 2014, pp. 675–678.
+[45] G. E. Hinton, N. Srivastava, A. Krizhevsky, I. Sutskever, and
+R. R. Salakhutdinov, “Improving neural networks by preventing co-
+adaptation of feature detectors,” arXiv preprint arXiv:1207.0580, 2012.
+[46] M. D. Zeiler and R. Fergus, “Visualizing and understanding convolu-
+tional networks,” in ECCV, 2014, pp. 818–833.
+[47] H. Jiang and E. G. Learned-Miller, “Face detection with
+the faster RCNN,” CoRR,, 2016. [Online]. Available:
+http://arxiv.org/abs/1606.03473
+[48] M. Mathias, R. Benenson, M. Pedersoli, and L. Van Gool, “Face
+detection without bells and whistles,” in ECCV, 2014, pp. 720–735.
+[49] P. N. Belhumeur, D. W. Jacobs, D. J. Kriegman, and N. Kumar,
+“Localizing parts of faces using a consensus of exemplars,” in CVPR,
+2011, pp. 545–552.
+[50] M. Koestinger, P. Wohlhart, P. M. Roth, and H. Bischof, “Annotated
+facial landmarks in the wild: A large-scale, real-world database for facial
+landmark localization,” in ICCVW, 2011, pp. 2144–2151.
+[51] C. Sagonas, G. Tzimiropoulos, S. Zafeiriou, and M. Pantic, “300 faces
+in-the-wild challenge: The first facial landmark localization challenge,”
+in CVPRW, 2013, pp. 397–403.
+[52] P. N. Belhumeur, D. W. Jacobs, D. J. Kriegman, and N. Kumar,
+“Localizing parts of faces using a consensus of exemplars,” in CVPR,
+2011, pp. 545–552.
+[53] T. Hassner, S. Harel, E. Paz, and R. Enbar, “Effective face frontalization
+in unconstrained images,” in CVPR, 2015, pp. 4295–4304.
+[54] A. Li, S. Shan, and W. Gao, “Coupled bias-variance tradeoff for
+crosspose face recognition,” TIP, vol. 21, no. 1, pp. 305–315, 2012.
+[55] Z. Zhu, P. Luo, X. Wang, and X. Tang, “Deep learning identitypreserving
+face space,” in ICCV, 2013, pp. 113–120.
+[56] W. Gao, B. Cao, S. Shan, X. Chen, D. Zhou, X. Zhang, and D. Zhao,
+“The cas-peal large-scale chinese face database and baseline evalua-
+tions,” TSMC-A, vol. 38, no. 1, pp. 149–161, Jan 2008.
+[57] K. Ricanek and T. Tesafaye, “Morph: A longitudinal image database of
+normal adult age-progression,” in FG, 2006, pp. 341–345.
+[58] N. Kumar, A. C. Berg, P. N. Belhumeur, and S. K. Nayar, “Attribute and
+simile classifiers for face verification,” in ICCV, 2009, pp. 365–372.
+[59] Z. Liu, P. Luo, X. Wang, and X. Tang, “Deep learning face attributes in
+the wild,” in ICCV, 2015, pp. 3730–3738.

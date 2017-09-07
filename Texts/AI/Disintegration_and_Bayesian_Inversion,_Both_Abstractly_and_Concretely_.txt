@@ -1,0 +1,1874 @@
+Disintegration and Bayesian Inversion,
+Both Abstractly and Concretely†
+KENTA CHO and BART JACOBS
+Institute for Computing and Information Sciences Radboud University
+P.O.Box 9010, 6500 GL Nijmegen, the Netherlands
+Received 4 September 2017
+The notions of disintegration and Bayesian inversion are fundamental in conditional
+probability theory. They produce channels, as conditional probabilities, from a joint state,
+or from an already given channel (in opposite direction). These notions exist in the
+literature, in concrete situations, but are presented here in abstract graphical formulations.
+The resulting abstract descriptions are used for proving basic results in conditional
+probability theory. The existence of disintegration and Bayesian inversion is discussed for
+discrete probability, and also for measure-theoretic probability — via standard Borel
+spaces and via likelihoods. Finally, the usefulness of disintegration and Bayesian inversion
+is illustrated in several non-trivial examples.
+1. Introduction
+The essence of conditional probability can be summarised informally in the following
+equation about probability distributions:
+joint = conditional · marginal.
+A bit more precisely, when we have joint probabilities P(x, y) for elements x, y ranging
+over two sample spaces, the above equation splits into two equations,
+P(y | x) · P(x) = P(x, y) = P(x | y) · P(y), (1)
+where P(x) and P(y) describe the marginals, which are obtained by discarding variables.
+We see that conditional probabilities P(y | x) and P(x | y) can be constructed in two
+directions, namely y given x, and x given y. We also see that we need to copy variables:
+x on the left-hand-side of the equations (1), and y on the right-hand-side.
+Conditional probabilities play a crucial role in Bayesian probability theory. They form
+the nodes of Bayesian networks (Pearl, 1988; Bernardo and Smith, 2000; Barber, 2012),
+† The research leading to these results has received funding from the European Research Council under
+the European Union’s Seventh Framework Programme (FP7/2007-2013) / ERC grant agreement
+nr. 320571.
+ar
+X
+iv
+:1
+70
+9.
+00
+32
+2v
+1 
+ [
+cs
+.A
+I]
+  2
+9 
+A
+ug
+ 2
+01
+7
+K. Cho and B. Jacobs 2
+which reflect the conditional independences of the underlying joint distribution via their
+graph structure. As part of our approach, we shall capture conditional independence in
+an abstract manner.
+The main notion of this paper is disintegration. It is the process of extracting a
+conditional probability from a joint probability. Disintegration, as we shall formalise
+it here, gives a structural description of the above equation (1) in terms of states and
+channels. In general terms, a state is a probability distribution of some sort (discrete,
+measure-theoretic, or even quantum) and a channel is a map or morphism in a probabilistic
+setting, like P(y | x) and P(x | y) as used above. It can take the form of a stochastic
+matrix, probabilistic transition system, Markov kernel, conditional probability table (in a
+Bayesian network), or morphism in a Kleisli category of a ‘probability monad’ (Jacobs,
+2017). A state is a special kind of channel, with trivial domain. Thus we can work in a
+monoidal category of channels, where we need discarding and copying — more formally, a
+comonoid structure on each object — in order to express the above conditional probability
+equations (1).
+In this article we abstract away from interpretation details and will describe disinte-
+gration pictorially, in the language of string diagrams. This language can be seen as the
+internal language of symmetric monoidal categories (Selinger, 2010) — with comonoids
+in our case. The essence of disintegration becomes: extracting a conditional probability
+channel from a joint state.
+A categorical approach to Bayesian conditioning has appeared for instance in (Culbert-
+son and Sturtz, 2014; Staton et al., 2016; Clerc et al., 2017) and in (Jacobs et al., 2015;
+Jacobs and Zanasi, 2016; Jacobs, 2017). The latter references use effectus theory (Jacobs,
+2015; Cho et al., 2015), a new comprehensive approach aimed at covering the logic of
+both quantum theory and probability theory, supported by a Python-based tool ‘EfProb’,
+for ‘effectus probability’. This tool is used for the (computationally extensive) examples
+in this paper.
+Disintegration, also known as regular conditional probability, is a notoriously difficult
+operation in measure-theoretic probability, see e.g. (Pollard, 2002; Panangaden, 2009;
+Chang and Pollard, 1997): it may not exist (Stoyanov, 2014); even if it exists it may be de-
+termined only up to negligible sets; and it may not be continuous or computable (Ackerman
+et al., 2011). Disintegration has been studied using categorical language in (Culbertson
+and Sturtz, 2014), which focuses on a specific category of probabilistic mappings. Our
+approach here is more axiomatic.
+We thus describe disintegration as going from a joint state to a channel. A closely
+related concept is Bayesian inversion: it turns a channel (with a state) into a channel in
+opposite direction. We show how Bayesian inversion can be understood and expressed
+easily in terms of disintegration — and also how, in the other direction, disintegration
+can be obtained from Bayesian inversion. Bayesian inversion is taken as primitive notion
+in (Clerc et al., 2017). Here we start from disintegration. The difference is a matter of
+choice.
+Bayesian inversion is crucial for backward inference. We explain it informally: let ? be
+a state of a domain/type X, and c : X ? Y be a channel; Bayesian inversion yields a
+channel d : Y ? X. Informally, it produces for an element y ? Y , seen as singleton/point
+Disintegration and Bayesian Inversion 3
+predicate {y}, the conditioning of the state ? with the pulled back evidence c?1({y}).
+A concrete example involving such ‘point observations’ will be described at the end of
+Section 8. More generally, disintegration and Bayesian inversion are used to structurally
+organise state updates in presence of new evidence in probabilistic programming, see
+e.g. (Gordon et al., 2014; Borgström et al., 2013; Staton et al., 2016; Katoen et al.,
+2015). See also (Shan and Ramsey, 2017), where disintegration is handled via symbolic
+manipulation.
+Disintegration and Bayesian inversion are relatively easy to define in discrete probability
+theory. The situation is much more difficult in measure-theoretic probability theory, first
+of all because point predicates {y} do not make much sense there, see also (Chang and
+Pollard, 1997). A common solution to the problem of the existence of disintegration /
+Bayesian inversion is to restrict ourselves to standard Borel spaces, as in (Clerc et al.,
+2017). We take this approach too. There is still an issue that disintegration is determined
+only up to negligible sets. We address this by defining ‘almost equality’ in our abstract
+pictorial formulation. This allows us to present a fundamental result from (Clerc et al.,
+2017) abstractly in our setting, see Section 5.
+Another common, more concrete solution is to assume a likelihood, that is, a probabilistic
+relation X × Y ? R?0. Such a likelihood gives rise to probability density function (pdf),
+providing a good handle on the situation, see (Pawitan, 2001). The technical core of
+Section 8 is a generalisation of this likelihood-based approach.
+The paper is organised as follows. It starts with a brief introduction to the graphical
+language that we shall be using, and to the underlying monoidal categories with discarding
+and copying. Then, Section 3 introduces both disintegration and Bayesian inversion in
+this graphical language, and relates the two notions. Subsequently, Section 4 contains an
+elaborated example, namely of naive Bayesian classification. A standard example from
+the literature (Witten et al., 2011) is redescribed in the current setting: first, channels
+are extracted via disintegration from a table with given data; next, Bayesian inversion
+is applied to the combined extracted channels, giving the required classification. This is
+illustrated in both the discrete and the continuous version of the example.
+Next, Section 5 is more technical and elaborates the standard equality notion of ‘equal
+almost everywhere’ in the current setting. This is used for describing Bayesian inversion
+in a more formal way, following (Clerc et al., 2017). Section 6 uses our graphical approach
+to review conditional independence and to prove at an abstract level several known
+results, namely equivalence of various formulations of conditional independence, and the
+‘graphoid’ axioms from (Verma and Pearl, 1988; Geiger et al., 1990). Section 7 relaxes the
+requirement that maps are causal, so that ‘effects’ can be used as the duals of states for
+validity and conditioning. The main result relates conditioning of joint states to forward
+and backward inference via the extracted channels, in the style of (Jacobs and Zanasi,
+2016); it is illustrated in a concrete example, where a Bayesian network is seen as a graph
+in a Kleisli category — following (Fong, 2012). Finally, Section 8 gives the likelihood
+formulation of disintegration and inversion, as briefly described above.
+K. Cho and B. Jacobs 4
+2. Graphical language
+The basic idea underlying this paper is to describe probability theory in terms of channels.
+A channel f : X ? Y is a (stochastic) process from a system of type X into that of Y .
+Concretely, it may be a probability matrix or kernel. Our standing assumption is that
+types (as objects) and channels (as arrows) form a symmetric monoidal category. For the
+formal definition we refer to (Mac Lane, 1998). We informally summarise that we have
+the following constructions.
+1 Sequential composition g ? f : X ? Z for appropriately typed channels f : X ? Y
+and g : Y ? Z.
+2 Parallel composition f ? g : X ? Z ? Y ?W for f : X ? Y and g : Z ? W . This
+involves composition of types X ? Z.
+3 Identity channels idX : X ? X, which ‘do nothing’. Thus id ? f = f = id ? f .
+4 A unit type I, which represents ‘no system’. Thus I ?X ?= X ?= X ? I.
+5 Swap isomorphisms X ? Y ?= Y ?X and associativity isomorphisms (X ? Y )? Z ?=
+X ? (Y ? Z), so the ordering in composed types does not matter.
+Representation of such channels in the ordinary ‘formula’ notation easily becomes
+complex and thus reasoning becomes hard to follow. A graphical language known as
+string diagrams offers a more convenient and intuitive way of reasoning in a symmetric
+monoidal category.
+In string diagrams, types/objects are represented as wires ‘ ’, with information flowing
+bottom to top. The composition of types is depicted by juxtaposition of wires, and the
+unit type is ‘no diagram’ as below.
+X ? Y = X Y I =
+Channels/arrows are represented by boxes with an input wire(s) and an output wire(s),
+in upward direction. When a box does not have input or output, we write it as a triangle
+or diamond. For example, f : X ? Y ? Z, ? : I ? X, p : X ? I, and s : I ? I are
+respectively depicted as:
+f
+X
+Y Z
+?
+X p
+X
+s
+The identity channels are represented by ‘no box’, i.e. just wires, and the swap isomor-
+phisms are represented by crossing of wires:
+id
+X
+X
+= X
+X
+X
+Y
+Y
+Finally, the sequential composition of channels is depicted by connecting the input and
+Disintegration and Bayesian Inversion 5
+output wires, and the parallel composition is given by juxtaposition, respectively as below:
+g ? f =
+f
+g
+h? k = h k
+The use of string diagrams is justified by the following ‘coherence’ theorem, see (Selinger,
+2010).
+Theorem 2.1. A well-formed equation between composites of arrows in a symmetric
+monoidal category follows from the axioms of symmetric monoidal categories if and only
+if the string diagrams of both sides are equal up to isomorphism of diagrams.
+We further assume the following structure in our category. For each type X there are a
+discarder X : X ? I and a copier X : X ? X ?X. They are required to satisfy the
+following equations:
+= = = =
+This says that ( X , X) forms a commutative comonoid on X. By the associativity we
+may write:
+. . . := . . .
+Moreover we assume that the comonoid structures ( X , X) are compatible with the
+monoidal structure (?, I), in the sense that the following equations hold.
+X ? Y = X Y I = X ? Y = X Y I
+=
+Note that we do not assume that these maps are natural. Explicitly, we do not necessarily
+have ? f = (f ? f) ? or ? f = .
+We will use these symmetric monoidal categories throughout in the paper. For conve-
+nience, we introduce a term for them.
+Definition 2.2. A CD-category is a symmetric monoidal category (C,?, I) with a
+commutative comonoid ( X , X) for each X ? C, suitably compatible as described
+above.
+Here ‘CD’ stands for Copy/Discard.
+Definition 2.3. An arrow f : X ? Y in a CD-category is said to be causal if
+f = .
+A CD-category is affine if all the arrows are causal, or equivalently, the tensor unit I is a
+final object.
+K. Cho and B. Jacobs 6
+The term ‘causal’ comes from (categorical) quantum foundation (Coecke and Kissinger,
+2017; D’Ariano et al., 2017), and is related to relativistic causality, see e.g. (Coecke, 2016).
+We reserve the term ‘channel’ for causal arrows. Explicitly, causal arrows c : X ? Y
+in a CD-category are called channels. A channel ? : I ? X with input type I is called a
+state (on X). For the time being we only consider affine CD-categories, where all arrows
+are channels.
+Example 2.4. Our main examples of affine CD-categories are two Kleisli categories K`(D)
+and K`(G), respectively, for discrete probability, and more general, measure-theoretic
+probability.
+1 What we call a distribution or a state over a set X is a finite subset {x1, x2, . . . , xn} ?
+X, called the support where each element xi occurs with a multiplicity ri ? [0, 1], such
+that
+?
+i ri = 1. Such a convex combination is often written as r1|x1?+ · · ·+ rn|xn?
+with ri ? [0, 1]. The ket notation |?? is meaningless syntactic sugar that is used
+to distinguish elements x ? X from occurrences in such formal sums. Notice that
+a distribution can also be written as a function ? : X ? [0, 1] with finite support
+supp(?) = {x ? X | ?(x) 6= 0}. We shall write D(X) for the set of distributions over
+X. This D is a monad on the category Set of sets and functions.
+A function f : X ? D(Y ) is called a Kleisli map; it forms a channel X ? Y . Such
+maps can be composed as matrices, for which we use special notation ?· .
+(g ?· f)(x)(z) =
+?
+y?Y f(x)(y) · g(y)(z) for g : Y ? D(Z) with x ? X, z ? Z.
+We write 1 = {?} for a singleton set, and 2 = 1 + 1 = {0, 1}. Notice that D(1) ?= 1
+and D(2) ?= [0, 1]. We can identify a state on X with a channel 1? X.
+The monad D is known to be commutative. This implies that finite products of sets
+X × Y give rise to a symmetric monoidal structure on the Kleisli category K`(D).
+Specifically, for two maps f : X ? D(Y ) and g : Z ? D(W ), the tensor product /
+parallel composition f ? g : X × Z ? D(Y ×W ) is given by:
+(f ? g)(x, z)(y, w) = f(x, y) · g(z, w).
+For each set X there are a copier X : X ? D(X×X) and a discarder X : X ? D(1)
+given by X(x) = 1|x, x? and X(x) = 1|??, respectively. They come from the
+cartesian (finite product) structure of the base category Set, through the obvious
+functor Set? K`(D). Therefore K`(D) is a CD-category. It is moreover affine, since
+the monad is affine in the sense that D(1) ?= 1.
+2 Let X = (X,?X) be a measurable space, where ?X is a ?-algebra on X. A probability
+measure, also called a state, on X is a function ? : ?X ? [0, 1] which is countably
+additive and satisfies ?(X) = 1. We write G(X) for the collection of all such probability
+measures on X. This set G(X) is itself a measurable space. Notice that G(X) ?= D(X)
+when X is a finite set (as discrete space). In particular, G(2) ?= D(2) ?= [0, 1]. This G
+is a monad on the category Meas of measurable spaces, with measurable functions
+between them; it is called the Giry monad, after (Giry, 1982; Jacobs, 2017).
+A Kleisli map, that is, a measurable function f : X ? G(Y ) is a channel (or a probability
+kernel, see Example 7.1). These channels can be composed, via Kleisli composition ?· ,
+Disintegration and Bayesian Inversion 7
+using integration:
+(g ?· f)(x)(C) =
+?
+Y
+g(y)(C) f(x)(dy) where g : Y ? G(Z) and x ? X,C ? ?Z .
+It is well-known that the monad G is commutative and affine, see also (Jacobs, 2017).
+Thus, in a similar manner to the previous example, the Kleisli category K`(G) is
+an affine CD-category. The parallel composition f ? g : X × Z ? G(Y × W ) for
+f : X ? G(Y ) and g : Z ? G(W ) is given as:
+(f ? g)(x, z)(B ×D) = f(x)(B) · g(z)(D),
+for x ? X, z ? Z, B ? ?Y , and D ? ?W . This indeed determines a unique measure
+(f ? g)(x, z) ? G(Y ×W ), which is a product measure of probability measures f(x)
+and g(z).
+3. Marginalisation, integration and disintegration
+Let C be an affine CD-category. We think of states ? : I ? X in C as abstract (probability)
+distributions on type X. States of the form ? : I ? X ? Y , often called (bipartite) joint
+states, are seen as joint distributions on X and Y . Later on we shall also consider n-
+partite joint states, but for the time being we restrict ourselves to bipartite ones. For a
+joint distribution P(x, y) in ordinary discrete probability, we can calculate the marginal
+distribution on X by summing (or marginalising) Y out, as P(x) =
+?
+y P(x, y). The
+marginal distribution on Y is also calculated by P(y) =
+?
+x P(x, y). In our abstract
+setting, given a joint state ? : I ? X ? Y , we can obtain marginal states simply by
+discarding wires, as in:
+?
+X marginal on X?????????? [
+?
+X Y marginal on Y7??????????
+?
+Y
+In other words, the marginal states are the state ? composed with the projection maps
+?1 : X ? Y ? X and ?2 : X ? Y ? Y , as below.
+?1 :=
+X Y
+?2 :=
+X Y
+Example 3.1. For a joint state ? ? D(X ×X) in K`(D), the first marginal ?1 = ?1 ?· ?
+is given by ?1(x) =
+?
+y?Y ?(x, y), as expected. For a joint state ? ? G(X ×X) in K`(G),
+the first marginal is given by ?1(A) = ?(A× Y ) for A ? ?X . The second marginals are
+similar.
+A channel c : X ? Y is seen as an abstract conditional distribution P(y|x). In ordinary
+probability theory, we can calculate a joint distribution P(x, y) from a distribution P(x)
+and a conditional distribution P(y|x) by the formula P(x, y) = P(y|x) · P(x), which is
+often called the product rule. Similarly we have P(x, y) = P(x|y) · P(y). In our setting,
+starting from a state ? : I ? X and a channel c : X ? Y , or a state ? : I ? Y and
+a channel d : Y ? X, we can ‘integrate’ them into a joint state on X ? Y as follows,
+K. Cho and B. Jacobs 8
+respectively:
+?
+c
+X Y
+or
+?
+d
+X Y
+(2)
+Example 3.2. Let ? ? D(X) and c : X ? D(Y ) be a state and a channel in K`(D). An
+easy calculation verifies that ? = (id? c) ?· ?· ?, the joint state on X × Y defined as in
+(2), satisfies ?(x, y) = c(x)(y) · ?(x), as we expect from the product rule.
+For a state ? ? G(X) and a channel c : X ? G(Y ) in K`(G), the joint state ? =
+(id? c) ?· ?· ? is given by ?(A×B) =
+?
+A
+c(x)(B)?(dx) for A ? ?X and B ? ?Y . This
+‘integration’ construction of a joint probability measure is standard, see e.g. (Pollard,
+2002; Panangaden, 2009).
+Disintegration is an inverse operation of the ‘integration’ of a state and a channel into
+a joint state, as in (2). More specifically, it starts from a joint state ? : I ? X ? Y and
+extracts either a state ?1 : I ? X and a channel c1 : X ? Y , or a state ?2 : I ? Y and a
+channel c2 : Y ? X as below,
+(
+?1
+X
+, c1
+Y
+X
+)
+disintegration????????? [
+?
+X Y disintegration7?????????
+(
+?2
+Y
+, c2
+X
+Y
+)
+such that the equation on the left or right below holds, respectively.
+?1
+c1
+X Y
+=
+?
+X Y
+=
+?2
+c2
+X Y
+(3)
+We immediately see from the equation that ?1 and ?2 must be marginals of ?:
+?
+=
+?1
+c1
+=
+?1
+=
+?1
+and similarly
+?
+=
+?2
+.
+We are thus led to the following definition.
+Definition 3.3. Let ? : I ? X?Y be a joint state. A channel c1 : X ? Y (or c2 : Y ? X)
+is called a disintegration of ? if it satisfies the equation (3) with ?i the marginals of ?.
+Example 3.4. Let ? ? D(X × Y ) be a joint state in K`(D). We write ?1 ? D(X) for
+Disintegration and Bayesian Inversion 9
+the first marginal, given by ?1(x) =
+?
+y ?(x, y). Then a channel c : X ? D(Y ) is a
+disintegration of ? if and only if ?(x, y) = c(x)(y) · ?1(x) for all x ? X and y ? Y . It
+turns out that there is always such a channel c. We define a channel c by:
+c(x)(y) := ?(x, y)
+?1(x)
+if ?1(x) 6= 0 ,
+and c(x) := ? if ?1(x) = 0, for an arbitrary state ? ? D(Y ). (We may assume that Y is
+nonempty.) This indeed defines a channel c satisfying the required equation. Roughly
+speaking, disintegration in discrete probability is nothing but the ‘definition’ of conditional
+probability: P(y|x) = P(x, y)/P(x). There is still some subtlety — disintegrations need
+not be unique, when there are x ? X with ?1(x) = 0.
+Disintegrations in measure-theoretic probability, in K`(G), are far more difficult. Let
+? ? G(X×Y ) be a joint state, with ?1 ? G(X) the first marginal. A channel c : X ? G(Y )
+is a disintegration of ? if and only if
+?(A×B) =
+?
+A
+c(x)(B)?1(dx)
+for all A ? ?X and B ? ?Y . This is the ordinary notion of disintegration (of probability
+measures), also known as regular conditional probability; see e.g. (Faden, 1985; Pollard,
+2002; Panangaden, 2009). We see that there is no obvious way to obtain a channel c
+here, unlike the discrete case. In fact, a disintegration may not exist (Stoyanov, 2014).
+There are, however, a number of results that guarantee the existence of a disintegration
+in certain situations. We will come back to this issue later in the section.
+Bayesian inversion is a special form of disintegration, occurring frequently. We start
+from a state ? : I ? X and a channel c : X ? Y . We then integrate them into a joint
+state on X and Y , and disintegrate it in the other direction, as below.
+(
+?
+X
+, c
+Y
+X
+)
+integration7????????
+?
+c
+X Y
+disintegration7?????????
+(
+?
+c
+Y
+, d
+X
+Y
+)
+We call the disintegration d : Y ? X a Bayesian inversion for ? : I ? X along c : X ? Y .
+By unfolding the definitions, a channel d : Y ? X is a Bayesian inversion if and only if
+?
+c
+=
+?
+d
+c
+. (4)
+Example 3.5. Let ? ? D(X) and c : X ? D(Y ) be a state and a channel in K`(D).
+Then a channel d : Y ? D(X) is a Bayesian inversion for ? along c if and only if
+c(x)(y) · ?(x) = d(y)(x) · c?(?)(y), where c?(?)(y) =
+?
+x? c(x?)(y) · ?(x?). In a similar
+K. Cho and B. Jacobs 10
+manner to Example 3.4, we can obtain such a d by:
+d(y)(x) := c(x)(y) · ?(x)
+c?(?)(y)
+= c(x)(y) · ?(x)?
+x? c(x?)(y) · ?(x?)
+for y ? Y with c?(?)(y) 6= 0. For y ? Y with c?(?)(y) = 0, we may define d(y) to be an
+arbitrary state in D(X). We can recognise the above formula as the Bayes formula:
+P(x|y) = P(y|x) · P(x)P(y) =
+P(y|x) · P(x)?
+x? P(y|x?) · P(x?)
+.
+Let ? ? G(X) and c : X ? G(Y ) be a state and a channel in K`(G). A channel
+d : Y ? G(X) is a Bayesian inversion if and only if?
+A
+c(x)(B)?(dx) =
+?
+B
+d(y)(A) c?(?)(dy)
+for all A ? ?X and B ? ?Y . Here c?(?) ? G(Y ) is the measure given by c?(?)(B) =?
+X
+c(x)(B)?(dx). As we see below, Bayesian inversions are in some sense equivalent to
+disintegrations, and thus, they are as difficult as disintegrations. In particular, a Bayesian
+inversion need not exist.
+In practice, however, the state ? and channel c are often given via density functions.
+This setting, so-called (absolutely) continuous probability, makes it easy to compute a
+Bayesian inversion. Suppose that X and Y are subspaces of R, and that ? and c admit
+density functions as
+?(A) =
+?
+A
+f(x) dx c(x)(B) =
+?
+B
+`(x, y) dy
+for measurable functions f : X ? R?0 and ` : X × Y ? R?0. The conditional probability
+density `(x, y) of y given x is often called the likelihood of x given y. By the familiar
+Bayes formula for densities — see e.g. (Bernardo and Smith, 2000) — the conditional
+density of x given y is:
+k(y, x) := `(x, y) · f(x)?
+X
+`(x?, y) · f(x?) dx? .
+This k then gives a channel d : Y ? G(X) by
+d(y)(A) =
+?
+A
+k(y, x) dx
+for each y ? Y such that
+?
+X
+`(x?, y) · f(x?) dx? 6= 0. For the other y’s we define d(y) to be
+some fixed state in G(X). An elementary calculation verifies that d is indeed a Bayesian
+inversion for ? along c. Later, in Section 8, we generalise this calculation into our abstract
+setting.
+Although Bayesian inversions are a special case of disintegrations, we can conversely
+obtain disintegrations from Bayesian inversions, as in the proposition below. Therefore,
+in some sense the two notions are equivalent.
+Proposition 3.6. Let ? be a state on X?Y . Let d : X ? X?Y be a Bayesian inversion
+Disintegration and Bayesian Inversion 11
+for ? along the first projection ?1 : X ? Y ? X on the left below.
+?1 =
+X Y
+?2 ? d = d
+X
+Y
+Then the composite ?2 ? d : X ? Y shown on the right above is a disintegration of ?.
+Proof. We prove that the first equation in (3) holds for c1 = ?2 ? d, as follows.
+?
+d
+=
+?
+d
+=
+?
+d ?=
+?
+=
+?
+=
+?
+For the marked equality ?= we used the equation (4) for the Bayesian inversion d.
+We say that an affine CD-category C admits disintegration if for every bipartite state
+? : I ? X ? Y there exist a disintegration c1 : X ? Y of ?. Note that in such categories
+there also exists a disintegration c2 : Y ? X of ? in the other direction, since it can be
+obtained as a disintegration of the following state:
+?
+Y X
+.
+By Proposition 3.6, admitting disintegration is equivalent to admitting Bayesian inversion.
+In Example 3.4, we have seen that K`(D) admits disintegration, but that in measure-
+theoretic probability, in K`(G), disintegrations may not exist. There are however a
+number of results that guarantee the existence of disintegrations in specific situations,
+see e.g. (Pachl, 1978; Faden, 1985). We here invoke one of these results and show that
+there is a subcategory of K`(G) that admits disintegration. A measurable space is called
+a standard Borel space if it is measurably isomorphic to a Polish space with its Borel
+?-algebra, or equivalently, if it is measurably isomorphic to a Borel subspace of R. Then
+the following theorem is standard, see e.g. (Pollard, 2002, §5.2) or (Faden, 1985, §5).
+Theorem 3.7. Let X be any measurable space and Y be a standard Borel space. Then for
+any state (i.e. a probability measure) ? ? G(X×Y ) in K`(G), there exists a disintegration
+c1 : X ? G(Y ) of ?.
+Let pKrnsb be the full subcategory of K`(G) consisting of standard Borel spaces as
+objects. It is easy to see that pKrnsb is an affine CD-category. Then the previous theorem
+immediately shows:
+Corollary 3.8. The category pKrnsb admits disintegration.
+We note that pKrnsb can also be seen as the Kleisli category of the Giry monad restricted
+on the category of standard Borel spaces.
+K. Cho and B. Jacobs 12
+Since there are various ‘existence’ theorems like Theorem 3.7, there may be other
+subcategories of K`(G) that admit disintegration. A likely candidate is the category of
+perfect probabilistic mappings in (Culbertson and Sturtz, 2014). We do not go into this
+question here, since pKrnsb suffices for the present paper.
+4. Example: naive Bayesian classifiers via inversion
+Bayesian classification is a well-known technique in machine learning that produces a
+distribution over data classifications, given certain sample data. The distribution describes
+the probability, for each data (classification) category, that the sample data is in that
+category. Here we consider an example of ‘naive’ Bayesian classification, where the features
+are assumed to be independent. We consider a standard classification example from the
+literature which forms an ideal setting to illustrate the use of both disintegration and
+Bayesian inversion. Disintegration is used to extract channels from a given table, and
+subsequently Bayesian inversion is applied to (the tuple of) these channels to obtain the
+actual classification. The use of channels and disintegration/inversion in this classification
+setting is new, as far as we know.
+For the calculations in this example we use the EfProb library (Cho and Jacobs, 2017),
+of which we explain the notation for marginalisation and disintegration. There are many
+ways to marginalise an n-partite state, namely one for each subset of the wires {1, 2, . . . , n}.
+In EfProb such a subset is described as a mask, consisting of a list of n zero’s or one’s,
+where a zero at position i means that the i-th wire/component is marginalised out, and a
+one at position i means that it remains. Such a mask M = [b1, . . . , bn] with bi ? {0, 1} is
+used in EfProb as a post-fix operation in ? % M on an n-partite state ?. An example
+explains it all:
+if ? = then ? % [1, 0, 1, 0, 0] =
+In a similar way one can disintegrate an n-partite state in 2n may ways, where a mask of
+length n is now used to describe which wires are used as input to the extracted channel
+and which ones as output. In EfProb this is written as ?  M , where M is a mask, as
+above. A systematic description will be given in Section 6 below.
+In practice it is often useful to be able to marginalise first, and disintegrate next. The
+general description in n-ary form is a bit complicated, so we use an example for n = 5.
+We shall label the wires with xi, as on the left below. We seek the conditional probability
+written conventionally as c = ?[x1, x4 | x2, x5] on the right below.
+?
+x1 x2 x3 x4 x5
+c
+x1 x4
+x2 x5
+Disintegration and Bayesian Inversion 13
+Outlook Temperature Humidity Windy Play
+Sunny hot high false no
+Sunny hot high true no
+Overcast hot high false yes
+Rainy mild high false yes
+Rainy cool normal false yes
+Rainy cool normal true no
+Overcast cool normal true yes
+Sunny mild high false no
+Sunny cool normal false yes
+Rainy mild normal false yes
+Sunny mild normal true yes
+Overcast mild high true yes
+Overcast hot normal false yes
+Rainy mild high true no
+Fig. 1. Weather and play data, copied from (Witten et al., 2011).
+This channel c must satisfy:
+? =
+?
+c
+This picture shows how to obtain the channel c from ?: we first marginalise to restrict
+to the relevant wires x1, x2, x4, x5. This is written as ? % [1, 1, 0, 1, 1]. Subsequently we
+disintegrate with x1, x4 as output and x2, x5 as input. Hence:
+c := ? % [1, 1, 0, 1, 1]  [0, 1, 0, 1]
+= ?
+[
+[1, 0, 0, 1, 0] : [0, 1, 0, 0, 1]
+]
+in EfProb notation.
+We see that the latter EfProb post-fix
+[
+[1, 0, 0, 1, 0] : [0, 1, 0, 0, 1]
+]
+is a ‘variable free’ version
+of the traditional notation [x1, x4 | x2, x5], selecting the relevant positions — with |
+replaced by :.
+We have now prepared the ground and can turn to the classification example that we
+announced. It involves the classification of ‘playing’ (yes or no) for certain weather data,
+used in (Witten et al., 2011). We shall first go through the discrete example in some detail.
+The relevant data are in the table in Figure 1. The question is: given this table, what can
+be said about the probability of playing if the outlook is Sunny, the temperature is Cold,
+the humidity is High and it is Windy?
+Our plan is to first organise these table data into four channels dO, dT , dH , dW in a
+K. Cho and B. Jacobs 14
+network of the form: Outlook  Temperature  Humidity  Windy
+ PlaydO
+gg
+dH
+AA
+dW
+88
+dT
+__
+(5)
+The abstraction of these channels works by disintegration. The representation in EfProb
+starts by defining the relevant domains for the categories in the table in Figure 1. We
+choose abbreviations for the entries in each of the categories.
+>>> Outlook = [’S’, ’O’, ’R’]
+>>> Temp = [’H’, ’M’, ’C’]
+>>> Humidity = [’H’, ’N’]
+>>> Windy = [’t’, ’f’]
+>>> Play = [’y’, ’n’]
+>>> D = [Outlook, Temp, Humidity, Windy, Play]
+This last domain D combines the previous ones into a single domain. It is used for the
+representation of the table, where each of the 14 lines in Figure 1 gets a probability 1/14.
+>>> table = 1/14 ? point_state((’S’,’H’,’H’,’f’,’n’), D) \
+... + 1/14 ? point_state((’S’,’H’,’H’,’t’,’n’), D) \
+... + 1/14 ? point_state((’O’,’H’,’H’,’f’,’y’), D) \
+... + 1/14 ? point_state((’R’,’M’,’H’,’f’,’y’), D) \
+... + 1/14 ? point_state((’R’,’C’,’N’,’f’,’y’), D) \
+... + 1/14 ? point_state((’R’,’C’,’N’,’t’,’n’), D) \
+... + 1/14 ? point_state((’O’,’C’,’N’,’t’,’y’), D) \
+... + 1/14 ? point_state((’S’,’M’,’H’,’f’,’n’), D) \
+... + 1/14 ? point_state((’S’,’C’,’N’,’f’,’y’), D) \
+... + 1/14 ? point_state((’R’,’M’,’N’,’f’,’y’), D) \
+... + 1/14 ? point_state((’S’,’M’,’N’,’t’,’y’), D) \
+... + 1/14 ? point_state((’O’,’M’,’H’,’t’,’y’), D) \
+... + 1/14 ? point_state((’O’,’H’,’N’,’f’,’y’), D) \
+... + 1/14 ? point_state((’R’,’M’,’H’,’t’,’n’), D)
+In this way the table is transformed into a joint probability distribution on the (5-ary)
+domain D. Here, the transformation from table to distribution was done by hand, but it
+is easy enough to automate this process.
+We extract the four channels in Diagram (5) via appropriate disintegrations, from the
+Play column to the Outlook / Temperature / Humidity / Windy columns.
+>>> dO = table[[1,0,0,0,0] : [0,0,0,0,1]]
+>>> dT = table[[0,1,0,0,0] : [0,0,0,0,1]]
+>>> dH = table[[0,0,1,0,0] : [0,0,0,0,1]]
+Disintegration and Bayesian Inversion 15
+>>> dW = table[[0,0,0,1,0] : [0,0,0,0,1]]
+Thus, as described in the beginning of this section, the ‘outlook’ channel dO is extracted
+by first marginalising the table to the relevant wires, and then disintegrating. Explicitly,
+dO is table % [1,0,0,0,1] // [0,1].
+In a next step we combine these four channels into a single channel d via tupling. The
+answer that we are looking for will be obtained by Bayesian inversion of this channel d.
+But Bayesian inversion requires an additional initial state. For this we take the ‘Play’
+marginal of the table, in the fifth position.
+>>> d = (dO @ dT @ dH @ dW) ? copy(Play,4)
+>>> prior_play = table % [0,0,0,0,1]
+>>> prior_play
+0.643|y> + 0.357|n>
+>>> posterior_play = d.inversion(prior_play)(’S’,’C’,’H’,’t’)
+>>> posterior_play
+0.205|y> + 0.795|n>
+Notice that the assumptions — Sunny outlook, Cold temperature, High humidity, true
+windiness — are used as input to the inversion of d. The resulting classification probability
+of 0.205 coincides with the probability of 20.5% that is computed in (Witten et al., 2011)
+— in a rather ad hoc manner, without much of a theoretical basis.
+One could complain that our approach is ‘too’ abstract, since it remains magical what
+these extracted channels do. We elaborate the outlook channel dO, going from the Play
+to the Outlook domain. We print the two probability distributions for the two values y
+and n of the Play domain:
+>>> dO(’y’)
+0.222|S> + 0.444|O> + 0.333|R>
+>>> dO(’n’)
+0.6|S> + 0|O> + 0.4|R>
+The first distribution 29 |S?+
+4
+9 |O?+
+3
+9 |R? arises as follows. We need to concentrate on the
+9 lines in Figure 1 for which Play is yes; in these lines, in the first Outlook column, 2 out
+of 9 entries are Sunny, 4 out of 9 are Overcast, and 3 out of 9 are Rainy. This corresponds
+to the first distribution dO(’y’). Similarly, the second distribution captures the Outlook
+for the 5 lines where Play is no: 3 out of 5 are Sunny and 2 out of 5 are Rainy.
+There is a ‘continuous’ variation of this example where numerical values are used for
+temperature and humidity. We shall not repeat the table and refer to (Witten et al.,
+2011) for details. We use Bayesian inversion, as before, for classification, but we need
+a slightly different approach to extract channels for the ‘continuous’ features. One first
+computes the mean and standard deviation of the given numerical values, separately
+when Play is yes, and when Play is no. These means and standard deviations are used as
+parameters for Gaussian (normal) distributions in the EfProb channel definitions below.
+The mean and standard deviation values are copied from (Witten et al., 2011). We only
+define continuous channels for temperature and humidity, and re-use the discrete channels
+K. Cho and B. Jacobs 16
+for outlook and windiness to form a single ‘hybrid’ channel c that will be inverted for
+classification:
+>>> cT = chan_from_states([gaussian_state(73, 6.2),
+... gaussian_state(74.6, 7.9)], Play)
+>>> cH = chan_from_states([gaussian_state(79.1, 10.2),
+... gaussian_state(86.2, 9.7)], Play)
+>>> c = (dO @ cT @ cH @ dW) ? copy(Play,4)
+>>> c.inversion(prior_play)(’S’,66,90,’t’)
+0.207|y> + 0.793|n>
+The latter inversion computation produces the probability of 0.207 for playing when
+the outlook is Sunny, the temperature is 66 (Fahrenheit), the humidity is 90% and the
+windiness is true. The value computed in (Witten et al., 2011) is 20.8%. The minor
+difference of 0.001 with our outcome can be attributed to (intermediate) rounding errors.
+5. Almost equality of channels
+This section explains how the standard notion of ‘equal up to negligible sets’ or ‘equal
+almost everywhere’ (with respect to a measure) can be expressed abstractly using string
+diagrams. Via this equality relation Bayesian inversion can be characterised very neatly,
+following (Clerc et al., 2017). We consider an affine CD-category, continuing in the setting
+of Section 3.
+Definition 5.1. Let c, d : X ? Y be two parallel channels, and ? : I ? X be a state on
+their domain. We say that c is ?-almost equal to d, written as c ?? d if
+?
+c
+=
+?
+d
+.
+It is obvious that ?? is an equivalence relation on channels of type X ? Y . When S is a
+set of arrows of type X ? Y , we write S/? for the quotient S/ ??.
+To put it more intuitively, we have c ?? d iff c and d can be identified whenever the input
+wires are connected to ?, possibly through copiers. For instance, using the associativity
+and commutativity of copiers, by c ?? d we may reason as:
+?
+c
+=
+?
+c =
+?
+d =
+?
+d
+.
+Disintegration and Bayesian Inversion 17
+In particular, c ?? d if and only if
+?
+c
+=
+?
+d
+.
+Now the following is an obvious consequence from the definition.
+Proposition 5.2. If both c, d : X ? Y are disintegrations of a joint state ? : I ? X?Y ,
+then c ?1? d, where ?1 : I ? X is the first marginal of ?.
+For channels f, g : X ? D(Y ) and a state ? ? D(X) in K`(D), it is easy to see that
+f
+?? g if and only if f(x)(y) · ?(x) = g(x)(y) · ?(x) for all x ? X and y ? Y if and only
+if f(x) = g(x) for any x ? X with ?(x) 6= 0. Almost equality in K`(G) is less trivial but
+characterised in an expected way.
+Proposition 5.3. Let f, g : X ? G(Y ) be channels and µ ? G(X) a state in K`(G). Then
+f
+µ? g if and only if for any B ? ?Y , f(?)(B) = g(?)(B) µ-almost everywhere.
+Proof. By expanding the definition, f µ? g if and only if?
+A
+f(x)(B)µ(dx) =
+?
+A
+g(x)(B)µ(dx)
+for all A ? ?X and B ? ?Y . This is equivalent to f(?)(B) = g(?)(B) µ-almost everywhere
+for all B ? ?Y , see (Fremlin, 2000, 131H).
+Almost-everywhere equality of probability kernels f, g : X ? G(Y ) is often formulated
+by the stronger condition that f = g µ-almost everywhere. The next proposition shows
+that the stronger variant is equivalent under a reasonable assumption (any standard Borel
+space is countably generated, for example).
+Proposition 5.4. In the setting of the previous proposition, additionally assume that
+the measurable space Y is countably generated. Then f µ? g if and only if f = g µ-almost
+everywhere.
+Proof. Let the ?-algebra ?Y on Y be generated by a countable family (Bn)n. We may
+assume that (Bn)n is a ?-system, i.e. a family closed under binary intersections. Let
+An = {x ? X | f(x)(Bn) = g(x)(Bn)}, and A =
+?
+nAn. Each An is µ-conegligible, and
+thus A is µ-conegligible. For each x ? A, we have f(x)(Bn) = g(x)(Bn) for all n. By
+application of the Dynkin ?-? theorem, it follows that f(x) = g(x). Therefore f = g
+µ-almost everywhere.
+We can now present a fundamental result from (Clerc et al., 2017, §3.3) in our abstract
+setting. Let (I ? C) be the comma (coslice) category. for an affine CD-category C.
+Objects in (I ? C) are states in C, formally pairs (X,?) of objects X ? C and states
+? : I ? X. Arrows from (X,?) to (Y, ?) are state-preserving channels c : X ? Y in C
+K. Cho and B. Jacobs 18
+satisfying c ? ? = ? . A joint state (X ? Y, ?) ? (I ?C) is called a coupling of two states
+(X,?), (Y, ?) ? (I ?C) if
+?
+X
+=
+?
+X
+and
+?
+Y
+=
+?
+Y
+.
+We write Coupl((X,?), (Y, ?)) for the set of couplings of (X,?) and (Y, ?).
+Theorem 5.5. Let C be an affine CD-category that admits disintegration. For each pair
+of states (X,?), (Y, ?) ? (I ?C), there is the following bijection:
+(I ?C)
+(
+(X,?), (Y, ?)
+)
+/? ?= Coupl((X,?), (Y, ?))
+Proof. For each c ? (I ?C)
+(
+(X,?), (Y, ?)
+)
+, we define a joint state I ? X ? Y to be
+the ‘integration’ of ? and c as below, for which we use the following ad hoc notation:
+? = c :=
+?
+c
+X Y
+It is easy to check that ? = c is a coupling of ? and ? . For two channels c, d : X ? Y , we
+have ? = c = ? = d if and only if c ?? d, by the definition of ??. This means the mapping
+c 7?? ? = c , (I ?C)
+(
+(X,?), (Y, ?)
+)
+/? ?? Coupl((X,?), (Y, ?))
+is well-defined and injective. To prove the surjectivity let (X?Y, ?) ? Coupl((X,?), (Y, ?)).
+Let c : X ? Y be a disintegration of ?. Then c is state-preserving since
+? = ? =
+?
+c
+=
+?
+c
+=
+?
+c
+Moreover we have ? = c = ?, as desired.
+Via the symmetry X?Y
+?=? Y ?X we have the obvious bijection Coupl((X,?), (Y, ?)) ?=
+Coupl((Y, ?), (X,?)). This immediately gives the following corollary.
+Corollary 5.6. Let C be an affine CD-category that admits disintegration. For any
+states (X,?), (Y, ?) ? (I ?C) we have
+(I ?C)
+(
+(X,?), (Y, ?)
+)
+/? ?= (I ?C)
+(
+(Y, ?), (X,?)
+)
+/?
+The bijection sends a channel c : X ? Y to a Bayesian inversion d : Y ? X for ? along c.
+Theorem 2 of (Clerc et al., 2017) is obtained as an instance, for the category pKrnsb.
+This bijective correspondence yields a ‘dagger’ (?)† functor on (a suitable quotient of)
+the comma category (I ?C) — as noted by the authors of (Clerc et al., 2017).
+Disintegration and Bayesian Inversion 19
+5.1. Equality extension property
+The section concerns a property that allows us to extend almost-equality w.r.t. some state
+to a larger state which has the smaller state as marginal. This property is convenient for
+equational reasoning between string diagrams, and used later in the proof of Theorem 8.3.
+Definition 5.7. We say an affine CD-category has the equality extension property if
+for any joint state ? : I ? X ? Z and for any channels c, d : X ? Y , c ?1? d implies
+c? idZ
+?? d? idZ , where ?1 = ?1 ? ? is the first marginal of ?.
+Lemma 5.8. An affine CD-category has the equality extension property if and only if
+for any joint state ? : I ? X ? Z, and for any channels c, d : X ? Y ,
+c
+?1? d implies
+?
+c
+=
+?
+d
+where ?1 = ?1 ? ?.
+Proof. The ‘only if’ is obvious, since c?idZ
+?? d?idZ implies (c?idZ)?? = (d?idZ)??.
+To prove the ‘if’, assume c ?1? d for a state ? : I ? X ? Z and for channels c, d : X ? Y .
+We have to prove c? idZ
+?? d? idZ , i.e.
+?
+c
+=
+?
+d
+This follows from the latter condition applied to the following state:
+X Z?X?Z
+:=
+?
+X Z X Z
+.
+In fact, any category admitting disintegration has the equality extension property.
+Proposition 5.9. If an affine CD-category admits disintegration, then it has the equality
+extension property.
+Proof. Assume c ?1? d for a state ? : I ? X ? Z and for channels c, d : X ? Y , with
+?1 = ?1 ? ?. Suppose that ? is disintegrated as:
+?
+=
+?1
+e
+K. Cho and B. Jacobs 20
+Then
+?
+c
+=
+?1
+c e
+=
+?1
+d e
+=
+?
+d
+This concludes the proof by Lemma 5.8.
+Recall that K`(G) does not admit disintegration. Nevertheless, the category has the
+equality extension property.
+Proposition 5.10. The category K`(G) satisfies the equality extension property.
+Proof. We prove the claim using Proposition 5.3 and Lemma 5.8. Assume c ?1? d
+for ? ? G(X ? Z) and c, d : X ? G(Y ), with ?1 the first marginal of ?. The equality
+(c? ?Z) ?· ? = (d? ?Z) ?· ? is equivalent to:?
+X×Z
+c(x)(A)1C(z)?(d(x, z)) =
+?
+X×Z
+d(x)(A)1C(z)?(d(x, z)) (6)
+for all A ? ?X and C ? ?Z . Using??c(x)(A)1C(z)? d(x)(A)1C(z)?? = ??c(x)(A)? d(x)(A)??1C(z) ? ??c(x)(A)? d(x)(A)?? ,
+we have ????
+X×Z
+(
+c(x)(A)1C(z)? d(x)(A)1C(z)
+)
+?(d(x, z))
+???
+?
+?
+X×Z
+??c(x)(A)1C(z)? d(x)(A)1C(z)???(d(x, z))
+?
+?
+X×Z
+??c(x)(A)? d(x)(A)???(d(x, z))
+=
+?
+X
+??c(x)(A)? d(x)(A)?? (?1)?(?)(dx)
+=
+?
+X
+??c(x)(A)? d(x)(A)???1(dx)
+= 0 .
+This proves the desired equality (6).
+6. Conditional independence
+Throughout this section, we consider an affine CD-category that admits disintegration.
+6.1. Disintegration of multipartite states
+So far we have concentrated on bipartite states — except in the classification example in
+Section 4. In order to deal with a general n-partite state ? : I ? X1 ? · · · ?Xn, we will
+Disintegration and Bayesian Inversion 21
+introduce several notations and conventions in Definitions 6.1, 6.2 and 6.3 below; they
+are in line with standard practice in probability theory.
+In the conventions, an n-partite state, as below, is fixed, and used implicitly.
+?
+. . .X1 X2 Xn
+Definition 6.1. When we write
+. . .Xi1Xi2 Xik
+where i1, . . . , ik are distinct, it denotes the state I ? Xi1 ? · · · ?Xik obtained from ? by
+marginalisation and permutation of wires (if necessary). Let us give a couple of examples,
+for n = 5.
+X1 X4
+:=
+?
+X1
+X2 X3
+X4
+X5
+X4X2X5
+:=
+?
+X1
+X2
+X3
+X4 X5
+We permute wires via a combination of crossing. This is unambiguous by the coherence
+theorem.
+Below we will use symbols X,Y, Z,W, . . . to denote not only a single wire Xi but also
+multiple wires Xi ?Xj ? · · · . Disintegrations more general than in the bipartite case are
+now introduced as follows.
+Definition 6.2. ForX = Xi1?· · ·?Xik and Y = Xj1?· · ·?Xjl , with all i1, . . . , ik, j1, . . . , jl
+distinct, a disintegration X ? Y is defined to be a disintegration of
+X Y
+,
+the marginal state given by the previous convention. We denote the disintegration simply
+as on the left below,
+Y
+X
+YX
+=
+X Y
+By definition, it must satisfy the equation on the right above. Let us give an example.
+The disintegration X1 ?X4 ? X5 ?X2 on the left below is defined by the equation on
+K. Cho and B. Jacobs 22
+the right.
+X1
+X5 X2
+X4
+X1 X5 X2X4
+=
+X1X4X5X2
+More specifically, assuming n = 5 and expanding the notation for marginals, the equation
+is:
+?
+X1 X2
+X1 X3 X4
+X4X5
+=
+?
+X1 X2
+X3
+X4 X5
+Note that disintegrations need not be unique. Thus when we write
+Y
+X
+, we in fact choose
+one of them. Nevertheless, such disintegrations are unique up to almost-equality with
+respect to
+X
+, which is good enough for our purpose.
+Finally we make a convention about almost equality (Definition 5.1).
+Definition 6.3. Let S and T be string diagrams of type X ? Y that are made from
+marginals and disintegrations of ? as defined in Definitions 6.1 and 6.2. When we say S
+is almost equal to T (or write S ? T ) without reference to a state, it means that S is
+almost equal to T with respect to the state
+X
+.
+We shall make use of the following auxiliary equations involving discarding and compo-
+sition of disintegrations.
+Proposition 6.4. In the conventions and notations above, the following hold.
+1 X
+Y
+Z
+?
+X
+Z
+2 X
+Y W
+Z
+?
+X
+Y W
+Z
+Disintegration and Bayesian Inversion 23
+Proof. By the definition of almost equality, 1 is proved by:
+X
+Y
+Z
+=
+X
+Y
+Z
+=
+X Z
+=
+X Z
+.
+Similarly, we prove 2 as follows.
+X Y WZ
+=
+X Y WZ
+=
+X Y WZ
+=
+X Y WZ
+?=
+X Z Y W
+=
+X Z Y W
+=
+X YZ W
+For the marked equality ?=, we used the equality extension property, which is valid in a
+category with disintegration.
+The equations correspond respectively to
+?
+y P(x, y|z) = P(x|z) and P(x|y, z)·P(z|y, w) =
+P(x, z|y, w) in discrete probability.
+Remark 6.5. In this section, we use symbols X1, X2, . . . or X,Y, Z, . . . in order to
+specify wires in string diagrams. These symbols should not mean mere objects/types,
+since objects need not be distinct and thus we cannot distinguish wires by objects. As a
+consequence, our notations here are somewhat informal. One way to make our notations
+more formal is to introduce labels for wires (cf. (Kissinger, 2014)). For the present paper,
+however, our informal notations seem to be sufficient.
+6.2. Conditional independence
+We continue using the notations in the previous subsection. Recall that we fix an n-partite
+state
+?
+. . .X1 X2 Xn
+and use symbols X,Y, Z,W, . . . to denote a wire Xi or multiple wires Xi ?Xj ? · · · .
+We now introduce the notion of conditional independence. Although it is defined
+K. Cho and B. Jacobs 24
+with respect to the underlying state ?, we leave the state ? implicit, like an underlying
+probability space ? in ordinary probability theory.
+Definition 6.6. LetX,Y, Z denote distinct wires. Then we sayX and Y are conditionally
+independent given Z, written as X ‚ Y | Z, if
+X Y
+Z
+?
+X Y
+Z
+.
+The definition is analogous to the condition P(x, y|z) = P(x|z) P(y|z) in ordinary
+probability theory. Indeed our definition coincides with this ordinary one, as explained
+below.
+Example 6.7. In K`(D), let cX|Z : Z ? D(X), cY |Z : Z ? D(Y ), cXY |Z : Z ? D(X×Y )
+be disintegrations of some joint state, say ? ? D(X × Y × Z). Let ?Z ? D(Z) be the
+marginal on Z. Then X ‚ Y | Z if and only if
+cXY |Z(z)(x, y) = cX|Z(z)(x) · cY |Z(z)(y) whenever ?Z(z) 6= 0
+for all x ? X, y ? Y and z ? Z. If we write P(x, y|z) = cXY |Z(z)(x, y), P(x|z) =
+cX|Z(z)(x), P(y|z) = cY |Z(z)(y), and P(z) = ?Z(z), then the condition will look more
+familiar:
+P(x, y|z) = P(x|z) · P(y|z) whenever P(z) 6= 0 .
+Similarly, in K`(G), let cX|Z : Z ? G(X), cY |Z : Z ? G(Y ), cXY |Z : Z ? G(X × Y ),
+and ?Z ? G(Z) be appropriate disintegrations and a marginal of some joint probability
+measure ?. Then X ‚ Y | Z if and only if
+cXY |Z(z)(A×B) = cX|Z(z)(A) · cY |Z(z)(B) for ?Z-almost all z ? Z
+for all A ? ?X and B ? ?Y .
+The equivalences in the next result are well-known in conditional probability. Our
+contribution is that we formulate and prove them at an abstract, graphical level.
+Proposition 6.8. The following are equivalent.
+1 X ‚ Y | Z
+2
+X Y Z
+=
+X Y Z
+3 X
+Y Z
+?
+X
+Y Z
+Disintegration and Bayesian Inversion 25
+4
+X Y Z
+=
+X Y Z
+5
+X Y Z
+=
+X Y Z
+Proof. By definition of almost equality, 1 is equivalent to
+X Y Z
+=
+X Y Z
+=:
+X Y Z
+We then have 1 ? 2, since the identity below holds by the definition of disintegration.
+X Y Z
+=
+X Y Z
+Similarly, 3 ? 4 follows by the definitions of almost equality and disintegration. We
+have 2 ? 4 because
+X Y Z
+=
+X Y Z
+=
+X Y Z
+,
+and similarly 2 ? 5.
+Note that the condition 3 of the proposition is an analogue of P(x|y, z) = P(x|z). The
+other conditions 2, 4 and 5 say that the joint state can be factorised in certain ways,
+corresponding to the following equations:
+P(x, y, z) = P(x|z) P(y|z) P(z) = P(x|z) P(y, z) = P(y|z) P(x, z).
+The proposition below shows that our abstract formulation of conditional independence
+does satisfy the basic ‘rules’ of conditional independence, which are known as (semi-)
+graphoids axioms (Verma and Pearl, 1988; Geiger et al., 1990).
+K. Cho and B. Jacobs 26
+Proposition 6.9. Conditional independence (?) ‚ (?) | (?) satisfies:
+1 (Symmetry) X ‚ Y | Z if and only if Y ‚ X | Z.
+2 (Decomposition) X ‚ Y ? Z |W implies X ‚ Y |W and X ‚ Z |W .
+3 (Weak union) X ‚ Y ? Z |W implies X ‚ Y | Z ?W .
+4 (Contraction) X ‚ Z |W and X ‚ Y | Z ?W imply X ‚ Y ? Z |W .
+Proof. We will freely use Proposition 6.8.
+(1) Suppose X ‚ Y | Z. Then
+Y X Z
+=
+XY Z
+(X‚Y |Z)=
+Y X Z
+=
+Y X Z
+.
+This means Y ‚ X | Z.
+(2) Suppose X ‚ Y ? Z |W , namely:
+X Y ZW
+=
+X Y Z W
+Marginalising Z, we obtain
+X Y W
+=
+X Y
+Z
+W
+=
+X Y
+Z
+W
+=
+X Y W
+,
+by Proposition 6.4.1. Thus X ‚ Y |W . Similarly we prove X ‚ Z |W .
+Finally, we prove 3 and 4 at the same time. Note that X ‚ Y ? Z | W implies
+X ‚ Z |W , as shown above. Therefore what we need to prove is that X ‚ Y ?Z |W if
+and only if X ‚ Y | Z ?W , under X ‚ Z |W . Assume X ‚ Z |W , so we have
+X
+Z W
+?
+X
+Z W
+Then
+X Y Z W
+=
+X Y Z W
+=
+X Y Z W
+Disintegration and Bayesian Inversion 27
+=
+X Y Z W
+=
+X Y Z W
+=
+X Y Z W
+This proves X ‚ Y ? Z |W if and only if X ‚ Y | Z ?W .
+The four properties from the graphoid axioms are essential in reasoning of conditional
+independence with DAGs or Bayesian networks (Verma and Pearl, 1988; Geiger et al.,
+1990). We leave further details to future work.
+7. Beyond causal channels
+All CD-categories C that we have considered so far are affine in the sense that all arrows
+f : X ? Y are causal: ? f = . We now drop the affineness, in order to enlarge our
+category to include ‘non-causal’ arrows. Essentially, we lose nothing by this change: all
+the arguments so far can still be applied to the subcategory Caus(C) ? C containing all
+the objects and causal arrows. The category Caus(C) inherits the monoidal structure of
+C and the comonoid structures on each objects, so that Caus(C) is an affine CD-category.
+Recall that channels in C are causal arrows, i.e. arrows in Caus(C). States are channels
+of the form ? : I ? X. We call endomaps I ? I on the tensor unit scalars. The set
+C(I, I) of scalars forms a monoid via the composition s · t = s? t and 1 = idI . The monoid
+of scalars is always commutative — in fact, this is the case for any monoidal category,
+see e.g. (Abramsky and Coecke, 2009, §3.2). In string diagram scalars are written as
+s or simply as s. We can multiply scalars s to any arrows f : X ? Y by the parallel
+composition, or diagrammatically by juxtaposition:
+fs
+We call an arrow ? : I ? X is normalisable if the scalar ?? : I ? I is (multiplicatively)
+invertible. In that case we can normalise ? into a proper state as follows.
+nrm(?) :=
+? ?
+( )?1
+Effects in C are arrows of the form p : X ? I; they correspond to observables, with
+predicates as special case. Diagrammatically they are written as on the left below.
+p
+? |= p :=
+?
+p
+On the right the validity ? |= p of a state ? : I ? X and a effect p : X ? I is defined.
+It is the scalar given by composition. Note that effects are not causal in general; by
+K. Cho and B. Jacobs 28
+definition, only discarders are causal ones. States ? : I ? X can be conditioned by
+effects p : X ? I via normalisation, as follows.
+?|p := nrm
+(
+?
+p )
+=
+?
+p
+( )?1
+?
+p
+The conditional state ?|p is defined if the validity ? |= p is invertible.
+Example 7.1. Recall that our previous examples K`(D) and K`(G) are both affine. We
+give two non-affine CD-categories that have K`(D) and K`(G) as subcategories, respectively.
+1 For discrete probability, we use multisets (or unnormalised distributions) over nonneg-
+ative real numbers R?0 = [0,?), such as
+1|x?+ 0.5|y?+ 3|z? on a set X = {x, y, z, . . . }
+We denote byM(X) the set of multisets over R?0 on X. More formally:
+M(X) = {? : X ? R?0 | ? has finite support} .
+It extends to a commutative monadM : Set? Set, see (Coumans and Jacobs, 2013).
+In a similar way to the distribution monad D, we can check that the Kleisli category
+K`(M) is a CD-category. For a Kleisli map f : X ? M(Y ), causality ? f =
+amounts to the condition
+?
+y f(x)(y) = 1 for all x ? X. It is thus easy to see that
+Caus(K`(M)) ?= K`(D). In fact, the distribution monad D can be obtained fromM
+as its affine submonad, see (Jacobs, 2017).
+An effect p : X ? 1 in K`(M) is a function p : X ? R?0. Its validity ? |= p in a state
+? is given by the expected value
+?
+x ?(x) · p(x). The state ?|p updated with ‘evidence’
+p is defined as ?|p(x) = ?(x)·p(x)?|=p .
+2 For general, measure-theoretic probability, we use s-finite kernels between measurable
+spaces (Kallenberg, 2017; Staton, 2017). Let X and Y be measurable spaces. A function
+f : X × ?Y ? [0,?] is called a kernel from X to Y if
+— f(x,?) : ?Y ? [0,?] is a measure for each X; and
+— f(?, B) : X ? [0,?] is measurable for each B ? ?Y .
+We write f : X  Y when f is a kernel from X to Y . A probability kernel is a
+kernel f : X  Y with f(x, Y ) = 1 for all x ? X. A kernel f : X  Y is finite if
+there exists r ? [0,?) such that for all x ? X, f(x, Y ) ? r. (Note that it must be
+‘uniformly’ finite.) A kernel f : X  Y is s-finite if f =
+?
+n fn for some countable
+family (fn : X ? Y )n?N of finite kernels.
+For two s-finite kernels f : X  Y and g : Y  Z, we define the (sequential) composite
+g ? f : X  Z by
+(g ? f)(x,C) =
+?
+Y
+g(y, C) f(x, dy)
+for x ? X and C ? ?Z . There are identity kernels ?X : X  X given by ?X(x,A) =
+1A(x). With these data, measurable spaces and s-finite kernels form a category, which
+Disintegration and Bayesian Inversion 29
+we denote by sfKrn. There is a monoidal structure on sfKrn. For measurable spaces
+X,Y we define the tensor product X ? Y = X × Y to be the cartesian product of
+measurable spaces. The tensor unit I = 1 is the singleton space. For s-finite kernels
+f : X  Y and g : Z  W , we define f ? g : X × Z  Y ×W by
+(f ? g)((x, z), E) =
+?
+Y
+(?
+W
+1E(y, w) g(z,dw)
+)
+f(x, dy)
+=
+?
+W
+(?
+Y
+1E(y, w) f(x,dy)
+)
+g(z,dw)
+for x ? X, z ? Z,E ? ?Y×W . The latter equality holds by the Fubini-Tonelli theorem
+for s-finite measures. These make the category sfKrn symmetric monoidal. Finally, for
+each measurable spaceX there is a ‘copier’ : X  X×X and a ‘discarder’ : X  1,
+given by (x,E) = 1E(x, x) and (x, 1) = 1, so that sfKrn is a CD-category. For
+more technical details we refer to (Kallenberg, 2017; Staton, 2017).
+Note that an s-finite kernel f : X  Y is causal if and only if it is a probability kernel,
+which is nothing but a Kleisli map X ? G(Y ) for the Giry monad. Therefore the causal
+subcategory of sfKrn is the Kleisli category of the Giry monad: Caus(sfKrn) ?= K`(G).
+In particular, states in sfKrn are probability measures ? ? G(X).
+An effect p : X  1 in sfKrn, i.e. an s-finite kernel p : X × ?1 ? [0,?], can be
+identified with a measurable function p : X ? [0,?]. The validity ? |= p is then the
+integral
+?
+X
+p(x)?(dx), defined in [0,?]. The conditional state ?|p ? G(X) is defined
+by:
+?|p(A) =
+?
+A
+p(x)?(dx)
+? |= p
+for A ? ?X , when the validity ? |= p is neither 0 nor ?.
+With these notions in place we return to the original description of disintegration in
+Section 3. We assume a joint state ? with its two disintegrations c1 and c2 in:
+?1 = ?
+c1
+X Y
+=
+?
+X Y
+=
+? = ?2
+c2
+X Y
+(7)
+As indicated, we write ?1 and ?2 for the first and second marginals of ?.
+Let q be an effect on Y . It can be extended to an effect 1? q on X ? Y , where:
+1? q := q
+X Y
+Then we can form the conditioned state ?|1?q. In a next step we take its first marginal,
+written as
+(
+?|1?q
+)
+1. It turns out that, in general, this first marginal is different from the
+original first marginal ?1, even though the effect q only applies to the second coordinate.
+This is called ‘crossover influence’ in (Jacobs and Zanasi, 2017). It happens when the
+state ? is ‘entwined’, that is, when its two coordinates are correlated.
+K. Cho and B. Jacobs 30
+A fundamental result in this context is that this crossover influence can also be captured
+via the channels c1, c2 that are extracted from ? via disintegrations. This works via effect
+transformation c?(p) := p ? c and state transformation c?(?) := c ? ? along a channel.
+Theorem 7.2. In the above setting, assuming that the relevant conditioned states exist,
+there are equalities of states:
+?1|c?1(q) =
+(
+?|1?q
+)
+1 =
+(
+c2
+)
+?(?2|q). (8)
+Following (Jacobs and Zanasi, 2016) we can say that the expression on the left in (8)
+uses backward inference, and the one on the right uses forward inference.
+Proof. We first note that the state in the middle of (8) is the first marginal of:
+?
+q
+( )?1
+?
+q
+Hence: (
+?|1?q
+)
+1 = ?
+q
+( )?1
+?
+q
+(9)
+We note that the above scalar (that is inverted) can also be obtained as:
+?
+c1
+q
+=
+?
+c1
+q
+(7)=
+?
+q
+(10)
+Hence we can prove the equation on the left in (8):
+?1|c?1(q) =
+?
+c1
+q( )?1
+?
+c1
+q
+(7),(10)=
+?
+q
+( )?1
+?
+q
+In a similar way we prove the equation on the right in (8), since
+(
+c2
+)
+?(?2|q) equals:
+?
+q
+( )?1
+?
+q
+c2
+=
+?
+q
+( )?1
+?
+q
+c2 (7)=
+?
+q
+( )?1
+?
+q
+Disintegration and Bayesian Inversion 31
+The two equations in Theorem 8 will be illustrated in the ‘disease and mood’ example
+below, where a particular state (probability) will be calculated in three different ways.
+Disease and mood example
+We describe a non-trivial example of probabilistic (Bayesian) reasoning. The setting is
+the following. We consider a joint state about the occurrence and non-occurrence of a
+disease, written as D and ?D, jointly with the occurrence and non-occurrence of a good
+mood, written as M and ?M . The joint distribution that we start from is of the form:
+0.05|M,D?+ 0.4|M,?D?+ 0.5|?M,D?+ 0.05|?M,?D?. (11)
+Suppose there is a test for the disease, which is positive in 90% of all cases of people
+having the disease, and still 5% positive for people without the disease. Suppose the
+disease comes out positive. What is then the mood? It is expected that the mood will
+deteriorate, since the disease and the mood are ‘entwined’ (correlated) in the above joint
+state (11): a high likelihood of disease corresponds to a low mood.
+We formalise this example in the EfProb language (Cho and Jacobs, 2017), see also
+Section 4. In EfProb one writes conditioning s|p as s/p, state transformation c?(s) = c ? s
+as c >> s and predicate (effect) transformation c?(q) = q ? c as c << q. We recall from
+Section 4 that marginalisation and disintegration of a state s are written as s % M and
+s // M respectively, where M is a mask of zeros and ones.
+The above joint (prior) state (11) is defined in EfProb as follows, starting with the
+relevant domains (types).
+>>> mood_dom = [’M’, ’~M’]
+>>> disease_dom = [’D’, ’~D’]
+>>> w = State([0.05, 0.4, 0.5, 0.05], [mood_dom, disease_dom])
+>>> w
+0.05|M,D> + 0.4|M,~D> + 0.5|~M,D> + 0.05|~M,~D>
+We see that the latter state w in EfProb corresponds to the above state (11).
+We can concentrate on the disease or mood separately, via marginalisations. In EfProb
+this is done as follows, via post-fix selection operations.
+>>> w1 = w % [1,0]
+>>> w2 = w % [0,1]
+>>> w1
+0.45|M> + 0.55|~M>
+>>> w2
+0.55|D> + 0.45|~D>
+The sensitivity of the test is defined as a channel, called sens for ‘sensitivity’ below. If
+the disease is present, the test gives a positive outcome in 90% of the cases. But if the
+disease is absent, the test still has a 5% change of being positive. This is captured in
+the definition of the sensitivity channel below. It is applied to the first marginal of the
+K. Cho and B. Jacobs 32
+prior state w to see what the a priori likelihood of a positive test is. This is done via state
+transformation, which is written in EfProb as >>.
+>>> sens = chan_from_states([flip(9/10),flip(1/20)],disease_dom)
+>>> sens >> w2
+0.518|True> + 0.482|False>
+As explained above, we are interested in the mood after a positive test. This requires
+updating the prior state. Below we first define the positive-test predicate, and then
+condition (update, revise) the state, via the EfProb-notation /. We introduce a positive-
+test predicate (effect) pos_test via predicate transformation, written as << in EfProb.
+In order to use it for conditioning the joint state w, we have to ‘weaken’ (extend) the
+predicate pos_test to the whole domain of w. This is done via parallel conjunction @
+with the truth predicate. Finally, the second marginal of the updated state s gives the
+new mood, after the test. This corresponds to the middle expression in (8).
+>>> pos_test = sens << yes_pred
+>>> pos_test
+D: 0.9 | ~D: 0.05
+>>> s = w / (pos_test @ truth(mood_dom))
+>>> s % [0,1]
+0.126|M> + 0.874|~M>
+Clearly, a positive test leads to a lower mood: a reduction from 0.45 to 0.126.
+Next we show how this result can also be obtained via disintegration of the prior
+joint state w. There are two ways to do this, via disintegration in the first component
+and predicate transformation (backward inference), or via disintegration in the second
+component and state transformation (forward inference). The first way corresponds to
+the expression on the left in (8):
+>>> c1 = w // [1,0]
+>>> w1 / (c1 << pos_test)
+0.126|M> + 0.874|~M>
+Via disintegration in the second component we get the same result, as on the right in (8):
+>>> c2 = w // [0,1]
+>>> c2 >> (w2 / pos_test)
+0.126|M> + 0.874|~M>
+The fact that these three approaches lead to the same mood distribution follows from
+Theorem 7.2.
+8. Disintegration via likelihoods
+We continue in the setting of Section 7 in a CD-category that is not necessarily affine.
+The goal of this section is to present Theorem 8.3, which generalises a construction of
+Bayesian inversions using densities/likelihoods shown in Example 3.5.
+Disintegration and Bayesian Inversion 33
+We first introduce ‘likelihoods’ in our setting.
+Definition 8.1. We say a channel c : X ? Y is represented by a effect ` on X ? Y with
+respect to an arrow ? : I ? Y if
+c =
+`
+?
+(12)
+We call ` a likelihood relation for the channel c with respect to ?.
+Interpreted in the category sfKrn, the definition says: a kernel c : X  Y satisfies
+c(x,B) =
+?
+B
+`(x, y) ?(dy)
+for a kernel ` : X × Y  1 (identified with a measurable function ` : X × Y ? [0,?]) and
+a measure ? : 1  Y . This is basically the same as what we have in Example 3.5, but
+here ? is not necessarily the Lebesgue measure.
+We use the ?-almost equality ?? also for non-causal arrows.
+Definition 8.2. Let ? : I ? X be a state. We say that an arrow c : X ? Y is ?-almost
+causal if ?c ?? . An effect p : X ? I is ?-almost invertible if there is an effect q : X ? I
+such that:
+p q
+?? .
+The definition allows us to normalise an arrow f : X ? Y into an almost causal one,
+as follows. If an effect ? f is ?-almost inverted by q, as on the left below,
+f q ?? f q
+then clearly the arrow X ? Y on the right is ?-almost causal.
+We can now formulate and prove our main technical result.
+Theorem 8.3. Let ? be a state on X, and c : X ? Y be a channel represented by a
+likelihood relation ` with respect to ? as in (12) above. Assume that the category has the
+equality extension property, and that the effect
+`
+?
+=
+`
+?
+is almost invertible w.r.t. c?(?) =
+`
+??
+.
+K. Cho and B. Jacobs 34
+Then, writing q : Y ? I for an almost inverse to the effect, the channel
+d : Y ? X :=
+`
+?
+q
+is a Bayesian inversion for ? along c : X ? Y . Namely, together they satisfy the equa-
+tion (4).
+Note that we now allow a non-causal arrow d : Y ? X to be a Bayesian inversion.
+Nonetheless, it follows from the definition that any Bayesian inversion is c?(?)-almost
+causal. Similarly, we use the equality extension property for almost causal arrows.
+Proof. We reason as follows.
+?
+c
+d
+=
+?
+`
+?
+`
+?
+q
+(i)=
+?
+q`
+?
+`
+?
+(ii)=
+?
+`
+?
+=
+?
+`
+? =
+?
+c
+For the equality (i)= we use associativity and commutativity of copiers . The equality (ii)=
+follows by
+?
+q`
+? w.r.t.
+`
+??
+using the equality extension property.
+Example 8.4. We instantiate the Theorem 8.3 in sfKrn. Let c : X  Y be a probability
+kernel represented by a likelihood relation ` : X × Y  1 with respect to ? : 1  Y .
+The relation ` is identified with a measurable function ` : X × Y ? [0,?] and ? with a
+measure ? : ?Y ? [0,?]. The equation (12) amounts to
+c(x,B) =
+?
+B
+`(x, y) ?(dy) .
+Disintegration and Bayesian Inversion 35
+In particular, each `(x,?) is a probability density function, satisfying
+?
+Y
+`(x, y) ?(dy) = 1.
+Typically, we use the Lebesgue measure as ?, with Y a subspace of R. Let ? : 1 X be
+a probability measure. Then c?(?) : 1 Y is given as:
+c?(?)(B) =
+?
+X
+c(x,B)?(dx) =
+?
+X
+?
+B
+`(x, y) ?(dy)?(dx)
+The effect
+p : Y  1 =
+`
+?
+is given as: p(y) =
+?
+X
+`(x, y)?(dx) .
+To define an inverse of p, we claim that 0 < p <?, c?(?)-almost everywhere. We prove
+that p?1({0,?}) = p?1(0) ? p?1(?) is c?(?)-negligible, as:
+c?(?)
+(
+p?1(0)
+)
+=
+?
+X
+?
+p?1(0)
+`(x, y) ?(dy)?(dx)
+=
+?
+p?1(0)
+p(x) ?(dy)
+=
+?
+p?1(0)
+0 ?(dy) = 0
+and, similarly we have?
+p?1(?)
+? ?(dy) =
+?
+p?1(?)
+p(x) ?(dy) = c?(?)
+(
+p?1(?)
+)
+? 1
+but this is possible only when ?(p?1(?)) = 0, hence c?(?)
+(
+p?1(?)
+)
+=
+?
+p?1(?) p(x) ?(dy) =
+0. Now define an effect q : Y  1 by
+q(y) =
+{
+p(y)?1 if 0 < p(y) <?
+0 otherwise.
+Then p is c?(?)-almost inverted by q. By Theorem 8.3, the Bayesian inversion for ? along
+c is given by
+d : Y ? X :=
+`
+?
+q
+,
+namely,
+d(y,A) = q(y)
+?
+A
+`(x, y)?(dx)
+=
+?
+A
+`(x, y)?(dx)?
+X
+`(x, y)?(dx) whenever 0 <
+?
+X
+`(x, y)?(dx) <?
+(13)
+This may be seen as a variant of the Bayes formula. The calculation in Example 3.5 is
+reproduced when ? is also given via a density function.
+K. Cho and B. Jacobs 36
+We conclude with another example in which the likelihood-based calculation of Bayesian
+inversion, specifically the formula (13) above, is used to condition with respect to point
+observations.
+Customers calling
+Imagine a call centre that is open for 8 hours on each day of the week. The distribution
+of calls is different on weekends (Sat-Sun) from other days (Mon-Fri). What can we then
+learn from a single call at a given time of the day regarding whether it is weekend or not?
+The formalisation in EfProb starts by defining a domain with label W for weekend and
+~W for non-weekend, together with a prior state that expresses a change of 27 of being in a
+weekend.
+>>> weekend_dom = [’W’, ’~W’]
+>>> prior = State([2/7, 5/7], weekend_dom)
+>>> prior
+0.286|W> + 0.714|~W>
+Next we have a channel that assigns a different Gaussian distribution to W and to ~W.
+>>> hours_dom = R(0,8)
+>>> c = chan_from_states([gaussian_state(5,4,hours_dom),
+... gaussian_state(2,4,hours_dom)],
+... weekend_dom)
+The probability density functions of the two distributions look as follows.
+In the weekend diagram on the left we see that the calls start coming in later. Now we
+ask ourselves the question: suppose we see one call at (hour) 6. How does this affect the
+prior distribution? Of course, the updated distribution should have a higher likelihood for
+‘weekend’ since 6 is relatively late.
+We construct an inversion d of the above channel c, together with the prior state, in
+order to compute the updated distribution. It yields the channel d, going from hours_dom
+to weekend_dom. The distribution at time 6 is obtained by applying channel d to the
+value 6.
+>>> d = c.inversion(prior)
+>>> d(6)
+0.374|W> + 0.626|~W>
+We see that the weekend probability has increased indeed.
+Disintegration and Bayesian Inversion 37
+References
+Abramsky, S. and Coecke, B. (2009). Categorical quantum mechanics. In Handbook of Quantum
+Logic and Quantum Structures: Quantum Logic, pages 261–323. Elsevier.
+Ackerman, N. L., Freer, C. E., and Roy, D. M. (2011). Noncomputable conditional distributions.
+In Logic in Computer Science, pages 107–116. IEEE.
+Barber, D. (2012). Bayesian Reasoning and Machine Learning. Cambridge Univ. Press.
+Bernardo, J. and Smith, A. (2000). Bayesian Theory. John Wiley & Sons.
+Borgström, J., Gordon, A., Greenberg, M., Margetson, J., and Gael, J. V. (2013). Measure
+transformer semantics for Bayesian machine learning. Logical Methods in Comp. Sci., 9(3):1–39.
+Chang, J. T. and Pollard, D. (1997). Conditioning as disintegration. Statistica Neerlandica,
+51(3):287–317.
+Cho, K. and Jacobs, B. (2017). The EfProb library for probabilistic calculations. In Conference
+on Algebra and Coalgebra in Computer Science, volume 72 of LIPIcs. Schloss Dagstuhl.
+Cho, K., Jacobs, B., Westerbaan, A., and Westerbaan, B. (2015). An introduction to effectus
+theory. Preprint. arXiv:1512.05813 [cs.LO].
+Clerc, F., Danos, V., Dahlqvist, F., and Garnier, I. (2017). Pointless learning. In Foundations of
+Software Science and Computation Structures, volume 10203 of Lect. Notes Comp. Sci., pages
+355–369. Springer.
+Coecke, B. (2016). Terminality implies no-signalling ...and much more than that. New Generation
+Computing, 34(1):69–85.
+Coecke, B. and Kissinger, A. (2017). Picturing Quantum Processes: A First Course in Quantum
+Theory and Diagrammatic Reasoning. Cambridge University Press.
+Coumans, D. and Jacobs, B. (2013). Scalars, monads and categories. In Heunen, C., Sadrzadeh,
+M., and Grefenstette, E., editors, Quantum Physics and Linguistics. A Compositional, Dia-
+grammatic Discourse, pages 184–216. Oxford Univ. Press.
+Culbertson, J. and Sturtz, K. (2014). A categorical foundation for Bayesian probability. Applied
+Categorical Structures, 22(4):647–662.
+D’Ariano, G. M., Chiribella, G., and Perinotti, P. (2017). Quantum Theory from First Principles:
+An Informational Approach. Cambridge University Press.
+Faden, A. M. (1985). The existence of regular conditional probabilities: Necessary and sufficient
+conditions. The Annals of Probability, 13(1):288–298.
+Fong, B. (2012). Causal theories: A categorical perspective on Bayesian networks. Master’s
+thesis, Univ. of Oxford. arXiv:1301.6201 [math.PR].
+Fremlin, D. H. (2000). Measure Theory (5 volumes). Torres Fremlin.
+Geiger, D., Verma, T., and Pearl, J. (1990). Identifying independence in Bayesian networks.
+Networks, 20:507–534.
+Giry, M. (1982). A categorical approach to probability theory. In Categorical Aspects of Topology
+and Analysis, volume 915 of Lecture Notes in Mathematics, pages 68–85. Springer.
+Gordon, A., Henzinger, T., Nori, A., and Rajamani, S. (2014). Probabilistic programming. In
+Future of Software Engineering, pages 167–181. ACM.
+Jacobs, B. (2015). New directions in categorical logic, for classical, probabilistic and quantum
+logic. Logical Methods in Comp. Sci., 11(3):1–76.
+Jacobs, B. (2017). From probability monads to commutative effectuses. Journ. of Logical and
+Algebraic Methods in Programming, 156.
+Jacobs, B., Westerbaan, B., and Westerbaan, A. (2015). States of convex sets. In Foundations of
+Software Science and Computation Structures, volume 9034 of Lect. Notes Comp. Sci., pages
+87–101. Springer.
+K. Cho and B. Jacobs 38
+Jacobs, B. and Zanasi, F. (2016). A predicate/state transformer semantics for Bayesian learning.
+In Math. Found. of Programming Semantics, volume 325 of Elect. Notes in Theor. Comp. Sci.,
+pages 185–200. Elsevier.
+Jacobs, B. and Zanasi, F. (2017). A formal semantics of influence in Bayesian reasoning. In
+Math. Found. of Computer Science, volume 83 of LIPIcs. Schloss Dagstuhl.
+Kallenberg, O. (2017). Random Measures, Theory and Applications. Springer.
+Katoen, J.-P., Gretz, F., Jansen, N., Lucien Kaminski, B., and Olmedo, F. (2015). Understanding
+probabilistic programs. In Correct System Design, volume 9360 of Lect. Notes Comp. Sci.,
+pages 15–32. Springer.
+Kissinger, A. (2014). Abstract tensor systems as monoidal categories. In Categories and Types
+in Logic, Language, and Physics: Essays Dedicated to Jim Lambek on the Occasion of His 90th
+Birthday, pages 235–252. Springer.
+Mac Lane, S. (1998). Categories for the Working Mathematician. Springer, second edition.
+Pachl, J. K. (1978). Disintegration and compact measures. Mathematica Scandinavica, 43:157–168.
+Panangaden, P. (2009). Labelled Markov Processes. Imperial College Press.
+Pawitan, Y. (2001). In All Likelihood. Statistical Modelling and Inference Using Likelihood.
+Clarendon Press.
+Pearl, J. (1988). Probabilistic Reasoning in Intelligent Systems. Morgan Kaufmann.
+Pollard, D. (2002). A User’s Guide to Measure Theoretic Probability. Cambridge University
+Press.
+Selinger, P. (2010). A survey of graphical languages for monoidal categories. In New Structures
+for Physics, volume 813 of Lecture Notes in Physics, pages 289–355. Springer.
+Shan, C.-c. and Ramsey, N. (2017). Exact Bayesian inference by symbolic disintegration. In
+Princ. of Programming Languages, pages 130–144. ACM.
+Staton, S. (2017). Commutative semantics for probabilistic programming. In European Symp.
+on Programming, volume 10201 of Lect. Notes Comp. Sci., pages 855–879. Springer.
+Staton, S., Yang, H., Heunen, C., Kammar, O., and Wood, F. (2016). Semantics for probabilistic
+programming: higher-order functions, continuous distributions, and soft constraints. In Logic
+in Computer Science, pages 525–534. ACM.
+Stoyanov, J. M. (2014). Counterexamples in Probability. Dover, third edition.
+Verma, T. and Pearl, J. (1988). Causal networks: Semantics and expressiveness. In Uncertainty
+in Artificial Intelligence.
+Witten, I., Frank, E., and Hall, M. (2011). Data Mining Practical Machine Learning Tools and
+Techniques. Elsevier, Amsterdam.

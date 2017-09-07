@@ -1,0 +1,708 @@
+Volume xx (200y), Number z, pp. 1–12
+Automatic Semantic Style Transfer using Deep Convolutional
+Neural Networks and Soft Masks
+Huihuang Zhao†1, Paul L. Rosin2 and Yu-Kun Lai2
+1School of Computer Science and Technology, Hengyang Normal University, Hengyang, Hunan, China
+2 School of Computer Science and Informatics, Cardiff University, Cardiff, UK
+Abstract
+This paper presents an automatic image synthesis method to transfer the style of an example image to a content image. When
+standard neural style transfer approaches are used, the textures and colours in different semantic regions of the style image
+are often applied inappropriately to the content image, ignoring its semantic layout, and ruining the transfer result. In order
+to reduce or avoid such effects, we propose a novel method based on automatically segmenting the objects and extracting their
+soft semantic masks from the style and content images, in order to preserve the structure of the content image while having the
+style transferred. Each soft mask of the style image represents a specific part of the style image, corresponding to the soft mask
+of the content image with the same semantics. Both the soft masks and source images are provided as multichannel input to an
+augmented deep CNN framework for style transfer which incorporates a generative Markov random field (MRF) model. Results
+on various images show that our method outperforms the most recent techniques.
+CCS Concepts
+•Computing methodologies ? Non-photorealistic rendering; Neural networks;
+1. Introduction
+Style transfer is a process of migrating a style from a “style im-
+age” to a “content image”. The goal is to be able to generate dif-
+ferent renditions of the same scene according to different style
+images. Image style transfer has become a popular problem in
+computer vision and graphics, and can generate impressive results
+covering a wide variety of styles for both images [GEB15b] and
+videos [RDB16]. It has also been widely employed to solve prob-
+lems such as texture synthesis [EF01], inpainting [CPT04], head
+portraits [SED16] and super-resolution [JAFF16].
+When existing neural style transfer methods are applied to im-
+ages with complex structures, visual elements from the style image
+are often transferred to semantically irrelevant areas of the content
+image. In order to achieve good results, users must pay attention
+to the composition and/or the selection of the style image, because
+for example the background colours or textures will often ruin the
+style transfer results, especially for portraits where the artifacts can
+be particularly off-putting. Addressing this problem, [Cha16] (and
+subsequently [GEB?16]) recently proposed a method which uses a
+manually generated semantic map to help control the style transfer,
+and can achieve better results than some common methods.
+In this paper, we specifically consider the problem of image style
+† happyday.huihuang@gmail.com
+(a) style (b) content (c) CNNMRF (d) our method
+Figure 1: Automatic semantic style transfer using deep convolu-
+tional neural networks.
+transfer guided by automatically extracted soft semantic masks. To
+achieve this, we adapt various semantic segmentation and labelling
+techniques to extract soft masks associated with specific semantics.
+By deploying the semantic masks to control the transfer, it is pos-
+sible to avoid errors such as those shown in figure 1(c) generated
+using the CNNMRF method [LW16] in which stylised foreground
+objects are contaminated by the background texture, and vice versa.
+The main contributions of the paper are as follows:
+submitted to COMPUTER GRAPHICS Forum (9/2017).
+ar
+X
+iv
+:1
+70
+8.
+09
+64
+1v
+1 
+ [
+cs
+.C
+V
+] 
+ 3
+1 
+A
+ug
+ 2
+01
+7
+2 Huihuang Zhao & Paul L. Rosin & Yu-Kun Lai / Automatic Semantic Style Transfer using Deep Convolutional Neural Networks and Soft Masks
+We adapt a state-of-the-art semantic segmentation
+method [ZJRP?15] to generate semantic masks automatically.
+Instead of using hard segmentation as [ZJRP?15], we propose to
+use soft masks containing the probabilities of occurrence of dif-
+ferent objects in the image, since they preserve more information
+and is more robust when image regions have similar chances of
+belonging to multiple object categories. They are used to capture
+elements of the styles for objects in the style image and to preserve
+the structure of the content image. For the human face in particular
+we use a more detailed segmentation, in which different facial
+parts such as the nose, eyes and mouth are also automatically
+segmented, providing fine-grained control in perceptually crucial
+areas; these are also treated as semantic masks.
+We augment a trained deep convolutional neural network by con-
+catenating K soft mask channels and N channels of regular fil-
+ters. This is further combined with a generative Markov random
+field (MRF) model [LW16] for image style transfer. Both the style
+and content images and their semantic maps are input into the
+augmented deep convolutional neural network. Extensive experi-
+ments show that such higher-level semantic information improves
+the quality of style transfer.
+2. Related Work
+Style transfer using deep networks. The success of deep CNNs
+(DCNNs) in image processing has also raised interest in image
+style transfer. [SPB?14] proposed a new style transfer method
+for headshot portraits. During their method, they presented a new
+multiscale technique based on deep networks to robustly trans-
+fer the local statistics of an example portrait onto a new one.
+[GEB15b,GEB15a] showed remarkable results by using the VGG-
+19 deep neural network for style transfer. Their approach was em-
+ployed in unguided settings and taken up by various follow-up pa-
+pers. [GEB?16] in particular extended the Gram matrix method be-
+yond the paradigm of transferring global style information between
+pairs of images, and they introduced control over spatial location,
+colour information and spatial scale. [ULVL16] presented an al-
+ternative approach which trained compact feed-forward convolu-
+tional networks. The resulting networks are extremely light-weight
+and can generate images faster than [GEB15b]. By combining the
+benefits of training feedforward convolutional neural networks and
+perceptual loss functions, [JAFF16] presented a novel approach for
+image style transfer. [LW16] suggested an approach to preserving
+local patterns of the style image. Instead of using a global represen-
+tation of the style computed as a Gram matrix, they used patches
+of the neural activation from the style image. [RDB16] presented
+an approach that transfers the style from one image (for example, a
+painting) to a whole video sequence.
+Two main types of methods are used in deep learning based style
+transfer: global approaches based on the Gram matrix, and local ap-
+proaches based on patch matching. Compared to the global meth-
+ods, methods based on patch matching are more flexible and better
+cope with images with spatial variation of visual styles or elements.
+However, they could also produce visible artefacts when there are
+local matching errors. In order to control the region of application
+of the style image, [GEB?16] used several manually specified spa-
+tial guidance channels, containing values in [0,1], for both the con-
+tent and style images. Their experiments showed that the guidance
+channels can ensure that the style is transferred between regions
+of similar scene content in the content and style images. It is how-
+ever time-consuming to produce masks. As a result, for examples
+in their paper, they just used a mask to separate two parts of the
+image (e.g. sky and non-sky) for simple spatial control, and did not
+distinguish more detailed content in the images.
+MRF-based image synthesis. Markov Random Fields (MRFs)
+are a famous framework for non-parametric image synthesis
+[EL99], [FPC00]. [KSE?03], [KSE?03] and [KEBK05] modelled
+the texture as an MRF and computed some approximation to the
+optimal solution. [ZCC?13] formulated the patch mapping prob-
+lem as a labelling problem modelled by a discrete MRF. More-
+over, [FSDH16] proposed a novel unsupervised method for texture
+and colour transfer based on MRFs. In their approach an adaptive
+patch partition is used to capture the style of the example image
+and preserve the structure of the source image. MRF models suffer
+from a limitation that local image statistics are usually not sufficient
+for capturing complex image layouts at a global scale. [WL00]
+and [KEBK05] proposed a multi-resolution synthesis approach to
+improve this. We adapt this in our method. [LW16] presented a
+combination of generative Markov random field (MRF) models
+for image synthesis. Unlike other MRF-based texture synthesis ap-
+proaches, their combined system can both match and adapt local
+features with considerable variability, and therefore our paper is
+based on this method.
+Semantic segmentation. Recently, CNN architectures have
+been shown to be capable of providing semantic segmentation
+[GDDM14,Tho16]. [GDDM14] proposed a method called R-CNN,
+which combined region proposals with CNNs. [NHH15] applied
+a trained network (VGG 16-layer net) to each proposal in an in-
+put image, and constructed the final semantic segmentation map
+by combining the results from all the proposals. [SLD17] pro-
+posed a fully convolutional network for semantic segmentation.
+For producing accurate and detailed segmentations, they defined
+a skip architecture which combines semantic information from a
+deep, coarse layer with appearance information from a shallow,
+fine layer. In order to achieve better results, some existing face
+detection methods are also used in style transfer. By searching a
+database using Face++ [Fac] to find images with similar poses to
+a given source portrait image, [YZY?17] presented a novel colour
+transfer approach for portraits. [ZJRP?15] introduced a new form of
+convolutional neural network that combines the strengths of Con-
+volutional Neural Networks and Conditional Random Fields based
+probabilistic graphical modelling. These models rely primarily on
+convolutional layers to extract high-level patterns, then use decon-
+volution to label the individual pixels. Currently they have trained
+this model to recognise 20 classes, and our paper uses this method
+to obtain some semantic content from images.
+Limitations of current methods. Images are typically com-
+posed of regions corresponding to different (foreground) objects
+and background. Most existing methods either use Gram matrices
+which treat images globally, or for methods based on local patch
+matching, can often match regions of one object in the style im-
+age to regions of a different object in the content image, caus-
+ing artefacts such as those shown in figure 1. This is more crit-
+submitted to COMPUTER GRAPHICS Forum (9/2017).
+Huihuang Zhao & Paul L. Rosin & Yu-Kun Lai / Automatic Semantic Style Transfer using Deep Convolutional Neural Networks and Soft Masks 3
+ical for human faces as subtle mismatches can be detrimental to
+the quality of synthesised images. To address this, existing meth-
+ods [Cha16, GEB?16] use manual segmentation to improve style
+transfer. However, manual segmentation is time-consuming and la-
+borious. In contrast, our method automatically performs a partial
+soft semantic segmentation of the content and style images. We
+augment the CNNMRF model used in [LW16] to further incorpo-
+rate soft semantic masks, which can better capture features from
+the style image and preserve the structure of the content image.
+We first briefly introduce our augmented DCNN architecture in
+section 3, followed by details for the style transfer algorithm in
+section 4. We then provide details for automatic semantic mask ex-
+traction in section 5. Experimental results and discussions are pre-
+sented in section 6 and finally conclusions are drawn in section 7.
+3. Architecture
+We now discuss our augmented DCNN architecture which is based
+on VGG [SZ14] for style transfer. It takes as input a content im-
+age and a style image, both of which are fed into the VGG net.
+The DCNN architecture combines pooling and convolution layers
+l with 3× 3 filters (for example, the first layer after second pool-
+ing is named Conv3_1). Like common DCNNs, intermediate post-
+activation results denoted as xl for the layer l consist of N channels,
+which capture patterns from the source images for each region of
+the image. Our augmented network is shown in figure 2.
+Our augmented network also takes K semantic soft masks as in-
+put, which are down-sampled to produce semantic channels pl at
+layer l with the same resolution as xl . We concatenate them to form
+the new output with N + K channels, defined as ml and labeled
+accordingly for each layer (e.g. mycov4_1). Before concatenation,
+the semantic channels are weighted by parameter ? to balance their
+importance:
+ml = (xl ,? pl). (1)
+We set ? = 20 which we have found experimentally to provide
+interesting results.
+4. Semantic Style Transfer Algorithm
+4.1. Optimisation function
+Next, we introduce our style transfer model. We use an augmented
+loss function which is based on a patch-based approach [LW16]
+for style transfer, using optimisation to minimise content recon-
+struction error Ec and style remapping error Es, which combines
+an MRF and a DCNN model, given a style image xs ? Rws×hs ,
+a content image xc ? Rwc×hc , and semantic maps mck ? Rwc×hc
+and msk ? Rwc×hc associated with the content and style images,
+respectively (k = 1,2, . . . ,K). For simplicity, the semantic masks
+for the content and style images are also collectively represented as
+mc ?Rwc×hc×K and ms ?Rws×hs×K . The style transfer result image
+is denoted by x?Rwc×hc . Since the synthesised image x is expected
+to have the same semantic layout as the content image, we treat mc
+also as the semantic masks for the synthesised image. During our
+method, we make the high-level neural encoding of x similar to xc
+and use the local patches similar to patches in xs. As a result, the
+style of xs is transferred onto the layout of xc. Meanwhile, we pe-
+nalise patch matches with inconsistent semantic masks. We define
+an energy function as follows and seek x that minimises it:
+E(x) = ?1Es(?(x),?(xs),?(mc),?(ms))+?2Ec(?(x),?(xc)).
+(2)
+Es and Ec are defined as the style loss function and content loss
+function respectively, where ?(x) is x’s feature map (activation)
+that the network outputs in some layer, ?(xs) is the feature map
+(activation) of the style image xs in the same layer, and ?(mc)
+and ?(ms) are the semantic masks of the content and style images
+downsampled to the same resolution as ?(x) and ?(xs). For our
+method, Es aims to penalise inconsistencies in neural activations
+and/or semantic masks between x and xs. Ec computes the squared
+distance between the feature map of the synthesised image and that
+of the content source image xc. Since x is assumed to have the same
+content layout as xc, Ec does not involve the semantic masks.
+Style loss function: We extract all the local patches from ?(x),
+denoted as ?(?(x)). For a given layer, assuming N is the num-
+ber of channels, each patch in ?i(?(x)) has size t× t×N, where
+t is the width and height of the patch. Similarly, ??(?(mck )) and
+??(?(msk )) are the down-sampled semantic masks of extracted
+patches, each of size t× t. We define the modified energy function
+Es incorporating semantic masks as
+Es(?(x),?(xs),?(ms)) =
+P
+?
+i=1
+??i(?(x))??NN(i)(?(xs)) ?2
++?
+P
+?
+i=1
+K
+?
+k=1
+? ??i(?(mck ))? ??NN(i)(?(msk )) ?2,
+(3)
+where P = |?(?(x))| is the number of patches in the synthesised
+image. For each patch ?i(?(x)) with semantic masks ??i(?(mck ))
+we find its best matching patch ?NN(i)(?(ms)) using normalised
+cross-correlation over all Ps example patches in ?(?(xs)):
+NN(i) := argmin
+j=1,...,Ps
+??i (?(x)) ·??j(?(xs))
+|??i (?(x)) | · |??j(?(xs)) |
+, (4)
+where ??i (?(x)) =
+(
+?i(?(x)),? ??i(?(mc))
+)
+is the concatenation
+of neural activation and semantic masks for the ith patch of the
+synthesised image, and ??j(?(xs)) =
+(
+? j(?(xs)),? ?? j(?(ms))
+)
+is
+the concatenation of neural activation and semantic masks for the
+jth patch of the style image. The nearest patch thus takes both style
+similarity and semantic consistency into account.
+Content loss function: In order to control the content of the
+synthesised image, we define Ec as the squared Euclidean distance
+between ?(x) and ?(xc):
+Ec(?(x),?(xc),?(mc)) = ?(?(x))??(xc)?2. (5)
+Like method [LW16], we also minimise Equation 2 using back-
+propagation with L-BFGS. During Equation 2, ?1 and ?2 are
+weights for the style image and the content image constraints, re-
+spectively. According to our experiments, we set ?1 = 10?4 and
+?2 = 20, and these values can be fine tuned to interpolate between
+the content and the style preservation.
+submitted to COMPUTER GRAPHICS Forum (9/2017).
+4 Huihuang Zhao & Paul L. Rosin & Yu-Kun Lai / Automatic Semantic Style Transfer using Deep Convolutional Neural Networks and Soft Masks
+Figure 2: Style transfer framework with deep neural networks and soft masks.
+5. Automatic Soft Semantic Mask Extraction
+[Cha16] manually generated the semantic masks that they used in
+their work to control the style transfer. Each image used one mask
+containing semantic labels, where each component (not necessarily
+connected) was indicated by a particular pixel value in the image.
+Often these values were carefully chosen so that components with
+similar appearance such as ear and nose would be assigned sim-
+ilar mask values. Not only is it tedious to manually segment the
+image, but for most images some parts cannot be partitioned ac-
+curately. Therefore, instead of using a single crisp mask to control
+an image stylization, we propose instead to use a set of soft masks.
+Such soft masks provide more information than a single crisp mask,
+and do not require potentially unreliable boundaries to be set in the
+semantic mask, which is especially beneficial at ill-defined object
+boundaries.
+In this paper we aim to automatically generate soft masks. Ob-
+viously this would make mask-based style transfer more conve-
+nient for the user. However, generating appropriate masks is chal-
+lenging. Ideally, the segmentation of the style and content im-
+ages should be consistent, e.g. using co-segmentation [VRK11].
+However, such approaches have not been developed for semantic
+segmentation. Moreover, the different appearance of photographs
+compared to artwork (typically used for style images) leads to the
+cross-depiction problem [HCWC15], so that semantic segmenta-
+tion techniques trained on photographs will fail on paintings. In
+this paper we not only demonstrate our approach for the domain
+of portraits, which are a popular topic for style transfer [SED16],
+and non-photorealistic rendering in general, but also show styli-
+sation of scenes containing other objects, such as cars and trains.
+Portrait style transfer allows us to leverage state-of-the-art tech-
+niques for face detection, that are more robust than general segmen-
+tation methods, and are effective even for many artworks. During
+our method, facial component masks are automatically extracted
+using a combination of semantic segmentation, facial landmark de-
+tection, and skin detection.
+5.1. Semantic Image Prediction
+[ZJRP?15] proposed a semantic segmentation method named
+CRF-RNN which can segment 20 different objects. CRF-RNN
+achieves a good result on the popular Pascal VOC segmentation
+benchmark. This improvement can be attributed to the uniting of
+the strengths of CNNs and CRFs in a single deep network. In our
+work, we use CRF-RNN to produce semantic probability maps. In-
+stead of labelling each pixel with an object category, we skip over
+the max pooling stage and extract the neural activations before that
+and rescale them to [0, 1]. These are treated as probability maps
+predicting the chance of each pixel belonging to each object cate-
+gory. An example is shown in figure 3.
+This provides 20 probability masks which represent different ob-
+jects. Since most images only contain a small number of object
+types, rather than use all 20 semantic masks we just use a subset of
+five so as to reduce memory requirements and improve efficiency.
+For a given content and style image pair the five semantic masks are
+submitted to COMPUTER GRAPHICS Forum (9/2017).
+Huihuang Zhao & Paul L. Rosin & Yu-Kun Lai / Automatic Semantic Style Transfer using Deep Convolutional Neural Networks and Soft Masks 5
+(a) content (b) style (c) probability
+map for (a)
+(d) probability
+map for (b)
+Figure 3: Probabilistic semantic segmentations using CRF-
+RNN [ZJRP?15] for person prediction.
+automatically selected as the five masks maximising their average
+probability.
+We have found that the CRF-RNN is mostly reliable for pho-
+tographs. For paintings its performance degrades, especially as the
+style of the artwork becomes more extreme. However, it is still ca-
+pable of producing adequate extractions of people, cars, etc. for
+many paintings (used as style images) that we have tested.
+5.2. Skin Detection
+Skin detection is performed on the photographic im-
+ages [BDPFG17], using a rule-based analysis of pixels in
+YCbCr colour space. The skin mask is then intersected with the
+person mask provided by the CRF-RNN, so as to subdivide the
+person into skin and non-skin (e.g. hair, clothing). An example is
+shown in figure 4.
+Since skin detection is primarily colour based, it is not in gen-
+eral effective on artwork due to the typical colour shifts, as well as
+distortions caused by strong brush stroke textures. Therefore, for
+paintings the facial region is detected using the face detector, rather
+than using skin detection.
+5.3. Face and Facial Part Segmentation
+Facial landmark detection is performed using OpenFace [BRM16],
+which is based on Conditional Local Neural Fields, a version of the
+well known Constrained Local Model approach. Sixty-eight facial
+landmarks are located, from which the eye, nose, inner and outer
+mouth regions are determined – see figure 4.
+Since the facial landmarks only cover the lower half of the face,
+the outline of the face is extended upwards, and intersected with
+the person mask provided by the semantic segmentation to produce
+a good approximation to the head region. This mask is used for
+artwork. For photographs the skin mask is used instead of the ex-
+tended facial region as it is more accurate (although prone to noise).
+The above steps result in a set of masks that are blurred to pro-
+duce soft masks identifying the following objects: face/skin, nose,
+eye, mouth, see figure 4 for an example. To provide a more compact
+visualisation we also combine the set of soft masks into a single
+colour image, see figure 4. The soft masks for body, background
+and face/skin are mapped to red, green, blue respectively, while the
+eyes, nose and mouth values are mapped to cyan, yellow, magenta
+respectively. (Note that when performing style transfer the multiple
+soft image masks are used instead.)
+(a) skin (b) eyes (c) mouth (d) nose (e) masks
+Figure 4: Segmentation of facial components for the images in fig-
+ure 3.
+6. Results
+We use the pre-trained 19-layer VGG-Network with the augmented
+layers myConv3_1 and myConv4_1. For layers relu3_1, relu4_1,
+myConv3_1 and myConv4_1 we use 3× 3 patches, and we set the
+stride to one. Following the patch-based approach of [LW16], we
+synthesise at multiple increasing resolutions, and randomly ini-
+tialise the optimisation. On a GTX TIT with 12Gb of GPU RAM,
+synthesis takes from 5 to 30 minutes depending on the quality and
+resolution.
+We will now compare the proposed method with several popular
+methods: [GEB15b,LW16] which are representative global and lo-
+cal neural style transfer methods, and [GEB?16, Cha16] which use
+manual segmentation to improve style transfer.
+Note that for our method multiple soft masks were used; the sin-
+gle colour mask is just shown for illustrative purposes. For [Cha16],
+we set the content weight to 10, style weight to 25, semantic weight
+to 100, and we use the masks from [Cha16] when available and oth-
+erwise manually draw them ourselves. For [GEB?16], we used two
+image maps of values in the range [0,1] for content and style im-
+ages like figure 3 (c, d), similar to the examples used in their paper,
+which are also used in our method. To partially overcome orienta-
+tion and scale differences between the style and the content images,
+we also allow a range of rotations and scalings to be considered in
+the CNNMRF, following the settings in [LW16].
+We use figure 3(a) with several different backgrounds as the con-
+tent image, and choose figure 3(b) as the style image. Style trans-
+fer results obtained by the different methods are shown in figure 5.
+Considering the four existing methods and by comparing the results
+in figure 5, it seems that [GEB15b] and [LW16] cannot transfer the
+background texture well. [Cha16] achieves better background tex-
+ture transfer, comparable to our method, but some key facial parts
+(nose and mouth) are lost. [GEB?16] can control the spatial tex-
+ture very well, but the human style transfer is not so good. It also
+generates errors in rows 1 and 2 of figure 5(c).
+Because both our method and [LW16] are based on the MRF
+regulariser, and [LW16] has previously demonstrated better results
+than [GEB15b], we mainly compare our result with [LW16].
+Figures 7 and 9 show style transfer applied separately to pho-
+tographs of men and women. We transfer the style of each style
+image to each content image. We can see from figures 7 and 9 that
+submitted to COMPUTER GRAPHICS Forum (9/2017).
+6 Huihuang Zhao & Paul L. Rosin & Yu-Kun Lai / Automatic Semantic Style Transfer using Deep Convolutional Neural Networks and Soft Masks
+(a) Content (b) [GEB15b] (c) [GEB?16] (d) [Cha16] (e) [LW16] (f) Our
+Figure 5: Style transfer results from several methods using versions of a content image with varied backgrounds.
+(a) (b) (c) (d) (e) (f) (g)
+Figure 6: Content (a–d) and style (e–g) images and visualisations
+of their soft masks.
+our method can achieve better results than the CNNMRF method
+and avoid errors in applying style transfer to inappropriate parts.
+The style images contain a range of simple and more complicated
+textures. In both cases, our method achieves effective results, and
+preserves the content of the images. [LW16] can also achieve inter-
+esting results, but only for simple texture images. For some exam-
+ples such as figure 8 (b) and (c) content woman image, the CNN-
+MRF method achieves interesting results as well, but our method
+can achieve better results in specific parts, such as the eyes, nose,
+mouth and background area. For style images that contain a mix-
+ture of textures – figure 9 and figure 7 – the results of [LW16] have
+many errors in which styles are misapplied. In figure 9 last row col-
+umn 1, our results contain artefacts due to the errors in the content
+semantic masks.
+More style transfer results for objects like train, car, bus and
+boat are shown in figures 11, 13, 15, and 16. In these examples,
+in the mask images the green part shows the background probabil-
+ity mask, and the red part shows the object probability mask. Our
+method produces better results in all these examples.
+Automatic multi probability maps selection. Not only will
+probability maps provide a richer feature vector that will benefit
+the style transfer, but avoiding the need for thresholding or winner-
+take-all selection has the potential to improve robustness. Figure
+18 shows an example in which our automatic semantic mask selec-
+tion effectively chooses relevant object types (person and dog). It
+demonstrates style transfer using our method when multiple object
+categories are present. Note that even though the irrelevant 3rd –
+5th masks contain very little response, it is not a problem to include
+them.
+Multiple style images. Our method also allows styles to be
+transfered from multiple style images to a single content image.
+In this case, the semantic masks are essential to direct the method
+to choose suitable patches. Some interesting style transfer results
+are shown in figures 19 and 20.
+Comparison of soft masks and binary masks. We compare
+our method using soft masks with alternative binary masks. The
+results are shown in figure 21. In comparison, the results with the
+soft masks (the 2nd column in figure 11) not only avoid choosing
+thresholds but also are visually better since more information is
+preserved.
+Modifying the number of masks. The semantic segmentation
+significantly affects the style transfer results. For some style im-
+ages, for example paintings of portraits, it is difficult to automati-
+cally segment the face, skin, month, eyes, etc., and to properly seg-
+ment the background and foreground. Failures in the segmentation
+will cause some background texture to be embedded into the fore-
+ground elements in the synthesised image, thereby generating bad
+content, such as the jewellery in figure 8(f) and our result in fig-
+submitted to COMPUTER GRAPHICS Forum (9/2017).
+Huihuang Zhao & Paul L. Rosin & Yu-Kun Lai / Automatic Semantic Style Transfer using Deep Convolutional Neural Networks and Soft Masks 7
+Figure 7: Comparison of style transfer results (odd lines CNNMRF
+method, even lines our method).
+(a) (b) (c) (d) (e) (f) (g)
+Figure 8: Content (a–d) and style (e–g) images and visualisations
+of their soft masks.
+Figure 9: Comparison of style transfer results (odd lines CNNMRF
+method, even lines our method).
+ure 9 row 4. The jewellery should be around the neck and not in the
+background. If the accuracy and reliability of the semantic segmen-
+tation can be improved this will lead to better style transfer results.
+Figure 22 shows an experiment in which the number of labels in
+the semantic masks is increased, and demonstrates the importance
+of separately labelling all the major components of the face.
+Modifying the soft mask weight. There are three parameters in
+our style transfer model, ?1, ?2 and ? which are the weights for
+the style, content and semantic mask loss terms. Since the effect
+of ?1 and and ?2 is considered in [LW16], we focus on studying
+the effect of ? . By default we set the soft mask weight ? = 20.
+This value can be adjusted to control the importance of semantic
+compliance. Figure 23 demonstrates the effect of modifying ? us-
+ing the content image in figure 6(b) and style image in figure 3(b),
+where ?1 = 10?4, ?2 = 20. When ? is too small, the result does
+not have sufficient semantic control and can produce semantically
+wrong matches. On the other hand, setting ? too large may result in
+matched patches having poor content/style consistency. According
+to our experiments, ? ? [15,35] achieves best results.
+submitted to COMPUTER GRAPHICS Forum (9/2017).
+8 Huihuang Zhao & Paul L. Rosin & Yu-Kun Lai / Automatic Semantic Style Transfer using Deep Convolutional Neural Networks and Soft Masks
+(a) (b) (c) (d) (e) (f)
+Figure 10: Content (a–c) and style (d–f) images and their soft masks.
+Figure 11: Style transfer comparison (columns 1–3 CNNMRF method, columns 4–6 our method).
+(a) (b) (c) (d) (e) (f)
+Figure 12: Content (a–c) and style (d–f) images and their soft masks.
+submitted to COMPUTER GRAPHICS Forum (9/2017).
+Huihuang Zhao & Paul L. Rosin & Yu-Kun Lai / Automatic Semantic Style Transfer using Deep Convolutional Neural Networks and Soft Masks 9
+Figure 13: Style transfer comparison (columns 1–3 CNNMRF method, columns 4–6 our method).
+(a) (b) (c) (d) (e) (f)
+Figure 14: Content (a–c) and style (d–f) images and their soft masks.
+Figure 15: Style transfer comparison (columns 1–3 CNNMRF method, columns 4–6 our method).
+submitted to COMPUTER GRAPHICS Forum (9/2017).
+10 Huihuang Zhao & Paul L. Rosin & Yu-Kun Lai / Automatic Semantic Style Transfer using Deep Convolutional Neural Networks and Soft Masks
+(a) (b) (c) (d) (e) (f)
+Figure 16: Content (a–c) and style (d–f) images and their soft masks.
+Figure 17: Style transfer comparison (columns 1–3 CNNMRF method, columns 4–6 our method).
+(a) image (b) 1st mask (c) 2nd mask (d) 3rd mask (e) 4th mask (f) 5th mask (g) head masks (h) background (i) result
+Figure 18: Object style transfer with automatic probability map selection. (a) content and style images, (b)–(f) the automatically selected
+top 5 semantic masks, (g) head masks, (h) background mask, (i) top: CNNMRF result, bottom: our result.
+submitted to COMPUTER GRAPHICS Forum (9/2017).
+Huihuang Zhao & Paul L. Rosin & Yu-Kun Lai / Automatic Semantic Style Transfer using Deep Convolutional Neural Networks and Soft Masks 11
+(a) (b) (c) (d)
+(e) (f) (g) (h)
+Figure 19: More style images transfer with soft masks, (a) content,
+(b–c) multiple styles, (e–g) probability maps, (d) CNNMRF result
+and (h) our result.
+(a) (b) (c) (d)
+(e) (f) (g) (h)
+Figure 20: More style images transfer with soft masks, (a) content,
+(b–c) multiple styles, (e–g) probability maps, (d) CNNMRF result
+and (h) our result.
+7. Conclusions
+Semantic masks are very important for improving the style trans-
+fer results. They can achieve background texture and object tex-
+ture style transfer separately, and prevent them from contaminating
+each other. We can also fine tune the weight of the semantic masks
+to achieve different results. In the future we will carry out more ex-
+tensive experiments to determine which weights produce the best
+style transfer results.
+In most cases, soft masks can achieve better results than binary
+masks, especially in uncertain areas. The probability maps show
+the likelihood of having specific objects in the image, and can help
+capture elements of the styles for objects in the style image and pre-
+serve the structure of the content image. Therefore, they are useful
+for finding better patches in the style image and improving the style
+transfer results.
+Our paper demonstrates the benefits of automatic semantic mask
+extraction by combining state-of-the-art methods for both semantic
+segmentation and facial features. The correctness and accuracy of
+the semantic masks are critical. Using soft masks helps mitigate
+this, but there is certainly scope to improve semantic segmentation,
+or to develop methods dedicated to generating soft semantic masks.
+Acknowledgements
+This work was supported by National Natural Science Founda-
+tion of China (61503128), Science and Technology Plan Project of
+Hunan Province (2016TP102), Scientific Research Fund of Hunan
+Provincial Education Department (14B025,16C0311), and Hunan
+Provincial Natural Science Foundation of China (2017JJ4001). We
+also would like to thank NVIDIA for the GPU donation.
+References
+[BDPFG17] BRANCATI N., DE PIETRO G., FRUCCI M., GALLO L.:
+Human skin detection through correlation rules between the ycb and ycr
+subspaces based on dynamic color clustering. Computer Vision and Im-
+age Understanding 155 (2017), 33–42. 5
+[BRM16] BALTRUŠAITIS T., ROBINSON P., MORENCY L.-P.: Open-
+face: an open source facial behavior analysis toolkit. In Winter Conf. on
+Applications of Computer Vision (2016), pp. 1–10. 5
+[Cha16] CHAMPANDARD A. J.: Semantic style transfer and turning two-
+bit doodles into fine artworks. arXiv preprint arXiv:1603.01768 (2016).
+1, 2, 4, 5, 6
+[CPT04] CRIMINISI A., PÉREZ P., TOYAMA K.: Region filling and ob-
+ject removal by exemplar-based image inpainting. IEEE Transactions on
+Image Processing 13, 9 (2004), 1200–1212. 1
+[EF01] EFROS A. A., FREEMAN W. T.: Image quilting for texture syn-
+thesis and transfer. In Proceedings of the 28th annual conference on
+Computer graphics and interactive techniques (2001), ACM, pp. 341–
+346. 1
+[EL99] EFROS A. A., LEUNG T. K.: Texture synthesis by non-
+parametric sampling. In Proc. Int. Conf. Computer Vision (1999), vol. 2,
+IEEE, pp. 1033–1038. 2
+[Fac] FACE++: Face++. https://www.faceplusplus.com/
+face-detection/. Accessed April 4, 2015. 2
+[FPC00] FREEMAN W. T., PASZTOR E. C., CARMICHAEL O. T.: Learn-
+ing low-level vision. International Journal of Computer Vision 40, 1
+(2000), 25–47. 2
+[FSDH16] FRIGO O., SABATER N., DELON J., HELLIER P.: Split and
+match: example-based adaptive patch sampling for unsupervised style
+transfer. In Proc. Conf. Computer Vision and Pattern Recognition (2016),
+pp. 553–561. 2
+[GDDM14] GIRSHICK R., DONAHUE J., DARRELL T., MALIK J.: Rich
+feature hierarchies for accurate object detection and semantic segmenta-
+tion. In Proc. Conf. Computer Vision and Pattern Recognition (2014),
+pp. 580–587. 2
+[GEB15a] GATYS L., ECKER A. S., BETHGE M.: Texture synthesis
+using convolutional neural networks. In Advances in Neural Information
+Processing Systems (2015), pp. 262–270. 2
+[GEB15b] GATYS L. A., ECKER A. S., BETHGE M.: A neural algorithm
+of artistic style. arXiv preprint arXiv:1508.06576 (2015). 1, 2, 5, 6
+[GEB?16] GATYS L. A., ECKER A. S., BETHGE M., HERTZMANN A.,
+SHECHTMAN E.: Controlling perceptual factors in neural style transfer.
+arXiv preprint arXiv:1611.07865 (2016). 1, 2, 5, 6
+[HCWC15] HALL P., CAI H., WU Q., CORRADI T.: Cross-depiction
+problem: Recognition and synthesis of photographs and artwork. Com-
+putational Visual Media 1, 2 (2015), 91–103. 4
+[JAFF16] JOHNSON J., ALAHI A., FEI-FEI L.: Perceptual losses for
+real-time style transfer and super-resolution. In European Conference
+on Computer Vision (2016), Springer, pp. 694–711. 1, 2
+[KEBK05] KWATRA V., ESSA I., BOBICK A., KWATRA N.: Texture op-
+timization for example-based synthesis. ACM Transactions on Graphics
+(ToG) 24, 3 (2005), 795–802. 2
+submitted to COMPUTER GRAPHICS Forum (9/2017).
+12 Huihuang Zhao & Paul L. Rosin & Yu-Kun Lai / Automatic Semantic Style Transfer using Deep Convolutional Neural Networks and Soft Masks
+(a) (b) (c) (d) (e) (f) (g)
+Figure 21: Result based on binary masks, (a) content binary mask, (b–d) binary masks for three styles, (e–g) results
+(a) no mask (b) 2 masks (c) 3 masks (d) 6 masks
+Figure 22: Result showing the effects on style transfer with an in-
+creasing number of labelled objects in the soft masks.
+(a) ? = 0 (b) ? = 10 (c) ? = 20
+(d) ? = 30 (e) ? = 40 (f) ? = 80
+Figure 23: Result showing the effects of varying parameter ? .
+[KSE?03] KWATRA V., SCHÖDL A., ESSA I., TURK G., BOBICK A.:
+Graphcut textures: image and video synthesis using graph cuts. In ACM
+Transactions on Graphics (ToG) (2003), vol. 22, ACM, pp. 277–286. 2
+[LW16] LI C., WAND M.: Combining markov random fields and convo-
+lutional neural networks for image synthesis. In Proc. Conf. Computer
+Vision and Pattern Recognition (2016), pp. 2479–2486. 1, 2, 3, 5, 6, 7
+[NHH15] NOH H., HONG S., HAN B.: Learning deconvolution network
+for semantic segmentation. In Proc. Int. Conf. Computer Vision (2015),
+pp. 1520–1528. 2
+[RDB16] RUDER M., DOSOVITSKIY A., BROX T.: Artistic style trans-
+fer for videos. In German Conference on Pattern Recognition (2016),
+Springer, pp. 26–36. 1, 2
+[SED16] SELIM A., ELGHARIB M., DOYLE L.: Painting style transfer
+for head portraits using convolutional neural networks. ACM Transac-
+tions on Graphics (TOG) 35, 4 (2016), 129. 1, 4
+[SLD17] SHELHAMER E., LONG J., DARRELL T.: Fully convolutional
+networks for semantic segmentation. IEEE Trans. on Pattern Analysis
+and Machine Intelligence 39, 4 (2017), 640–651. 2
+[SPB?14] SHIH Y., PARIS S., BARNES C., FREEMAN W. T., DURAND
+F.: Style transfer for headshot portraits. ACM Transactions on Graphics
+(TOG) 33, 4 (2014). 2
+[SZ14] SIMONYAN K., ZISSERMAN A.: Very deep convolutional net-
+works for large-scale image recognition. arXiv preprint arXiv:1409.1556
+(2014). 3
+[Tho16] THOMA M.: A survey of semantic segmentation. arXiv preprint
+arXiv:1602.06541 (2016). 2
+[ULVL16] ULYANOV D., LEBEDEV V., VEDALDI A., LEMPITSKY V.:
+Texture networks: Feed-forward synthesis of textures and stylized im-
+ages. In Int. Conf. on Machine Learning (ICML) (2016). 2
+[VRK11] VICENTE S., ROTHER C., KOLMOGOROV V.: Object coseg-
+mentation. In Conf. Computer Vision and Pattern Recognition (2011),
+IEEE, pp. 2217–2224. 4
+[WL00] WEI L.-Y., LEVOY M.: Fast texture synthesis using tree-
+structured vector quantization. In Proceedings of the 27th annual con-
+ference on Computer graphics and interactive techniques (2000), ACM
+Press/Addison-Wesley Publishing Co., pp. 479–488. 2
+[YZY?17] YANG Y., ZHAO H., YOU L., TU R., WU X., JIN X.: Se-
+mantic portrait color transfer with internet images. Multimedia Tools
+and Applications 76, 1 (2017), 523–541. 2
+[ZCC?13] ZHANG W., CAO C., CHEN S., LIU J., TANG X.: Style trans-
+fer via image component analysis. IEEE Transactions on Multimedia 15,
+7 (2013), 1594–1601. 2
+[ZJRP?15] ZHENG S., JAYASUMANA S., ROMERA-PAREDES B., VI-
+NEET V., SU Z., DU: Conditional random fields as recurrent neural
+networks. In Proc. Int. Conf. Computer Vision (2015), pp. 1529–1537.
+1, 2, 4, 5
+submitted to COMPUTER GRAPHICS Forum (9/2017).

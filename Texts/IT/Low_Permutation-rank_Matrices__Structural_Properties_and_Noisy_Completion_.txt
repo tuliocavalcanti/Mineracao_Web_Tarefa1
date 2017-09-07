@@ -1,0 +1,2583 @@
+ar
+X
+iv
+:1
+70
+9.
+00
+12
+7v
+1 
+ [
+st
+at
+.M
+L
+] 
+ 1
+ S
+ep
+ 2
+01
+7
+Low Permutation-rank Matrices:
+Structural Properties and Noisy Completion
+Nihar B. Shah Sivaraman Balakrishnan Martin J. Wainwright
+ML and CS Depts. Dept. of Statistics Dept. of EECS and Statistics
+CMU CMU UC Berkeley
+nihars@cs.cmu.edu siva@stat.cmu.edu wainwrig@berkeley.edu
+Abstract
+We consider the problem of noisy matrix completion, in which the goal is to reconstruct a
+structured matrix whose entries are partially observed in noise. Standard approaches to this
+underdetermined inverse problem are based on assuming that the underlying matrix has low
+rank, or is well-approximated by a low rank matrix. In this paper, we propose a richer model
+based on what we term the “permutation-rank” of a matrix. We first describe how the classical
+non-negative rank model enforces restrictions that may be undesirable in practice, and how and
+these restrictions can be avoided by using the richer permutation-rank model. Second, we estab-
+lish the minimax rates of estimation under the new permutation-based model, and prove that
+surprisingly, the minimax rates are equivalent up to logarithmic factors to those for estimation
+under the typical low rank model. Third, we analyze a computationally efficient singular-value-
+thresholding algorithm, known to be optimal for the low-rank setting, and show that it also
+simultaneously yields a consistent estimator for the low-permutation rank setting. Finally, we
+present various structural results characterizing the uniqueness of the permutation-rank decom-
+position, and characterizing convex approximations of the permutation-rank polytope.
+1 Introduction
+In the problem of matrix completion, the goal is to reconstruct a matrix based on observations of
+a subset of its entries [Lau01]. Matrix completion has a variety of applications, including recom-
+mender systems [KBV09], image understanding [LS99], credit risk monitoring [VHVVD08], fluo-
+rescence spectroscopy [GPH04], and modeling signal-adaptive audio effects [SK11]. We refer the
+reader to the surveys [Gil14, DR16] for an overview of the vast literature on this topic. Throughout
+this paper, in order to provide a running example for our modeling, it will be convenient to refer
+back to a particular variant of a recommender system application. More concretely, suppose that
+there are n ? 2 users and d ? 2 items, as well as an unknown matrix M? ? [0, 1]n×d that captures
+the users’ preferences for the items. Specifically, the (i, j)th entry of M? represents the probability
+that user i likes item j. The problem is to estimate this preference matrix M? ? [0, 1]n×d from
+observing users’ likes or dislikes for some subset of the items.
+Following a long line of past work in this area (e.g., [CJSC13, Gro11, SAJ05, CR09, CT10,
+KMO10, Rec11, Cha14]), we consider the following form of random design observation model. For
+a given parameter pobs ? (0, 1] and for any user-item pair (i, j), we observe i’s rating for item j with
+probability pobs. We assume that when an entry (i, j) is observed, we observe a binary value—for
+1
+instance, {like, dislike} or {0, 1}—which arises as a Bernoulli realization of the true preference M?ij.1
+More formally, we observe a matrix Y ? {0, 12 , 1}n×d, where
+Yij =
+?
+??
+??
+1 with probability pobsM
+?
+ij (user i likes item j)
+0 with probability pobs(1?M?ij) (user i dislikes item j)
+1
+2 with probability 1? pobs (no data available),
+(1)
+for every (i, j) ? [n]× [d]. The goal is to estimate the underlying matrix M? based on the observed
+matrix Y .
+It is clear that, if no structural conditions are imposed on the underlying matrix M?, then
+this problem is ill-posed. A classical approach is to impose on a bound on either the rank or the
+non-negative rank of the matrix. We begin by describing the approach based on the non-negative
+rank, before turning to the alternative approach based on permutation rank that is the focus of
+this paper.
+Non-negative rank: In the problem of non-negative low-rank matrix completion, the matrix
+M? is assumed to have a factorization of the form
+M? = UV T ,
+for some matrices U ? Rn×r+ and V ? Rd×r+ . Here the integer r ? {1, . . . ,min{d, n}} is known as
+the non-negative rank of the matrix. (As a corner case, we also have that the zero matrix is the
+one and only matrix with a non-negative rank of r = 0.) It is often assumed that the non-negative
+rank r is a known quantity, but in this paper, we make no such assumptions. For any value of
+r ? {1, . . . ,min{d, n}}, we let CNR(r) denote the set of all matrices with a non-negative factorization
+of rank at most r—that is
+CNR(r) :=
+{
+M ? [0, 1]n×d | M = UV T , U ? Rn×r+ , V ? Rd×r+
+}
+.
+For any matrix M , the smallest value of r such that M ? CNR(r) is termed its non-negative rank,
+and is denoted by r(M).
+In order to gain some intuition for the meaning of the non-negative rank, note that any matrix
+M ? CNR(r) can be written as a sum of the form
+M =
+r?
+?=1
+u?(v?)T .
+Here u? ? Rn+ and v? ? Rd+ are vectors such that u?(v?)T ? [0, 1]n×d for every ? ? [r]. Such a
+decomposition can be interpreted as the existence of r features, indexed by ? ? [r]. The d entries
+of vector v? represent the contribution of feature ? to the d respective items, and the n entries of
+vector u? represent the amounts by which the n respective users are influenced by feature ?. The
+popular overview article by Koren et al. [KBV09] provides an explanation for this assumption:
+1Our results readily extend to any rating scheme with bounded values, such as five-star ratings. We focus on the
+binary case for purposes of brevity.
+2
+“Latent factor models are an alternative approach that tries to explain the ratings by
+characterizing both items and users on, say, 20 to 100 factors inferred from the ratings
+patterns. ... For movies, the discovered factors might measure obvious dimensions
+such as comedy versus drama, amount of action, or orientation to children; less well-
+defined dimensions such as depth of character development or quirkiness; or completely
+uninterpretable dimensions. For users, each factor measures how much the user likes
+movies that score high on the corresponding movie factor.”
+Concerns with non-negative rank: Let us now delve deeper into this model2 continuing in the
+context of movie recommendations for the sake of concreteness. Suppose there are r features that
+govern the movie watching experience; examples of such features include the amount of comedy
+content or the depth of character development. For any user i ? [n] and any feature ? ? [r], we
+let u?i ? R+ denote the “affinity” of user i towards feature ?, and for any movie j ? [d], we let
+v?j ? R+ denote the amount of content associated to feature ? in movie j. The conventional low
+non-negative rank model then assumes that the affinity of user i towards movie j conditioned on
+feature ? is given by u?iv
+?
+j . Consequently, for given feature ?, the entire behavior of each user and
+movie is governed by a pair of parameters, namely u?i and v
+?
+j for user i and item j respectively. Such
+an assumption has some unnatural implications. For instance, consider any two movies, say A and
+B, and any two users, say X and Y . Then conditioned on any feature ?, we have the implication
+Preference of user X for movie A
+Preference of user X for movie B
+=
+Preference of user Y for movie A
+Preference of user Y for movie B
+.
+In words, the low non-negative rank model inherently imposes a condition that is potentially
+unrealistic—namely, that for any given feature, the ratio of preferences for any pair of movies
+is identical for all users. Likewise, for any given feature, the ratio of preferences of any pair of users
+is identical for all movies. With the goal of circumventing this possibly troublesome condition, let
+us now describe a generalization that we call permutation rank; it is the main focus of our paper.
+Permutation rank: As with the ordinary rank, the permutation rank of the all-zeros matrix
+is zero. Otherwise, for any non-zero matrix, the permutation rank ? takes values in the set
+{1, . . . ,min{n, d}}. We begin by describing the set CPR(1) of matrices with permutation rank
+one, before describing how to extend to arbitrary ? > 1. The set of matrices with permutation
+rank ? = 1 is given by
+CPR(1) :={M ? [0, 1]n×d | ? permutations ?1 : [n] ? [n] and ?2 : [d] ? [d] such that
+Mij ? Mi?j? for every quadruple (i, j, i?, j?) such that ?1(i) ? ?1(i?) and ?2(j) ? ?2(j?) }.
+In words, a non-zero matrix is said to have a permutation rank of 1 if there exists a permutation
+of its rows and columns such that the entries of the resulting matrix are non-decreasing down any
+column and to the right along any row. Observe that any matrix with the conventional (non-
+negative) rank equal to 1 also belongs to the set CPR(1). However, a matrix in CPR(1) can have any
+non-negative rank, meaning the set of matrices with a permutation-rank of 1 also includes some
+matrices with a full non-negative rank.
+2A slightly different, alternative interpretation is discussed in Appendix B.
+3
+We now extend the definition of the permutation rank to any integer ? ? {1, . . . ,min{n, d}}.
+In particular, the set of matrices with permutation rank ? is given by
+CPR(?) :=
+{
+M ? [0, 1]n×d
+??? M =
+??
+?=1Q
+? for some matrices Q1, . . . , Q? ? CPR(1)
+}
+,
+of matrices having a permutation-rank at most ?. Note that this definition reduces to our previous
+one in the special case ? = 1. Otherwise, for ? > 1, the permutations defining membership of each
+constituent matrix Q? in CPR(?) are allowed to be different. For any matrix M , the smallest value
+of ? such that M ? CPR(?) is termed its permutation rank, and is denoted by ?(M).
+Revisiting the example of movie recommendations, the interpretation of this more general
+permutation-rank model is that conditioned on any feature ? ? [r], the preference ordering across
+movies continues to be consistent for different users, but the values of these preferences need not
+be identical scalings of each other. Observe that the conventional non-negative matrix-completion
+setting CNR(r) is a special case of the permutation-rank matrix-completion setting where each
+matrix Q? is restricted to be of rank one. Whenever r < min{d, n}, we have the strict inclusion
+CNR(r) ? CPR(r).
+Outline and main contributions: Having discussed the limitations of the non-negative rank
+model and introduced the permutation rank, we now outline the remainder of the paper. In
+Section 2, we present our main results on the problem of estimating the matrix M? (in the Frobenius
+norm) from partial and noisy observations. Specifically, we present a certain regularized least
+squares estimator, and prove that it achieves (nearly) minimax-optimal rates for estimation over the
+permutation-rank model. We also show that surprisingly, even if one considers the more restrictive
+non-negative rank model, and even if the rank is known, no estimator can achieve lower estimation
+error up to logarithmic factors. We also analyze the computationally efficient Singular Value
+Thresholding (SVT) algorithm, and show that it yields consistent estimates over the permutation-
+rank model, in addition to yielding the optimal estimate under the non-negative rank model. In
+Section 3, we establish some interesting properties of the permutation-rank model, and also derive
+certain relationships of this model with the non-negative rank model. In Section 4 we present the
+proofs of our results. We conclude the paper with a discussion in Section 5.
+The paper also contains two appendices. Appendix A is devoted to negative results, where we
+show that certain intuitive algorithms provably fail. Appendix B describes an alternative interpre-
+tation of the non-negative rank model.
+2 Main results on estimating M?
+We begin by considering the problem of estimating a low permutation rank matrix M? based on
+noisy and partial observations. We first analyze a computationally expensive estimator, based
+on regularizing the least-squares cost with a multiple of the permutation rank, and show that it
+achieves minimax-optimal rates up to logarithmic factors. We then turn to a polynomial-time
+algorithm based on nuclear norm regularization, which is equivalent singular value thresholding in
+the current set-up.
+4
+2.1 Optimal oracle inequalities for estimation
+Suppose that we collect an observation matrix Y of the form (1), where the unknown matrix M?
+belongs CPR. In this section, we analyze a regularized form of least-squares estimation, as applied
+to the recentered matrix
+Y ? : =
+1
+pobs
+Y ? 1? pobs
+2pobs
+11T . (2a)
+We perform this recentering in order to obtain an unbiased estimate (Y ?) of the true matrix M? in
+the presence of missing observations, which is used in the least-squares estimator described below.
+As a sanity check, observe that when pobs = 1, we have the direct relation Y
+? = Y .
+Letting ?(M) denote the permutation-rank of any matrix M , we then consider the estimator
+M?LS ? arg min
+M?[0,1]n×d
+(
+|||Y ? ?M |||2F +
+?(M)max{n, d} log2.01 d
+pobs
+)
+. (2b)
+Observe that importantly, the estimator M?LS does not need to know the value of the true permutation-
+rank of the underlying matrix. Moreover, while the estimator (as stated) is based on a known value
+of pobs, this assumption is not critical, since pobs can be estimated accurately from the observed
+matrix Y .
+We now turn to some theoretical guarantees on the performance of this estimator. Rather than
+assuming that, for a given rank ?, the target matrix M? has permutation rank exactly equal to
+?, we instead provide bounds that depend on distances to the set of all matrices with a given
+permutation rank. More precisely, for any given tolerance ? ? 0, define the set
+BP(?, ?) :=
+{
+M ? [0, 1]n×d | ?M ? ? [0, 1]n×d s.t. ?(M ?) ? ? and |||M ?M ?|||F ? ?
+}
+,
+corresponding to the set of all matrices that are at most ? distant from the set of matrices with
+permutation rank ?. Similarly, we define the set
+BN(r, ?) :=
+{
+M ? [0, 1]n×d | ?M ? ? [0, 1]n×d s.t. r(M ?) ? r and |||M ?M ?|||F ? ?
+}
+,
+corresponding to matrices that are at most ? away from some matrix with non-negative-rank r.
+In stating the following theorem, as well as throughout the remainder of the paper, we use
+c, c?, c1 etc. to denote positive universal constants. The values of these constants may differ from
+line to line.
+Theorem 1. (a) For any matrix M? ? [0, 1]n×d and any integer ? ? [min{n, d}], the regularized
+least squares estimator M?LS satisfies the upper bound
+1
+nd
+|||M?LS ?M?|||2F ? c1 min
+{
+1, min
+M?CPR(?)
+|||M ?M?|||2F
+nd
++
+? log2.01(nd)
+min{n, d}pobs
+}
+, (3a)
+with probability at least 1? e?c0 max{n,d} log(nd).
+(b) Conversely, for any integer ? ? [min{n, d}], any scalar ? ? 0, and any estimator M? , there exists
+a matrix M? ? BN(?, ?) such that
+E
+[ 1
+nd
+|||M? ?M?|||2
+F
+]
+? c2 min
+{
+1,
+?2
+nd
++
+?
+min{n, d}pobs
+}
+. (3b)
+See Section 4.1 for the proof of this claim.
+5
+Interpretation as oracle inequality: The upper bound (3a) is an instance of an oracle inequal-
+ity : it provides a family of upper bounds, one for each choice of the integer ? ? [min{n, d}], on the
+estimation error associated with an arbitrary matrix M? ? [0, 1]n×d. For each choice of ?, the upper
+bound (3a) consists of two terms. The first term, involving the minimum over M ? CPR(?), is a
+form of approximation error: it measures how well the unknown matrix M? can be approximated
+with a matrix M of permutation rank at most ?. The second term is a form of estimation error,
+measuring the difficulty of estimating a matrix that has permutation rank at most ?. Since one
+such an upper bound holds for each choice of ?, the bound (3a) shows that the estimator mimicks
+the behavior of an “oracle”, which is allowed to choose ? so as to optimize the trade-off between
+the approximation and estimation error.
+Sandwiching of the risk: The upper bound (3a) of Theorem 1 can equivalently be stated in the
+following manner. For any integer ? ? [max{n, d}] and any scalar ? ? 0 such that M? ? BP(?, ?),
+the regularized least squares estimator M?LS satisfies the upper bound
+1
+nd
+|||M?LS ?M?|||2F ? c1 min
+{ ?2
+nd
++
+? log2.01(nd)
+min{n, d}pobs
+, 1
+}
+, (4a)
+with probability at least 1? e?c0 max{n,d} log(max{nd}). On the other hand, since BN(?, ?) ? BP(?, ?)
+for every value of ? and ?, the lower bound (3b) of Theorem 1 implies the following result. For any
+integer ? ? [min{n, d}], any scalar ? ? 0, and any estimator M? , there exists a matrix M? ? BN(?, ?)
+such that
+E
+[ 1
+nd
+|||M? ?M?|||2F
+]
+? c2 min
+{
+1,
+?2
+nd
++
+?
+min{n, d}pobs
+}
+. (4b)
+Comparing the bounds (4a) and (4b), we see that our results are sharp up to logarithmic factors.
+Specialization to minimax risk: When suitably specialized to matrices that have some fixed
+permutation (or non-negative) rank, Theorem 1 leads to sharp upper and lower bounds on the
+minimax risks for the problems of matrix completion over the sets CNR and CPR. In order for
+a clear comparison between the two bounds, let us index both the non-negative rank and the
+permutation-rank using a generic notation k—the meaning of the notation will be clear from the
+context.
+Part (a) of Theorem 1 implies that for any value k ? [min{n, d}] and any matrix M? ? CPR(k),
+the regularized least squares estimator M?LS satisfies the bound
+1
+dn
+|||M?LS ?M?|||2F ? c1 min
+{ k log2.01(nd)
+min{n, d}pobs
+, 1
+}
+,
+with probability at least 1 ? e?c0 max{n,d} log(nd). Within the set of matrices [0, 1]n×d under con-
+sideration, we have the deterministic upper bound 1nd |||M?LS ? M?|||2F ? 1. Consequently, our high
+probability upper bound also implies a uniform bound on the mean-squared error over the set
+CPR(k)—that is
+sup
+M??CPR(k)
+1
+dn
+E[|||M?LS ?M?|||2F] ? c?1 min
+{ k log2.01(nd)
+min{n, d}pobs
+, 1
+}
+. (5a)
+6
+Since CPR(k) is a superset of CNR(k), the same upper bound holds for the minimax risk over CNR(k):
+sup
+M??CNR(k)
+1
+dn
+E[|||M?LS ?M?|||2F] ? c?1 min
+{ ? log2.01(nd)
+min{n, d}pobs
+, 1
+}
+. (5b)
+Conversely, part (b) of Theorem 1 implies that for any k ? [max{n, d}], the error incurred by
+any estimator M? over the set CNR(k) is error lower bounded as
+sup
+M??CNR(k)
+1
+dn
+E[|||M? ?M?|||2F] ? c2 min
+{ k
+min{n, d}pobs
+, 1
+}
+. (5c)
+Since CNR(k) ? CPR(k), the error incurred by any estimator M? over the set CPR(k) is also lower
+bounded as
+sup
+M??CPR(k)
+1
+dn
+E[|||M? ?M?|||2F] ? c2 min
+{ k
+min{n, d}pobs
+, 1
+}
+. (5d)
+We have thus characterized the minimax risk over both the families CPR or CNR, with bounds (5)
+that are matching up to logarithmic factors. An important consequence of our oracle and minimax
+results is the multi-fold benefit of moving from the restrictive non-negative-rank assumptions to
+the more general permutation-rank assumptions. Fitting a permutation-rank k model when the
+true matrix actually has a non-negative rank of k leads to relatively little additional (overfitting)
+error. On the other hand, we show later in the paper that fitting a non-negative rank k model when
+the true matrix actually has a permutation-rank of k can lead to very high error, due to model
+mismatch.
+Link to past work: A special case of our present problem is equivalent to the setting considered
+in our earlier work [SBGW17], corresponding to the case when the value of ? is known and equal
+to 1, the matrix M? is square with n = d, and all entries of M? satisfy the shifted-skew-symmetry
+condition M?ij + M
+?
+ji = 1. The proof of the upper bound of Theorem 1(a) relies on a framework
+laid out in this earlier work [SBGW17], but augments the results obtained in this past work, both
+in generalizing to broader families of matrices, but also providing oracle inequalities that allow for
+matrices that need not be exactly low rank (in either the non-negative or permutation senses).
+Theorem 1 provides guarantees on the estimation of “mixtures” of different permutations, thereby
+resolving an important open problem in the paper [SBGW17].
+2.2 Computationally efficient estimator
+At this point, we do not know how to compute the regularized least squares estimator (2b) in
+an efficient manner, and we suspect that it may be computationally intractable to do so. Conse-
+quently, in this section, we turn to analyzing a different method based on singular value threshold-
+ing (SVT). Singular value thresholding has been used either directly or as a subroutine in several
+past papers on the conventional low-rank matrix completion problem (see, for example, the pa-
+pers [CCS10, DG+14, Cha14]). This approach is appealing due to its computational simplicity,
+involving only computation of the singular value decomposition, followed by a single pointwise
+non-linearity; see Cai et al. [CO10] for a fast algorithm. In the context of the permutation rank
+completion problem, we show here that the SVT estimator is consistent for estimation under the
+7
+permutation-rank model, albeit with a rate that is suboptimal by a factor of
+?
+min{n, d}pobs. Note
+that these guarantees hold without the estimator needing to know that the matrix is drawn from
+a permutation-rank model, nor the value pobs of the permutation rank.
+The SVT estimator is straightforward to describe. From the observation matrix Y ? {0, 12 , 1}n×d,
+we first obtain the transformed observation matrix Y ? as in equation (2a). Applying the singular
+value decomposition yields the representation Y ? = UDV T , where the (n×d) matrix D is diagonal,
+whereas the (n × d) matrices U and V are orthonormal. For a threshold ? > 0 to be specified,
+define another diagonal matrix D?? with entries
+[D??]jj =
+{
+0 if Djj < ?
+Djj ? ? if Djj ? ?
+for each j ? [max{n, d}]. (6)
+Finally, the SVT estimator is given by
+M?SVT = UD??V
+T .
+The following theorem now establishes guarantees for the singular value thresholding estimator.
+Theorem 2. Suppose that pobs ? 1min{n,d} log
+7(nd). Then for any matrix M? ? [0, 1]n×d, the SVT
+estimator M?SVT with threshold ? = 2.1
+?
+n+d
+pobs
+satisfies the bound
+1
+nd
+|||M?SVT ?M?|||2F ? c1 min
+M?[0,1]n×d
+(
+min
+{ ?(M)?
+min{n, d}pobs
+,
+r(M)
+min{n, d}pobs
+}
++
+1
+nd
+|||M? ?M |||2F
+)
+, (7)
+with probability at least 1? e?c0 max{n,d}.
+Observe that the bound (7) on the risk of the SVT estimator has the term
+?
+min{n, d} in the
+denominator of the first expression in the minimum, as opposed to the min{n, d} in the upper
+bound (3a) from Theorem 1. This form of “
+?
+n-suboptimality” arises in several permutation-based
+problems of this type studied in recent papers (e.g., [SBGW17, SBW16a, CM16, SBW16b, FMR16,
+PWC16]). In some cases, this gap—between the performance of any polynomial-time algorithm
+and the best algorithm—is known to be unavoidable [SBW16a] conditional on the planted clique
+conjecture. It is interesting to speculate whether such a computational complexity gap exists in
+the context of the permutation-rank model.
+The proof techniques underlying Theorem 2 can also be used to establish previously known guar-
+antees [KLT11, Cha14] for the non-negative rank model. In order to contrast with the permutation-
+rank model, let us state one such guarantee here. It is known from previous results [KLT11, Cha14]
+for the non-negative rank model that for any matrix M? ? [0, 1]n×d, the SVT estimator incurs an
+error upper bounded by
+1
+nd
+|||M?SVT ?M?|||2F ? c?1
+r(M?)
+min{n, d}pobs
+, (8)
+with high probability. On the other hand, our permutation-based modeling approach yields a
+stronger guarantee for the classical SVT estimator—namely, settingM = M? in our upper bound (8)
+8
+of Theorem 2 guarantees that the SVT estimator M?SVT with threshold ? = 2.1
+?
+n+d
+pobs
+satisfies the
+upper bound
+1
+nd
+|||M?SVT ?M?|||2F ? c1 min
+{
+r(M?)
+min{n, d}pobs
+,
+?(M?)?
+min{n, d}pobs
+}
+, (9)
+with high probability. The bound (9) can yield results that are much sharper as compared to what
+may be obtained from the previously known guarantees (8) for the SVT estimator. For example,
+suppose n = d and pobs = 1. Consider the matrix M
+? ? [0, 1]n×d given by
+M?ij =
+?
+??
+??
+1 if i > j
+0 if i < j
+1
+2 if i = j.
+Then we have r(M?) = n and ?(M?) = 1. Consequently, the bound (8) from past literature yields
+an upper bound of
+1
+nd
+|||M?SVT ?M?|||2F ? c?1,
+whereas in contrast, our analysis (9) yields the sharper bound
+1
+nd
+|||M?SVT ?M?|||2F ?
+c1 log
+2.01 n?
+n
+, (10)
+with high probability. Moreover, in our earlier work [SBGW17], we have shown that for this choice
+of M?, the bound (10) is the best possible up to logarithmic factors for the SVT estimator with
+any fixed threshold ?.
+3 Properties of permutation-rank models
+In the previous section, we established some motivating properties of permutation-based models
+from the perspective of statistical estimation, in this section, we derive some more insights on the
+permutation-rank model.
+3.1 Comparing permutation-rank and non-negative-rank
+We begin by comparing the permutation-rank model with the conventional non-negative rank
+model. To this end, first observe that the definitions of the two models immediately imply that
+the permutation-rank of any matrix is always upper bounded by its non-negative rank, that is, for
+any matrix M , we have ?(M) ? r(M). A natural question that now arises is whether there is
+any additional general condition beyond this simple relation that constrains the two notions of the
+matrix rank. The following proposition shows that there is no other guaranteed relation between
+the two notions of matrix rank.
+Proposition 1. For any values 0 < ? ? r ? min{n, d}, there exist matrices whose permutation-
+rank is ? and non-negative rank is r.
+9
+A particular instance that underlies part of the proof of Proposition 1, associated to any pair
+of values (?, r), is the following block matrix M?,r of size (n× d):
+M?,r : =
+?
+?
+Jr??+1 0 0
+0 I??1 0
+0 0 0
+?
+? ,
+where for any value k, Jk denotes an upper triangular matrix of size (k× k) with all entries on and
+above the diagonal set as 1, and let Ik denote the identity matrix of size (k × k). By construction,
+the matrix M?,r has a non-negative rank r(M?,r) = r and a permutation rank ?(M?,r) = ?.
+We now investigate a second relation between the two models. Recall from our discussion earlier
+that the assumptions of the permutation-rank model are much less restrictive than the assumptions
+of the non-negative rank model. With this context, a natural question that arises is to quantify the
+bias of an estimator that fits a matrix of non-negative rank of k when the true underlying matrix
+instead has a permutation rank of k. We answer this question using the notion of the Hausdorff
+distance: For any two sets S1,S2 ? Rn×d, the Hausdorff distance H(S1,S2) between the two sets in
+the squared Frobenius norm is defined as
+H(S1,S2) := max
+{
+sup
+M?S1
+inf
+M ??S2
+|||M ?M ?|||2F , sup
+M ??S2
+inf
+M?S1
+|||M ?M ?|||2F
+}
+(11)
+The following proposition quantifies the Hausdorff distance between non-negative-rank and
+permutation-rank models.
+Proposition 2. For any positive integer k ? 12 min{d, n}, the Hausdorff distance between the sets
+CNR(k) and CPR(k) is lower bounded as
+H(CNR(k),CPR(k)) ? c3
+nd
+k
+. (12)
+Proposition 2 helps quantify the bias on fitting a non-negative rank model when the true matrix
+follows the permutation-rank model as follows. Consider any positive integer k ? 12 min{d, n}, and
+any estimator M?k that outputs a matrix in CNR(k). Then since CNR(k) ? ?(k), the error incurred
+by this estimator when the true matrix lies in the set CPR(k) is lower bounded as
+sup
+M??CPR(k)
+1
+nd
+|||M ? M?k|||2F ?
+1
+nd
+H(CNR(k),CPR(k)) ? c3
+1
+k
+, (13)
+with probability 1.
+Observe that when k is a constant (but n and d are allowed to grow), the right hand side of the
+bound (12) becomes a constant, and this is the largest possible order-wise gap between any pair
+of matrices in [0, 1]n×d. Likewise, the right hand side of (13) becomes a constant, and this is the
+largest possible order-wise error for any estimator that outputs matrices in [0, 1]n×d.
+3.2 No “good” convex approximation
+In this section, we investigate a question about an important property of the permutation-based
+set, and in particular, its primitive CPR(1). There are various estimators including our regularized
+least squares estimator (2b) as well as those studied in the literature [SBGW17, SBW16a, SBW16b]
+10
+which require solving a an optimization problem over the set CPR(1). With this goal in mind, a
+natural question that arises is: Is the set CPR(1) is convex? If not, then does it at least have a
+“good” convex approximation? The following proposition answers these questions in the negative
+using the notion of the Hausdorff distance between sets (11).
+Proposition 3. The Hausdorff distance (11) between the set of matrices with permutation-rank
+one and any arbitrary convex set C ? Rn×n is lower bounded as
+1
+nd
+H(CPR(1),C) ? c,
+where c > 0 is a universal constant.
+A specific example of a convex set C is the convex hull of CPR(1). Then by definition we have
+the relation sup
+M1?CPR(1)
+inf
+M2?C
+|||M1 ?M2|||2F = 0. Consequently, Proposition 3 implies that
+sup
+M2?C
+inf
+M1?CPR(1)
+|||M1 ?M2|||2F = ?(nd),
+thus showing that the convex hull of CPR(1) is a much larger set than CPR(1) itself.
+The proof of Proposition 3 relies on a more general result that we derive, one which relates
+a certain notion of inherent (lack of) convexity of a set to the Hausdorff distance between that
+set and any convex approximation. Note that this result does not preclude the possibility that
+an optimization procedure over a convex approximation to CPR(1) converges close enough to some
+element of CPR(1) itself. We leave the investigation of this possibility to future work.
+3.3 On the uniqueness of decomposition
+In this section, we investigate conditions for the uniqueness of the decomposition of any matrix
+into its constituent components that have a permutation-rank of one. In the conventional setting
+of low non-negative rank matrix completion, several past works [DS03, TST05, LCP+08, Gil12,
+AGKM12] investigate the conditions required for uniqueness of the decomposition of matrices into
+their constituent non-negative rank-one matrices. Here we consider an analogous question in the
+setting of permutation rank. More precisely, consider any matrix M ? [0, 1]n×d with a permutation-
+rank decomposition of the form
+M =
+?(M)?
+?=1
+M (?), (14)
+where M (?) ? CPR(1) for every ? ? [?(M)]. Under what conditions on the matrix M is the set
+{M (1), . . . ,M (?(M))} of constituent matrices unique? The following result provides a necessary
+condition for uniqueness. In order to state the result, we use the notation 1 to denote the indicator
+function, that is, 1{x} = 1 if x is true and 1{x} = 0 if x is false.
+Proposition 4. A necessary condition for the uniqueness of a permutation-rank decomposition (14)
+for any matrix M is that for every coordinate (i, j) ? [n] × [d], there is at most one ? ? [?(()M)]
+such that M
+(?)
+ij is non-zero and distinct from all other entries of M
+(?), that is,
+?
+??[?(M)]
+1
+{
+M ?ij /? {0} ? {M ?i?j?}i??[n],j??[d],
+(i?,j?)6=(i,j)
+}
+? 1 for every (i, j) ? [n]× [d].
+11
+We note that the necessary condition continues to hold even if we restrict attention to only sym-
+metric matrices. The necessary condition provided by Proposition 4 indicates that any sufficient
+condition for uniqueness of the decomposition must be quite strong. Moreover, we believe that the
+conditions for sufficiency may be significantly stronger than those necessitated by Proposition 4.
+The reason for such drastic requirements for uniqueness is the high-degree of flexibility offered by
+the permutation-rank model.
+Let us illustrate the necessary condition from Proposition 4 with a simple example. Consider
+the following matrix M with n = d = 2 and ?(M) = 2 and decomposition into M (1),M (2) ? CPR(1):
+M : =
+[
+1 .6
+.6 1
+]
+=
+[
+0 .3
+.3 .9
+]
++
+[
+1 .3
+.3 .1
+]
+Observe that the necessary condition obtained in Proposition 4 is required to hold for every coor-
+dinate of the matrix. Let us first evaluate this condition for the coordinate (1, 1) of the matrices.
+Since M
+(1)
+11 = 0, there is at most one ? ? {1, 2} such that M
+(?)
+11 is non-zero, and hence the coordinate
+(1, 1) satisfies the necessary condition. Moving on to coordinate (1, 2), we have M
+(1)
+12 = M
+(1)
+21 and
+M
+(2)
+12 = M
+(2)
+21 ; hence the coordinate (1, 2) also passes the necessary condition. The argument for co-
+ordinate (1, 2) also applies to coordinate (2, 1) since the matrices involved are symmetric. We finally
+test coordinate (2, 2). Observe that M
+(1)
+22 /? {0,M
+(1)
+11 ,M
+(1)
+12 ,M
+(1)
+21 } andM
+(2)
+22 /? {0,M
+(2)
+11 ,M
+(2)
+12 ,M
+(2)
+21 }.
+As a consequence, for both ? = 1 and ? = 2, we have thatM
+(?)
+22 is non-zero and distinct from all other
+entries of M (?). The condition necessary for uniqueness is thus violated. Indeed, as guaranteed by
+Proposition 4, there exist other decompositions of M with permutation-rank 2—for instance, the
+decomposition
+M =
+[
+1 .6
+.6 1
+]
+=
+[
+0 .4
+.4 .9
+]
++
+[
+1 .2
+.2 .1
+]
+is another example.
+Finally, we put the negative result on the decomposition into some practical perspective with an
+analogy to tensor decompositions. The canonical polyadic (CP) decomposition of a tensor [Hit27]
+is not unique unless strong non-degeneracy conditions are imposed [Kru77]. From a theoretical
+perspective in many applications (for instance, in estimating latent variable models [HK13]) the
+CP decomposition is most useful or interpretable when it is unique. Furthermore, even when the
+decomposition is unique, computing it is NP-hard in the worst-case [H?as90]. However, in practice
+the CP decomposition is often computed via ad-hoc methods that generate useful results [KB09].
+4 Proofs
+We now turn to the proofs of our main results. In all our proofs, we assume that the values of n and
+d are larger than certain universal constants, so as to avoid subcases having to do with small values
+of (n, d). We will also ignore floors and ceilings wherever they are not critical. These assumptions
+entail no ultimate loss of generality, since our results continue to hold for all values with different
+constant prefactors. Throughout these and other proofs, we use the notation {c, c?, c0, c1, C,C ?}
+and so on to denote positive constants whose values may change from line to line.
+12
+4.1 Proof of Theorem 1(a)
+The proof of this theorem involves generalizing an argument used in our past work [SBGW17,
+Theorem 1]. In particular, the problem setting of our past work [SBGW17, Theorem 1] is a special
+case of the present problem, restricted to the case of square matrices (n = d) and permutation rank
+? = 1. Here we develop a number of additional techniques in order to handle the generalization to
+non-square matrices and arbitrary permutation rank.
+We may assume without loss of generality that n ? d; otherwise, we can apply the same
+argument to the matrix transposes. It is straightforward to verify that the observation matrix Y ?
+can equivalently be written in the linearized form
+Y ? = M? +
+1
+pobs
+W ?, (15a)
+where W ? has entries that are independent, and are distributed as
+[W ?]ij =
+?
+??
+??
+pobs(
+1
+2 ? [M?]ij) + 12 with probability pobs[M?]ij
+pobs(
+1
+2 ? [M?]ij)? 12 with probability pobs(1? [M?]ij)
+pobs(
+1
+2 ? [M?]ij) with probability 1? pobs.
+(15b)
+We begin by introducing some additional notation in order to accommodate the arbitrary
+permutation-rank of M? and the fact that each constituent component in CPR(1) can have any
+arbitrary permutation. For any pair of permutations ? : [n] ? [n] and ? : [d] ? [d], we first define
+the set
+CPR(1;?, ?) := {M ? CPR(1) | rows and columns of M are ordered according to ? and ? respectively}.
+Now let ? denote the set of all possible permutations of d items, and let ? denote the set of all possi-
+ble permutations of the n users. Consider any value k ? [n], any sequence ??(k) : = (?1, . . . , ?k) ? ?k
+and any sequence ??(k) : = (?1, . . . , ?k) ? ?k. Define the set
+CPR(k; ??
+(k), ??(k)) :=
+{
+M =
+k?
+?=1
+M (?)
+??? M (?) ? CPR(1;??, ??) for every ? ? [k]
+}
+,
+and an associated estimator
+M
+??(k),??(k)
+? arg min
+M?CPR(k;??(k),??(k))
+|||Y ? ?M |||2F.
+Also define a matrix M0 as
+M0 ? arg min
+M?[0,1]n×d
+{
+|||M ?M?|||2F +
+?(M)d log2.01 d
+pobs
+}
+,
+as well as an associated set ?? as
+?? :=
+{
+(k, ??(k), ??(k)) ? [n]×?k×?k
+???|||Y ??M??(k),??(k) |||
+2
+F +
+kd log2.01 d
+pobs
+?|||Y ??M0|||2F +
+?(M0)d log
+2.01 d
+pobs
+}
+.
+13
+Note that the set ?? is guaranteed to be non-empty since the parameter and permutations corre-
+sponding to M0 always lie in ??. We claim that for any (k, ??
+(k), ??(k)) ? ??, we have
+P
+(
+|||M
+??(k),??(k)
+?M0|||2F ? c1
+?(M0)d log
+2.01 d
+pobs
+)
+? 1? e?4kd log d, (16)
+for some positive universal constant c1. Taking this result as given for the moment, under our
+assumption of d ? n, for any value of k the cardinality of the set ?? restricted to any k is at most
+e2kd log d. Hence a union bound over all k ? [n] and all permutations—applied to equation (16)—
+yields
+P
+(
+max
+(k,??(k),??(k))???
+|||M??(k),??(k) ?M0|||
+2
+F ? c1
+?(M0)d log
+2.01 d
+pobs
+)
+? 1? e?d log d. (17)
+From the definition of the regularized least squares estimator M?LS in equation (2b) and the defi-
+nition of set ?? above, we have that M?LS must equal M??(k),??(k) for some (k, ??
+(k), ??(k)) ? ??. As a
+consequence, the tail bound (17) ensures that
+P
+(
+|||M?LS ?M0|||2F ? c1
+?(M0)d log
+2.01 d
+pobs
+)
+? 1? e?d log d.
+Finally, applying the triangle inequality yields the claimed result
+P
+(
+|||M?LS ?M?|||2F ? 2|||M? ?M0|||2F + 2c1
+?(M0)d log
+2.01 d
+pobs
+)
+? 1? e?d log d.
+Proof of the bound (16): The remainder of our proof is devoted to proving the claim (16). By
+definition, any (k, ??(k), ??(k)) ? ?? must satisfy the inequality
+|||Y ?M
+??(k),??(k)
+|||2F +
+kd log2.01 d
+pobs
+? |||Y ?M0|||2F +
+?(M0)d log
+2.01 d
+pobs
+.
+Denoting the error in the estimate as ??
+??(k),??(k)
+: = M
+??(k),??(k)
+? M0, and using the linearized
+form (15a), some algebraic manipulations yield the basic inequality
+1
+2
+|||??
+??(k),??(k)
+|||2F ?
+1
+pobs
+??W ?, ??
+??(k),??(k)
+??+ 1
+2
+(?(M0)? k)d log2.01 d
+pobs
+. (18)
+Now consider the set of matrices
+CDIFF(??
+(k), ??(k);M0) :=
+{
+?(M ?M0) | M ? CPR(k; ??(k), ??(k)), ? ? [0, 1]
+}
+, (19)
+and note that CDIFF(??
+(k), ??(k);M0) ? [?1, 1]n×d. For each choice of radius t > 0, define the random
+variable
+Z
+??(k),??(k)
+(t) := sup
+MDIFF?CDIFF(??(k),??(k);M0),
+|||MDIFF|||F?t
+1
+pobs
+??W ?, MDIFF??. (20)
+14
+Using the basic inequality (18), the Frobenius norm error |||??
+??(k),??(k)
+|||F then satisfies the bound
+1
+2
+|||????(k),??(k) |||
+2
+F ? Z??,??
+(
+|||????(k),??(k) |||F
+)
++
+1
+2
+(?(M0)? k)d log2.01 d
+pobs
+. (21)
+Thus, in order to obtain our desired bound, we need to understand the behavior of the random
+quantity Z
+??(k),??(k)
+(t).
+Dy definition, the set CDIFF(??
+(k), ??(k);M0) is “star-shaped”, meaning that ?MDIFF ? CDIFF(??(k), ??(k))
+for every ? ? [0, 1] and every MDIFF ? CDIFF(??(k), ??(k);M0). Using this star-shaped property, we
+are guaranteed that E[Z
+??(k),??(k)
+(?)] grows at most linearly with ?. We are then in turn guaranteed
+the existence of some scalar ?c > 0 satisfying the critical inequality
+E[Z
+??(k),??(k)
+(?c)] ?
+?2c
+2
+. (22)
+Our interest is in an upper bound to the smallest (strictly) positive solution ?c to the critical
+inequality (22), and moreover, our goal is to show that for every t ? ?c, we have |||??|||F ? c
+?
+t?c
+with high probability. To this end, define a “bad” event At as
+At =
+{
+?? ? CDIFF(??(k), ??(k);M0) | |||?|||F ?
+?
+t?c and
+1
+pobs
+??W ?, ??? ? 2|||?|||F
+?
+t?c
+}
+. (23)
+Using the star-shaped property of CDIFF(??
+(k), ??(k);M0), it follows by a rescaling argument that
+P[At] ? P[Z??(k),??(k)(?c) ? 2?c
+?
+t?c] for all t ? ?c.
+The following lemma helps control the behavior of the random variable Z
+??(k),??(k)
+(?c).
+Lemma 1. For any ? > 0, the mean of Z??(k),??(k)(?) is bounded as
+E[Z??(k),??(k)(?)] ? c1
+max{k, ?(M0)}d
+pobs
+log2 d,
+and for every u > 0, its tail probability is bounded as
+P
+(
+Z
+??(k),??(k)
+(?) > E[Z
+??(k),??(k)
+(?)] + u
+)
+? exp
+( ?c2u2pobs
+?2 + E[Z??(k),??(k)(?)] + u
+)
+,
+where c1 and c2 are positive universal constants.
+From this lemma, we have the tail bound
+P
+(
+Z??(k),??(k)(?c) > E[Z??(k),??(k)(?c)] + ?c
+?
+t?c
+)
+? exp
+( ?c2(?c
+?
+t?c)
+2pobs
+?2c + E[Z??(k),??(k)(?c)] + (?c
+?
+t?c)
+)
+, for all t > 0.
+By the definition of ?c in (22), we have E[Z??(k),??(k)(?c)] ? ?2c ? ?c
+?
+t?c for all t ? ?c, and conse-
+quently
+P[At] ? P[Z??(k),??(k)(?c) ? 2?c
+?
+t?c
+]
+? exp
+(?c2(?c
+?
+t?c)
+2pobs
+3?c
+?
+t?c
+)
+, for all t ? ?c. (24)
+15
+Now we must have either |||??
+??(k),??(k)
+|||F ?
+?
+t?c, or we have |||????(k),??(k)|||F >
+?
+t?c. In the latter case,
+conditioning on the complement Act , our basic inequality (18) implies that
+1
+2
+|||????(k),??(k) |||
+2
+F ? 2|||????(k),??(k) |||F
+?
+t?c +
+1
+2
+(?(M0)? k)d log2.01 d
+pobs
+,
+and hence
+|||????(k),??(k) |||F ? 4
+?
+t?c +
+?
+(?(M0)? k)d log2.01 d
+pobs
+. (25)
+Putting together the bounds (24) and (25) then yields
+P
+(
+|||????(k),??(k) |||
+2
+F ? 32t?c + 2
+(?(M0)? k)d log2.01 d
+pobs
+)
+? 1? exp
+(
+? c2
+3
+?c
+?
+t?cpobs
+)
+, for all t ? ?c.
+(26)
+Finally, from the bound on the expected value of Z??(k),??(k)(t) in Lemma 1, we see that the critical
+inequality (22) is satisfied for
+?c =
+?
+c1 max{?(M0), k}d
+pobs
+log d.
+Setting t = c??c in (26) for a large enough constant c? yields
+P
+(
+|||??
+??(k),??(k)
+|||F ?
+c?1?(M0)d
+pobs
+log2.01 d
+)
+? 1? exp
+(
+? 4max{?(M0), k}d log d
+)
+, (27)
+for some constant c?1 > 0, thus proving the bound (16).
+It remains to prove Lemma 1.
+Proof of Lemma 1 We break our proof into two parts, corresponding to bounds on the mean
+of the random variable Z??(k),??(k)(?) followed by control of its tail behavior.
+Bounding the mean: We begin by establishing an upper bound on the mean E[Z
+??(k),??(k)
+(?)]. In
+order to obtain the desired upper bound, in the proof we carefully account for the rank k and the
+different permutations associated to any matrix in CDIFF(??
+(k), ??(k);M0).
+For convenience of analysis, we introduce a new random variable
+Z?
+??(k),??(k)
+: = sup
+MDIFF?CDIFF(??(k),??(k);M0)
+??W ?, MDIFF??.
+Then by definition, we have E[Z??(k),??(k)(?)] ?
+1
+pobs
+E[Z???(k),??(k) ] for every ? > 0. In addition, since
+M0 ? CPR(k), it can be decomposed as M0 =
+?k
+?=1M
+(?)
+0 , for some matrices M
+(1)
+0 , . . . ,M
+(k)
+0 ?
+CPR(1).
+We introduce some additional notation for ease of exposition. If ?(M0) < k, then letM
+(?(M0)+1)
+0 , . . . ,M
+k
+0
+denote all-zero matrices. Hence we can write M0 =
+?max{?(M0),k}
+?=1 M
+(?)
+0 . If ?(M0) > k then let
+16
+?k+1, . . . , ??(M0) be arbitrary (but fixed) permutations of n items and ?k+1, . . . , ??(M0) be arbitrary
+(but fixed) permutations of d items. With this notation in place, we have the following deterministic
+upper bound on the value of the random variable Z?
+??(k),??(k)
+:
+Z?
+??(k),??(k)
+?
+max{?(M0),k}?
+?=1
+sup
+[MDIFF]??CDIFF({??},{??};M (?)0 )
+??W ?, [MDIFF]???.
+We also recall our assumption that d ? n without loss of generality. Now let logN(?,C, ||| · |||F)
+denote the ? metric entropy of class C ? Rn×d in the Frobenius norm metric ||| · |||F. Then the
+truncated form of Dudley’s entropy integral inequality yields3
+E[Z???(k),??(k) ] ?
+max{?(M0),k}?
+?=1
+c
+{
+d?8 +
+? 2d
+1
+2
+d?9
+?
+logN(?,CDIFF({??}, {??};M (?)0 ), |||.|||F)(??)
+}
+, (28)
+where we have used the fact that the diameter of the set CDIFF({??}, {??};M (?)0 ) is at most 2d in
+the Frobenius norm.
+In our past work [SBGW17, Lemma 2], we derived a bound on the metric entropy of the set
+CDIFF({??}, {??};M (?)0 ) as:
+logN
+(
+?,CDIFF({??}, {??};M (?)0 ), ||| · |||F
+)
+? 16d
+2
+?2
+(
+log
+d
+?
+)2
+,
+for any ? > 0 and ? ? [k]. Substituting this bound on the metric entropy into the Dudley bound (28)
+yields
+E[Z???(k),??(k) ] ? c
+?max{?(M0), k}d log2 d.
+The inequality E[Z
+??(k),??(k)
+(?)] ? 1pobsE[Z???(k),??(k) ] then yields the claimed result.
+Bounding the tail: In order to establish the claimed tail bound on the deviations of Z??(k),??(k)(?)
+above its mean, we use a Bernstein-type bound on the supremum of empirical processes due to
+Klein and Rio [KR+05, Theorem 1.1c], which we state in a simplified form here.
+Lemma 2. Let X : = (X1, . . . ,Xm) be any sequence of zero-mean, independent random variables,
+each taking values in [?1, 1]. Let V ? [?1, 1]m be any measurable set of m-length vectors. Then for
+any u > 0, the supremum X† = supv?V?X, v? satisfies the upper tail bound
+P
+(
+X† > E[X†] + u
+)
+? exp
+( ?u2
+2 supv?V E[?v, X?2] + 4E[X†] + 3u
+)
+.
+We now call upon Lemma 2 setting V = {MDIFF ? CDIFF(??(k), ??(k);M0) | |||MDIFF|||F ? ?},
+X = W ?, and X† = pobsZ??(k),??(k)(?). The entries of the matrix W
+? are mutually independent, have
+a mean of zero, and are bounded by 1 in absolute value. Then we have E[X†] = pobsE[Z??(k),??(k)(?)]
+3Here we use (??) to denote the differential of ?, so as to avoid confusion with the number of columns d.
+17
+and E[??MDIFF, W ???2] ? 4pobs|||MDIFF|||2F ? 4pobs?2 for every MDIFF ? V. With these assignments,
+and some algebraic manipulations, we obtain that for every u > 0,
+P
+(
+Z??(k),??(k)(?) > E[Z??(k),??(k)(?)] + u
+)
+? exp
+( ?u2pobs
+8?2 + 4E[Z
+??(k),??(k)
+(?)] + 3u
+)
+,
+as claimed.
+4.2 Proof of Theorem 1(b)
+Assume without loss of generality that d ? n. Throughout the proof, we ignore floor and ceiling
+conditions as these are not critical to the proof and affect the lower bound by only a constant
+factor.
+The Gilbert-Varshamov bound [Gil52, Var57] from coding theory guarantees the existence of
+? : = exp
+(
+c(dr + pobs?
+2)
+)
+binary vectors g1, . . . , g? , each of length (dr + pobs?
+2), such that the Hamming distance between
+any pair of vectors in this set is lower bounded as
+DH(g
+?, g?
+?
+) ? dr + pobs?
+2
+10
+.
+For some ? ? (0, 14) whose value is specified later, define a related set of vectors g?1, . . . , g?? as
+g??j =
+{
+1
+2 + ? if g
+?
+j = 1
+1
+2 ? ? if g?j = 0,
+for every ? ? [?] and j ? [dr+pobs?2]. Next define a set of “low rank” matrices G1, . . . , G? ? [0, 1]n×d
+where the matrix G? is obtained as follows. For each ? ? [?], arrange the first rd entries of vector
+g?? as the entries of an (r × d) matrix—this arrangement may be done in an arbitrary manner as
+long as it is consistent across every ? ? [?]. Now append a (pobs?2d × d) matrix at the bottom, whose
+entries comprise the last pobs?
+2 entries of the vector g??—again, this arrangement may be done in
+an arbitrary manner as long as it is consistent across every ? ? [?]. Now stack 1pobs copies of the
+resulting
+(
+(r+ pobs?
+2
+d )×d
+)
+matrix on top of each other to form a
+(
+( rpobs +
+?2
+d )×d
+)
+matrix. Note that
+our assumption ?2 + rmax{n,d}pobs ? nd, along with the assumption d ? n, implies that n ?
+r
+pobs
++ ?
+2
+d .
+Append (n ? ( rpobs +
+?2
+d )) rows of all zeros at the bottom of this matrix, and denote the resultant
+(n× d) matrix as G?.
+We now show that G? ? BN(r, ?) for every ? ? [?], that is, we show that the matrix G? ? [0, 1]n×d
+can be decomposed into a sum of a low-rank matrix (of non-negative rank at most r) and a sparse
+matrix (number of non-zero entries at most ?2). First we set to zero the entries in G? which
+correspond to the last pobs?
+2 entries of the vector g??. Let us denote the resulting matrix as G??.
+Each row of the matrix G?? is either all zero or is identical to one among the first r rows of G?.
+Consequently we have r(G??) ? r. Also observe that in the matrix (G??G??), the number of non-zero
+entries is at most 1pobs × pobs?
+2 = ?2, and furthermore, each of these entries lie in the interval [0, 1].
+18
+Hence we have |||G? ? G??|||2F ? ?2. The matrix G? thus satisfies all the requirements for membership
+in the set BN(r, ?).
+For every ? ? [?], let P? denote the probability distribution of the matrix Y obtained by setting
+M? = G?. One can verify that the set of matrices G1, . . . , G? constructed above has the following
+two properties, for every pair ? 6= ?? ? [?]:
+DKL(P
+??P??) ? c??2pobs
+( dr
+pobs
++ ?2
+)
+,
+and
+|||G? ?G?? |||2F ?
+?2
+10
+( dr
+pobs
++ ?2
+)
+.
+Substituting these relations in Fano’s inequality [CT12] yields that when M? is drawn uniformly
+at random from the set {G1, . . . , G?}, any estimate M? for M? has squared Frobenius error at least
+E[|||M? ?M?|||2F] ?
+?2
+20
+( dr
+pobs
++ ?2
+)(
+1?
+c??2pobs
+(
+dr
+pobs
++ ?2
+)
++ log 2
+c(dr + pobs?2)
+) (i)
+? c??
+( dr
+pobs
++ ?2
+)
+,
+where inequality (i) is obtained by choosing ?2 as a small enough constant (that depends only on c
+and c?). Recalling our assumption d ? n, and consequently replacing d by max{n, d} in the bound
+yields the claimed result.
+4.3 Proof of Theorem 2
+We now turn to analysis of the singular-value thresholding (SVT) estimator. This proof is based
+on the framework of a proof from our earlier work [SBGW17, Theorem 2], which can be seen as a
+particular case with n = d and ? = 1. We introduce certain additional tricks in order to generalize
+the proof for general values of ? and to obtain a sharp dependence on ?. As in our previous proofs,
+we may assume without loss of generality that n ? d.
+Recall from equation (15a) that we can write our observation model as Y ? = M? + 1pobsW
+?,
+where W ? ? [?1, 1]n×d is a zero-mean matrix with mutually independent entries. Also recall that
+these entries follow the distribution
+[W ?]ij =
+?
+??
+??
+pobs(
+1
+2 ? [M?]ij) + 12 with probability pobs[M?]ij
+pobs(
+1
+2 ? [M?]ij)? 12 with probability pobs(1? [M?]ij)
+pobs(
+1
+2 ? [M?]ij) with probability 1? pobs.
+(29)
+For any matrix A, let ?1(A), ?2(A), . . . denote its singular values in descending order.
+Our proof of the upper bound is based on four lemmas. The first lemma is a result from our
+earlier work [SBGW17].
+Lemma 3. ([SBGW17, Lemma 3]) If ? ? 1.01|||W
+?|||op
+pobs
+, then
+|||M?SVT ?M?|||2F ? c
+n?
+j=1
+min
+{
+?2, ?2j (M
+?)
+}
+with probability at least 1? c1e?c
+?n, where c, c1 and c
+? are positive universal constants.
+19
+Our second lemma is an approximation-theoretic result that bounds the tail of the singular values
+of any matrix with a given permutation-rank or non-negative rank. The proof of this lemma builds
+on a construction due to Chatterjee [Cha14].
+Lemma 4. (a) For any matrix M ? CPR(?) and any s ? {1, 2, . . . , n? 1}, we have
+n?
+j=s+1
+?2j (M) ?
+nd?2
+s
+.
+(b) For any matrix M ? CNR(r) and any s ? {1, 2, . . . , n? 1}, we have
+n?
+j=s+1
+?2j (M) ? ndmax
+{r ? s
+r
+, 0
+}
+.
+Our third lemma controls the noise term W ?.
+Lemma 5. Suppose that pobs ? 1min{n,d} log
+7(nd). Then given a random matrix W ? with entries
+distributed according to the distribution (29), we have
+P
+(
+|||W ?|||op > 2.01
+?
+pobs(n+ d)
+)
+? e?c? max{n,d}.
+Finally, our fourth lemma is a more general relation pertaining to matrices established in the
+paper [Sch68].
+Lemma 6 ([Sch68]). For any pair of matrices A,B ? Rn×d with singular value decompositions
+A = U1D1V
+T
+1 and B = U2D2V
+T
+2 , it must be that
+(U1U
+T
+2 , V1V
+T
+2 ) ? arg min
+U?Rn×n, V ?Rd×d
+|||A? UBV T |||2F (30)
+such that UT = U?1, V T = V ?1.
+Based on these four lemmas, we now complete the proof of the theorem. From Lemma 5
+we see that the choice ? = 2.1
+?
+n+d
+pobs
+guarantees that ? ? 1.01|||W
+?|||op
+pobs
+with probability at least
+1 ? e?c? max{n,d}. Consequently, the condition required for an application of Lemma 3 is satisfied,
+and applying this lemma then yields the upper bound
+|||M?SVT ?M?|||2F ? c
+n?
+j=1
+min
+{ d
+pobs
+, ?2j (M
+?)
+}
+(31)
+with probability at least 1? e?c?d, where we have also used our assumption that n ? d.
+Now consider any matrix M0 ? Rn×d. In what follows, we convert the bound (31) into one that
+depends on the properties of M0, namely ?(M0), r(M0) and |||M? ? M0|||F. Let ?0 = ?(M0) and
+r0 = r(M0).
+20
+We first have the following deterministic upper bound
+n?
+j=1
+min
+{ d
+pobs
+, ?2j (M
+?)
+}
+? 2
+n?
+j=1
+min
+{ d
+pobs
+, ?2j (M0)
+}
++ 2
+n?
+j=1
+(
+min
+{
+?
+d
+pobs
+, ?j(M
+?)
+}
+?min
+{
+?
+d
+pobs
+, ?j(M0)
+})2
+? 2
+n?
+j=1
+min
+{ d
+pobs
+, ?2j (M0)
+}
++ 2
+n?
+j=1
+(
+?j(M
+?)? ?j(M0)
+)2
+, (32)
+where the inequality (32) is a consequence of the more general result that (min{a, b1}?min{a, b2})2 ?
+(b1 ? b2)2 for any three real numbers a, b1, and b2.
+We now bound the two terms on the right hand side of (32) separately. For the second term, we
+call upon Lemma 6 with the choices A = M? and B = M0. With this choice, some simple algebra
+yields that the minimum value of the objective in (30) equals
+?n
+j=1(?j(M
+?) ? ?j(M0))2. On the
+other hand, the choice of U and V as identity matrices is feasible for (30), and the associated value
+of the objective equals |||M? ?M0|||2F. Consequently, we have the inequality
+n?
+j=1
+(?j(M
+?)? ?j(M0))2 ? |||M? ?M0|||2F. (33)
+As for the first term of (32), an application of Lemma 4(a) to the matrix M0 yields the bound
+n?
+j=1
+min
+{ d
+pobs
+, ?2j (M0)
+}
+? min
+s?[n]
+( sd
+pobs
++
+(?0)
+2nd
+s
+)
+? 3?0d
+?
+n
+pobs
+, (34)
+where inequality (34) is obtained with the choice s = ??0
+?
+pobsn?. Separately, an application of
+Lemma 4(b) to the matrix M0 yields
+n?
+j=1
+min
+{ d
+pobs
+, ?2j (M0)
+}
+? min
+s?[n]
+( sd
+pobs
++ ndmax
+{
+1? s
+r0
+, 0
+})
+? r0d
+pobs
+, (35)
+where the inequality (34) is obtained with the choice s = r0. Combining the bounds (31), (32), (33), (34)
+and (35), we obtain the result that the inequality
+|||M?SVT ?M?|||2F ? 2min
+{3?0d
+?
+n?
+pobs
+,
+r0d
+pobs
+}
++ 2|||M? ?M0|||2F,
+must hold with probability at least 1 ? ec?d. Finally, recalling our assumption that d ? n and
+substituting n = min{n, d} and d = max{n, d} yields the claimed result.
+21
+Proof of Lemma 4 Part (a): Without loss of generality, assume that d ? n.
+We begin with an upper bound on the tail of the singular values of any matrix in CPR(1), that
+is, of any matrix that has a permutation-rank of 1. The proof of this bound uses a construction due
+to Chatterjee [Cha14] for a rank s? approximation of any matrix in CPR(1), for any value s? ? [n].
+We first reproduce Chatterjee’s construction.
+For a given matrix M ? CPR(1), define the vector ? ? Rd of column sums—namely, with entries
+?j =
+?n
+i=1[M ]ij for j ? [d]. Using this vector, define a rank s? approximation M? to M by grouping
+the columns according to the vector ? according to the following procedure:
+• Observing that each ?j ? [0, n], divide the full interval [0, n] into s? groups—say of the form
+[0, n/s?), [n/s?, 2n/s?), . . . [(s? ? 1)n/s?, n].
+If ?j falls into the interval ? for some ? ? [s?], then map column j to the group G? of indices.
+• For each ? ? [s?] such that group G? is non-empty, choose a particular column index j? ? G?
+in an arbitrary fashion. For every other column index j ? G?, set M?ij = Mij? for all i ? [n].
+By construction, the matrix M? has at most s? distinct rows, and hence rank at most s?. Now
+consider any column j ? [d] and suppose that j ? G? for some ? ? [s?]. Let j? denote the column
+chosen for the group G? in the second step of the construction. Since M ? CPR(1), we must either
+have Mij ? Mij? = M?ij for every i ? [n], or Mij ? Mij? = M?ij for every i ? [n]. Then we are
+guaranteed that
+n?
+i=1
+|M?ij ?Mij | =|
+n?
+i=1
+(M?ij ?Mij) |= |?j? ? ?j| ?
+n
+s?
+, (36)
+where we have used the fact the pair (?j, ?j?) must lie in an interval of length at most n/s?. This
+completes the description of Chatterjee’s construction.
+In what follows, we use Chatterjee’s result in order to obtain our claimed bound on the tail of
+the spectrum of any matrix M ? CPR(?). We modify the result in a careful manner that allows us
+to obtain the desired dependence on the parameter ?. Recall that any matrix M ? CPR(?) can be
+decomposed as
+M =
+??
+?=1
+M (?),
+for some matrices M (1), . . . ,M (?) ? CPR(1). Let s? = s? . For every ? ? [r], let M? (?) be a rank
+s? = s? approximation of M
+(?) obtained from Chatterjee’s construction above, but with the following
+additional detail. Observe that in Chatterjee’s construction, the choice of column j? from group
+G? is arbitrary. For our construction, we will make a specific choice of this column: we choose
+the column whose entries have the smallest values among all columns in the group G?. With this
+choice, we have the property
+M?
+(?)
+ij ? M
+(?)
+ij for every ? ? [?], i ? [n], j ? [d]. (37)
+22
+Now let M? : =
+??
+?=1 M?
+(?). Since every entry of every matrix M? (?) is non-negative, we have that
+every entry of M? is also non-negative. We also claim that
+M?ij =
+??
+?=1
+M?
+(?)
+ij
+(i)
+?
+??
+?=1
+M
+(?)
+ij = Mij ? 1,
+where the inequality (i) is a consequence of the set of inequalities (37). Thus we have that M? ?
+[0, 1]n×d, M ? [0, 1]n×d, and that the rank of M? is at most ?s?. This result then yields the bound
+n?
+j=?s?+1
+?2j (M) ? |||M ? M? |||2F ?
+n?
+i=1
+d?
+j=1
+|Mij ? M?ij | =
+n?
+i=1
+d?
+j=1
+|
+??
+?=1
+(M
+(?)
+ij ? M?
+(?)
+ij )|
+(i)
+?
+n?
+i=1
+d?
+j=1
+??
+?=1
+|M (?)ij ? M?
+(?)
+ij |,
+where inequality (i) follows from the triangle inequality. Now recall that every matrix M? (?) is
+obtained from Chatterjee’s construction, and rewriting Chatterjee’s result (36) for the matrices
+M? (?) presently under consideration, we obtain
+n?
+i=1
+|M? (?)ij ?M
+(?)
+ij | ?
+n
+s?
+,
+for every ? ? [?]. As a consequence, we have
+n?
+j=?s?+1
+?2j (M) ?
+?nd
+s?
+=
+?2nd
+s
+,
+where we have substituted the relation s? = s? to obtain the final result.
+Part (b): This result follows directly from the facts that the rank of M is at most r, and the square
+of its Frobenius norm is at most nd.
+Proof of Lemma 5 Define an ((n+ d)× (n+ d)) matrix W ?? as
+W ?? =
+1?
+pobs
+[
+0 W ?
+(W ?)T 0
+]
+.
+From (29) and the construction above, we have that the matrix W ?? is symmetric, and has mutually
+independent entries above the diagonal that have a mean of zero and a variance upper bounded by
+1. Consequently, known results in random matrix theory (e.g., see [Cha14, Theorem 3.4] or [Tao12,
+Theorem 2.3.21]) yield the bound |||W ??|||op ? 2.01
+?
+n+ d with probability at least 1? e?cmax{n,d},
+under the assumption pobs ? 1min{n,d} log
+7(nd). One can also verify that |||W ??|||op = 1?pobs |||W
+?|||op,
+yielding the claimed result.
+23
+4.4 Proof of Proposition 1
+We recall that for any integer k ? 0, the notation Jk denotes an upper triangular matrix of size
+(k × k) with all entries on and above the diagonal set as 1, and Ik denotes the identity matrix of
+size (k × k). Consider an (n× d) matrix M with the following block structure:
+M : =
+?
+?
+Jr??+1 0 0
+0 I??1 0
+0 0 0
+?
+? .
+In the remainder of the proof, we show that r(M) = r and ?(M) = ?. Using the ideas in the
+construction of M and the associated proof to follow, one can construct many other matrices that
+have a non-negative rank of r and a permutation-rank of ?, for any given value 1 ? ? ? r ?
+min{n, d}.
+We partition the proof into four parts.
+Proof of r(M) ? r: One can write M as a sum of r matrices, each having a non-negative rank of
+one: for each non-zero row, consider a component matrix comprising that row and zeros elsewhere.
+Consequently, we have r(M) ? r.
+Proof of r(M) ? r: Observe that the (conventional) rank of M? equals r. Since the rank of any
+matrix is a lower bound on its non-negative rank, we have that r(M) ? r. We have thus established
+that the non-negative rank of this matrix equals exactly r.
+Proof of ?(M) ? ?: Observe that the (n×d) matrix with Jr??+1 as its top-left submatrix and zeros
+elsewhere has a permutation-rank of 1. Moreover, any (n × d) matrix with exactly one entry as
+1 and the remaining entries 0 also has a permutation-rank of 1, and hence a (n × d) matrix with
+I??1 as its submatrix and zeros elsewhere has a permutation-rank of at most (??1). Putting these
+arguments together, we obtain the bound ?(M) ? ?.
+Proof that ?(M) ? ?: First observe that the matrix
+I2×2 =
+[
+1 0
+0 1
+]
+does not belong to CPR(1). It follows that any matrix containing I2×2 as a submatrix cannot belong
+to the set CPR(1). It further follows that for any positive integer k, the matrix Ik×k must have a
+permutation rank of at least k. Finally, observe that the matrix M contains I?×? as its submatrix
+(given by the intersection of rows {r ? ?, . . . , r} with the columns {r ? ?, . . . , r}). It follows that
+M must have a permutation rank of at least ?, thereby proving the claim.
+4.5 Proof of Proposition 2
+We assume for ease of exposition that n and d are divisible by k. Otherwise, since k ? 12 min{n, d},
+one may take floors or ceilings which will change the result only by a constant factors. Since
+CNR(k) ? CPR(k), we have sup
+M?CNR(k)
+inf
+M ??CPR(k)
+|||M ? M ?|||2F = 0. In what follows, we show that
+sup
+M?CPR(k)
+inf
+M ??CNR(k)
+|||M ?M ?|||2F ? cndk .
+24
+Consider the block matrix M? ? [0, 1]nk× dk :
+M? =
+[
+1 1
+1 0
+]
+, (38)
+where each of the four blocks is of size ( n2k × d2k ). The following lemma shows that the best rank-1
+approximation to M? has a large approximation error:
+Lemma 7. For the matrix M? defined in (38), for any vectors u ? Rn and v ? Rd, it must be that
+|||M? ? uvT |||2F ? c
+nd
+k2
+,
+where c > 0 is a universal constant.
+We now use the matrix M? defined in (38) to build the following block matrix M ? CPR(k):
+M : =
+?
+?????
+M? 0 · · · 0
+0 M? · · · 0
+...
+...
+. . .
+...
+0 0 · · · M?
+?
+?????
+.
+In words, the matrix M is a block-diagonal matrix where the diagonal has k copies of M? .
+Due to the block diagonal structure of M , the singular values of M are simply k copies of the
+singular values of its constituent matrix M? . Consequently, we have that for any matrix M ? ?
+CNR(k):
+|||M ?M ?|||2F ? k(|||M? |||2F ? |||M? |||2op)
+(i)
+? cnd
+k
+,
+as claimed, where the inequality (i) is a consequence of Lemma 7.
+Proof of Lemma 7 Consider any value i ? [ n2k ] and j ? [ d2k ]. Then we claim that
+(M?i,j ? [uvT ]i,j)2 + (M?i+ n
+2k
+,j ? [uvT ]i+ n
+2k
+,j)
+2+(M?i,j+ d
+2k
+? [uvT ]i,j+ d
+2k
+)2
++ (M?i+ n
+2k
+,j+ d
+2k
+? [uvT ]i+ n
+2k
+,j+ d
+2k
+)2 ? 0.01. (39)
+If not, then for the choice of M? in (38), we must have [uvT ]i,j ? (0.9, 1.1), [uvT ]i+ n
+2k
+,j ? (0.9, 1.1),
+[uvT ]i,j+ d
+2k
+? (0.9, 1.1) and [uvT ]i+ n
+2k
+,j+ d
+2k
+< 0.1. However, since [uvT ]i?,j? = ui?vj? for every
+coordinate (i?, j?), we also have
+[uvT ]i,j × [uvT ]i+ n
+2k
+,j+ d
+2k
+= [uvT ]i+ n
+2k
+,j × [uvT ]i,j+ d
+2k
+,
+which contradicts the required ranges of the individual coordinates. Summing the bound (39) over
+all values of i ? [ n2k ] and j ? [ d2k ] yields the claimed result.
+25
+4.6 Proof of Proposition 3
+Consider any set S and any convex set C. We begin with a key lemma that establishes a relation
+between H(S,C) and a proposed notion of the inherent convexity of S.
+Lemma 8. For any set S ? [0, 1]n×d and any convex set C ? [0, 1]n×d, it must be that
+H(S,C) ? 2
+9
+sup
+M1?S, M2?S
+inf
+M0?S
+|||1
+2
+(M1 +M2)?M0|||2F. (40)
+The left hand side of inequality (40) is the Hausdorff distance between the sets S and C in terms
+of the squared Frobenius norm. The right hand side of the inequality represents a notion of the
+inherent convexity of the set S.
+With this lemma in place, we now complete the remainder of the proof. To this end, we set
+S = CPR(1), and let C be any convex set of [0, 1]-valued (n × d) matrices.
+We now construct a pair of matrices M1 ? CPR(1) and M2 ? CPR(1) that we use to lower bound
+the right hand side of (40). Define matrices M1 ? CPR(1) and M2 ? CPR(1) as
+[M1]ij =
+{
+1 if i ? n2 , j ? d2
+0 otherwise,
+and [M2]ij =
+{
+1 if i > n2 , j >
+d
+2
+0 otherwise.
+It follows that the entries of the matrix 12 (M1 +M2) are given by:
+[
+1
+2
+(M1 +M2)]ij =
+{
+1
+2 if (i ? n2 , j ? d2 ) or (i > n2 , j > d2)
+0 otherwise.
+Now consider any pair of integers (i, j) ? [?n/2?] × [?d/2?]. Then the (2 × 2) submatrix of
+1
+2(M1+M2) formed by its entries (i, j), (i+?n/2?, j), (i, j+?d/2?) and (i+?n/2?, j+?d/2?) equals
+[
+1
+2 0
+0 12
+]
+.
+It is easy to verify that there is a constant c > 0 such that the squared Frobenius norm distance
+between this rescaled identity matrix and any (2 × 2) matrix in CPR(1) is at least c. Since this
+argument holds for any choice of (i, j) ? [?n/2?] × [?d/2?], summing up the errors across each of
+these sets of entries yields
+|||1
+2
+(M1 +M2)?M |||2F ? c?nd, for every matrix M ? CPR(1),
+where c? > 0 is a universal constant. Finally, substituting this bound in Lemma 8 yields the claimed
+result.
+It remains to prove Lemma 8.
+26
+Proof of Lemma 8. Consider any matrices M1 ? S and M2 ? S. From the definition of the
+Hausdorff distance H, we know that there exist matrices M?1 ? C and M?2 ? C such that
+|||Mi ? M?i|||2F ? H(S,C), for i ? {1, 2}. (41)
+Since C is a convex set, we also have 12 (M?1 + M?2) ? C. Then from the definition of H, we also
+know that there exists a matrix M0 ? S such that
+|||1
+2
+(M?1 + M?2)?M0|||2F ? H(S,C). (42)
+Finally, applying the triangle inequality to the bounds (41) and (42) yields
+|||1
+2
+(M1 +M2)?M0|||2F ? 3|||
+1
+2
+(M?1 + M?2)?M0|||2F +
+3
+4
+|||M1 ? M?1|||2F +
+3
+4
+|||M2 ? M?2|||2F
+? 9
+2
+H(S,C).
+4.7 Proof of Proposition 4
+Suppose there exists a coordinate pair (i, j) such the stated condition is violated. Then there must
+exist two distinct values ?1 ? [?(M)] and ?2 ? [?(M)] that satisfy the following three conditions:
+(a) M
+(?1)
+ij > 0 and M
+(?2)
+ij > 0,
+(b) The value of M
+(?1)
+ij is different from all other entries in M
+(?1), and
+(c) The value of M
+(?2)
+ij is different from all other entries in M
+(?2).
+In addition, the fact that M
+(?1)
+ij +M
+(?2)
+ij ? (0, 1) for every coordinate (i, j), along with condition (a)
+above, imply a fourth condition:
+(d) M
+(?1)
+ij < 1 and M
+(?2)
+ij < 1.
+Now for any ? > 0, define M?
+(?1)
+? and M?
+(?2)
+? to be matrices obtained by replacing the (i, j)th
+entries of the matricesM (?1) andM (?2) with (M
+(?1)
+ij +?) and (M
+(?2)
+ij ??) respectively. Now, conditions
+(b)–(d) in tandem imply that there exists some value ? > 0 such that all of the following properties
+hold:
+(i) [M
+(?1)
+? ]ij ? [0, 1],
+(ii) [M
+(?2)
+? ]ij ? [0, 1], and
+(iii) The relative ordering of the entries of M (?1) is identical to the relative ordering of the entries
+of M
+(?1)
+? ; the relative ordering of the entries of M (?1) is identical to the relative ordering of
+the entries of M
+(?1)
+? .
+Properties (i) and (ii) imply that M?
+(?1)
+? ? [0, 1]n×d and M? (?2)? ? [0, 1]n×d. Combined with property
+(iii), we also have M?
+(?1)
+? ? CPR(1) and M? (?2)? ? CPR(1). Finally, from the construction of the
+matrices M?
+(?1)
+? and M?
+(?2)
+? , it is easy to see the relation
+M = M? (?1)? + M?
+(?2)
+? +
+?
+i?[?(M)]\{?1,?2}
+M (i).
+This decomposition of M is a different, valid permutation-rank decomposition of M .
+27
+5 Discussion and future work
+We posit that the conventional low-rank models for matrix completion and denoising are equivalent
+to “parametric” assumptions with undesirable implications. We propose a new permutation-rank
+approach and argue, by means of a philosophical discussion as well as theoretical guarantees, that
+this approach offers significant benefits at little additional cost. Our work also contributes to a
+growing body of literature [Sha17, Part 1], [SBGW17, SW15, SBW16b, SBW16a, HSRW16, CM16,
+FMR16, CGMS17] on moving towards more flexible models based on permutations that provide
+robustness to model mismatches.
+Our work gives rise to some useful open problems that we hope to address in future work. In
+this paper, we established benefits of the permutation-based approach for the matrix completion
+problem under the random design observation setting. In the literature, the classical low (non-
+negative) rank matrix completion problem is more recently also studied under other observation
+models such as weighted random sampling [NW12], fixed design [JNS13, Klo14], streaming/active
+learning [YLP15, JKN16, BZ16], or biased observation models [HND15], which are also of interest
+in the context of permutation-rank matrix completion. A second open problem is to close the
+gap between the statistically optimal minimax rate of estimation and the best known rate for
+polynomial-time computable algorithms for the permutation-rank model. Any solution to this
+problem may also contribute to the understanding of some other open problems in the literature
+(e.g., see [SBGW17, FMR16, SBW16b]) on the gap between the statistical and computational
+aspects of estimation under an unknown permutation.
+Acknowledgments
+The work of MJW and NBS was partially supported by DOD Advanced Research Projects Agency
+W911NF-16-1-0552 and National Science Foundation grant NSF-DMS-1612948. The work of SB
+was supported by NSF grant DMS-1713003.
+Appendix
+A Intuitive algorithms that provably fail
+In this section, we present two intuitive polynomial-time computable algorithms for the permutation-
+rank setting—one for estimating M? from Y , and one for decomposing M? into its constituent
+permutation-rank-one matrices—and show that these algorithms provably fail. Our goal in de-
+scribing these negative results is as a complement to the positive results provided in the main
+text, and with the hope that the points of failure of these algorithms may form starting points for
+subsequent research.
+A.1 An intuitive polynomial-time estimator for M? from Y
+In this section, we consider the problem of estimating the matrix M? from noisy and partial obser-
+vations Y as defined earlier in equation (1). For simplicity, we assume that pobs = 1. For any vector
+z ? Rm, we let vector z+ ? Rm with entries [z+]i = max{zi, 0} represent the positive component of
+z, and vector z? ? Rm with entries [z?]i = min{zi, 0} represent the negative component of z.
+28
+We first provide some intuition and background to motivate the estimator we study in this
+section, and then present a formal definition. Denote the permutation-rank of matrix M? as
+?? : = ?(M?), and assume that the value of ?? is known. The goal is to obtain an estimate
+M? ? CPR(??) from the observed matrix Y such that the error 1nd |||M??M? |||2F is as small as possible.
+For any such matrix M? , let us use the following notation for its permutation-rank decomposition:
+M? =
+???
+?=1 M?
+(?) where M? (?) ? CPR(1) for every ? ? [??]. Further, we let ??(?) and ??(?) respectively
+denote the permutation of the rows and columns of M? (?).
+Past literature on computationally-efficient estimation for such problems provides us with es-
+timators with the following two distinct goals: (i) to estimate the permutations of the constituent
+matrices in the permutation-rank decomposition, and (ii) estimators to compute the entries of the
+constituent matrices given the permutations. For each of these two goals, we describe a natural
+estimator below from past works.
+Estimating the permutations via singular value decomposition: Compute the singular value de-
+composition Y =
+?min{n,d}
+?=1 a
+(?)[b(?)]T such that the vectors {a(1), . . . , a(min{n,d})} are mutually
+orthogonal, the vectors {b(1), . . . , b(min{n,d})} are mutually orthogonal, and [a(1)]T b(1) ? . . . ?
+[a(min{n,d})]T b(min{n,d}). In order to resolve a global sign ambiguity, we also mandate the condi-
+tion |||a(?)+ |||2 ? |||a
+(?)
+? |||2 for every ? ? [min{n, d}]. Finally, for each ? ? [??], set ??(?) and ??(?) as the
+ordering of the entries of a(?) and b(?) respectively.
+From past works [SBW16b], this estimator for the permutations is known to possess appealing
+properties for the case when ?? = 1. For instance, it is not hard to see that in a noiseless setting
+where Y = M?, the estimator will yield exactly the row and column permutations of M? ? CPR(1).
+This fact is employed in the paper [SBW16b] to obtain consistent estimates of the permutations
+associated to an unknown matrix in CPR(1) in the context of a “crowd labeling” problem. It is
+also not hard to verify that the estimator is can be computed in a computationally-efficient manner.
+Estimating the entries via least squares, when given the permutations: Given some estimate
+??(1), ??(1), . . . , ??(?
+?), ??(?
+?) of the permutations associated to the permutation-rank decomposition of
+M?, the following estimator M? provides an estimate of the matrix M? as well as the matrices in
+its permutation-rank decomposition.
+M? ? arg min
+M?[0,1]n×d
+|||Y ?M |||2F (43)
+such that M =
+???
+?=1
+M? (?), and
+M? (?) ? CPR(1) with rows and columns ordered by (??(?), ??(?)), for every ? ? [??].
+The aforementioned estimator M? is a natural extension of the least-squares estimators studied
+in past works [SBGW17, SBW16a] for the case when M? ? CPR(1). The estimator is known to have
+appealing properties from both the statistical and computational perspectives. From a computa-
+tional standpoint, all of the constraints in the optimization program (43) can be expressed as a set of
+(polynomial number of) linear inequalities, thereby making the optimization problem computation-
+ally tractable. From a statistical standpoint, if the given permutations (??(1), ??(1), . . . , ??(?
+?), ??(?
+?))
+are exactly (or approximately) equal to the permutations associated to a permutation-rank decom-
+position of M?, the proofs of the results in [SBGW17, SBW16a] as well as Theorem 1 in the present
+29
+paper imply that the estimator M? is minimax optimal for estimating M? from Y . The estimator
+M? continues to remain statistically efficient if the permutations are known up to a reasonable ap-
+proximation.
+Given the two intuitive estimators discussed above, a natural means to estimate M? from Y is
+to concatenate these two estimators to obtain the following two-step estimator:
+Step 1: From Y , obtain an estimate (??(1), ??(1), . . . , ??(?
+?), ??(?
+?)) of the permutations of the decom-
+position of M? via the singular value decomposition-based estimator described above.
+Step 2: Using the estimates of the permutations, obtain an estimate M? of M? via the least squares
+projection (43).
+We believe that when ?? = 1, this estimator is not only consistent, but it has an expected error
+decaying at the rate O(min{n, d}?1/2). We now show that in fact as soon as one moves to the
+setting of ?? > 1, this estimator is no longer even consistent—even if there is no noise.
+Proposition 5. There exists a matrix M? ? CPR(2) such that when Y = M?, the two-step estimator
+M? has an error lower bounded as
+1
+nd
+|||M? ? M? |||2F ? c2,
+with probability 1.
+The proof of this result is provided in Appendix A.3.1. The proof also demonstrates an identical
+negative result for the following modified estimation algorithm: In computing M? as above, instead
+of taking only the permutations of the top ?? singular vectors, collect permutations from singular
+vectors until you obtain ?? distinct permutations; then apply the least squares projection step to
+these ?? distinct permutations.
+A.2 An intuitive greedy algorithm for permutation-rank decomposition
+Consider any matrix any matrix M ? [0, 1]n×d. The singular value decomposition of M into com-
+ponents having a (conventional) rank of one can be performed with the following greedy algorithm:
+• Let k? = 1
+• While M 6=
+?k??1
+?=1 M?
+(?):
+– Let M? (k?) ? arg min
+M ?=abT
+(a,b)?Rn×Rd
+|||M ??k??1?=1 M? (?) ?M ?|||F
+– k? = k? + 1
+• Output k? as the rank of M and {M? (1), . . . , M? (k?)} as its singular value decomposition.
+An obvious question that arises is whether a similar greedy algorithm works to obtain a permutation-
+rank decomposition.
+To this end, consider any value q ? 1, and for any matrix M , let |||M |||q denote its entry-wise
+norm |||M |||q : =
+(?
+i,j(Mij)
+q
+) 1
+q . Then the natural analogue of the aforedescribed algorithm in the
+context of permutation-rank decomposition is as follows:
+30
+• Let ?? = 1
+• While M 6=
+????1
+?=1 M?
+(?):
+– Let M? (??) ? arg min
+M ??CPR(1)
+|||M ?????1?=1 M? (?) ?M ?|||q
+– ?? = ??+ 1
+• Output ?? as the permutation-rank ofM and {M? (1), . . . , M? (??)} as its permutation-decomposition
+The following proposition investigates whether such an algorithm will work.
+Proposition 6. For any values of n, d and ? ? 2, there exists an (n× d) matrix M ? CPR(?) such
+that the above algorithm outputs a decomposition of permutation-rank at least (?+ 1).
+The guaranteed incorrectness of the permutation rank of the output of the algorithm also
+directly implies that the decomposition is also incorrect.
+A.3 Proofs
+We now present the proofs of the negative results introduced in this section.
+A.3.1 Proof of Proposition 5
+In what follows, for clarity of exposition, we ignore issues pertaining to floors and ceilings of
+numbers, as they affect the results only by a constant factor.
+We begin by defining a matrix M? ? CPR(2) as
+M? = M (1) +M (2),
+with
+M (1) = a(1)(b(1))T + a(2)(b(2))T and M (2) = a(3)(b(3))T .
+Set
+a(1) = [1 .9 · · · .9 .8 · · · .8 0 · · · 0 ]T
+a(2) = [0 .2 · · · .2 ?.1 · · · ? .1 0 · · · 0 ]T
+a(3) = [0 0 · · · 0? ?? ?
+?1(n?1)
+0 · · · 0? ?? ?
+?2(n?1)
+1 · · · 1? ?? ?
+?3(n?1)
+]T ,
+and
+b(1) = [1 .9 · · · .9 .8 · · · .8 0 · · · 0 ]T
+b(2) = [0 .2 · · · .2 ?.1 · · · ? .1 0 · · · 0 ]T
+b(3) = [0 0 · · · 0? ?? ?
+?1(d?1)
+0 · · · 0? ?? ?
+?2(d?1)
+1 · · · 1? ?? ?
+?3(d?1)
+]T ,
+where ?1 = .684, ?2 = .304, and ?3 = .012. It is easy to verify that all entries of the matrices
+M?,M (1),M (2) lie in the interval [0, 1] and that M (1) ? CPR(1) and M (2) ? CPR(1) and M? ?
+CPR(2)\CPR(1).
+One can further verify the following properties of this construction:
+31
+1. ?a(?), a(??)? = 0 and ?b(?), b(??)? = 0 for every ? 6= ?? ? {1, 2, 3}.
+2. |||a(1)|||2 > |||a(2)|||2 > |||a(3)|||2 and |||b(1)|||2 > |||b(2)|||2 > |||b(3)|||2.
+3. The (conventional) rank of M? is 3.
+4. a(1), a(2) and a(3) have different permutations of their entries; likewise, b(1), b(2) and b(3) have
+different permutations of their entries.
+5. |||a(?)+ |||2 ? |||a
+(?)
+? |||2 and |||b
+(?)
++ |||2 ? |||b
+(?)
+? |||2 for every ? ? [3].
+The five properties listed above imply that the following decomposition of M?,
+M? =
+3?
+?=1
+a(?)(b(?))T ,
+is a valid singular value decomposition with the global signs of the constituent vectors satisfying
+the conditions of Step 1 of the algorithm. Consequently, the ?? = 2 estimated permutations in
+Step 1 of the algorithm are those given by the respective orderings of the entries of the vectors
+{a(1), b(1)} and {a(2), b(2)}.
+Observe that the entries 2 to (1+?1(n?1)) of both a(1) and a(2) have values higher than the last
+?3(n?1) entries of these vectors, and hence this ordering is reflected in the respective permutations
+derived from these vectors. Likewise, the entries 2 through (1 + ?1(d? 1)) are ranked higher than
+the last ?3(d ? 1) entries in the permutation derived from the vectors b(1) and b(2). Due to this
+collection of inequalities, the least squares program in Step 2 of the algorithm must mandate that
+Mij ? Mi?j? ? Mi??j?? , (44)
+whenever 2 ? i, i? ? 1+?1(n?1); n??3(n?1) < i?? ? n; 2 ? j ? 1+?1(d?1); and d??3(d?1) <
+j?, j?? ? d. However, for each coordinate in this range, we also have M?ij = .85,M?i?j? = 0,M?i??j?? = 1.
+Consequently, any triplet of values (Mij ,Mi?j? ,Mi??j??) that follows the ordering (44) must necessarily
+incur an error lower bounded as
+(Mij ?M?ij)2 + (Mi?j? ?M?i?j?)2 + (Mi??j?? ?M?i??j??)2 ? c,
+for some universal constant c > 0. Summing up the errors over all the entries of the matrix in
+the aforementioned coordinate set yields that any matrix M satisfying the constraints of the least
+squares problem must have squared Frobenius error at least |||M ?M?|||2F ? c?nd, for some universal
+constant c? > 0.
+A.3.2 Proof of Proposition 6
+First let n = d = ? = 2. Consider the (2× 2) matrix M defined as
+M : =
+[
+0 .6
+.6 .4
+]
+.
+It is easy to verify that M ? CPR(2)\CPR(1).
+Let us now investigate the operation of the proposed algorithm on this matrix M . The following
+lemma controls the first step of the algorithm.
+32
+Lemma 9. When the input matrix M is as defined above, the algorithm will select
+M? (1) =
+[
+0 .4
+.4 .4
+]
+in the first iteration.
+As a consequence of this lemma, we have the following residual that is used for the subsequent
+iterations of the algorithm:
+M ? M? (1) =
+[
+0 .2
+.2 0
+]
+.
+It is easy to see the that the residual matrix (M ? M? (1)) ? CPR(2)\CPR(1). Also observe that in
+each iteration, the algorithm subtracts out a matrix in CPR(1) from the residual. Consequently, the
+algorithm will require at least two more iterations to terminate. The algorithm thus necessarily
+outputs a decomposition with ?? ? 3, as claimed.
+Next we extend these arguments to any arbitrary values of n ? 2, d ? 2, ? ? 2. Consider matrix
+M with entries:
+• M11 = 0, M12 = M21 = .6, M22 = .4
+• Mii = 1 for every i ? {3, . . . , ?}
+• Mij = 0 for every other coordinate (i, j).
+The matrix M has a block-diagonal structure with the top-left (2 × 2) block as one non-zero
+component and (?? 2) other entries on the diagonal as (?? 2) additional non-zero components.
+The rest of the proof is partitioned into two cases:
+Case I: Suppose that at some step ?? of the algorithm, some entry of the residual matrix (M ????
+?=1 M?
+(?) is strictly negative. Then the algorithm will never terminate because every subsequent
+candidate matrix in the minimization step of the algorithm must lie in CPR(1) and hence must have
+non-negative entries. The algorithm will thus output ?? = ?.
+Case II: Now suppose that the residual matrices always have non-negative entires. Then given the
+block-diagonal structure of M , any matrix M? (1), M? (2), . . . in the iterations of the algorithm can
+be non-zero in exactly one of these diagonal components. As a result, the overall decomposition
+yielded by the algorithm decouples into ? individual decompositions of the ? respective blocks, each
+of which will contribute a permutation-rank of at least 1. Moreover, from the arguments for the
+case of n = d = 2 above, we also have that the top-left (2 × 2) block will induce a decomposition
+of permutation-rank 3 in the algorithm. Putting the pieces together, we see that the matrix M
+will induce the proposed algorithm to output a decomposition of permutation-rank at least (?+1),
+whereas ?(M) = ?.
+Proof of Lemma 9 SinceM11 = 0, we must have M?
+(1)
+11 = 0. Now suppose the column ordering of
+M? (1) is such that the first column is greater than the second column. Then we must have M?
+(1)
+12 = 0.
+Since M (1) is the minimizer of the optimization program in the algorithm we must then have
+M?
+(1)
+21 = M21 and M?
+(1)
+22 = M22, and consequently |||M?M? (1)|||q = M?
+(1)
+12 = .6. An analogous argument
+33
+holds if the first row is greater than the second row in the permutation of M? (1). Finally, suppose
+that in the permutations of M (1), the second column is greater than the first column and the second
+row is greater than the first row. Then we must have .4 ? M? (1)22 ? max{M?
+(1)
+12 , M?
+(1)
+21 }. With this
+condition, one can see that the minimizer of the optimization program is M?
+(1)
+12 = M?
+(1)
+21 = M?
+(1)
+22 = .4.
+Consequently, we have |||M ? M? (1)|||q = .2× 2
+1
+q < .6 for any q ? 1. Thus the algorithm chooses
+M? (1) =
+[
+0 .4
+.4 .4
+]
+.
+B Alternative interpretation of the non-negative rank model
+In the non-negative rank model described in the introduction, one may wonder why the affinity of
+a user to a movie conditioned on a feature must be modeled as the product u?iv
+?
+j of the separate
+connections of the user and movie to the feature. Secondly, one may also wonder why the net affinity
+of a user to a movie is the sum of the affinities across the features
+?r
+?=1 u
+?
+iv
+?
+j. These two modeling
+assumptions may sometimes be confusing, and hence in what follows, we present an alternative
+interpretation of the low non-negative rank model for the recommender systems application.
+Consider any feature ? ? [r]. The affinities of users towards movies conditioned on this feature
+is a matrix, say X(?) ? [0, 1]n×d. The matrix X(?) is assumed to have a (non-negative) rank of 1.
+Hence the probability that user i likes movie j, when asked to judge only based on feature ?, equals
+X
+(?)
+ij .
+Now, every user is assumed to have their own way of weighing features to decide which movies
+they like. Specifically, any user i ? [n] is associated to values ?(1)i , . . . , ?
+(r)
+i such that ?
+(?)
+i ? 0 for
+every ? ? [r] and ?r?=1 ?
+(?)
+i = 1. The probability that user i likes any movie j is assumed to be the
+convex combination
+r?
+?=1
+?
+(?)
+i X
+(?)
+ij .
+This completes the description of the model.
+Let us verify that the resulting user-movie matrix has a non-negative rank of r. Recall the
+assumption that X(?) has a non-negative rank of 1, and let X(?) = u?(v?)T for some vectors u?
+and v?. Then the ith row of the overall user-movie matrix equals
+?r
+?=1 ?
+(?)
+i u
+?
+i(v
+?)T , and hence the
+overall user-movie matrix equals
+r?
+?=1
+u??(v?)T , where u?? =
+?
+??
+?
+(?)
+1 u
+?
+1
+...
+?
+(?)
+n u?n
+?
+?? .
+This completes the alternative description of the non-negative rank model.
+One can observe that the restriction
+?r
+?=1 ?
+(?)
+i = 1 makes this model slightly more restrictive
+than the non-negative rank model described earlier in the main text. However, all of our results
+on estimation for the non-negative rank model described in Section 2.1 continue to apply to this
+model as well.
+34
+References
+[AGKM12] S. Arora, R. Ge, R. Kannan, and A. Moitra. Computing a nonnegative matrix
+factorization–provably. In Proceedings of the forty-fourth annual ACM symposium
+on Theory of computing, pages 145–162. ACM, 2012.
+[BZ16] M.-F. F. Balcan and H. Zhang. Noise-tolerant life-long matrix completion via adaptive
+sampling. In Advances In Neural Information Processing Systems, 2016.
+[CCS10] J.-F. Cai, E. J. Cande?s, and Z. Shen. A singular value thresholding algorithm for
+matrix completion. SIAM Journal on Optimization, 20(4):1956–1982, 2010.
+[CGMS17] X. Chen, S. Gopi, J. Mao, and J. Schneider. Competitive analysis of the top-k ranking
+problem. In ACM-SIAM Symposium on Discrete Algorithms, 2017.
+[Cha14] S. Chatterjee. Matrix estimation by universal singular value thresholding. The Annals
+of Statistics, 43(1):177–214, 2014.
+[CJSC13] Y. Chen, A. Jalali, S. Sanghavi, and C. Caramanis. Low-rank matrix recovery from
+errors and erasures. IEEE Trans. Information Theory, 59(7):4324–4337, 2013.
+[CM16] S. Chatterjee and S. Mukherjee. On estimation in tournaments and graphs under
+monotonicity constraints. arxiv:1603.04556, 2016.
+[CO10] J.-F. Cai and S. Osher. Fast singular value thresholding without singular value de-
+composition. UCLA CAM Report, 5, 2010.
+[CR09] E. J. Candes and B. Recht. Exact matrix completion via convex optimization. Found.
+Comput. Math., 9(6):717–772, December 2009.
+[CT10] E. J. Cande?s and T. Tao. The power of convex relaxation: Near-optimal matrix
+completion. IEEE Trans. Inf. Theor., 56(5):2053–2080, May 2010.
+[CT12] T. Cover and J. Thomas. Elements of information theory. John Wiley & Sons, 2012.
+[DG+14] D. Donoho, M. Gavish, et al. Minimax risk of matrix denoising by singular value
+thresholding. The Annals of Statistics, 42(6):2413–2440, 2014.
+[DR16] M. A. Davenport and J. Romberg. An overview of low-rank matrix recovery from
+incomplete observations. IEEE Journal of Selected Topics in Signal Processing,
+10(4):608–622, 2016.
+[DS03] D. Donoho and V. Stodden. When does non-negative matrix factorization give a
+correct decomposition into parts? In Advances in neural information processing
+systems, 2003.
+[FMR16] N. Flammarion, C. Mao, and P. Rigollet. Optimal rates of statistical seriation.
+arxiv:1607.02435, 2016.
+[Gil52] E. N. Gilbert. A comparison of signalling alphabets. Bell System Technical Journal,
+31(3):504–522, 1952.
+[Gil12] N. Gillis. Sparse and unique nonnegative matrix factorization through data prepro-
+cessing. Journal of Machine Learning Research, 13(Nov):3349–3386, 2012.
+[Gil14] N. Gillis. The why and how of nonnegative matrix factorization. Regularization,
+Optimization, Kernels, and Support Vector Machines, 12(257), 2014.
+35
+[GPH04] C. Gobinet, E. Perrin, and R. Huez. Application of non-negative matrix factorization
+to fluorescence spectroscopy. In European Signal Processing Conference, 2004.
+[Gro11] D. Gross. Recovering low-rank matrices from few coefficients in any basis. IEEE
+Trans. Information Theory, 57(3):1548–1566, 2011.
+[H?as90] J. H?astad. Tensor rank is np-complete. Journal of Algorithms, 11(4):644–654, 1990.
+[Hit27] F. L. Hitchcock. The expression of a tensor or a polyadic as a sum of products. Studies
+in Applied Mathematics, 6(1-4):164–189, 1927.
+[HK13] D. Hsu and S. M. Kakade. Learning mixtures of spherical gaussians: moment methods
+and spectral decompositions. In ACM Innovations in Theoretical Computer Science,
+2013.
+[HND15] C.-J. Hsieh, N. Natarajan, and I. Dhillon. Pu learning for matrix completion. In
+International Conference on Machine Learning, pages 2445–2453, 2015.
+[HSRW16] R. Heckel, N. B. Shah, K. Ramchandran, and M. J. Wainwright. Active ranking from
+pairwise comparisons and when parametric assumptions don’t help. arxiv:1606.08842,
+2016.
+[JKN16] C. Jin, S. M. Kakade, and P. Netrapalli. Provable efficient online matrix completion via
+non-convex stochastic gradient descent. In Advances in Neural Information Processing
+Systems, 2016.
+[JNS13] P. Jain, P. Netrapalli, and S. Sanghavi. Low-rank matrix completion using alternating
+minimization. In ACM symposium on Theory of computing, 2013.
+[KB09] T. G. Kolda and B. W. Bader. Tensor decompositions and applications. SIAM review,
+51(3):455–500, 2009.
+[KBV09] Y. Koren, R. Bell, and C. Volinsky. Matrix factorization techniques for recommender
+systems. Computer, 42(8), 2009.
+[Klo14] O. Klopp. Noisy low-rank matrix completion with general sampling distribution.
+Bernoulli, 20(1):282–303, 2014.
+[KLT11] V. Koltchinskii, K. Lounici, and A. B. Tsybakov. Nuclear-norm penalization and
+optimal rates for noisy low-rank matrix completion. The Annals of Statistics, pages
+2302–2329, 2011.
+[KMO10] R. H. Keshavan, A. Montanari, and S. Oh. Matrix completion from noisy entries.
+Journal of Machine Learning Research, 11(Jul):2057–2078, 2010.
+[KR+05] T. Klein, E. Rio, et al. Concentration around the mean for maxima of empirical
+processes. The Annals of Probability, 33(3):1060–1077, 2005.
+[Kru77] J. B. Kruskal. Three-way arrays: rank and uniqueness of trilinear decompositions,
+with application to arithmetic complexity and statistics. Linear algebra and its appli-
+cations, 18(2):95–138, 1977.
+[Lau01] M. Laurent. Matrix completion problems. In The Encyclopedia of Optimization, pages
+221—229. Kluwer Academic, 2001.
+[LCP+08] H. Laurberg, M. G. Christensen, M. D. Plumbley, L. K. Hansen, and S. H. Jensen.
+Theorems on positive data: On the uniqueness of NMF. Computational intelligence
+and neuroscience, 2008, 2008.
+36
+[LS99] D. D. Lee and H. S. Seung. Learning the parts of objects by non-negative matrix
+factorization. Nature, 401(6755):788–791, 1999.
+[NW12] S. Negahban and M. J. Wainwright. Restricted strong convexity and weighted matrix
+completion: Optimal bounds with noise. Journal of Machine Learning Research,
+13(May):1665–1697, 2012.
+[PWC16] A. Pananjady, M. J. Wainwright, and T. A. Courtade. Linear regression with an
+unknown permutation: Statistical and computational limits. arxiv:1608.02902, 2016.
+[Rec11] B. Recht. A simpler approach to matrix completion. Journal of Machine Learning
+Research, 12(Dec):3413–3430, 2011.
+[SAJ05] N. Srebro, N. Alon, and T. S. Jaakkola. Generalization error bounds for collaborative
+prediction with low-rank matrices. In Advances In Neural Information Processing
+Systems, 2005.
+[SBGW17] N. B. Shah, S. Balakrishnan, A. Guntuboyina, and M. J. Wainwright. Stochasti-
+cally transitive models for pairwise comparisons: Statistical and computational issues.
+IEEE Transactions on Information Theory, 2017.
+[SBW16a] N. B. Shah, S. Balakrishnan, and M. J. Wainwright. Feeling the Bern: Adaptive
+estimators for Bernoulli probabilities of pairwise comparisons. arxiv:1603.06881, 2016.
+[SBW16b] N. B. Shah, S. Balakrishnan, and M. J. Wainwright. A permutation-based model for
+crowd labeling: Optimal estimation and robustness. arxiv:1606.09632, 2016.
+[Sch68] P. H. Scho?nemann. On two-sided orthogonal procrustes problems. Psychometrika,
+33(1):19–33, 1968.
+[Sha17] N. Shah. Learning From People. PhD thesis, EECS Department, University of Cali-
+fornia, Berkeley, Jul 2017.
+[SK11] R. Sarver and A. Klapuri. Application of nonnegative matrix factorization to signal-
+adaptive audio effects. In Proc. DAFx, pages 249–252, 2011.
+[SW15] N. B. Shah and M. J. Wainwright. Simple, robust and optimal ranking from pairwise
+comparisons. arxiv:1512.08949, 2015.
+[Tao12] T. Tao. Topics in random matrix theory, volume 132. American Mathematical Society
+Providence, RI, 2012.
+[TST05] F. J. Theis, K. Stadlthanner, and T. Tanaka. First results on uniqueness of sparse
+non-negative matrix factorization. In European Signal Processing Conference, 2005.
+[Var57] R. Varshamov. Estimate of the number of signals in error correcting codes. In Dokl.
+Akad. Nauk SSSR, 1957.
+[VHVVD08] A. Vandendorpe, N.-D. Ho, S. Vanduffel, and P. Van Dooren. On the parameterization
+of the creditrisk+ model for estimating credit portfolio risk. Insurance: Mathematics
+and Economics, 42(2):736–745, 2008.
+[YLP15] S.-Y. Yun, M. Lelarge, and A. Proutiere. Streaming, memory limited matrix comple-
+tion with noise. arxiv:1504.03156, 2015.
+37

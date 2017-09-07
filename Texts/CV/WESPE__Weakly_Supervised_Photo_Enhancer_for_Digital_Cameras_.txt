@@ -1,0 +1,700 @@
+WESPE: Weakly Supervised Photo Enhancer for Digital Cameras
+Andrey Ignatov, Nikolay Kobyshev, Kenneth Vanhoey, Radu Timofte, Luc Van Gool
+ETH Zurich
+andrey.ignatoff@gmail.com, {nk, vanhoey, timofter, vangool}@vision.ee.ethz.ch
+Abstract
+Low-end and compact mobile cameras demonstrate limited
+photo quality mainly due to space, hardware and budget con-
+straints. In this work, we propose a deep learning solution that
+translates photos taken by cameras with limited capabilities into
+DSLR-quality photos automatically. We tackle this problem by
+introducing a weakly supervised photo enhancer (WESPE) –
+a novel image-to-image Generative Adversarial Network-based
+architecture. The proposed model is trained by weakly super-
+vised learning: unlike previous works, there is no need for strong
+supervision in the form of a large annotated dataset of aligned
+original/enhanced photo pairs. The sole requirement is two dis-
+tinct datasets: one from the source camera, and one composed of
+arbitrary high-quality images that can be generally crawled from
+the Internet – the visual content they exhibit may be unrelated.
+Hence, our solution is repeatable for any camera: collecting the
+data and training can be achieved in a couple of hours. Our ex-
+periments on the DPED, Kitti and Cityscapes datasets as well as
+pictures from several generations of smartphones demonstrate
+that WESPE produces comparable qualitative results with state-
+of-the-art strongly supervised methods, while not requiring the
+tedious work to obtain aligned datasets.
+1 Introduction
+The ever-increasing quality of camera sensors allows us to pho-
+tograph scenes with unprecedented detail and color. But as one
+gets used to better quality standards, photos captured just a few
+years ago with older hardware look dull and outdated. Anal-
+ogously, despite incredible advancement in quality of images
+captured by mobile devices, compact sensors and lenses makes
+DSLR-quality unattainable for them, leaving casual users with a
+constant dilemma of relying on their lightweight mobile device
+or transporting a heavier-weight camera around on a daily ba-
+sis. However, the second option may not be always possible for
+a number of other applications such as autonomous driving or
+video surveillance systems, where primitive cameras are usually
+employed.
+In general, image enhancement can be done manually (e.g.,
+by a graphical artist) or semi-automatically using specialized
+software capable of histogram equalization, photo sharpening,
+contrast adjustment, etc. The quality of the result in this case
+H
+Figure 1: Cityscapes image enhanced by our method.
+significantly depends on user skills and allocated time, and thus
+is not doable by non-graphical experts on a daily basis, or not
+applicable in case of real-time or large-scale data processing. A
+fundamentally different option is to train various learning-based
+methods that allow to automatically transform image style or
+to perform image enhancement. Yet, one of the major bottle-
+necks of these solutions is the need for strong supervision using
+matched before/after training pairs of images. This requirement
+is often the source of a strong limitation of style transfer [25] and
+photo enhancement [14] methods. In the latter, a large dataset of
+paired images for specific camera models was acquired manually
+to overcome the problem.
+In this paper, we present a novel weakly supervised solution
+for image enhancement problem to deliver ourselves from the
+above constraints. That is, we propose a deep learning architec-
+ture that can be trained to enhance images by mapping them from
+the domain of a given source camera into the domain of high-
+quality photos (supposedly taken by high-end DSLRs), while
+not requiring any correspondence or relation between the im-
+1
+ar
+X
+iv
+:1
+70
+9.
+01
+11
+8v
+1 
+ [
+cs
+.C
+V
+] 
+ 4
+ S
+ep
+ 2
+01
+7
+ages from these domains: only two separate photo collections
+representing these domains are needed for training the network.
+To achieve this, we take advantage of two novel advancements in
+generative Convolutional Neural Networks (CNN): i) transitive
+CNNs to map the enhanced image back to the space of source
+images so as to relax the need of paired ground truth photos [45],
+and ii) loss functions combining color, content and texture loss
+to learn photorealistic image quality [14]. The major property
+of the method is that it can be learned easily: the training data
+is trivial to obtain for any camera and training takes just a few
+hours, hence it is sufficiently scalable to be readily trained and
+deployed for many cameras. Yet, quality-wise, our results still
+surpass traditional enhancers and compete with state of the art
+learning-based methods by producing artifact-less results.
+Contributions. Enhanced images improve the non-enhanced
+ones in several aspects, including (but not limited to) coloriza-
+tion, resolution and sharpness. Our contributions can be summa-
+rized as follows:
+i. we provide WESPE, a generic method for learning a model
+that enhances images taken by a source camera to produce
+DSLR-quality results,
+ii. we define a transitive CNN GAN architecture suitable for
+the task of image enhancement and domain transfer by
+combining state of the art losses with a content loss ex-
+pressed on the input image,
+iii. we provide experiments on several publicly available
+datasets with a variety of camera types, including a subjec-
+tive user study and comparing to state of the art enhance-
+ment methods,
+iv. we make the model and the code openly available online1,
+progressively augmenting it with additional camera models
+and types.
+2 Related work
+Automatic photo-enhancement can be considered as a typical
+computational photography task. To build our solution, we
+base upon three sub-fields: style transfer, image restoration and
+general-purpose image-to-image enhancers.
+2.1 Style transfer
+The goal of style transfer is to apply the style of one image to the
+(visual) content of another. Traditional texture/color/style trans-
+fer techniques [8, 25] rely on an exemplar before/after pair that
+defines the transfer to be applied: it is an aligned pair showing
+a similar scene in different styles. Thanks to dense pixel match-
+ing, this transfer is then applied to a target image. The exemplar
+pair is required to contain content sufficiently analogous to the
+target image, which is hard to find, and this hinders its automatic
+and mass usage.
+1http://people.ee.ethz.ch/˜ihnatova/wespe.html
+More recently, neural style transfer alleviates this require-
+ment [9, 31]. It builds on the assumption that the shallower lay-
+ers of a deep CNN classifier characterize the style of an image,
+while the deeper ones represent semantic content. A neural net-
+work is then used to obtain an image matching the style of one
+input and the content of another.
+Finally, generative adversarial networks (GAN) append a dis-
+criminator CNN to a generator network [11]. The role of the
+former is to distinguish between two domains of images: e.g.,
+those having the style of the target image and those produced by
+the generator network. It is jointly trained with the generator,
+whose role is in turn to fool the discriminator by generating an
+image in the right domain, i.e., the domain of images of correct
+style. We exploit this logic to force the produced images to be in
+the domain of target high-quality photos.
+2.2 Image restoration
+Image quality enhancement has traditionally been addressed
+through a list of its sub-tasks, like super-resolution, deblurring,
+dehazing, denoising, colorization and image adjustment. Our
+goal of hallucinating high-end images from low-end ones en-
+compasses all these enhancements. Many of these tasks have
+recently seen the arrival of successful methods driven by deep
+learning phrased as image-to-image translation problems. How-
+ever, a common property of these works is that they are targeted
+at restoring artifacts added artificially to clean images. Such
+approaches require modeling of all possible distortions. Exhaus-
+tively modeling the flaws of the optics of one camera compared
+to a high-end reference one is close to impossible, let alone re-
+peating this for a large list of camera pairs. Nevertheless, many
+useful ideas have emerged in these works, their brief review is
+given below.
+The goal of image super-resolution is to restore the origi-
+nal image from its downscaled version. This problem is rel-
+evant to our task, as resolutions of DSLR cameras are gener-
+ally higher than the ones of mobile devices. Many end-to-end
+CNN-based solutions exist now [7, 17, 27, 24]. Initial gener-
+ative networks used pixel-wise mean-squared-error (MSE) loss
+functions, which often generated blurry results. Losses based on
+the activations of (a number of) VGG-layers [16] and GANs [19]
+are more capable of recovering photorealistic results, including
+high-frequency components, hence produce state of the art re-
+sults.
+Image colorization, which attempts to regress the 3 RGB
+channels from images that were reduced to single-channel
+grayscale, strongly benefits from the GAN architecture too [15].
+Image denoising, deblurring and dehazing [42, 29, 13, 21, 4],
+photographic style control [34] and transfer [20], as well as ex-
+posure correction [39] are another improvements and adjust-
+ments that are included in our learned model. As opposed to
+mentioned related work, there is no need to manually model
+these effects in our case.
+2
+2.3 General-purpose image-to-image enhancers
+We build our solution upon very recent advances in image-to-
+image translation networks. Isola et al. [15] present a general-
+purpose translator that takes advantage of GANs to learn the loss
+function depending on the domain the target image should be in.
+While it achieves promising results when transferring between
+very different domains (e.g., aerial image to street map), it lacks
+photorealism when generating photos: results are often blurry
+and with strong checkerboard artifacts. Compared to our work,
+it needs strong supervision, in the form of many before/after ex-
+amples provided at training time.
+Zhu et al. [45] loosen this constraint by expressing the loss in
+the space of input rather than output images, taking advantage of
+a backward mapping CNN that transforms the output back into
+the space of input images. We apply a similar idea in this work.
+However, our CNN architecture and loss functions are based on
+different ideas: fully convolutional networks and complex losses
+allows us to achieve photorealistic results, while eliminating typ-
+ical artifacts and limitations of encoder-decoder networks.
+Finally, Ignatov et al. [14] propose an end-to-end enhancer
+achieving photorealistic results for arbitrary-sized images due to
+a composition of content, texture and color losses. However,
+it is trained with a strong supervision requirement. We build
+upon their loss functions to achieve photorealism as well, while
+adapting them to the new architecture suitable for our weakly
+supervised learning setting.
+3 Proposed method
+Our goal is to learn a mapping from a source domain X (e.g.,
+defined by a low-end digital camera) to a target domain Y (e.g.,
+defined by a collection of captured or crawled high-quality im-
+ages). The inputs are unpaired training image samples x ? X
+and y ? Y . As illustrated in Fig. 2, our model consists of a gen-
+erative mapping G : X ? Y paired with an inverse generative
+mapping F : Y ? X . VGG-19 features are computed for the
+original and reconstructed images x and x? to measure content
+consistency between the mapping G(x) and the input image x.
+Defining the content loss in the input image domain allows us to
+circumvent the need of before/after training pairs. Two adversar-
+ial discriminators Dc and Dt and total variation (TV) complete
+our loss definition. Dc aims to distinguish between high-quality
+image y and enhanced image y? = G(x) based on image col-
+ors, and Dt based on image texture. As a result, our objective
+comprises: i) content consistency loss to ensure G preserves x’s
+content, ii) two adversarial losses ensuring generated images y?
+lie in the target domain Y : a color loss and a texture loss, and
+iii) TV loss to regularize towards smoother results.
+3.1 Content consistency loss
+We define the content consistency loss in the input image domain
+X: that is, on x and its reconstruction x? = F (y?) = F (G(x))
+(inverse mapping from the enhanced image), as shown in Fig. 2.
+Our network is trained for both the direct G and inverse F map-
+discriminator
+g
+ra
+y
+s
+c
+a
+le
+b
+lu
+r
+generator
+vgg-19
+Conv 11x11x48
+Conv 5x5x128
+Batch NN
+Conv 3x3x192
+Batch NN
+Conv 3x3x192
+Batch NN
+Fully connected
+?
+Conv 9x9x64
+Conv 3x3x64
+Batch NN
+Conv 3x3x64
+Batch NN
+block 1
++
+Conv 3x3x64
+Conv 3x3x64
+Conv 9x9x64
+block2
+block3
+block4
+generator discriminator
+Conv 3x3x128
+Batch NN
+Figure 2: Proposed solution.
+ping simultaneously, aiming at strong content similarity between
+the original and enhanced image. We found pixel-level losses
+too restrictive in this case, hence we choose a perceptual content
+loss based on ReLu activations of the VGG-19 network [28],
+inspired by [14, 16, 19]. It is defined as the l2-norm between
+feature representations of the input image x and the recovered
+image x?:
+Lcontent =
+1
+CjHjWj
+??j
+(
+x
+)
+? ?j
+(
+x?
+)
+?, (1)
+where ?j() is the feature map from the j-th VGG-19 convolu-
+tional layer andCj ,Hj andWj are the number, height and width
+of the feature maps, respectively.
+3.2 Adversarial color loss
+Image color quality is measured using an adversarial discrimina-
+torDc that is trained to differentiate between the blurred versions
+of enhanced y?b and high-quality yb images:
+yb(i, j) =
+?
+k,l
+y(i+ k, j + l) ·Gk,l, (2)
+where Gk,l = A exp
+(
+? (k?µx)
+2
+2?x
+? (l?µy)
+2
+2?y
+)
+defines Gaussian
+blur with A = 0.053, µx,y = 0, and ?x,y = 3.
+The main idea here is that the discriminator should learn the
+differences in brightness, contrast and major colors between
+low- and high-quality images, while it should avoid texture and
+content comparison. A constant ? was defined experimentally
+to be the smallest value that ensures texture and content elimina-
+tions. As a result, color loss forces the enhanced images to have
+similar color distribution as the target high-quality pictures. The
+loss itself is defined as a standard generator objective:
+Lcolor = ?
+?
+i
+logDc(G(x)b). (3)
+3
+Figure 3: From left to right, top to bottom: original iPhone 3GS photo and the same image after applying, resp.: Apple Photo
+Enhancer, WESPE trained on DPED, WESPE trained on DIV2K, Ignatov et al. [14], and the corresponding DSLR image.
+3.3 Adversarial texture loss
+Similarly to color, image texture quality is also assessed by an
+adversarial discriminator Dt that is applied to grayscale images
+and is trained to predict whether the input one was enhanced
+(y?g) or is a “true” high-quality image (yg). As in the previous
+case, the network is trained to minimize the cross-entropy loss
+function, the loss is defined as:
+Ltexture = ?
+?
+i
+logDt(G(x)g). (4)
+3.4 TV loss
+To impose spatial smoothness of the generated images we also
+add a total variation loss [2] defined as follows:
+Ltv =
+1
+CHW
+??xG(x) +?yG(x)?, (5)
+where C, H and W are the dimensions of the generated image
+G(x).
+3.5 Total loss
+Our final objective loss is the linear combination of the four pre-
+viously introduced losses with the following weights:
+Ltotal = Lcontent + 5 · 10?3 (Lcolor + Ltexture) + 10 Ltv. (6)
+The weights were picked based on preliminary experiments on
+our training data.
+3.6 Network architecture and training details
+The overall architecture of the system is illustrated in Fig. 2.
+Both generative and inverse generative networks G and F are
+fully-convolutional residual CNNs with four residual blocks,
+their architecture was adapted from [14]. The discriminator
+CNNs consist of five convolutional and one fully-connected
+layer with 1024 neurons, followed by the last layer with sig-
+moidal activation function on top of it. The first, second and
+fifth convolutional layers are strided with a step size of 4, 2 and
+2, respectively.
+The network was trained on Nvidia Titan X GPU for 20K it-
+erations using a batch size of 30, the size of the input patches
+was 100×100 pixels. The parameters of the networks were opti-
+mized using Adam algorithm, the experimental setup was iden-
+tical in all experiments.
+4 Experiments
+We apply the proposed network to different datasets and com-
+pare quantitatively and qualitatively (through a user study)
+against a baseline (the Apple Photos image enhancement soft-
+ware, or APE) and the most recent and state of the art related
+work of Ignatov et al. [14] that exploits full supervision.
+4.1 Image quality assessment
+In our experiments, we used full-reference pixel-wise measures
+when applicable, i.e., when ground truth enhanced images are
+available. Point Signal-to-Noise Ratio (PSNR) measures the
+4
+BlackBerry BlackBerry Sony Sony
+Figure 4: Original (top) vs. WESPE [DIV2K] enhanced (bottom) DPED images captured by BlackBerry and Sony cameras.
+Table 1: Average PSNR, SSIM, entropy and bit per pixel results on DPED test images. WESPE is trained either on DPED or on
+DIV2K dataset.
+Phone APE
+Weakly supervised Fully supervised
+WESPE trained on DIV2K WESPE trained on DPED [14] trained on DPED
+PSNR SSIM entr. bpp PSNR SSIM entr. bpp PSNR SSIM entr. bpp PSNR SSIM entr. bpp
+iPhone 17.28 0.86 7.39 9.33 18.85 0.87 7.59 12.29 19.74 0.90 7.57 10.68 21.35 0.92 7.62 11.07
+BlackBerry 18.91 0.89 7.55 10.19 18.42 0.90 7.59 11.36 19.00 0.92 7.55 10.32 20.66 0.93 7.63 9.98
+Sony 19.45 0.92 7.62 11.37 20.83 0.89 7.50 11.72 21.93 0.93 7.63 11.19 22.01 0.94 7.64 10.99
+amount of signal lost wrt a reference, hence helps us quantify
+how close we are to it. SSIM [33] measures the structural sim-
+ilarity with the reference and is known to correlate better with
+human perception than PSNR. Codebook Representation for No-
+Reference Image Assessment (CORNIA) [37] is a perceptual
+measure mapping to average human quality assessments. Com-
+plementarily, we compute image entropy (based on pixel level
+observations) and bit per pixel (bpp) of the PNG lossless image
+compression. Both entropy and bpp are indicators of the quan-
+tity of image information. Since the final aim of our work is to
+improve both the quality and the aesthetics of an input image we
+also conduct a user study.
+4.2 Weakly vs. fully supervised learning
+[14] proposed a photo enhancer learned with full supervision on
+the DPED dataset composed of pixel-aligned pairs of source and
+target images. It contains images from 3 smartphones with low-
+to middle-end cameras (iPhone 3Gs, BlackBerry Passport and
+Sony Xperia Z) paired with images of the same scenes taken
+by a high-end DSLR camera (Canon 70D). Thanks to pixel-
+aligned ground truth high-quality images, we can use this data
+to evaluate our method using the pixel-wise image quality met-
+rics (PSNR and SSIM).
+We adhere to the same setup and train our model for mapping
+from the smartphone image source domain to the DSLR target
+domain. Note that we use the target images in weak supervision:
+only for training the adversarial discriminators and not for pixel
+level losses as in [14]. We train 2 networks with different target
+images: the first uses the original DPED DSLR photos as tar-
+get, while the second uses high-quality pictures from DIV2K [1]
+dataset.
+PSNR, SSIM, bbp and image entropy are given in Table 1.
+Our WESPE network trained with the DPED DSLR target per-
+forms better than the APE and almost as good as the net-
+work [14] that uses a fully supervised approach and requires
+pixel-aligned ground truth. Numerical evaluation of our net-
+work trained to target DIV2K images performs worse on PSNR
+and SSIM. This is because these metrics take DSLR image as a
+reference, and even minor difference of colors between the re-
+sulting image and the compared DSLR reference can worsen the
+score. The resulting pictures trained on DIV2K have more crisp
+colors compared to WESPE trained on DSLR (see Fig. 3) and
+very high bpp scores. This shows that training benefits from a
+data diverse dataset (different sources) of high-quality images
+with little noise levels, rather than a set of images from a single
+high-quality camera. More results are shown in Fig. 4.
+4.3 Training on unsupervised datasets
+While the DPED dataset contains pictures from mostly old
+phones, we have collected a complementary dataset of pictures
+5
+Cityscapes Cityscapes Kitti Kitti
+Figure 5: Examples of original (top) vs. enhanced (bottom) images for Cityscapes and Kitti dataset.
+original WESPE enhanced APE
+images entropy bpp CORNIA entropy bpp CORNIA entropy bpp CORNIA
+Cityscapes 6.72 5.03 46.56 7.55 12.04 28.92 7.30 6.74 46.73
+KITTI 7.29 10.06 39.40 7.62 13.56 32.22 7.58 10.21 37.64
+HTC 7.51 8.30 27.33 7.73 11.50 29.91 7.64 9.64 28.46
+Huawei 7.71 9.30 25.84 7.77 11.63 29.89 7.78 10.27 25.85
+iPhone 7.56 8.04 30.88 7.56 10.08 36.06 7.57 9.25 35.82
+Table 2: Results on the fully unsupervised 5 datasets
+taken by phones that are marketed to have state-of-the-art cam-
+eras: iPhone 6, HTC One M9 and Huawei P9. As images found
+online may suffer from additional compression artifacts, we did
+a manual collection ourselves. For each phone, the dataset con-
+sists of approximately 1500 pictures. We additionally use the
+Cityscapes [6] and KITTI [10] datasets to evaluate the perfor-
+mance of the network on public datasets that contain images
+of low quality. In the following experiments, we use DIV2K
+images as target as it has shown better performance on DPED
+dataset. We compute image entropy and bpp (which is cor-
+related with information quantity) and CORNIA (where lower
+is better) for original, WESPE-enhanced, and baseline(APE)-
+enhanced images. Results are shown in Table 2.
+For the city datasets (Kitti and Cityscapes), our method
+demonstrates significantly better results on CORNIA and bits
+per pixel, and also scores higher on image entropy. The city
+datasets consist of images of poor quality, and our method is
+successful in healing such pictures. On the phones, our method
+shows better results on bits per pixel, worse scores on CORNIA,
+keeping image entropy on the same level. Since these results
+are quite ambiguous, a complementary user study for subjective
+quality evaluation is performed in section 4.4. Visual results for
+the city datasets and phones are shown in Fig. 5 and 6.
+4.4 Subjective qualitative evaluation
+Numerical results are not necessarily correlated to human per-
+ception. Hence, we have additionally conducted a user study to
+verify our findings. 38 people chose their preferred among 2
+pictures displayed side by side. No additional selection criteria
+were specified, and users were allowed to zoom in and out at
+will without time restriction. The study consisted of 7 pairs of
+pictures before and after applying our method for each dataset
+(which sums to 35 questions for 3 modern phones and 2 city
+datasets) and 7 pairs of improved pictures using our method and
+APE (another 35 questions). The question sequence, as well as
+the sequence of pictures in each pair, were randomized for each
+user. Results are shown in Table 3.
+WESPE-improved images are consistently preferred over
+non-enhanced images, even strongly for most datasets. It is also
+often preferred over APE, strongly on KITTI and especially on
+Cityscapes dataset, while for the Huawei P9 phone the results
+are comparable.
+5 Conclusion
+In this work, we presented WESPE – a weakly supervised so-
+lution for the image quality enhancement problem. In contrast
+to previously proposed approaches that required strong supervi-
+sion in the form of aligned source-target training image pairs,
+this method is free of this limitation. That is, it is trained to map
+low-quality photos into the domain of high-quality photos with-
+out requiring any correspondence between them: only two sep-
+arate photo collections representing these domains are needed.
+To solve the problem, we proposed a transitive architecture that
+is based on Generative Adversarial Networks and loss functions
+designed for high-quality image quality assessment. The method
+was validated on several publicly available datasets with differ-
+ent camera types. Our experiments reveal that WESPE demon-
+strates the performance comparable or surpassing the traditional
+enhancers, and gets close or competes with the current state of
+6
+Figure 6: Original (top) vs. enhanced (bottom) images for iPhone, HTC and Huawei cameras.
+the art supervised methods, while relaxing the need of supervi-
+sion thus avoiding tedious creation of pixel-aligned datasets.
+References
+[1] E. Agustsson and R. Timofte. Ntire 2017 challenge on sin-
+gle image super-resolution: Dataset and study. In The IEEE
+Conference on Computer Vision and Pattern Recognition
+(CVPR) Workshops, July 2017. 5
+[2] H. A. Aly and E. Dubois. Image up-sampling using total-
+variation regularization with a new observation model.
+IEEE Transactions on Image Processing, 14(10):1647–
+1659, Oct 2005. 4
+[3] C. Barnes, E. Shechtman, D. B. Goldman, and A. Finkel-
+stein. The generalized PatchMatch correspondence algo-
+rithm. In European Conference on Computer Vision, Sept.
+2010.
+[4] B. Cai, X. Xu, K. Jia, C. Qing, and D. Tao. Dehazenet:
+An end-to-end system for single image haze removal.
+IEEE Transactions on Image Processing, 25(11):5187–
+5198, Nov 2016. 2
+[5] Z. Cheng, Q. Yang, and B. Sheng. Deep colorization. In
+The IEEE International Conference on Computer Vision
+(ICCV), December 2015.
+[6] M. Cordts, M. Omran, S. Ramos, T. Rehfeld, M. Enzweiler,
+R. Benenson, U. Franke, S. Roth, and B. Schiele. The
+cityscapes dataset for semantic urban scene understanding.
+In Proc. of the IEEE Conference on Computer Vision and
+Pattern Recognition (CVPR), 2016. 6
+[7] C. Dong, C. C. Loy, K. He, and X. Tang. Learning a Deep
+Convolutional Network for Image Super-Resolution, pages
+184–199. Springer International Publishing, Cham, 2014.
+2
+[8] A. A. Efros and W. T. Freeman. Image quilting for texture
+synthesis and transfer. In Proceedings of the 28th Annual
+Conference on Computer Graphics and Interactive Tech-
+niques, SIGGRAPH ’01, pages 341–346, New York, NY,
+USA, 2001. ACM. 2
+[9] L. A. Gatys, A. S. Ecker, and M. Bethge. A neural algo-
+rithm of artistic style. CoRR, abs/1508.06576, 2015. 2
+[10] A. Geiger, P. Lenz, and R. Urtasun. Are we ready for au-
+tonomous driving? the kitti vision benchmark suite. In
+Conference on Computer Vision and Pattern Recognition
+(CVPR), 2012. 6
+[11] I. Goodfellow, J. Pouget-Abadie, M. Mirza, B. Xu,
+D. Warde-Farley, S. Ozair, A. Courville, and Y. Bengio.
+Generative adversarial nets. In Z. Ghahramani, M. Welling,
+C. Cortes, N. D. Lawrence, and K. Q. Weinberger, edi-
+tors, Advances in Neural Information Processing Systems
+27, pages 2672–2680. Curran Associates, Inc., 2014. 2
+[12] A. Hertzmann, C. E. Jacobs, N. Oliver, B. Curless, and
+D. H. Salesin. Image analogies. In Proceedings of the 28th
+Annual Conference on Computer Graphics and Interactive
+Techniques, SIGGRAPH ’01, pages 327–340, New York,
+NY, USA, 2001. ACM.
+[13] M. Hradis?, J. Kotera, P. Zemc???k, and F. S?roubek. Con-
+volutional neural networks for direct text deblurring. In
+Proceedings of BMVC 2015. The British Machine Vision
+Association and Society for Pattern Recognition, 2015. 2
+[14] A. Ignatov, N. Kobyshev, K. Vanhoey, R. Timofte, and
+L. V. Gool. Dslr-quality photos on mobile devices with
+7
+deep convolutional networks. CoRR, abs/1704.02470,
+2017. 1, 2, 3, 4, 5
+[15] P. Isola, J.-Y. Zhu, T. Zhou, and A. A. Efros. Image-to-
+image translation with conditional adversarial networks.
+arxiv, 2016. 2
+[16] J. Johnson, A. Alahi, and L. Fei-Fei. Perceptual Losses
+for Real-Time Style Transfer and Super-Resolution, pages
+694–711. Springer International Publishing, Cham, 2016.
+2, 3
+[17] J. Kim, J. K. Lee, and K. M. Lee. Accurate image super-
+resolution using very deep convolutional networks. In 2016
+IEEE Conference on Computer Vision and Pattern Recog-
+nition (CVPR), pages 1646–1654, June 2016. 2
+[18] D. P. Kingma and J. Ba. Adam: A method for stochastic
+optimization. CoRR, abs/1412.6980, 2014.
+[19] C. Ledig, L. Theis, F. Huszar, J. Caballero, A. P. Aitken,
+A. Tejani, J. Totz, Z. Wang, and W. Shi. Photo-realistic
+single image super-resolution using a generative adversar-
+ial network. CoRR, abs/1609.04802, 2016. 2, 3
+[20] J.-Y. Lee, K. Sunkavalli, Z. Lin, X. Shen, and I. So Kweon.
+Automatic content-aware color and tone stylization. In The
+IEEE Conference on Computer Vision and Pattern Recog-
+nition (CVPR), June 2016. 2
+[21] Z. Ling, G. Fan, Y. Wang, and X. Lu. Learning deep trans-
+mission network for single image dehazing. In 2016 IEEE
+International Conference on Image Processing (ICIP),
+pages 2296–2300, Sept 2016. 2
+[22] D. G. Lowe. Distinctive image features from scale-
+invariant keypoints. International Journal of Computer Vi-
+sion, 60(2):91–110, 2004.
+[23] F. Luan, S. Paris, E. Shechtman, and K. Bala. Deep photo
+style transfer. CoRR, abs/1703.07511, 2017.
+[24] X. Mao, C. Shen, and Y.-B. Yang. Image restoration using
+very deep convolutional encoder-decoder networks with
+symmetric skip connections. In D. D. Lee, M. Sugiyama,
+U. V. Luxburg, I. Guyon, and R. Garnett, editors, Advances
+in Neural Information Processing Systems 29, pages 2802–
+2810. Curran Associates, Inc., 2016. 2
+[25] F. Okura, K. Vanhoey, A. Bousseau, A. A. Efros, and
+G. Drettakis. Unifying Color and Texture Transfer for Pre-
+dictive Appearance Manipulation. Computer Graphics Fo-
+rum, 2015. 1, 2
+Table 3: Subjective evaluation result. We show the fraction
+of times our result was preferred over the non-enhanced im-
+age or the APE-enhanced image, respectively. Datasets com-
+prise iPhone 6 (IPH), HTC One M9 (HTC), Huawei P9 (HW),
+Cityscapes (CS) and KITTI, respectively. Our result is nearly
+always preferred (boldface).
+Dataset IPH HTC HW CS KITTI
+Prop. vs init. 0.70 0.73 0.63 0.94 0.81
+Prop. vs APE 0.62 0.53 0.44 0.96 0.65
+[26] W. Ren, S. Liu, H. Zhang, J. Pan, X. Cao, and M.-H. Yang.
+Single Image Dehazing via Multi-scale Convolutional Neu-
+ral Networks, pages 154–169. Springer International Pub-
+lishing, Cham, 2016.
+[27] W. Shi, J. Caballero, F. Huszar, J. Totz, A. P. Aitken,
+R. Bishop, D. Rueckert, and Z. Wang. Real-time single
+image and video super-resolution using an efficient sub-
+pixel convolutional neural network. In The IEEE Confer-
+ence on Computer Vision and Pattern Recognition (CVPR),
+June 2016. 2
+[28] K. Simonyan and A. Zisserman. Very deep convolutional
+networks for large-scale image recognition. arXiv preprint
+arXiv:1409.1556, 2014. 3
+[29] P. Svoboda, M. Hradis, D. Barina, and P. Zemc??k. Com-
+pression artifacts removal using convolutional neural net-
+works. CoRR, abs/1605.00366, 2016. 2
+[30] R. Timofte, V. DeSmet, and L. VanGool. A+: Ad-
+justed Anchored Neighborhood Regression for Fast Super-
+Resolution, pages 111–126. Springer International Pub-
+lishing, Cham, 2015.
+[31] D. Ulyanov, V. Lebedev, A. Vedaldi, and V. S. Lempitsky.
+Texture networks: Feed-forward synthesis of textures and
+stylized images. CoRR, abs/1603.03417, 2016. 2
+[32] A. Vedaldi and B. Fulkerson. VLFeat: An open and
+portable library of computer vision algorithms, 2008.
+[33] Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli.
+Image quality assessment: from error visibility to struc-
+tural similarity. IEEE Transactions on Image Processing,
+13(4):600–612, April 2004. 5
+[34] Z. Yan, H. Zhang, B. Wang, S. Paris, and Y. Yu. Automatic
+photo adjustment using deep neural networks. ACM Trans.
+Graph., 35(2):11:1–11:15, Feb. 2016. 2
+[35] C. Yang, X. Lu, Z. Lin, E. Shechtman, O. Wang, and H. Li.
+High-resolution image inpainting using multi-scale neural
+patch synthesis. CoRR, abs/1611.09969, 2016.
+[36] W. Yang, R. T. Tan, J. Feng, J. Liu, Z. Guo, and S. Yan.
+Joint rain detection and removal via iterative region depen-
+dent multi-task learning. CoRR, abs/1609.07769, 2016.
+[37] P. Ye, J. Kumar, L. Kang, and D. Doermann. Unsupervised
+feature learning framework for no-reference image qual-
+ity assessment. In Computer Vision and Pattern Recogni-
+tion (CVPR), 2012 IEEE Conference on, pages 1098–1105.
+IEEE, 2012. 5
+[38] P. Ye, J. Kumar, L. Kang, and D. Doermann. Unsupervised
+feature learning framework for no-reference image qual-
+ity assessment. In Computer Vision and Pattern Recogni-
+tion (CVPR), 2012 IEEE Conference on, pages 1098–1105.
+IEEE, 2012.
+[39] L. Yuan and J. Sun. Automatic Exposure Correction of
+Consumer Photographs, pages 771–785. Springer Berlin
+Heidelberg, Berlin, Heidelberg, 2012. 2
+[40] K. Zhang, W. Zuo, Y. Chen, D. Meng, and L. Zhang. Be-
+yond a gaussian denoiser: Residual learning of deep CNN
+for image denoising. CoRR, abs/1608.03981, 2016.
+8
+[41] R. Zhang, P. Isola, and A. A. Efros. Colorful image col-
+orization. ECCV, 2016.
+[42] X. Zhang and R. Wu. Fast depth image denoising and en-
+hancement using a deep convolutional network. In 2016
+IEEE International Conference on Acoustics, Speech and
+Signal Processing (ICASSP), pages 2499–2503, March
+2016. 2
+[43] E. Zhou, H. Fan, Z. Cao, Y. Jiang, and Q. Yin. Learn-
+ing face hallucination in the wild. In Proceedings of the
+Twenty-Ninth AAAI Conference on Artificial Intelligence,
+AAAI’15, pages 3871–3877. AAAI Press, 2015.
+[44] J.-Y. Zhu, P. Kra?henbu?hl, E. Shechtman, and A. A. Efros.
+Generative Visual Manipulation on the Natural Image
+Manifold, pages 597–613. Springer International Publish-
+ing, Cham, 2016.
+[45] J.-Y. Zhu, T. Park, P. Isola, and A. A. Efros. Unpaired
+image-to-image translation using cycle-consistent adver-
+sarial networks. arXiv preprint arXiv:1703.10593, 2017.
+2, 3
+9

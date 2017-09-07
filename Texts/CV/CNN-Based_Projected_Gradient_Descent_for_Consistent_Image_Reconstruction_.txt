@@ -1,0 +1,1171 @@
+1
+CNN-Based Projected Gradient Descent for
+Consistent Image Reconstruction
+Harshit Gupta, Kyong Hwan Jin, Ha Q. Nguyen, Michael T. McCann, and Michael Unser , IEEE Fellow
+Abstract—We present a new method for image reconstruction
+which replaces the projector in a projected gradient descent
+(PGD) with a convolutional neural network (CNN). CNNs trained
+as high-dimensional (image-to-image) regressors have recently
+been used to efficiently solve inverse problems in imaging.
+However, these approaches lack a feedback mechanism to enforce
+that the reconstructed image is consistent with the measurements.
+This is crucial for inverse problems, and more so in biomedical
+imaging, where the reconstructions are used for diagnosis.
+In our scheme, the gradient descent enforces measurement
+consistency, while the CNN recursively projects the solution closer
+to the space of desired reconstruction images. We provide a
+formal framework to ensure that the classical PGD converges
+to a local minimizer of a non-convex constrained least-squares
+problem. When the projector is replaced with a CNN, we propose
+a relaxed PGD, which always converges. Finally, we propose a
+simple scheme to train a CNN to act like a projector.
+Our experiments on sparse view Computed Tomography (CT)
+reconstruction for both noiseless and noisy measurements show
+an improvement over the total-variation (TV) method and a
+recent CNN-based technique.
+Index Terms—Deep learning, inverse problems, reconstruction
+of biomedical images, low dose Computed Tomography
+I. INTRODUCTION
+While medical imaging is a fairly mature area, there is
+recent evidence that it may still be possible to reduce the
+radiation dose and/or speedup the acquisition process without
+compromising image quality [1]. This can be accomplished
+with the help of sophisticated reconstruction algorithms that
+incorporate some prior knowledge (e.g., sparsity) on the class
+of underlying images. The reconstruction task is usually for-
+mulated as an inverse problem, where the image-formation
+physics is modeled by an operator H : RN ? RM (called the
+forward model). The measurement equation is y = Hx+n ?
+RM , where x is the space-domain image that we are interested
+in recovering and n ? RM is the noise intrinsic to the
+acquisition process.
+In the case of extreme imaging, the number and the quality
+of the measurements are both reduced as much as possible,
+e.g., in order to decrease either the scanning time in MRI
+or the radiation dose in CT. Moreover, the measurements are
+typically very noisy due to short integration times, which calls
+for some form of denoising. Indeed, there may be signif-
+icantly fewer measurements than the number of unknowns
+Authors are with the Biomedical Imaging Group, EPFL, Lausanne, Switzer-
+land. This project is funded by H2020-ERC, grant agreement No. 692726 -
+GlobalBioIm.
+This manuscript was submitted to “IEEE Transactions on Medical Imag-
+ing”, for the special edition, “Machine Learning for Image Reconstruction”,
+on 30 Aug. 2017.
+(M << N ). This gives rise to an ill-posed problem in the
+sense that there may be an infinity of consistent images that
+map to the same measurements y. Thus, one challenge of
+the reconstruction algorithm is essentially to select the “best”
+solution among a multitude of potential candidates.
+The available reconstruction algorithms can be broadly
+arranged in three categories (or generations), which represent
+the continued efforts of the research community to address the
+aforementioned challenges.
+1) Classical Algorithms: Here, the reconstruction is per-
+formed directly by applying a suitable linear operator. This
+may be the backprojection (BP) HTy or the filtered backpro-
+jection (FBP) FHTy, where F : RN ? RN is a regularized
+version of (HTH)?1.1 FBP-type algorithms are fast; they
+provide excellent results when the number of measurements
+are sufficient and the noise is small [2]. However, they are not
+suitable for extreme imaging scenarios because they introduce
+artifacts intimately connected to the inversion step.
+2) Iterative Algorithms: These algorithms avoid the short-
+comings of the classical ones by solving
+x? = argmin
+x
+(E(Hx,y) + ?R(x)), (1)
+where E : RM × RM ? R+ is a data-fidelity term that
+favors solutions that are consistent with the measurements,
+R : RN ? R+ is a suitable regularizer that encodes the prior
+knowledge about the image x to be reconstructed, and ? ? R+
+is a tradeoff parameter. The quantity y? = Hx?, where x? is
+the solution of (1), can be interpreted as the denoised version
+of y. Under the assumption that the functionals E and R are
+convex, one can show that the solution of (1) also satisfies
+x? = arg min
+x?RN
+R(x) s.t. Hx = y0. (2)
+Therefore, among all potential solutions that admit the de-
+noised measurement y?, the algorithm picks the one with
+the least R. This shows that the quality of the reconstruction
+depends heavily on the prior encoder R. Generally, these priors
+are either handpicked (e.g., total variation (TV) or the `1-norm
+of the wavelet coefficients of the image [1], [3]–[6]) or learned
+through a dictionary [7]–[9]. However, in either case, they are
+restricted to well-behaved functionals that can be minimized
+via a convex routine [10]–[13]. This limits the type of prior
+knowledge that can be injected into the algorithm.
+An interesting variant within the class of iterative algorithms
+is “plug-and-play ADMM” [14]. We recall that ADMM is an
+1Or, F can be a regularized version of (HHT)?1 and be applied as HTF,
+as is often the case in CT.
+ar
+X
+iv
+:1
+70
+9.
+01
+80
+9v
+1 
+ [
+cs
+.C
+V
+] 
+ 6
+ S
+ep
+ 2
+01
+7
+2
+iterative optimization technique [13], which repeatedly alter-
+nates between: (i) a linear solver that reinforces consistency
+w.r.t. measurements; (ii) a nonlinear operation that re-injects
+the prior. Interestingly, the effect of (ii) is akin to denoising.
+This perspective has resulted in a scheme where an off-
+the-shelf denoiser is plugged into the later step [14]–[18].
+This scheme, therefore, is more general than the optimization
+framework (1) but still lacks theoretical justifications. In fact,
+there is no good understanding yet of the connection between
+the use of a given denoiser and the regularization it imposes.
+3) Learning-based Algorithms: Recently, there has been a
+surge in using deep learning to solve inverse problems in imag-
+ing [19]–[23], establishing new state-of-the-art results for tasks
+like sparse-view CT reconstruction [19]. These approaches
+use the convolutional neural network (CNN) as a regressor.
+But, rather than attempting to reconstruct the image from the
+measurements y directly, the most successful strategies so far
+have been to train the CNN as a regressor between rogue initial
+reconstruction Ay, where A : RM ? RN , and the final,
+desired reconstruction [19], [20]. This initial reconstruction
+could be obtained by FBP (FHTy), BP (HTy) or by any
+other linear operation.
+Once the training is complete, the reconstruction for an
+unseen measurement y is given by x? = CNN??(Ay), where
+CNN? : RN ? RN denotes the CNN as a function and ??
+denotes the internal parameters of the CNN after training.
+These schemes exploit the fact that the structure of images
+can be learnt from representative examples. CNNs are favored
+because of the way they encode/represent the data in their
+hidden layers. In this sense, a CNN can be seen as a good prior
+encoder. Although the results reported so far are remarkable
+in terms of image quality, there is still some concern on
+whether or not they can be trusted, especially in the context of
+diagnostic imaging. The main limitation of direct algorithms
+such as [19] is that they do not provide any worst case
+performance guarantee. Moreover, even in the case of noiseless
+(or low noise) measurements, there is no insurance that the
+reconstructed image is consistent with the measurements. This
+is not overly surprising because, unlike the iterative schemes,
+there is no feedback mechanism that imposes this minimal
+requirement.
+A. Contribution
+We propose a simple yet effective iterative scheme which
+tries to incorporate the advantages of the existing algorithms
+and side-steps their disadvantages (see Figure 1). Moreover, it
+outperforms the existing algorithms to reconstruct biomedical
+images from their sparse-view CT measurements. Specifically,
+• We initialize our reconstruction using a classical algo-
+rithm.
+• We learn a CNN that acts as a projector onto a set S
+which can be intuitively thought of as the manifold of
+the data (e.g., biomedical images). In this sense, our CNN
+encodes the prior knowledge of the data. Its purpose is
+to map an input image to an output image that enjoys
+a more structural fit to the training data than the input
+image.
+xk Id? ??xE
+gradient
+CNN?
+projector
+x?k xk+1
+(a) Projected gradient descent
+xk Id? ??xE
+gradient
+CNN?
+projector
+x?k ×
+?k
+×
+1? ?k
++ xk+1
+(b) Relaxed projected gradient descent
+Fig. 1. (a) Block diagram of projected gradient descent using a CNN as the
+projector. The gradient step w.r.t. the data-fidelity term E = ?Hx ? y?2,
+promotes consistency with the measurements and the projector forces the
+solution to belong to the set of desired solutions. If the CNN is only an
+approximate projector, the scheme may diverge. (b) Block diagram of the
+proposed relaxed projected gradient descent. The ?ks are updated in such a
+way that the algorithm always converges (see Algorithm 1 for more details).
+• Similarly to variational methods, we iteratively alternate
+between minimizing the data-fidelity term and project-
+ing the result onto the set S by applying a suitable
+variant of the projected gradient descent (PGD) which
+ensures convergence. This scheme in spirit is similar
+to plug-and-play ADMM but is simpler to analyze. In
+this way, instead of performing the reconstruction by
+a feedbackless pipeline, we perform it by iteratively
+enforcing measurement consistency and injecting prior
+knowledge.
+B. Roadmap for the Paper
+The paper is organized as follows: In Section II, we dis-
+cuss the formal framework that motivates our approach. We
+mathematically justify the use of a projector onto a set as
+an effective strategy to solve inverse problems. In Section
+III, we present an iterative algorithm inspired from PGD. It
+has been modified so as to converge in practical cases where
+the projection property is only approximate. This is crucial
+because, although we train the CNN as a projector using a
+training set, there is no guarantee that it will act like a projector
+for an unseen data. We discuss in Section IV a novel technique
+to train the CNN as a projector onto a set, especially when the
+training data is small (e.g., around 500 images in our case).
+This is followed by results and conclusion.
+C. Related and Prior Work
+Deep learning has shown promising results in the cases of
+image denoising, superresolution and deconvolution. Recently,
+it has also been used to solve inverse problems in imaging
+using limited data [19]–[22], and in compressed sensing
+[24]. However, as discussed earlier, these regression based
+approaches lack the feedback mechanism that can be beneficial
+to solve the inverse problems.
+The other usage of deep learning is to complement the
+iterative algorithms. This includes learning a CNN as an
+unrolled version of ISTA [25] and ADMM [26]. In [27],
+3
+inverse problems including non-linear forward models are
+solved by partially learning the gradient descent. In [28] the
+iterative algorithm is replaced by a recurrent neural network
+(RNN). In all of these approaches the training depends entirely
+on the iterative scheme the neural network is used with.
+On the other hand, [14]–[18] use plug-and-play ADMM
+that uses a denoiser which is learnt independently of the
+iterative scheme. In [17], a generative adversarial network
+(GAN) trained as a projector onto a set is plugged into the
+plug-and-play ADMM and is used to solve arbitrary linear
+inverse problem. However, due to the adversarial nature, the
+training is complicated and requires extremely large datasets
+(around 8 million images). Performing such training would
+be challenging in biomedical imaging applications because of
+the lack of large datasets and the high-resolution of the images
+(512×512 or more). Also, in many cases, the performance of
+[17] is worse than the regression-based deep-learning methods
+specialized for a given inverse problem.
+II. THEORETICAL FRAMEWORK
+The central theme of this paper is to use CNN iteratively
+with PGD to solve inverse problem. The task of the CNN
+is to act like a projector. It projects the input image to the
+space of desired images. To understand why this scheme will
+be effective, we first analyze how using a projector onto a
+set, combined with gradient descent, can be helpful in solving
+inverse problems. Proofs of all the theoretical results except
+Theorem 3 can be found in the supplementary material.
+A. Notation
+We consider the finite-dimensional Hilbert space RN
+equipped with the scalar product ?· , ·? that induces the `2
+norm ?·?2. The spectral norm of the matrix H, denoted by
+?H?2, is equal to its largest singular value. For x ? RN and
+? > 0, we denote by B?(x) the `2-ball centered at x with
+radius ?, i.e.,
+B?(x) =
+{
+z ? RN : ?z? x?2 ? ?
+}
+.
+The operator T : RN ? RN is Lipschitz-continuous with
+constant L if
+?T (x)? T (z)?2 ? L ?x? z?2 , ?x, z ? R
+N .
+It is contractive if it is Lipschitz-continuous with constant L <
+1 and non-expansive if L = 1. A fixed point x? of T (if any)
+satisfies T (x?) = x?.
+Given a set S ? RN , a mapping PS : RN ? S is called a
+projector if it satisfies the idempotent property PSPS = PS .
+It is called an orthogonal projector if
+PS(x) = inf
+z?S
+?x? z?2 , ?x ? R
+N .
+B. Constrained Least Squares
+Consider the problem of reconstructing an image x ? RN
+from its noisy measurements y = Hx+n, where H ? RM×N
+is the linear forward model and n ? RM is additive white
+Gaussian noise. Our reconstruction incorporates a strong form
+of prior knowledge about the original image: We assume that
+x must lie in some set S ? RN that contains all objects
+of interest. The proposed way to make the reconstruction
+consistent with the measurements as well as with the prior
+knowledge is to solve the constrained least-squares problem
+min
+x?S
+1
+2
+?Hx? y?22 . (3)
+The condition x ? S in (3) plays the role of a regularizer. If
+no two points in S have the same measurements and incase y
+is noiseless, then out of all the points in RN that are consistent
+with the measurement y, (3) selects a unique point x? ? S. In
+this way, it removes the ill-posedness of the inverse problem.
+When the measurements are noisy, (3) returns a point x? ? S
+such that y? = Hx? is as close as possible to y. Thus, it
+also denoises the measurement, where the quantity y? can be
+regarded as the denoised version of y.
+It is remarkable that (3) is a generalized formulation of the
+regularization schemes in (1), which can be rewritten as
+min
+x?SR
+1
+2
+?Hx? y?22 ,
+where SR = {x ? RN : R(x) ? ?} for some unique ?
+dependent on the regularization parameter ?.
+The point x? ? S is called a local minimizer of (3) if
+?? > 0 : ?Hx? ? y?2 ? ?Hx? y?2 ,?x ? S ? B?(x
+?).
+C. Projected Gradient Descent
+When S is a closed convex set, it is well known [29] that
+a solution of (3) can be found by PGD
+xk+1 = PS(xk ? ?HTHxk + ?HTy), (4)
+where ? is a step size chosen such that ? < 2/
+??HTH??
+2
+.
+This algorithm combines the orthogonal projection onto S
+with the gradient descent w.r.t. the quadratic objective function
+(also called the Landweber update [30]). PGD [31, Sec. 2.3]
+is a subclass of the forward-backward splitting [32], [33],
+which is known in the `1-minimization literature as Iterative
+Shrinkage/Thresholding Algorithms (ISTA) [10], [11], [34].
+In our problem, S is presumably non-convex, but we
+propose to still use the update (4) with some projector PS that
+may not be orthogonal. In the rest of this section, we provide
+sufficient conditions on the projector PS (not on S itself) under
+which (4) leads to a local minimizer of (3). Similarly to the
+convex case, we characterize the local minimizers of (3) by
+the fixed points of the combined operator
+G?(x) = PS(x? ?HTHx+ ?HTy) (5)
+and then show that some fixed point of that operator must be
+reached by the iteration xk+1 = G?(xk) as k ??, no matter
+the value of x0. We first state a sufficient condition for each
+fixed point of G? to become a local minimizer of (3).
+Proposition 1. Let ? > 0 and PS be such that, for all x ? RN ,
+?z? PSx , x? PSx? ? 0, ?z ? S ? B?(PSx), (6)
+4
+for some ? > 0. Then, any fixed point of the operator G? in (5)
+is a local minimizer of (3). Furthermore, if (6) is satisfied
+globally, in the sense that
+?z? PSx , x? PSx? ? 0, ?x ? RN , z ? S, (7)
+then any fixed point of G? is a solution of (3).
+Two remarks are in order. First, (7) is a well-known property
+of orthogonal projections onto closed convex sets. It actually
+implies the convexity of S (see Proposition 2). Second, (6)
+is much more relaxed and easily achievable, for example, as
+stated in Proposition 3, by orthogonal projections onto unions
+of closed convex sets (special cases are unions of subspaces,
+which have found some applications in data modeling and
+clustering [35]).
+Proposition 2. If PS is a projector onto S ? RN that
+satisfies (7), then S must be convex.
+Proposition 3. If S is a union of a finite number of closed
+convex sets in RN , then the orthogonal projector PS onto S
+satisfies (6).
+The above results suggest that, when S is non-convex, the
+best we can hope for is to find a local minimizer of (3) through
+a fixed point of G? . Theorem 1 provides a sufficient condition
+for PGD to converge to a unique fixed point of G? .
+Theorem 1. Let ?max, ?min be the largest and small-
+est eigenvalues of HTH, respectively. If PS satisfies (6)
+and is Lipschitz-continuous with constant L < (?max +
+?min)/(?max ? ?min), then, for ? = 2/(?max + ?min), the
+sequence {xk} generated by (4) converges to a local minimizer
+of (3), regardless of the initialization x0.
+It is important to note that the projector PS can never be
+contractive since it preserves the distance between any two
+points on S. Therefore, when H has a nontrivial null space,
+the condition L < (?max+?min)/(?max??min) of Theorem 1
+is not feasible. The smallest possible Lipschitz constant of PS
+is L = 1, which means PS is non-expansive. Even with this
+condition, it is not guaranteed that the combined operator F?
+has a fixed point. This limitation can be overcome when F?
+is assumed to have a nonempty set of fixed points. Indeed,
+we state in Theorem 2 that one of them must be reached by
+iterating the averaged operator ? Id+(1 ? ?)G? , where ? ?
+(0, 1) and Id is the identity operator.
+Theorem 2. Let ?max be the largest eigenvalue of HTH. If
+PS satisfies (6) and is a non-expansive operator such that
+G? in (5) has a fixed point for some ? < 2/?max, then the
+sequence {xk} generated by
+xk+1 = (1? ?)xk + ?G?(xk), (8)
+for any ? ? (0, 1), converges to a local minimizer of (3),
+regardless of the initialization x0.
+III. RELAXATION WITH GUARANTEED CONVERGENCE
+Despite their elegance, Theorems 1 and 2 are not directly
+useful when we construct the projector PS by training a
+CNN, because it is unclear how to enforce the Lipschitz
+Algorithm 1 Relaxed projected gradient descent (RPGD)
+Input: H, y, A, nonlinear operator F , step size ? > 0, positive
+sequence {cn}n?1, x0 = Ay ? RN , ?0 ? (0, 1].
+Output: reconstructions {xk}, relaxation parameters {?k}.
+k ? 0
+while not converged do
+zk = F (xk ? ?HTHxk + ?HTy)
+if k ? 1 then
+if ?zk ? xk?2 > ck ?zk?1 ? xk?1?2 then
+?k = ck?zk?1 ? xk?1?2/?zk ? xk?2 ?k?1
+else
+?k = ?k?1
+end if
+end if
+xk+1 = (1? ?k)xk + ?kzk
+k ? k + 1
+end while
+continuity of PS on the CNN architecture. Without putting
+any constraints on the CNN, however, we can still achieve the
+convergence of the reconstruction sequence by modifying PGD
+as described in Algorithm 1; we name it relaxed projected
+gradient descent (RPGD). In the proposed algorithm, the
+projector PS is replaced with a general nonlinear operator
+F . We also introduce a sequence {ck} that governs the rate
+of convergence of the algorithm and a sequence {?k} of
+relaxation parameters that evolves with the algorithm. The
+convergence of RPGD is guaranteed by Theorem 3. More
+importantly, if the nonlinear operator F is actually a projector
+and the relaxation parameters do not go all the way to 0, then
+RPGD converges to a meaningful point.
+Theorem 3. Let the input sequence {ck} of Algorithm 1 be
+asymptotically upper-bounded by C < 1. Then, the following
+statements hold true for the reconstruction sequence {xk}:
+(i) xk ? x? as k ??, for all choices of F ;
+(ii) if F is continuous and the relaxation parameters {?k}
+are lower-bounded by ? > 0, then x? is a fixed point of
+G?(x) = F (x? ?HTHx+ ?HTy); (9)
+(iii) if, in addition to (ii), F is indeed a projector onto S
+that satisfies (6), then x? is a local minimizer of (3).
+We prove Theorem 3 in Appendix A. Note that the weakest
+statement here is (i); it always guarantees the convergence
+of RPGD, albeit not necessarily to a fixed point of G? .
+Moreover, the assumption about the continuity of F in (ii)
+is automatically true when F is a CNN.
+IV. TRAINING CNN AS A PROJECTOR
+With these theoretical foundations in place, we move on to
+the matter of training a CNN to act as the projector in RPGD
+(Algorithm 1). For any point x ? S, a projector onto S should
+satisfy PSx = x. Moreover, we want
+x = PS(x?), (10)
+5
+where x? is any perturbed version of x. Given a train-
+ing set, {x1, . . . ,xQ}, of points drawn from the set S,
+we generate an ensemble of N × Q perturbed points,
+{{x?1,1, . . . , x?Q,1}, . . . , {x?1,N . . . , x?Q,N}} and train the CNN
+by minimizing the loss function
+J(?) =
+N?
+n=1
+Q?
+q=1
+?xq ? CNN?(x?q,n)?22? ?? ?
+Jn(?)
+. (11)
+The optimization proceeds by stochastic gradient descent for
+T epochs, where an epoch is defined as one pass though the
+training data.
+It remains to select the perturbations that generate the xq,n.
+Our goal here is to create a diverse set of perturbations so that
+the CNN does not overfit one specific type. In our experiments,
+while training for the t-th epoch, we chose
+x?q,1 = xq :No perturbation (12)
+x?q,2 = AHxq :Specific linear perturbation (13)
+x?q,3 = CNN?t?1(x?
+q,2) :Dynamic non-linear perturbation,
+(14)
+where A is a classical linear reconstruction algorithm like
+FBP or BP, H is the forward model, and ?t are the CNN
+parameters after t epochs. We now comment on each of these
+perturbations in detail.
+Keeping x?q,1 in the training ensemble will train the CNN
+with the defining property of the projector: the projector maps
+a point in the set S onto itself. If the CNN were only trained
+with (12), it would be an autoencoder [36].
+To understand the perturbation x?q,2 in (13), recall that
+AHxq is a classical linear reconstruction of xq from its
+measurement y = Hxq . This perturbation is useful because
+we will initialize RPGD with AHxq . Using only (13) for
+training will return the same CNN as in [19].
+The perturbation x?q,3 in (14) is the output of the CNN
+whose parameters ?t change with every epoch t, thus it is
+a non-linear and dynamic (epoch-dependent) perturbation of
+xq . The rationale for using (14) is that it greatly increases
+the training diversity (allowing the network to see T new
+perturbations of each training point) without greatly increasing
+the total training size (only requiring an additional Q gradient
+computations per epoch). Moreover, (14) is in sync with the
+iterative scheme of RPGD, where the output of the CNN is
+processed with a gradient descent and is again fed into itself.
+A. Architecture
+The architecture we use is the same as in [19], which is a
+U-net [37] with intrinsic skip connections among its layers and
+an extrinsic skip connection between the input and the output.
+The intrinsic skip connections help to eliminate singularities
+during the training [38]. The extrinsic skip connections make
+this network a residual net; i.e., CNN = Id+Unet, where Id
+denotes the identity operator and Unet : RN ? RN denotes
+the Unet as a function. The U-net therefore actually provides
+the projection error (negative perturbation) that should be
+added to the input to get the projection. Residual nets have
+been shown to be effective in the image recognition [39] and
+inverse problem cases [19]. While the residual net architecture
+does not increase the capacity or the approximation power of
+the CNN, it does help in learning functions that are close to
+an identity operator, as is the case in our setting.
+B. Sequential Training Strategy
+We train the CNN in 3 stages. In stage 1, we train it for T1
+epochs w.r.t. the loss function J2 which only uses the ensemble
+{x?q,2} generated by (13). In stage 2, we add the ensemble
+{x?q,3} according to (14) at every epoch and then train the
+CNN w.r.t. the loss function J2+J3; we repeat this procedure
+for T2 epochs. Finally, in stage 3, we train the CNN for T3
+epochs with all the ensembles {x?q,1, x?q,2, x?q,3} to minimize
+the original loss function J = J1 + J2 + J3 from (11).
+The above sequential procedure helps speed up the training.
+The training with {x?q,1} is initially bypassed with using the
+residual net, which is close to the identity operator. It is only
+incorporated in the last few epochs of stage 3. After training
+with only {x?q,2} in stage 1, x?q,3 will be close to xq , since it
+is the output of the CNN for the input x?q,2. This will ease the
+training with {x?q,3}, which is added after stage 1.
+V. EXPERIMENTS
+We validate our proposed method on the difficult case of
+sparse-view CT reconstruction with low dosage exposure. The
+measurement operator H is now the Radon transform. It maps
+an image to the values of its integrals along a known set of
+lines [40]. In 2D, these measurements can be indexed by the
+angles and offsets of the lines and arranged in a 2D sinogram.
+We are particularly interested in the case where the total
+number of measurements is smaller than the number of pixels
+in the reconstruction. For example, we aim to reconstruct a
+(512 × 512) image from 45 angles, each with 729 offsets
+sinogram; i.e., to reconstruct x ? R512×512 from y ? R45×729.
+This corresponds to about 8 times fewer measurements than
+the image to be reconstructed.
+A. Dataset
+Our dataset consists of clinically realistic invivo (512×512)
+CT scans of human abdomen from Mayo clinic for the AAPM
+Low Dose CT Grand Challenge [41]. This data includes CT
+scans of 10 patients obtained using full dose. We use 475
+images from 9 patients for training and 25 images from the
+other patient for testing. This is the same data used in [19].
+These images serve as the ground truth.
+From these images, we generate the measurements (sino-
+grams) using the radon command in Matlab, which corre-
+sponds to the forward model H. The sinograms always have
+729 offsets per view, but we vary the number of views in
+different experiments. Our task is to reconstruct these images
+from their sparse-view sinograms. We take 2 scenarios: 144
+views and 45 views, which corresponds to ×5 and ×16 dosage
+reductions (assuming a full-view sinogram has 720 views).
+The backprojection HT is implemented via the iradon
+command with a normalization to satisfy the adjoint property.
+6
+To make the experiments more realistic and to reduce the
+inverse crime, the sinograms are generated by perturbing the
+angles of the views slightly by adding a zero-mean additive
+white Gaussian noise (AWGN) with standard deviation of
+0.05 degrees. This creates a slight mismatch between the
+actual measurement process and the forward model H. We
+also add various amounts of zero-mean Gaussian noise to the
+sinograms. The SNR of the sinogram y + n is defined as
+SNR(y + n,y) = 20 log10 (?y?2/?n?2) . (15)
+Given the ground truth x, our figure of merit for the
+reconstructed x? is the regressed SNR, given by
+SNR(x?,x) = argmax
+a,b
+SNR(ax? + b,x), (16)
+where the scalars a and b serve to scale the data and remove
+any DC offset, which can greatly affect the SNR but are of
+little practical importance.
+B. Comparison Methods
+We compare four reconstruction methods and report the
+SNRs for all of them.
+1) FBP is the classical direct inversion of the Radon trans-
+form H, here implemented in Matlab by the iradon
+command with the ram-lak filter and linear inter-
+polation as options.
+2) TV solves
+min
+x
+(
+1
+2
+?Hx? y?22 + ??x?TV
+)
+s.t. x > 0. (17)
+The optimization is carried out via ADMM [13]. For a
+given testing image the parameter ? is tuned so as to
+maximize the SNR of the reconstruction.
+3) FBPconv is the deep-learning-based regression tech-
+nique [19] that corresponds to a CNN trained with only
+the ensemble in (13). In the testing phase, the FBP of
+the measurements is fed into the trained CNN to output
+the reconstruction image.
+4) RPGD is our proposed method which is described in
+Algorithm 1 where the nonlinear operator F is the CNN
+trained as a projector (as discussed in section IV).
+C. Training and Selection of Parameters
+We now describe how training and/or parameter selection
+occurred for the reconstruction methods. FBP has no free
+hyperparameters. For TV, we chose ? by a grid search through
+20 values for each test image. While carrying the optimization
+with ADMM we put the penalty term, ? = ?. The rationale
+for this heuristic is that the soft-threshold parameter is of the
+same order of magnitude as the image gradients. We set the
+number of iterations to 100, which was enough to show good
+empirical convergence.
+As discussed in section IV, the CNNs for RPGD is trained
+in 3 stages, with the following configurations:
+• ×5, no noise: T1 = 80, T2 = 49, T3 = 5.
+• ×16, no noise: T1 = 71, T2 = 41, T3 = 11.
+TABLE I
+AVERAGED RECONSTRUCTION SNRS OVER 25 IMAGES FOR 16 AND 5
+TIMES DOSAGE REDUCTIONS WITH LOW MEASUREMENT NOISE.
+Measurement Methods
+SNR (dB) ? FBP TV FBPconv RPGD
+×16 ? 12.74 24.21 26.19 27.0270 12.73 24.20 26.18 26.94
+×5 ? 24.19 30.80 32.09 32.6270 24.15 30.74 32.08 32.56
+We used the CNN obtained right after the first stage for
+FBPconv, since during this stage only the training ensemble
+in (13) was taken into account. We empirically found that the
+training error J2 converged in T1 epochs of stage 1, yielding
+an optimal performance for FBPconv.
+In addition, we also trained the CNNs w.r.t. 40 dB noise
+level in the measurements, by replacing the ensemble in (13)
+with {Ayq} where yq = Hxq+n. With 20% probability, we
+also perturbed the views of the measurements with AWGN of
+0.05 standard deviation so as to enforce robustness to model
+mismatch. These CNNs were initialized with the ones obtained
+after the first stage of the noiseless training and were then
+trained with the following configurations:
+• ×5, 40-dB noise: T1 = 35, T2 = 49, T3 = 5.
+• ×16, 40-dB noise: T1 = 32, T2 = 41, T3 = 11.
+Similarly to the noiseless case, the CNNs obtained after the
+first and the third stage of the above training were used in
+FBPconv and RPGD, respectively. For clarity, these variants
+will be referred to as FBPconv40 and RPGD40.
+During the training, the learning rate was logarithmically
+decreased from 10?2 to 10?3 in stage 1 and kept at 10?3 for
+stages 2 and 3. The batch size was fixed to 2, the gradient
+above 10?2 was clipped and the momentum was set to 0.99.
+The total training time for the noiseless case was around 21.5
+hours on GPU Titan X (Pascal architecture).
+The hyper-parameters for RPGD were chosen as follows:
+The relaxation parameter ?0 was initialized with 1, the se-
+quence {ck} was set to a constant C where C = 0.99 for
+RPGD and C = 0.8 for RPGD40. For each noise and dosage
+reduction level, the only free parameter, ?, was tuned to give
+the best average SNR over 25 test images. In all experiments,
+the gradient step was removed from the first iteration. On the
+GPU, one iteration of RPGD takes less than 1 second. The
+algorithm is stopped when the residual ?xk+1?xk?2 reaches
+a value less than 1, which is sufficiently small compared to
+the dynamic range [0, 350] of the image. It takes around 1-2
+minutes to reconstruct an image with RPGD.
+VI. RESULTS
+Tables I and II report the results of various methods for
+low and high measurement noise, respectively. FBPconv and
+RPGD are used for low noise, while FBPconv40 and RPGD40
+are used for high noise. The reconstruction SNRs are averaged
+over the 25 test images.
+In the low-noise cases (Table I), the proposed method,
+RPGD, outperforms all the others for both ×5 and ×16
+7
+Original FBP
+SNR 12.69
+TV
+SNR 23.85
+FBPconv
+SNR 25.92
+Proposed
+SNR 26.68
+(a)
+SNR 11.07 SNR 22.32 SNR 21.12 SNR 23.99
+SNR 9.088 SNR 21.20 SNR 23.58 SNR 23.58
+(b)
+Fig. 2. (a) Reconstructions of a test image from noiseless measurements with 45 views (×16 dosage reduction) using FBP, TV, FBPconv, and RPGD
+(proposed): first row shows the full images, second row shows their zoomed versions. (b) Zoomed reconstructions of the same image when the measurement
+is noisy with 45 dB (first row) and 40 dB (second row) SNR. In these cases, FBPconv and RPGD are replaced by FBPconv40 and RPGD40, respectively.
+TABLE II
+AVERAGED RECONSTRUCTION SNRS OVER 25 IMAGES FOR 16 AND 5
+TIMES DOSAGE REDUCTIONS WITH HIGH MEASUREMENT NOISE.
+Measurement Methods
+SNR (dB) ? FBP TV FBPconv40 RPGD40
+×16
+45 11.08 22.59 20.87 24.16
+40 9.09 21.45 23.26 23.73
+35 6.51 20.01 16.20 22.59
+×5
+45 18.85 27.18 22.56 27.17
+40 14.96 25.46 28.24 27.61
+35 10.76 23.44 18.90 24.58
+reductions. FBP performs the worst but is able to retain enough
+information to be utilized by FBPConv and RPGD. Thanks to
+the convexity of the iterative scheme, TV is able to perform
+well but tends to smooth textures and edges. On the other
+hand, FBPConv outperforms TV. However, it is outperformed
+by RPGD. This is mainly due to the feedback mechanism
+in RPGD which lets RPGD use the information in the given
+measurements to increase the quality of the reconstruction. In
+fact, for the ×16, no noise case, the SNRs of the sinogram
+of the reconstructed images for TV, FBPconv, and RPGD are
+around 47 dB, 57 dB, and 62 dB, respectively. This means that
+not only reconstruction using RPGD has better image quality
+but is also more reliable since it is consistent with the given
+noiseless measurement.
+In the noisier cases (Table II), RPGD40 outperforms the
+other methods in low-view cases (×16) and is more consistent
+in performance than the others in high-view (×5) cases.
+FBPconv40 substantially outperforms TV in the two scenarios
+with 40-dB noise measurement, over which it was actually
+trained. However, as the level of noise deviates from 40
+8
+Original FBP
+SNR 18.6
+TV
+SNR 26.40
+FBPconv40
+SNR 22.18
+Proposed
+SNR 26.85
+Fig. 3. Reconstructions of a test image from noisy measurements with 144 views (×5 dosage reduction) using FBP, TV, FBPconv40, and RPGD40 (proposed).
+First row shows the results for measurement noise with SNR = 45 dB; second row shows their zoomed version. Third row shows the zoomed results for
+measurement noise with SNR = 35 dB.
+0 50 100
+k
+10
+15
+20
+25
+27
+30
+S
+N
+R  RPGD
+FBPconv
+TV
+FBP
+(a) (b)
+0 50 100k
+0
+0.2
+0.4
+0.6
+0.8
+1
+?
+k
+(c)
+Fig. 4. Convergence with iteration k of RPGD for the ×16, no-noise case when C = 0.99. Results are averaged over 25 test images. (a) SNRs of xk w.r.t.
+the ground-truth image. (b) SNRs of Hxk w.r.t. the ground-truth sinogram. (c) Evolution of the relaxation parameters ?k .
+dB, the performance of FBPconv40 degrades significantly.
+Surprisingly, its performances in the 45-dB cases are much
+worse than those in the corresponding 40-dB cases. This
+implies that FBPConv is highly sensitive to the difference
+between the training and the testing conditions. By contrast,
+RPGD40 is more robust to this difference due to its iterative
+correction. In fact, for ×16 case with 45-dB and 35-dB noise
+level, it outperforms FBPconv40 by around 3.5 dB and 6 dB,
+respectively.
+Fig. 2 (a) illustrates the reconstructions of a test image for
+×16 case when measurement is noiseless. FBP is dominated
+by line artifacts, while TV satisfactorily removes these but
+blurs the fine structures. FBPConv and RPGD, on the other
+hand, are able to reconstruct these details. The zoomed version
+shows that RPGD is able to reconstruct the fine details better
+than the others. This observation remains the same when the
+measurement quality degrades. Fig. 2 (b) shows the recon-
+structions for 45-dB and 40-dB noise levels. In these scenarios,
+RPGD40 is significantly better than both FBPconv40 and TV.
+Fig. 3 compares the reconstructions for the ×5 case when
+the noise levels are 45 dB and 35 dB. It is visible that
+FBPconv40 results in a noisy image and TV is again blurred.
+9
+RPGD40 retains the fine structures and is the best performer.
+A. Convergence of RPGD
+Figs. 4 (a) and (b) shows the evolution of SNR of images
+xk and their measurements Hxk w.r.t. the ground truth image
+and ground truth measurement, respectively. Fig. 4 (c) shows
+the ?k w.r.t. the iteration k. The results are averaged over 25
+test images for ×16, no noise case and C = 0.99. RPGD
+outperforms all the other methods in terms of both image
+quality and measurement consistency.
+Due to the high value of the step size (? = 2× 10?3) and
+the large difference Hxk ? y, the initial few iterations have
+large gradients resulting in the instability of the algorithm. The
+reason is that the CNN is fed with xk??HT(Hxk?y) which
+is drastically different from the perturbations on which it was
+trained. In this situation, ?k decreases steeply and stabilizes
+the algorithm. At convergence, ?k 6= 0, therefore, according
+to Theorem 3, x100 is the fixed point of (9) where F = CNN .
+VII. CONCLUSION
+We have proposed a simple yet effective iterative scheme
+(RPGD) where one step of enforcing measurement consistency
+is followed by a CNN which tries to project the solution
+onto the set of the data that we are interested in. The whole
+scheme is ensured to be convergent. We also introduced
+a novel method to train a CNN that acts like a projector
+using a reasonably small dataset (475 images). For sparse-
+view CT reconstruction our method outperforms the previous
+techniques for both noiseless and noisy measurements.
+The proposed framework can be used to solve other in-
+verse problems like super-resolution, deconvolution, acceler-
+ated MRI, etc. This can bring more robustness and reliability
+to the current deep learning based techniques.
+APPENDIX
+A. Proof of Theorem 3
+(i) Set rk = xk+1 ? xk. On one hand, it is clear that
+rk = (1? ?k)xk + ?kzk ? xk = ?k (zk ? xk) . (18)
+On the other hand, from the construction of {?k},
+?k ?zk ? xk?2 ? ck?k?1 ?zk?1 ? xk?1?2
+? ?rk?2 ? ck ?rk?1?2 . (19)
+Iterating (19) gives
+?rk?2 ? ?r0?2
+k?
+i=1
+ci, ?k ? 1. (20)
+We now show that {xk} is a Cauchy sequence. Since {ck} is
+asymptotically upper-bounded by C < 1, there exists K such
+that ck ? C, ?k > K. Let m,n be two integers such that
+m > n > K. By using (20) and the triangle inequality,
+?xm ? xn?2 ?
+m?1?
+k=n
+?rk?2 ? ?r0?2
+K?
+i=1
+ci
+m?1?K?
+k=n?K
+Ck
+?
+(
+?r0?2
+K?
+i=1
+ci
+)
+Cn?K ? Cm?K
+1? C
+. (21)
+The last inequality proves that ?xm ? xn?2 ? 0 as m ?
+?, n ? ?, or {xk} is a Cauchy sequence in the complete
+metric space RN . As a consequence, {xk} must converge to
+some point x? ? RN .
+(ii) Assume from now on that {?k} is lower-bounded by
+? > 0. By definition, {?k} is also non-increasing and, thus,
+convergent to ?? > 0. Next, we rewrite the update of xk in
+Algorithm 1 as
+xk+1 = (1? ?k)xk + ?kG?(xk), (22)
+where G? is defined by (9). Taking the limit of both sides
+of (22) leads to
+x? = (1? ??)x? + ?? lim
+k??
+G?(xk). (23)
+Moreover, since the nonlinear operator F is continuous, G?
+is also continuous. Hence,
+lim
+k??
+G?(xk) = G?
+(
+lim
+k??
+xk
+)
+= G?(x
+?). (24)
+By plugging (24) into (23), we get that x? = G?(x?), which
+means x? is a fixed point of the operator G? .
+(iii) Now that F = PS satisfies (6), we invoke Proposition 1
+to infer that x? is a local minimizer of (3), thus completing
+the proof.
+ACKNOWLEDGMENT
+The authors would like to thank Emmanuel Soubies for
+his helpful suggestions on training the CNN. We thankfully
+acknowledge the support of NVIDIA Corporation which do-
+nated the Titan X GPU used in this research. The authors
+would like to thank Dr. Cynthia McCollough, the Mayo Clinic,
+the American Association of Physicists in Medicine, and
+grants EB017095 and EB017185 from the National Institute
+of Biomedical Imaging and Bioengineering for giving oppor-
+tunities to use real-invivo CT DICOM images.
+REFERENCES
+[1] M. Lustig, D. Donoho, and J. M. Pauly, “Sparse MRI: The application of
+compressed sensing for rapid MR imaging,” Magn. Reson. Med., vol. 58,
+no. 6, pp. 1182–1195, 2007.
+[2] X. Pan, E. Y. Sidky, and M. Vannier, “Why do commercial CT scanners
+still employ traditional, filtered back-projection for image reconstruc-
+tion?” Inverse Probl., vol. 25, no. 12, p. 123009, 2009.
+[3] C. Bouman and K. Sauer, “A generalized Gaussian image model for
+edge-preserving MAP estimation,” IEEE Trans. Image Process., vol. 2,
+no. 3, pp. 296–310, 1993.
+[4] P. Charbonnier, L. Blanc-Fe?raud, G. Aubert, and M. Barlaud, “Determin-
+istic edge-preserving regularization in computed imaging,” IEEE Trans.
+Image Process., vol. 6, no. 2, pp. 298–311, 1997.
+[5] E. Cande?s and J. Romberg, “Sparsity and incoherence in compressive
+sampling,” Inverse Probl., vol. 23, no. 3, pp. 969–985, 2007.
+[6] S. Ramani and J. Fessler, “Parallel MR image reconstruction using
+augmented Lagrangian methods,” IEEE Trans. Med. Imag., vol. 30,
+no. 3, pp. 694–706, 2011.
+[7] M. Elad and M. Aharon, “Image denoising via sparse and redundant
+representations over learned dictionaries,” IEEE Trans. Image Process.,
+vol. 15, no. 12, pp. 3736–3745, 2006.
+[8] E. J. Cande?s, Y. C. Eldar, D. Needell, and P. Randall, “Compressed sens-
+ing with coherent and redundant dictionaries,” Appl. Comput. Harmon.
+Anal., vol. 31, no. 1, pp. 59–73, 2011.
+[9] S. Ravishankar, R. R. Nadakuditi, and J. Fessler, “Efficient sum of outer
+products dictionary learning (SOUP-DIL) and its application to inverse
+problems,” IEEE Trans. Comput. Imaging, 2017, to appear.
+10
+[10] M. A. T. Figueiredo and R. D. Nowak, “An EM algorithm for wavelet-
+based image restoration,” IEEE Trans. Image Process., vol. 12, no. 8,
+pp. 906–916, 2003.
+[11] I. Daubechies, M. Defrise, and C. De Mol, “An iterative thresholding al-
+gorithm for linear inverse problems with a sparsity constraint,” Commun.
+Pure Appl. Math, vol. 57, no. 11, pp. 1413–1457, 2004.
+[12] A. Beck and M. Teboulle, “A fast iterative shrinkage-thresholding
+algorithm for linear inverse problems,” SIAM J. Imaging Sciences, vol. 2,
+no. 1, pp. 183–202, 2009.
+[13] S. Boyd, N. Parikh, E. Chu, B. Peleato, and J. Eckstein, “Distributed
+optimization and statistical learning via the alternating direction method
+of multipliers,” Foundations and Trends in Machine Learning, vol. 3,
+no. 1, pp. 1–122, 2011.
+[14] S. V. Venkatakrishnan, C. A. Bouman, and B. Wohlberg, “Plug-and-play
+priors for model based reconstruction,” in Proc. IEEE Glob. Conf. Signal
+Inform. Process. (GlobalSIP), 2013, pp. 945–948.
+[15] S. H. Chan, X. Wang, and O. A. Elgendy, “Plug-and-Play ADMM
+for image restoration: Fixed-point convergence and applications,” IEEE
+Trans. Comput. Imaging, vol. 3, no. 1, pp. 84–98, 2017.
+[16] S. Sreehari, S. V. Venkatakrishnan, B. Wohlberg, G. T. Buzzard, L. F.
+Drummy, J. P. Simmons, and C. A. Bouman, “Plug-and-play priors for
+bright field electron tomography and sparse interpolation,” IEEE Tran.
+Comput. Imaging, vol. 2, no. 4, pp. 408–423, 2016.
+[17] J. Chang, C.-L. Li, B. Po?czos, B. Kumar, and A. C. Sankaranarayanan,
+“One network to solve them all—Solving linear inverse problems using
+deep projection models,” arXiv:1703.09912 [cs.CV], 2017.
+[18] Y. Romano, M. Elad, and P. Milanfar, “The little engine that could:
+Regularization by denoising (RED),” arXiv:1611.02862 [cs.CV], 2016.
+[19] K. H. Jin, M. T. McCann, E. Froustey, and M. Unser, “Deep convo-
+lutional neural network for inverse problems in imaging,” IEEE Trans.
+Image Process., vol. 26, no. 9, pp. 4509–4522, 2017.
+[20] Y. S. Han, J. Yoo, and J. C. Ye, “Deep learning with domain adapta-
+tion for accelerated projection reconstruction MR,” arXiv:1703.01135
+[cs.CV], 2017.
+[21] S. Antholzer, M. Haltmeier, and J. Schwab, “Deep learning for photoa-
+coustic tomography from sparse data,” arXiv:1704.04587 [cs.CV], 2017.
+[22] S. Wang, Z. Su, L. Ying, X. Peng, S. Zhu, F. Liang, D. Feng, and
+D. Liang, “Accelerating magnetic resonance imaging via deep learning,”
+in Proc. IEEE Int. Symp. Biomed. Imaging (ISBI), 2016, pp. 514–517.
+[23] M. T. McCann, K. H. Jin, and M. Unser, “A review of Convolutional
+Neural Networks for inverse problems in imaging,” IEEE Signal Process.
+Mag., 2017, to be published.
+[24] A. Mousavi and R. G. Baraniuk, “Learning to invert: Signal recovery
+via deep convolutional networks,” arXiv:1701.03891 [stat.ML], 2017.
+[25] K. Gregor and Y. LeCun, “Learning fast approximations of sparse
+coding,” in Proc. Int. Conf. Mach. Learn. (ICML), 2010, pp. 399–406.
+[26] Y. Yang, J. Sun, H. Li, and Z. Xu, “Deep ADMM-Net for compressive
+sensing MRI,” in Adv. Neural Inf. Process. Syst. (NIPS), 2016, pp. 10–
+18.
+[27] J. Adler and O. O?ktem, “Solving ill-posed inverse problems using
+iterative deep neural networks,” arXiv:1704.04058 [math.OC], 2017.
+[28] P. Putzky and M. Welling, “Recurrent inference machines for solving
+inverse problems,” arXiv:1706.04008 [cs.NE], 2017.
+[29] B. Eicke, “Iteration methods for convexly constrained ill-posed problems
+in Hilbert space,” Numer. Funct. Anal. Optim., vol. 13, no. 5-6, pp. 413–
+429, 1992.
+[30] L. Landweber, “An iteration formula for Fredholm integral equations of
+the first kind,” Amer. J. Math., vol. 73, no. 3, pp. 615–624, 1951.
+[31] D. P. Bertsekas, Nonlinear Programming, 2nd ed. Cambridge, MA:
+Athena Scientific, 1999.
+[32] P. L. Combettes and V. Wajs, “Signal recovery by proximal forward-
+backward splitting,” Multiscale Modeling and Simulation, vol. 4, no. 4,
+pp. 1168–1200, 2005.
+[33] P. L. Combettes and J.-C. Pesquet, Proximal Splitting Methods in Signal
+Processing. New York, NY: Springer, 2011, pp. 185–212.
+[34] J. Bect, L. Blanc-Feraud, G. Aubert, and A. Chambolle, “A `1-unified
+variational framework for image restoration,” in Proc. Eur. Conf. Com-
+put. Vis. (ECCV), 2004, pp. 1–13.
+[35] A. Aldroubi and R. Tessera, “On the existence of optimal unions of
+subspaces for data modeling and clustering,” Found. Comput. Math.,
+vol. 11, no. 3, pp. 363–379, 2011.
+[36] I. Goodfellow, Y. Bengio, and A. Courville, Deep learning. MIT Press,
+2016.
+[37] O. Ronneberger, P. Fischer, and T. Brox, “U-net: Convolutional networks
+for biomedical image segmentation,” in Proc. Med. Image. Comput.
+Comput. Assist. Interv. (MICCAI), 2015, pp. 234–241.
+[38] A. E. Orhan and X. Pitkow, “Skip connections eliminate singularities,”
+arXiv:1701.09175 [cs.NE], 2017.
+[39] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for
+image recognition,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit.
+(CVPR), 2016, pp. 770–778.
+[40] A. C. Kak and M. Slaney, Principles of Computerized Tomographic
+Imaging. SIAM, 2001.
+[41] C. McCollough, “TU-FG-207A-04: Overview of the Low Dose CT
+Grand Challenge,” Med. Phys., vol. 43, no. 6-part-35, pp. 3759–3760,
+2016.
+[42] H. H. Bauschke and P. L. Combettes, Convex Analysis and Monotone
+Operator Theory in Hilbert Spaces. New York, NY: Springer, 2011.
+11
+SUPPLEMENTARY MATERIAL
+A. Proof of Proposition 1
+Suppose that (6) is fulfilled and let x? ? S be a fixed point
+of G? . We show that x? is also a local minimizer of (3).
+Indeed, setting x = x? ? ?HTHx? + ?HTy leads to PSx =
+x?. Then, there exists ? > 0 such that, for all z ? S ?B?(x?),
+0 ? ?z? PSx , x? PSx?
+= ?
+?
+z? x? , HTy ?HTHx?
+?
+=
+?
+2
+(
+?Hx? ? y?22 ? ?Hz? y?
+2
+2 + ?Hx
+? ?Hz?22
+)
+.
+Since ? > 0, the last inequality implies that
+?Hx? ? y?22 ? ?Hz? y?
+2
+2 , ?z ? S ? B?(x
+?),
+which means that x? is a local minimizer of (3).
+Assume now that PS satisfies (7). By just removing the
+?-ball in the above argument, one easily verifies that
+?Hx? ? y?22 ? ?Hz? y?
+2
+2 , ?z ? S,
+which means that x? is a solution of (3).
+B. Proof of Proposition 2
+We prove by contradiction. Assuming that S is non-convex,
+there must exist x1,x2 ? S and ? ? (0, 1) such that x =
+?x1 + (1? ?)x2 /? S. Since PSx ? S, it must be that
+0 < ?x? PSx?22 = ?x? PSx , x? PSx?
+= ? ?x1 ? PSx , x? PSx?
++ (1? ?) ?x2 ? PSx , x? PSx? .
+Thus, there exists i ? {0, 1} such that
+?xi ? PSx , x? PSx? > 0,
+which violates (7). So, S is convex.
+C. Proof of Proposition 3
+Suppose that S =
+?n
+i=1 Ci, where Ci is a closed convex
+set for all i = 1, . . . , n. The statement is trivial when n = 1;
+assume now that n ? 2. Let x ? RN and x? be the orthogonal
+projection of x onto S. Consider two cases.
+Case 1: x? ?
+?n
+i=1 Ci.
+It is then clear that
+?x?? x?2 ? ?z? x?2 ,?z ? Ci,?i.
+This means that x? is the orthogonal projection of x onto each
+Ci. Consequently,
+?z? x? , x? x?? ? 0,?z ? Ci,?i ? n,
+which implies that (6) holds true for all ? > 0.
+Case 2: x? /?
+?n
+i=1 Ci.
+Without loss of generality, there exists m < n such that
+x? ?
+m?
+i=1
+Ci, x? /?
+n?
+i=m+1
+Ci. (25)
+Let d be the distance from x? to the set T =
+?n
+i=m+1 Ci. Since
+each Ci is closed, T must be closed too and, so, d > 0. We
+now choose 0 < ? < d. Then, B?(x?) ? T = ?. Therefore,
+S ? B?(x?) =
+m?
+i=1
+(Ci ? B?(x?)) =
+m?
+i=1
+C?i, (26)
+where C?i = Ci ? B?(x?) is clearly a convex set, for all i ? m.
+It is straightforward that x? is the orthogonal projection of x
+onto the set
+?m
+i=1 C?i and that x ?
+?m
+i=1 C?i. We are back to
+Case 1 and, therefore,
+?z? x? , x? x?? ? 0,?z ? C?i,?i ? m. (27)
+From (26) and (27), (6) is fulfilled for the chosen ?.
+D. Proof of Theorem 1
+Let {?i} denote the set of eigenvalues of HTH. We first
+have that, for all x ? RN ,??x? ?HTHx??
+2
+?
+??I? ?HTH??
+2
+?x?2 , (28)
+where the spectral norm of I? ?HTH is given by??I? ?HTH??
+2
+= max
+i
+{|1? ??i|}. (29)
+On the other hand, choosing ? = 2/(?max + ?min) yields
+2?min
+?max + ?min
+? ??i ?
+2?max
+?max + ?min
+, ?i
+? |1? ??i| ?
+?max ? ?min
+?max + ?min
+, ?i. (30)
+By combining (28), (29), and (30),??x? ?HTHx??
+2
+? ?max ? ?min
+?max + ?min
+?x?2 , ?x. (31)
+Combining (31) with the Lipschitz continuity of PS gives
+?G?(x)?G?(z)?2 ? L
+??(x? z)? ?HTH(x? z)??
+2
+? L ?max ? ?min
+?max + ?min
+?x? z?2 , ?x,?z. (32)
+Since L < (?max + ?min)/(?max ? ?min), (32) implies that
+G? is a contractive mapping. By the Banach-Picard fixed point
+theorem [42, Thm. 1.48], {xk} defined by xk+1 = G?(xk)
+converges to the unique fixed point x? of G? , for every ini-
+tialization x0. Finally, since PS satisfies (6), by Proposition 1,
+x? is also a local minimizer of (3).
+E. Proof of Theorem 2
+Again, let {?i} be the set of eigenvalues of HTH. With
+? < 2/?max, one readily verifies that, ?x ? RN ,??x? ?HTHx??
+2
+? max
+i
+{|1? ??i|} · ?x?2 ? ?x?2 .
+Combining this with the non-expansiveness of PS leads to
+?G?(x)?G?(z)?2 ?
+??(x? z)? ?HTH(x? z)??
+2
+? ?x? z?2 , ?x, z ? R
+N .
+Now that G? is a non-expansive operator with a nonempty
+fixed-point set, we invoke the Krasnosel’ski??-Mann theo-
+rem [42, Thm. 5.14] to deduce that the iteration (8) must
+12
+converge to a fixed point of G? which is, by Proposition 1,
+also a local minimizer of (3).

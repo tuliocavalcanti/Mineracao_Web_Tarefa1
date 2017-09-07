@@ -1,0 +1,1485 @@
+1
+Too Far to See? Not Really!
+— Pedestrian Detection with Scale-aware
+Localization Policy
+Xiaowei Zhang, Li Cheng, Bo Li, and Hai-Miao Hu
+Abstract—A major bottleneck of pedestrian detection lies on the sharp performance deterioration in the presence of small-size
+pedestrians that are relatively far from the camera. Motivated by the observation that pedestrians of disparate spatial scales exhibit
+distinct visual appearances, we propose in this paper an active pedestrian detector that explicitly operates over multiple-layer neuronal
+representations of the input still image. More specifically, convolutional neural nets such as ResNet [20] and faster R-CNNs [35] are
+exploited to provide a rich and discriminative hierarchy of feature representations as well as initial pedestrian proposals. Here each
+pedestrian observation of distinct size could be best characterized in terms of the ResNet feature representation at a certain layer of the
+hierarchy; Meanwhile, initial pedestrian proposals are attained by faster R-CNNs techniques, i.e. region proposal network and follow-up
+region of interesting pooling layer employed right after the specific ResNet convolutional layer of interest, to produce joint predictions on
+the bounding-box proposals’ locations and categories (i.e. pedestrian or not). This is engaged as input to our active detector where for
+each initial pedestrian proposal, a sequence of coordinate transformation actions is carried out to determine its proper x-y 2D location
+and layer of feature representation, or eventually terminated as being background. Empirically our approach is demonstrated to
+produce overall lower detection errors on widely-used benchmarks, and it works particularly well with far-scale pedestrians. For
+example, compared with 60.51% log-average miss rate of the state-of-the-art MS-CNN [47] for far-scale pedestrians (those below 80
+pixels in bounding-box height) of the Caltech benchmark, the miss rate of our approach is 41.85%, with a notable reduction of 18.68%.
+Index Terms—Localization Policy, Sequence of Coordinate Transformations, Deep Reinforcement Learning, Multiple-layer Neuronal
+Representations, Pedestrian Object Proposals.
+F
+1 INTRODUCTION
+P EDESTRIAN detection has been an important computer visionresearch topic over the years, with a wide range of applica-
+tions including video surveillance, intelligent vehicles, robotics,
+and human computer interaction, to name a few. Significant
+progress has been made recently [37], [40], [45], [36], [24], [34]
+in terms of both effectiveness [33], [31], [32], [18], [50], [4] and
+efficiency [9], [41], [8], [5], [29], [30]. On the other hand, as
+presented in Fig. 1(a), a typical image often contains multiple
+pedestrians of different scales, and current detection performance
+varies significantly over scales: Although the state-of-the-art de-
+tectors typically work reasonably well with large size pedestrians
+where the objects are near the camera (i.e. near-scaled), their per-
+formance becomes considerably worse when dealing with small-
+sized (i.e. far-scaled) ones. It has been observed that the lack of
+satisfactory outcome toward detecting far-scale pedestrians is due
+to the following inherent challenges: First, comparing with near-
+scale pedestrian instances as shown in Fig. 1(c), far-scale ones
+often retain much less information, yet these instances contain
+a greater noise portion that results in obscure appearance and
+blurred boundaries, as displayed in Fig. 1(d). It is in general
+• Xiaowei Zhang, Bo Li and Hai-Miao Hu are with School of Computer
+Science and Engineering, Beijing Key Laboratory of Digital Media, and
+State Key Laboratory of Virtual Reality Technology and Systems, Beihang
+University, Beijing 100191, China. E-mail: xiaowei19870119@sina.com
+• Li Cheng is with Bioinformatics Institute, A*STAR, Singapore and School
+of Computing, National University of Singapore, Singapore. E-mail:
+chengli@bii.a-star.edu.sg
+difficult to distinguish them from the background clutters. Second,
+for a pedestrian instance of interest, visual features are effective
+only at a proper scale where optimal response is obtained. The
+issue is more pronounced in complex scenes containing pedestrian
+instances of diverse scales.
+Motivated by these observations, we consider in this paper a
+dedicated approach with a more balanced competency in detecting
+both near- and far-scale pedestrian instances. It possesses the
+following three major contributions. First, a novel active detection
+approach is proposed to take as input multi-layer neuronal feature
+representations as well as initial pedestrian proposals of the input
+still image, execute sequences of coordinate transformation actions
+to deliver the final localization (i.e. bounding-box prediction) of
+the pedestrian instances. These actions come from a localization
+policy that is learned from data by exploiting both local contextual
+information and multi-layer representations using deep reinforce-
+ment learning techniques. Empirical evaluation reveals that the
+major ingredients in our approach, namely multi-layer represen-
+tations, initial pedestrian proposals, and localization policy are
+all important in delivering the final results. Second, our approach
+works with pedestrian instances across scales in a more balanced
+manner, and performs particularly well with far-scale instances.
+Empirically it is examined on several widely-used benchmarks,
+including Caltech [11], ETH [15], and TUD-Brussels [43] with
+consistently competitive results. For example, MS-CNN [47] per-
+forms among the best on Caltech benchmark. Compared to its
+state-of-the-art results, the log-average miss rate of our approach
+is further reduced by a very significant amount of 18.68% for far-
+scale pedestrians (below 80 pixels in bounding-box height), and
+ar
+X
+iv
+:1
+70
+9.
+00
+23
+5v
+1 
+ [
+cs
+.C
+V
+] 
+ 1
+ S
+ep
+ 2
+01
+7
+2
+(a) A typical pedestrian image (b) Scale distribution over pedestrian heights
+(c) Near-scale instances (d) Far-scale instances
+Height (pixels)
+50 100 150 200 250 300 350 4000
+0.05
+0.1
+0.15
+0.2
+0.25
+Sc
+al
+e
+di
+st
+rib
+ut
+io
+n
+80
+Fig. 1: In pedestrian detection, a typical input image usually
+contains multiple pedestrian instances over different scales. (a)
+An input image from the Caltech benchmark [11]. (b) The scale
+distribution of pedestrian heights from the same Caltech dataset.
+One can observe that far-scale instances in fact dominate the
+distribution. (c) and (d) display exemplar visual appearance be-
+tween near- and far-scale instances, as well as the corresponding
+neuronal feature representations from the proper layers, which are
+noticeably different.
+a mild amount of 1.42% for near-scale pedestrians (80 or more).
+Similar results have also been observed for the other benchmarks.
+Third, our implementation and related results are made publicly
+available 1 in support of the open-source activities of the research
+community.
+2 RELATED WORK
+There has been vast literature on pedestrian detection with lasting
+research activities. Due to space limit, in what follows we mainly
+focus on efforts that are closely related to our approach. As
+with many other computer vision tasks, hand-crafted features
+have played a critical role in attaining good performance. The
+histogram of oriented gradient or HOG descriptor by Dalal &
+Triggs [27] is perhaps the most well-known feature engineering
+technique constructed for pedestrian detection. This is extended
+to the integral channel features (ICF) by Dollar et al. [10] to
+efficiently extract features such as local sums, histograms, and
+Haar features using integral images, which is further improved in
+several ways by ACF [7].
+Recently, Convolutional Neural Network (CNN) based meth-
+ods [40], [39], [22], [2], [48] have made significant progresses
+in pedestrian detection, among others. An unsupervised method
+based on convolutional sparse coding is used in Sermanet et
+al. [36] to pre-train CNN for pedestrian detection. Tian et al. [40]
+jointly optimize pedestrian detection with other semantic tasks in-
+cluding pedestrian and scene attributes. Yang et al. [46] investigate
+1. Our implementation, the results on benchmarks, and detailed
+information pertaining to the project can be found at a dedi-
+cated project webpage https://web.bii.a-star.edu.sg/archive/machine learning/
+Projects/objDet/pedDet/index.html.
+the augmentation of CNN with scale-dependent pooling and layer-
+wise cascaded rejection classifiers to detect objects efficiently.
+Cai et al. [2] introduce complexity-aware cascaded detectors by
+leveraging both hand-crafted and CNN features for an optimal
+trade-off between accuracy and speed. The RCNN developed by
+Girshick et al. [18] nicely integrates an object proposal mechanism
+within CNN framework. This leads to SPPnet [19] that improves
+the detection speed of RCNN by evaluating CNN features once
+per image. Built on top of RCNN and SPPnet, Fast-RCNN [17]
+brings up the idea of single-stage training and multi-task learning
+of both a classifier and a bounding box regressor. Furthermore,
+Faster-RCNN [35] considers a region proposal network that shares
+full-image convolutional features with the detection network to
+efficiently predict object proposals, instead of the time-consuming
+techniques such as selective search, leading to a significant
+speedup for proposal generation.
+Multi-layer approaches have also been developed for detecting
+objects across multiple scales. [47], [19] attempt to alleviate the
+inconsistency of RPN [35] by employing an upsampling operation
+on inputs at both training and testing stages, which nevertheless
+is significantly more demanding in terms of computation and
+memory. SA-FastRCNN [24] develops a divide-and-conquer strat-
+egy based on Fast-RCNN that uses multiple built-in subnetworks
+to adaptively detect pedestrians across scales. Similarly, MS-
+CNN [47] works with multiple layers to match objects of different
+scales. SSD [25] discretizes the output space of bounding boxes
+into a set of template boxes over varying aspect ratios and scales.
+Complementary detectors are then utilized at different output
+layers that collectively give rise to a strong multi-scale detector.
+A strategy adopted by some of these methods [18], [9] is to
+train a single classifier at a fixed resolution, meanwhile the input
+image is rescaled to several distinct sizes, and the associated fea-
+tures are re-computed as independent inputs. By aiming to attain
+such scale-invariancy property, empirically this strategy produces
+improved detection results, at a price of being computationally
+very costly. Another strategy adopted by [1], [16], [36], [14] is
+to simultaneously engage multiple object detectors to a single
+resolution of the input image, with each focusing on a unique
+local patch size. This strategy avoids the repeated computation of
+feature maps and tends to be more efficient, nonetheless, it is often
+difficult to sufficiently represent these feature responses within a
+single resolution. More recent works such as Faster-RCNN [35]
+address the issue with a multi-layer region proposal network
+(RPN), which achieves excellent object detection performance.
+However, RPN generates multi-layer proposals by sliding a fixed
+set of filters over a fixed set of convolutional feature maps. There
+thus exist potential mismatches between the sizes of objects and
+filter receptive fields, as the object resolutions are variable, yet the
+sizes of filter receptive fields are fixed.
+In practice, it sometimes leads to compromised results with
+particularly poor detections for far-scale objects.
+Instead we consider a different strategy as follows. By engag-
+ing multiple convolutional feature layers, following the representa-
+tion theory, outputs of higher layers encode semantic information
+of targets that are robust to significant appearance variations.
+However, their spatial resolutions tend to be too coarse to precisely
+localize the far-scale pedestrian instances. On the flip side, outputs
+of the lower convolutional layers provide more precise localiza-
+tion, but are less invariant to the objects appearance changes.
+This motivates us to consider learning a localization policy to
+actively identify the suitable representation layer as well as the
+3
+ResNet-C3
+ResNet-C4
+ResNet-C5
+ResNet-C2
+ResNet-C1
+Softmax
+Bbox reg
+1024-d
+Initial bounding-box proposals
+ROI
+Pedestrian proposals
+Localization policy
+Localization 
+agent t-1
+1: 1( ; )tp s ?? 1:( ; )tp s ? 1: 1( ; )tp s ??
+Localization 
+agent t
+Localization 
+agent t+1
+Original image
+ROI feature
+maps
+1 1?
+conv
+ROI feature
+maps
+1 1?
+conv
+ROI feature
+maps
+1 1?
+conv
+Fig. 2: The flowchart of our proposed approach. Multi-layer representations of ResNet are respectively utilized to compile pedestrian
+proposals of different sizes, which are then passed to our localization policy module to produce the final outputs.
+appropriate filter size for the object of interest. Meanwhile, deep
+reinforcement learning techniques have been considered recently
+by [3], [23] to learn a localization policy that identifies the
+bounding-box of an object of interest, as well as by [26] for digit
+recognition with a recurrent attention mechanism. Yet the impact
+of multiple pedestrians of different scales as in our scenarios are
+not considered.
+In the meantime, thorough surveys on pedestrian detection
+have been conducted by e.g. [13], [12]. The evaluations in [12]
+is more recent, where the pedestrian instances are geometrically
+grouped into three scales: near, medium, and far. [12] proceeds to
+present their Caltech dataset as a reasonable sample of typical
+pedestrian images, where the data is collected by adopting a
+standard vehicle-mounted camera. In this influential dataset, near-
+scale corresponds to a pedestrian object of 80 or more pixels
+in height, medium-scale is for a pedestrian object between 30-
+80 pixels, and far-scale is for 30 pixels or less. In terms of
+physical distance between the pedestrian instance and the camera,
+these three scales (i.e. near, medium, far) roughly correspond to
+a typical pedestrian with a distance below 20, 20-60, and over
+60 meters, respectively. As noted in [12], the medium- and far-
+scale instances comprises the majority (84% in this case) of the
+pedestrian population in a typical imaging setting, and human
+observers have no trouble in detecting most of them. In contrast,
+existing pedestrian detection methods perform rather poorly in
+the presence of these instances, despite the fact that the same
+detectors work very well with those near-scale instances. Take
+one latest effort,MS-CNN [47] for example, it has been reported
+that empirically their detector is capable of achieving 3.30% log-
+average miss rate for near-scale pedestrians in Caltech Pedestrian
+Benchmark [11], the error rate however increases to 60.51% for
+medium- and far-scale pedestrians. Similar observations have also
+been expressed in other works [21], [49]. It inspires us to consider
+a simpler grouping of pedestrian instances into two scales: near-
+scale vs. far-scale, which corresponds to near vs. medium & far
+in the Caltech benchmark. The focus of this paper is to achieve a
+more balanced detection performance for both near- and far-scale
+pedestrian instances.
+3 OUR APPROACH
+We start by laying down some necessary notations. A bounding-
+box (bbox) coordinate can be identified by b = (bx, by, bw, bh) ?
+R4 for its top-left corner (bx, by), width, and height. At the same
+time, let p = pb ? {0, 1} be the probability of whether the bbox
+is a pedestrian bbox. An input pedestrian instance is denoted as
+x, also referred to as an anchor, and its label is y = (p, b).
+Here x corresponds to all the information (such as contextual
+information, specific feature layer representation) in the input
+image that is related to the pedestrian instance, which could be
+obtained by for example applying a sliding window. At any time,
+if the intersection-over-union (IoU) of the current sliding window
+(anchor) and a closest ground-truth pedestrian bbox is above a
+relatively high threshold (say 0.5), then its label y is assigned as
+p = 1 and b being the ground-truth bbox. Otherwise, if the IoU
+is below a relatively low threshold (say 0.3) with any ground-
+truth pedestrian bboxes, then its label becomes p = 0 and b
+being zero-valued. We further denote a predicted output of x as
+y? =
+(
+p?, b?
+)
+, with p? being the objectness score, i.e. the probability
+of being a pedestrian bbox. The training set is composed by
+a set of (non-)pedestrian examples D = {xi,yi}Di=1, which
+could be obtained by running the sliding window over multiple
+representation layers of the annotated pedestrian training images.
+To explicitly account for the fact that these pedestrian instances
+are at different scales, denote as M the number of neural repre-
+sentation layers (here M=3), and the training set is partitioned to
+D = D1 ?D2 ? . . .?DM and Dm ?Dn = ? ?m,n, with each
+disjoint subset Dm containing specifically the training examples
+at current layer.
+A high-level overview of our approach is displayed in Fig. 2,
+which consists of two main stages: An input image will first
+pass through an initialization stage to make ready the multi-layer
+feature representations and the initial pedestrian proposals, they
+are then fed into an active detection stage where a dedicated
+localization policy is engaged to produce the final bbox predictions
+{y?i} by executing sequences of coordinate transformation actions.
+4
+a. Original Image b. ResNet-50-C1 c. ResNet-50-C2 
+d. ResNet-50-C3 e. ResNet-50-C4 f. ResNet-50-C5 
+a. Original Image b. ResNet-50-C1 c. ResNet-50-C2 
+d. ResNet-50-C3 e. ResNet-50-C4 f. ResNet-50-C5 
+Fig. 3: Visualization of the pedestrian proposal activations across
+multiple neural representation layers. See text for more details.
+ResNet-50-C3 ResNet-50-C5ResNet-50-C4
+Caltech
+ETH
+TUD-Brussels
+Fig. 4: A visual elucidation on the effect range of our resultant ini-
+tial proposals at each layer of the feature representation hierarchy.
+3.1 Multi-layer Representation and Initial Pedestrian
+Proposals
+It has been shown in Fig. 1 that given multiple pedestrian instances
+of different scales being presented in a typical image, their best
+responses usually occur at distinct feature representation layers.
+This is revealed in more details at Fig. 2, where three intermediate
+convolutional layers of ResNet [20], i.e. ResNet-50-C3, ResNet-
+50-C4 and ResNet-50-C5, are employed as our multi-layer feature
+representations. Moreover, Fig. 2 provides more detailed informa-
+tion over the first five ResNet layers (i.e. ResNet-50-C1 to ResNet-
+50-C5). Here the class activation maps of [51] are applied to
+visualize the responses at different convolutional layers for gener-
+ating pedestrian proposals. In general, lower representation layers
+may have a strong activation of convolutional neurons for far-
+scale pedestrians. Similar phenomenon for near-scale pedestrian
+instances usually emerge at higher layers. Moreover, higher layer
+neurons tend to encode more global and semantic information
+of objects that could be robust against significant appearance
+variations, while their spatial resolutions tend to be overly coarse,
+thus unable to accurately locate far-scale pedestrian instances. On
+the other hand, outputs of lower convolutional layers provide more
+precise localization, while being less invariant to objects’ appear-
+ance changes. It can be seen from Fig. 3 that the first two layers
+namely ResNet-50-C1 and ResNet-50-C2 could be saturated by
+the amount of false alarms from backgrounds, while ResNet-50-
+C3 seems a satisfactory starting layer for effective multi-layer
+representation. For near-scale objects such as the one at the center
+location of Fig. 3, their feature responses appear across multiple
+layers, yet the last two layers and especially the very last layer
+here seems to retain best responses. The feature responses from
+the rest (i.e. the first two) layers are still noticeable but with more
+unnecessary local or even background details due to small sized
+receptive fields from lower-layers. This is further illustrated in
+Fig. 4, where far-scale pedestrians are most comfortably picked
+up at lower layers, and near-scale ones are largely detected at
+upper layers. Meanwhile, it appears to be difficult to identify
+far-scale ones at upper layers, and vice versa. In practice, three
+layers namely ResNet-50-C3, ResNet-50-C4, and ResNet-50-C5,
+are chosen as the working scale space in this paper.
+As displayed in Fig. 2, an input image is passed through the
+ResNet layers to form multi-layer feature representations, where
+bbox proposals of different scales are also generated. The region
+of interest (RoI) pooling layer of [46] is then utilized to pool
+the feature maps of each pedestrian proposal into a fixed-length
+feature vector, which is fed into a fully connected layer. At last,
+each pedestrian proposal y? ends up with two outputs, one accounts
+for classification score p?, and the other one predicts the bbox
+position b?.
+Up to now it should be clear that this module serves the
+purpose of providing a multi-layer feature representation of the
+input image. We then aim to produce predictions on both initial
+bbox locations (pedestrian proposals) and the associated object-
+ness score, following that of Faster R-CNNs [35]. Training this
+module involves estimating the weight parameters of the pedes-
+trian proposal network as depicted in the green box of Fig. 2. The
+objective function LD (W) is thus a weight parameterized neural
+network function defined over our training examples D, whereW
+stands for the weight parameters. As it contains multi-layer feature
+representations as input, let lm (yi, y?i|W) denote the loss function
+of the i-th training example at the m-th layer of the Resnet
+feature representation, and without loss of generality, denote by
+M = {3, 4, 5} the aforementioned Resnet layers considered in
+our paper. The objective function is then formulated as
+LD(W) =
+?
+m?M
+?
+i?Dm
+?ml
+m(yi, y?i|W), (1)
+where ?m is the weight of current loss lm(yi, y?i|W) that can
+be computed by the softmax function ?m = e
+??m
+M?
+m?=1
+e??m?
+, with
+??m =
+1
+(1+e
+?h?h?m
+?m )
+. h?m denoting the average height of the
+pedestrians from the m-th layer in the training set. For example,
+the respective h?m values in Caltech benchmark are 48, 96, and
+156. ?m is a scaling factor, which is empirically set to 5, 20,
+and 10, respectively for the three layers. Note a smaller ?m value
+leads to larger gap between the weights of pedestrian instances
+from different layers.
+Furthermore, our multi-task loss function lm(yi, y?i|W) on the
+i-th example at layer m is defined as:
+lm (yi, y?i|W) = lcls (pi, p?i) + ?pilloc
+(
+bi, b?i
+)
+, (2)
+where pi is 1 if the anchor is labeled positive, and 0 otherwise. p?i
+denotes the predicted probability of the anchor being a pedestrian
+proposal. bi = (bxi , b
+y
+i , b
+w
+i , b
+h
+i ) represents the ground-truth bbox
+associated with a positive anchor, and b?i = (b?xi , b?
+y
+i , b?
+w
+i , b?
+h
+i )
+5
+denotes the predicted bbox. The second loss term is defined on
+the regression task, for which we adopt the same smooth-L1 loss
+function of Faster R-CNN [35], that is, lloc = R
+(
+bi ? b?i
+)
+. Here
+R(b) = 0.5?b?2 if ?b? < 1, and R(b) = ?b? ? 0.5 otherwise.
+The term pilloc is to activate the regression loss only for positive
+anchors (pi = 1), which is disabled otherwise (pi = 0). ? is a
+trade-off parameter (empirically set to 10) for which a larger value
+places a stronger emphasis on good bbox locations. In terms of the
+first loss, i.e. the classification loss, it takes the form of log-loss
+lcls = ?
+?
+i log p?i. In practice a variation of this form is adopted,
+as to be described next.
+Consider the training subset of a specific representation layer,
+which can be further decomposed as Dm = {Dm+ ,Dm? }. Our
+bbox proposals can be generated at sliding-window locations that
+are partitioned into positive examples Dm+ and negative ones
+Dm? . An anchor is centered at the sliding window on each layer
+associated with aspect ratio of 0.41 (width to height, adopted based
+on [11]). For positive examples Dm+ , two kinds of anchors are
+labeled positive: (i) The anchor that has an IoU overlap higher
+than 0.5 with any ground-truth bbox; (ii) The anchor that has the
+highest IoU overlap with a ground-truth bbox. Note in the first
+case, a single ground-truth bbox may assign positive labels to
+multiple anchors; The second case is to ensure that at least one
+positive example exists for any ground-truth bbox. For negative
+examples Dm? , a negative label is assigned if its IoU ratio is
+lower than 0.3 over all ground-truth boxes. The rest anchors that
+are neither positive nor negative are simply ignored as having no
+contribution to the training objective. In addition, to compensate
+for the imbalance of the positive and negative examples, a small
+number of negative examples are first uniformly sampled. The
+training set is then bootstrapped by ranking and sampling the
+negative examples according to their objectness scores to obtain
+hard negative examples. As potentially there are far more negative
+candidates, a balancing constant ? ? 1 is used such that the
+negative set is constrained by
+??Dm? ?? = ? ??Dm+ ??.
+Finally, by considering contributions of both positive and
+negative examples, the classification loss term now becomes a
+weighted cross-entropy:
+lcls =
+1
+1 + ?
+1??Dm+ ??
+?
+i?Dm+
+? log p?i +
+?
+1 + ?
+1??Dm? ??
+?
+j?Dm?
+log p?j . (3)
+3.2 Our Active Detector Model
+In conjunction with the initial proposals described in the previous
+section, an active detection model is introduced for improving
+pedestrian bbox predictions by performing a series of coordinate
+transformation actions. It allows an agent to adaptively choose the
+feature maps of proper resolutions catering for current pedestrian
+distances from our multi-layer feature representation. Inspired
+by the recent work of [26] for digit recognition, we consider
+a recurrent neural network (RNN) based model, where at each
+time step t, both spatial and temporal contextual information are
+incorporated to decide current transformation action.
+Fig. 5 displays the sequential process of applying our active
+detector model to a possible pedestrian instance x of an input
+image. At start time t := 1, let bt?1 be the initial bbox proposal
+and ?t (x) be the feature representation of its corresponding layer.
+A finite sequence of bbox transformation actions (a1, a2, . . .) is
+then executed based on a recurrent neural network which is trained
+by reinforcement learning. Note the size of the feature vector
+Feature vector
+of current layerBounding box 
+1ts ?
+ts
+Bounding box
+1ts ?
+to 1to ?
+tb1tb ?
+1( , )o t tf x b? ? 1( , )o t tf x b? ?
+1( , )s t tf o s? ?
+( )
+a t
+f s? 1( )a tf s? ?
+1( , )s t tf o s? ?
+( )t x?
+ta 1ta ?
+Feature vector
+of current layer
+1( )t x? ?
+Fig. 5: A schematic illustration of our active detection module
+in the process of producing a series of transformation action
+(. . . , at, at+1, . . .), when working with a possible pedestrian
+instance x of an input image. See text for details.
+Horizontal moves Vertical moves
+Aspect ratio changes
+Right Left Up Down
+Fatter Taller
+Layer selector Terminate selector
+Scale changes
+Bigger Smaller 
+Trigger
+Fig. 6: The set of actions considered in our localization policy.
+?t (x) may vary due to multi-layer representation. Specifically,
+the C3 to C5 layers of ResNet are employed in this paper,
+which has different number of feature maps of size 256, 512, and
+1024, respectively. Moreover, a spatial pixel location in C3 to C5
+layers roughly corresponds to a patch size of 32×32, 64×64, and
+128×128 in the original image, respectively. So a tiny pedestrian
+might simply be overlooked. To address this issue, we introduce
+a lower bound size of 4×4 over all these three representation
+layers, which is enforced if the size of the object of interest is less
+than 4×4. This way the contextual information is incorporated
+especially for far-scale pedestrian instances. The approach is
+followed by a resize operation where larger objects (i.e. with sizes
+exceeding 4×4) are rescaled with bicubic interpolation to 4×4.
+Thus the feature vector dimensions of these representation layers
+become 4096 = 4×4×256, 8192, and 16384, respectively. Now,
+at any time t ? {1, . . . , T}, the following neural net functions are
+engaged: First, a succinct description of this instance distilled from
+m-th layer of its ResNet feature representation is provided by a
+fully connected (fc) layer and a follow-up vector valued ReLU
+activation function, as
+ot := f?o (bt?1,x) = max
+(
+?(m)o ?t (x) , 0
+)
+, (4)
+6
+Fig. 7: Exemplar action sequences executed by our localization
+policy.
+Public benchmark datasets
+Caltech ETH TUD-Brussels
+N
+um
+be
+r o
+f a
+ct
+io
+n 
+st
+ep
+s
+0
+50
+100
+Public benchmark datasets
+Caltech ETH TUD-Brussels
+N
+um
+be
+r o
+f a
+ct
+io
+n 
+st
+ep
+s
+0
+50
+100
+150
+Fig. 8: Box-plot illustration of the distributions of action sequence
+length over different benchmark datasets.
+where m = m(t) ? M denotes the particular layer of interest
+as considered in ?t (x) at time t. Second, an internal information
+state of st at time t is maintained that summarizes the information
+extracted from the history of past observations st?1 and the
+current environment:
+st := f?s (ot, st?1) = tanh (?s,1ot + ?s,1st?1) , (5)
+with ?s = {?s,1, ?s,2}. It coincides with the cell state signals of
+the LSTM units. Finally, a transformation action at is obtained by
+randomly drawing from the softmax distribution conditioned on
+the current state
+f?a (st) := softmax (?ast) . (6)
+Empirically in our paper, ot is set to be a 1024-dim vector, st ?
+R64 by considering 64-unit LSTM for our RNN. Subsequently the
+set of neural net function parameters ? := {?o, ?s, ?a} are of the
+following dimensions: For ?o of Eq. (4), its size is 4096 (or 8192
+or 16384) × 1024, for layer m =3 (or 4 or 5). For ?s of Eq.(5),
+the dimension is 64×1024 for ?s,1 and 64×64 for ?s,2. For ?a of
+Eq.(6), its size is 10×64, since there are 10 distinct action types
+considered in our work as to be described soon.
+At this moment, consider a Markov decision process or
+MDP [38] that comes with a set of information states S , a set
+of coordinate transformation actions A, and a reward function
+r. At a time step t, the agent observes the state st ? S that
+contains sufficient information characterizing the current bbox
+prediction, its history, its image patch and contextual features,
+and proceeds to decide on a specific action at ? A. When
+terminated, the finite sequence of actions is collectively evaluated
+by reward r := rt. several such visual examples of the action
+sequences are shown in Fig 7. Note that the sequence lengths
+and the first action in these examples of Fig 7 happen to be the
+same, while in general they could be very different. The box-
+plots in Fig. 8 summarize the distribution of action sequence
+length over three different benchmark datasets. The medium action
+sequence length is around 10, that is, 10 consecutive actions from
+an initial bbox prediction to reach the final decision. Training the
+localization agent involves maximizing the expected discounted
+sum of rewards, and in practice we consider the REINFORCE [42]
+method. In what follows, we will delineate the concrete details of
+the involved MDP.
+State: At time t, our localization agent resides at an informa-
+tion state st ? S that encodes the current bbox prediction and
+the corresponding image patch features, as well as the contextual
+knowledge including a description of the bbox prediction history
+and the related circumstantial multi-layer feature representations.
+This is compactly represented as the 64-dim vector st.
+Action: Fig. 6 enumerates the set of ten actions A organized
+into two categories: transformation actions and trigger actions, as
+considered in this work. At time t, our agent decides on a specific
+action at ? A drawn from a distribution function of Eq. (6), which
+lands on a subsequent bbox prediction bt+1: If it is a horizontal
+move, we have bxt+1 = b
+x
+t + d with d ? R being negative
+or positive, which corresponds to move leftward or rightward
+respectively; Similarly, for a vertical move, byt+1 = b
+y
+t + d with
+d < 0 or d > 0 for moving upward or downward, respectively; If
+it is an aspect ratio change action, we have either bht+1 = b
+h
+t + d
+for changing the height or bwt+1 = b
+w
+t + d for changing the width;
+A scale change action amounts to modify the bbox size, which
+is described by both bht+1 = b
+h
+t × d and bwt+1 = bwt × d, with
+d ? (0, 1) for shrinking or d > 1 for scaling up. Finally, the
+layer trigger allows an opportunity to explore the representation
+hierarchy for optimal pedestrian scale, while the terminate trigger
+is to stop the sequence of coordinate transformation actions.
+Reward: The reward function r := rT at final time point T
+serves the purpose of encouraging to learn localization policies
+that can detect pedestrians with high performance. Consequently
+a more strict detection criteria is enforced internally: The reward
+is set to r = 1 if the IoU between the finally predicted pedestrian
+bbox and its best-matched ground-truth bbox is above 0.7; It is set
+to r = 0 if the IoU is below 0.2, for any IoU value in-between,
+the reward is set to be the IoU value.
+4 EXPERIMENTS
+Without loss of generality, our feature representation employed in
+this paper is based on a ResNet-50 network [20] pre-trained on
+Imagenet, where the convolutional layers and max pooling layers
+of the ResNet are engaged at multiple locations to produce multi-
+layer feature representations of the input image.
+The initial bbox proposal network as illustrated in Fig. 2 is
+trained by stochastic gradient descent (SGD) with a learning rate
+7
+IoU
+0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 1
+R
+ec
+al
+l
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+97.13% ResNet-50-C3,C4,C5
+92.68% ResNet-50-C5
+95.54% ResNet-50-C4
+90.45% ResNet-50-C3
+89.17% ResNet-50-C2
+78.98% ResNet-50-C1
+(a) Near-scale (height?80 pixels)
+IoU
+0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 1
+R
+ec
+al
+l
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+68.74% ResNet-50-C3,C4,C5
+44.16% ResNet-50-C5
+53.50% ResNet-50-C4
+57.91% ResNet-50-C3
+32.62% ResNet-50-C2
+27.50% ResNet-50-C1
+(b) Far-scale (height<80 pixels)
+Fig. 9: Recall rate of near- vs. far-scale pedestrians with varying
+intersection-over-union scores (IoUs) at different Resnet represen-
+tation layers (ResNet-50-C1 to ResNet-50-C5).
+All
+Number of Proposals
+100 101 102 103
+R
+ec
+all
+0.30
+0.40
+0.50
+0.64
+0.80
+1.00
+0.20
+ResNet-50-C4+IBP
+ResNet-50-C5+IBP
+ResNet-50-C3+IBP
+ResNet-50-C4+ADM
+ResNet-50-C5+ADM
+ResNet-50-C3+ADM
+ResNet-50-C3,C4,C5+IBP
+ResNet-50-C3,C4,C5+ADM
+(a) Recall vs. number of proposals
+Recall
+0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1
+Pr
+ec
+is
+io
+n
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+79.64% ResNet-50-C4+ADM
+77.65% ResNet-50-C5+ADM
+74.78% ResNet-50-C3+ADM
+81.96% ResNet-50-C3,C4,C5+ADM
+71.74% ResNet-50-C4+IBP
+70.19% ResNet-50-C5+IBP
+66.80% ResNet-50-C3+IBP
+73.49% ResNet-50-C3,C4,C5+IBP
+(b) Precision vs. recall
+Fig. 10: Recall as a function of the number of pedestrian proposals
+in Caltech benchmark. Here ADM refers to the active detection
+module, IBP refers to producing the initial bbox proposals. See
+text for details.
+of 0.001 and a momentum of 0.9 for 20k mini-batches, and with
+weight decay setting to 0.0005. As evidenced in e.g. [35], [6] that
+a larger set of proposals (e.g., 2000) per image has almost no
+additional benefit, the number of initial proposals is set to 300 in
+our approach.
+Each mini-batch consists of 128 randomly sampled pedestrian
+proposals from one randomly selected image, which is composed
+of 32 positive proposals and 96 negative proposals. During train-
+ing and performance evaluation, a pedestrian bbox prediction is
+considered to be positive, if its intersection over union with a
+ground-truth bbox is larger than 0.5, or it has the highest IoU
+overlap with a ground-truth bbox; It is assigned negative if its IoU
+ratio is less than 0.3 for any of the ground-truth bboxes. In our
+active detector module, each RNN state vector st ? R64 contains
+64 LSTM units of history records. Meanwhile the feature vector
+obtained from the RoI pooling layer of ResNet-50 delineated by
+previous bbox prediction is ot ? R1024. During reinforcement
+learning training phase, the learning rate is linearly annealed from
+its initial value (usually between 0.1 and 0.0001) to 0.
+For benchmarks, three widely used datasets are considered
+in our experiments, namely Caltech [11], ETH [9] and TUD-
+Brussels [43]. The Caltech pedestrian dataset consists of approx-
+imately 10 hours of 640×480 30Hz video footage taken from
+a vehicle driving through regular traffic in urban areas, which
+finally amounts to about 250,000 frames over around 2,300 unique
+pedestrians. The ETH benchmark dataset contains 3 testing video
+sequences with a resolution of 640×480, and a frame rate of
+13FPS. Finally, the TUD-Brussels pedestrian dataset is recorded
+false positives per image
+10-3 10-2 10-1
+m
+is
+s
+ra
+te
+0.20
+0.30
+0.40
+0.50
+0.64
+0.80
+1.00
+58.59% ResNet-50-C1+RPN+ADM
+40.90% ResNet-50-C2+RPN+ADM
+37.86% ResNet-50-C3+RPN+ADM
+31.46% ResNet-50-C5+RPN+ADM
+11.93% ResNet-50-C4+RPN+ADM
+1.88% ResNet-50-C3,C4,C5+RPN+ADM
+(a) Near-scale (height?80 pixels)
+false positives per image
+10-2 10-1 100
+m
+is
+s
+ra
+te
+0.20
+0.30
+0.40
+0.50
+0.64
+0.80
+1.00
+88.52% ResNet-50-C1+RPN+ADM
+74.16% ResNet-50-C2+RPN+ADM
+62.38% ResNet-50-C5+RPN+ADM
+47.73% ResNet-50-C4+RPN+ADM
+44.74% ResNet-50-C3+RPN+ADM
+30.82% ResNet-50-C3,C4,C5+RPN+ADM
+(b) Far-scale (height<80 pixels)
+Fig. 11: Performance (in terms of miss rate) of our active detec-
+tor model when operating in different representation spaces for
+Caltech benchmark. Here ADM refers to active detection module,
+IBP refers to producing the initial bbox proposals.
+from a driving car with a resolution of 640×480 in the inner city
+of Brussels. For all the comparison methods considered, their own
+publicly available results are directly put in use throughout our
+experiments.
+4.1 Ablation Experiments
+We evaluate the effectiveness of the two major modules in our
+approach, namely, the convolutional network for initial proposals
+and multi-layer representations and the active pedestrian detector.
+Without loss of generality, ablation experiments are carried out on
+the widely used Caltech benchmark. Three ablation scenarios are
+examined: First, we look into the effect of removing the second
+module. In other words, our system at this moment is reduced to
+directly use the initial proposals from multi-layer representations
+as the final output, which is accomplished without the follow-
+up active detection module; Second, we consider the scenario of
+having only our second module up and running, i.e. without the
+initial proposals and multi-layer representation; Finally, the impact
+of restricting our active detector to operate on smaller representa-
+tion spaces is investigated. Experimental results demonstrate the
+significance of retaining both modules as essential ingredients of
+our approach.
+4.1.1 Having only the first or the second module
+We start by examining the impact of employing only the first
+module, i.e. the initial proposals produced from different represen-
+tation spaces as the final output, thus without engaging the active
+detection module. This is evaluated in terms of the recall rate over
+IoUs, which primarily relies on the quality of our initial proposals.
+Empirically we look at each convolutional layer (from ResNet-
+50-C1 to ResNet-50-C5) of ResNet [20] for the 300 pedestrian
+proposals obtained from each image. As illustrated in Fig. 9,
+overall the first two layers, namely ResNet-50-C1 and ResNet-50-
+C2, consistently produce poor recall rates across different scales,
+which can be explained by the weaker representation capacity
+of the shallower layers. On the other hand, higher convolutional
+layers can encode more of the semantic-level information of
+the pedestrians, and such representations are relatively robust to
+appearance variations. When working with near-scale pedestrians,
+higher convolutional layer such as ResNet-50-C4 with a recall rate
+(by fixing to IoU=0.5) of 95.54% stands out for delivering better
+proposals; Meanwhile for far-scale pedestrians, the performance
+of higher convolutional layers are much worse, mostly due to
+8
+false positives per image
+10-3 10-2 10-1 100
+m
+is
+s
+ra
+te
+0.05
+0.10
+0.20
+0.30
+0.40
+0.50
+0.64
+0.80
+1.00
+24.77% MultiFtr+Motion [41]
+23.61% ACF+SDt [33]
+23.40% MOCO [5]
+21.78% MT-DPM [44]
+21.00% MT-DPM+Context [44]
+9.67% TA-CNN [40]
+5.32% CompACT-Deep [2]
+3.75% RPN+BF [48]
+3.30% MS-CNN [47]
+2.79% SA-FastRCNN [24]
+1.88% Ours
+(a) Near-scale (pedestrian height?80 pixels)
+false positives per image
+10-2 10-1 100 101
+m
+is
+s
+ra
+te
+0.20
+0.30
+0.40
+0.50
+0.64
+0.80
+1.00
+85.17% MOCO [5]
+84.22% MultiFtr+Motion [41]
+81.63% ChnFtrs [10]
+76.35% ACF+SDt [33]
+74.08% MT-DPM [44]
+71.93% MT-DPM+Context [44]
+71.68% TA-CNN [40]
+64.12% RPN+BF [48]
+63.63% CompACT-Deep [2]
+62.57% SA-FastRCNN [24]
+60.51% MS-CNN [47]
+41.85% Ours
+(b) Far-scale (pedestrian height<80 pixels)
+false positives per image
+10-2 10-1 100 101
+m
+is
+s
+ra
+te
+0.20
+0.30
+0.40
+0.50
+0.64
+0.80
+1.00
+83.97% MOCO [5]
+82.82% ChnFtrs [10]
+82.78% MultiFtr+Motion [41]
+77.01% ACF+SDt [33]
+74.24% MT-DPM [44]
+72.61% MT-DPM+Context [44]
+71.22% TA-CNN [40]
+64.66% RPN+BF [48]
+64.44% CompACT-Deep [2]
+62.59% SA-FastRCNN [24]
+60.95% MS-CNN [47]
+42.27% Ours
+(c) Overall
+Fig. 12: Quantitative comparison results on the Caltech benchmark.
+MS-CNNSA-FastRCNNOurs
+Missed 
+Detection
+False 
+Positive
+True
+Positive
+Ground
+Truth
+Fig. 13: Visual comparison of our detection results vs. those of the
+state-of-the-arts on the Caltech benchmark.
+their difficulty in localizing small-size objects, on the other hand,
+lower layers such as ResNet-50-C3 perform best at a recall rate of
+57.91%.
+Nevertheless, the multi-layer representation always delivers
+best results regardless of the pedestrian instances being at near- or
+far-scales, at their respective recall rates of 97.13% and 68.74%.
+This stresses the importance of adopting a multi-layer representa-
+tion for the pedestrian detection task.
+The impact of engaging only our active detection module (i.e.
+second module) is also discussed. Fig. 10(b) illustrates that overall
+the partial system with only the second module works noticeably
+better in comparison with engaging only the first module. For
+example, compared to 73.49% the peak F1 score of engaging
+only the first module with multi-layer feature representation, the
+performance of deploying only the second module with multi-
+layer feature representation rises to 81.96%. On the other hand,
+the main challenge with the active detection module is to improve
+its recall rate, as it usually lags behind the partial system when
+only the first module is used, as illustrated in Fig. 10(a). It is worth
+noting that Fig. 10(a) also empirically suggests that the recall rate
+is oblivious to the introduction of more bbox proposals, as long
+as there is a sufficient number of bbox proposals to work with
+presently.
+4.1.2 Operating our active detector on different representa-
+tion spaces
+Here the focus is toward inspecting the effect of our active detector
+operating on different representation spaces, that is, on individual
+feature layers, as well as the collective multi-layer representations.
+Again, without loss of generality we consider here ResNet-50-C1
+to ResNet-50-C5 of ResNet [20]. As displayed in Fig. 11, it is
+clear that the first two layers namely ResNet-50-C1 and ResNet-
+50-C2 are not the ideal representation spaces for our localization
+policy, which is to be expected due to the same set of reasons
+explained previously. In terms of performance on single layers, it
+is once again empirically verified that far-scale instances are best
+captured by lower layer ResNet-50-C3, with a miss rate 44.74%;
+Similarly for near-scale instances, upper layer ResNet-50-C4 is
+picked up as the best single layer with a miss rate of 11.93%. In
+comparison, we need to also note down the best results obtained by
+engaging only the first module as described in the previous section,
+which gives miss rates of 40.25% and 3.15% respectively on far-
+and near-scale pedestrian instances. This may suggest that in our
+problem context, detections from multi-layer representation alone
+perhaps make greater contribution than localization policy acting
+on single layer representations with associated initial proposals.
+Finally, when executing our full approach, the miss rates are
+substantially reduced to 30.82% and 1.88%, respectively. They
+demonstrate that both multi-layer representation and localization
+policy play indispensable roles in our approach.
+4.2 Comparing with State-of-the-art methods on differ-
+ent benchmarks
+Here we conduct thorough examinations of the proposed approach,
+and analyze its performance on widely used benchmarks including
+9
+false positives per image
+10-2 10-1 100
+m
+is
+s
+ra
+te
+0.20
+0.30
+0.40
+0.50
+0.64
+0.80
+1.00
+48.34% ChnFtrs [10]
+45.44% MultiFtr+Motion [41]
+41.83% ACF [7]
+40.75% JointDeep [29]
+39.72% pAUCBoost [31]
+39.23% ConvNet [36]
+34.73% DBN-Mut [30]
+29.66% SpatialPooling [32]
+23.24% TA-CNN [40]
+16.57% Ours
+(a) Near-scale (pedestrian height?80 pixels)
+false positives per image
+10-2 10-1 100
+m
+is
+s
+ra
+te
+0.20
+0.30
+0.40
+0.50
+0.64
+0.80
+1.00
+40.50% Ours
+67.86% MultiFtr+Motion [41]
+65.82% ConvNet [36]
+59.73% DBN-Mut [30]
+58.91% JointDeep [29]
+55.57% pAUCBoost [31]
+53.97% ACF [7]
+53.71% ChnFtrs [10]
+48.87% TA-CNN [40]
+43.55% SpatialPooling [32]
+(b) Far-scale (pedestrian height<80 pixels)
+false positives per image
+10-2 10-1 100
+m
+is
+s
+ra
+te
+0.20
+0.30
+0.40
+0.50
+0.64
+0.80
+1.00
+70.12% MultiFtr+Motion [41]
+61.86% ChnFtrs [10]
+57.80% ConvNet [36]
+56.41% ACF [7]
+54.32% JointDeep [29]
+53.56% pAUCBoost [31]
+51.28% DBN-Mut [30]
+43.19% SpatialPooling [32]
+42.92% TA-CNN [40]
+38.53% Ours
+(c) Overall
+Fig. 14: Quantitative comparison results on the ETH benchmark.
+Ours TA-CNN SpatialPooling
+Missed 
+Detection
+False 
+Positive
+True
+Positive
+Ground
+Truth
+Fig. 15: Visual comparison of our detection results vs. those of the
+state-of-the-arts on the ETH benchmark.
+Caltech [11], ETH [9] and TUD-Brussels [43]. In terms of evalua-
+tion metric, we follow the convention and employ the log-average
+miss rate to summarize the detector performance. It is obtained by
+averaging miss rate at FPPI (false positives per-image) rates evenly
+spaced in log-space within the range of 10?3 to 100. In summary,
+our approach has been demonstrated to consistently outperform
+the state-of-the-arts over these benchmarks, and perform excep-
+tionally well with far-scale instances.
+4.2.1 Caltech benchmark
+Following the typical protocol adopted by existing literature [34],
+[39], [44], [2], [50], [22], The training phase of our approach is re-
+alized at a joint training set consisting of both Caltech and INRIA
+training images, and the test phase evaluation is worked out at Cal-
+tech testing set. For comparison, we enlist here a set of ten state-of-
+the-art methods, including MultiFtr+Motion [41], ACF+SDt [33],
+MOCO [5], MT-DPM & MT-DPM+Context [44], TA-CNN [40],
+CompACT-Deep [2], RPN+BF [48], MS-CNN [47], and SA-
+FastRCNN [24]. Comparison results are evaluated in terms of the
+log-average miss rate for pedestrian instances of three scenarios:
+(a) near-scale, i.e. no less than 80 pixels in height, (b) far-scale,
+i.e. shorter than 80 pixels, and (c) all, which is a combination of
+both.
+Fig. 12(a) displays the quantitative results of near-scale (a).
+Our approach outperforms all comparison methods and achieves
+the lowest log-average miss rate of 1.88%, which clearly exceeds
+the two best existing results: 2.79% of SA-FastRCNN [24], and
+3.30% of MS-CNN [47]. Further, for far-scale (b), our approach
+achieves the lowest miss rate of 41.85%, which amounts to
+substantial better performance than the top two existing results,
+namely 62.57% of SA-FastRCNN and 60.51% of MS-CNN, as
+exhibited in Fig. 12(b). Fig. 12(c) presents the overall perfor-
+mance, where ours again significantly outperform the rest in a
+trend similar to that of (b), which is not surprising as the amount
+of far-scale instances dominates the overall pedestrian population
+of Caltech benchmark. Fig. 13 presents exemplar detection results
+of our approach on Caltech test images. Note that most pedestrians
+including in particular far-scale instances can now be detected cor-
+rectly by our approach. It also provides visual comparisons, where
+evidently the state-of-the-art methods such as SA-FastRCNN [24]
+and MS-CNN [47] produce more false alarms as well as more
+missings.
+4.2.2 ETH benchmark
+Similarly, we follow the convention adopted by most state-of-
+the-art studies such as [48], [34], [47], [17], to train our system
+on INRIA training dataset, which is then deployed on the ETH
+testset. Comparison methods include nine state-of-the-art meth-
+ods, which are ChnFtrs [10], MultiFtr+Motion [41], ACF [7],
+JointDeep [29], pAUCBoost [31], ConvNet [36], DBN-Mut [30],
+SpatialPooling [32], and TA-CNN [40]. Comparison results are
+evaluated on the same three pedestrian scenarios stated previously.
+As displayed in Fig. 14(a), for near-scale pedestrians, the top
+two best methods, SpatialPooling and TA-CNN, have respective
+10
+false positives per image
+10-2 10-1 100 101
+m
+is
+s
+ra
+te
+0.05
+0.10
+0.20
+0.30
+0.40
+0.50
+0.64
+0.80
+1.00
+73.63% HOG [27]
+58.45% LatSVM-V2 [16]
+51.89% MultiFtr+Motion [41]
+51.09% ConvNet [36]
+49.81% ChnFtrs [10]
+47.51% ACF [7]
+43.98% pAUCBoost [31]
+39.37% LDCF [28]
+39.04% SpatialPooling [32]
+35.76% Ours
+(a) Near-scale (pedestrian height?80 pixels)
+false positives per image
+10-2 10-1 100 101
+m
+is
+s
+ra
+te
+0.05
+0.10
+0.20
+0.30
+0.40
+0.50
+0.64
+0.80
+1.00
+79.77% HOG [27]
+77.63% LatSVM-V2 [16]
+76.92% ConvNet [36]
+68.59% ChnFtrs [10]
+67.83% pAUCBoost [31]
+64.94% ACF [7]
+60.61% LDCF [28]
+58.71% MultiFtr+Motion [41]
+52.75% SpatialPooling [32]
+45.58% Ours
+(b) Far-scale (pedestrian height<80 pixels)
+false positives per image
+10-2 10-1 100 101
+m
+is
+s
+ra
+te
+0.05
+0.10
+0.20
+0.30
+0.40
+0.50
+0.64
+0.80
+1.00
+81.85% HOG [27]
+75.63% LatSVM-V2 [16]
+74.98% ConvNet [36]
+67.72% ChnFtrs [10]
+63.87% ACF [7]
+63.84% pAUCBoost [31]
+61.98% MultiFtr+Motion [41]
+59.69% LDCF [28]
+52.01% SpatialPooling [32]
+44.74% Ours
+(c) Overall
+Fig. 16: Quantitative comparison results on the TUD-Brussels benchmark.
+Ours SpatialPooling LDCF
+Missed 
+Detection
+False 
+Positive
+True
+Positive
+Ground
+Truth
+Fig. 17: Visual comparison of our detection results vs. those of the
+state-of-the-arts on the TUD-Brussels benchmark.
+miss rate of 29.66% and 23.24%, which is further reduced to
+as low as 17.63% by our approach; Similar pattern can also be
+found in Fig. 14(b) for the much harder scenario of far-scale
+instances, where our approach (40.50%) outperforms the top two
+best methods, SpatialPooling (43.55%) and TA-CNN (48.87%),
+by a noticeable margin of over 3%. Here the relative small gain is
+attributed to the inherent challenge of this dataset where many far-
+scale pedestrians are also severely occluded. Fig. 14(c) reveals the
+overall performance, where our approach delivers the least missing
+rate of 38.53%, versus 43.19% of SpatialPooling and 42.92% of
+TA-CNN, the two top performers of ETH benchmark. Exemplar
+visual results of our approach on ETH dataset is presented in
+Fig. 15. Again most pedestrian instances across distinct scales are
+correctly detected. On the other hand, there still exists a relative
+small fraction of mistakes which usually are these extremely far-
+scale instances. Similar to the Caltech case, visual comparisons
+are also provided in Fig.15, where the two top performers, Spa-
+tialPooling and TA-CNN, again produce significantly more false
+alarms as well as missing instances than those of our approach.
+4.2.3 TUD-Brussels benchmark
+Now we study the performance on TUD-Brussels benchmark,
+where the typical protocol of system training on the INRIA
+training set is applied. Comparison methods include nine state-of-
+the-art methods, which are HOG [27], LatSVM-V2 [16], Multi-
+Ftr+Motion [41], ConvNet [36], ChnFtrs [10], ACF [7], pAUC-
+Boost [31], LDCF [28], and SpatialPooling [32]. Comparison
+results are evaluated on the same three pedestrian scenarios stated
+previously.
+Similar trend to what we have observed for the other two
+benchmarks also occurs here: for near-scale we have evidenced
+clear though relatively small improvement (over 3%) over the
+state-of-the-arts, our approach achieves 35.76% miss rate where
+the top competing method is SpatialPooling (39.04%); Meanwhile
+for far-scale instances, the gap between ours (45.58%) and that
+of the top performer – SpatialPooling (52.75%) is much wider
+(over 7%); As majority of the pedestrians are far-scale ones, the
+overall performance gap is also on the large side, 44.75% of
+ours vs. 52.01% of the best performer (SpatialPooling), which
+amounts to over 7%. Note SpatialPooling is also among the top
+performers for ETH benchmark. In addition, Fig. 17 displays
+several visual examples of our approach, as well as side by
+side visual comparisons. Similarly, the two top performers here,
+SpatialPooling and LDCF, again produce considerably more false
+alarms and missing instances than those of our approach.
+5 CONCLUSION AND OUTLOOK
+An effective approach is presented for detecting pedestrian in-
+stances of different scales in still images with complex street
+scenes. This is realized by an active detection model that bases
+11
+on a set of initial bounding box proposals, executes sequences of
+coordinate transformation actions across multi-layer feature repre-
+sentations to deliver accurate prediction of pedestrian locations.
+Empirical examinations over various widely used benchmarks
+have demonstrated the superior performance of our approach. For
+future work, we plan to further address the challenged of detecting
+heavily occluded pedestrian instances, as well as investigating the
+ability of our approach in tackling more generic object detection
+scenarios.
+ACKNOWLEDGMENT
+This work was partially supported by the National Key
+Research and Development Program of China (Grant
+No.2016YFC0801003), the National Natural Science Foundation
+of China (No. 61370121), and the A*STAR JCO grants
+15302FG149 and 1431AFG120. We thank Nastaran Okati for
+helping with the presentation.
+REFERENCES
+[1] R. Benenson, M. Mathias, R. Timofte, and L. Van Gool. Pedestrian
+detection at 100 frames per second. In CVPR, 2012.
+[2] Z. Cai, M. Saberian, and N. Vasconcelos. Learning complexity-aware
+cascades for deep pedestrian detection. In ICCV, 2015.
+[3] J. Caicedo and S. Lazebnik. Active object localization with deep
+reinforcement learning. In ICCV, 2015.
+[4] J. Cao, Y. Pang, and X. Li. Pedestrian detection inspired by appearance
+constancy and shape symmetry. IEEE TIP, 25(12):5538–51, 2016.
+[5] G. Chen, Y. Ding, J. Xiao, and T. Han. Detection evolution with multi-
+order contextual co-occurrence. In CVPR, 2013.
+[6] J. Dai, Y. Li, K. He, and J. Sun. R-FCN: Object detection via region-
+based fully convolutional networks. In NIPS, 2016.
+[7] P. Dollar, R. Appel, S. Belongie, and P. Perona. Fast feature pyramids
+for object detection. IEEE TPAMI, 36(8):1532–45, 2014.
+[8] P. Dollar, R. Appel, and W. Kienzle. Crosstalk cascades for frame-rate
+pedestrian detection. In ECCV, 2012.
+[9] P. Dollar, S. Belongie, and P. Perona. The fastest pedestrian detector in
+the west. In BMVC, 2010.
+[10] P. Dollar, Z. Tu, P. Perona, and S. Belongie. Integral channel features. In
+BMVC, 2009.
+[11] P. Dollar, C. Wojek, B. Schiele, and P. Perona. Pedestrian detection: A
+benchmark. In CVPR, 2009.
+[12] P. Dollar, C. Wojek, B. Schiele, and P. Perona. Pedestrian detection: An
+evaluation of the state of the art. IEEE TPAMI, 34(4):743–61, 2012.
+[13] M. Enzweiler and D. Gavrila. Monocular pedestrian detection: Survey
+and experiments. IEEE TPAMI, 31(12):2179–95, 2009.
+[14] M. Enzweiler and D. M. Gavrila. A multi-level mixture-of-experts
+framework for pedestrian classification. IEEE TIP, 20(10):2967–79,
+2011.
+[15] A. Ess, B. Leibe, and L. Van Gool. Depth and appearance for mobile
+scene analysis. In ICCV, 2007.
+[16] P. Felzenszwalb, R. Girshick, D. McAllester, and D. Ramanan. Object
+detection with discriminatively trained part based models. IEEE TPAMI,
+32(9):1627–45, 2010.
+[17] R. Girshick. Fast R-CNN. In ICCV, 2015.
+[18] R. Girshick, J. Donahue, T. Darrell, and J. Malik. Rich feature hierarchies
+for accurate object detection and semantic segmentation. In CVPR, 2014.
+[19] K. He, X. Zhang, S. Ren, and J. Sun. Spatial pyramid pooling in deep
+convolutional networks for visual recognition. In ECCV, 2014.
+[20] K. He, X. Zhang, S. Ren, and J. Sun. Deep residual learning for image
+recognition. In CVPR, 2016.
+[21] D. Hoiem, Y. Chodpathumwan, and Q. Dai. Diagnosing error in object
+detectors. In ECCV, 2012.
+[22] J. Hosang, M. Omran, R. Benenson, and B. Schiele. Taking a deeper
+look at pedestrians. In CVPR, 2015.
+[23] Z. Jie, X. Liang, J. Feng, X. Jin, W. Lu, and S. Yan. Tree-structured
+reinforcement learning for sequential object localizatio. In NIPS, 2016.
+[24] J. Li, X. Liang, S. Shen, T. Xu, and S. Yan. Scale-aware fast R-CNN for
+pedestrian detection. In CVPR, 2015.
+[25] W. Liu, D. Anguelov, D. Erhan, C. Szegedy, S. Reed, C. Fu, and A. Berg.
+SSD: Single shot multibox detector. In ECCV, 2016.
+[26] V. Mnih, N. Heess, A. Graves, and K. Kavukcuoglu. Recurrent models
+of visual attention. In NIPS, 2014.
+[27] B. Triggs N. Dalal. Histograms of oriented gradients for human detection.
+In CVPR, 2005.
+[28] W. Nam, P. Dollar, and J. Han. Local decorrelation for improved
+pedestrian detection. In NIPS, 2014.
+[29] W. Ouyang and X. Wang. Joint deep learning for pedestrian detection.
+In ICCV, 2013.
+[30] W. Ouyang, X. Zeng, and X. Wang. Modeling mutual visibility relation-
+ship with a deep model in pedestrian detection. In CVPR, 2013.
+[31] S. Paisitkriangkrai, C. Shen, and A. van den Hengel. Efficient pedestrian
+detection by directly optimize the partial area under the ROC curve. In
+ICCV, 2013.
+[32] S. Paisitkriangkrai, C. Shen, and A. van den Hengel. Strengthening the
+effectiveness of pedestrian detection. In ECCV, 2014.
+[33] D. Park, C. Zitnick, D. Ramanan, and P. Dollar. Exploring weak
+stabilization for motion feature extraction. In CVPR, 2013.
+[34] J. Redmon, S. Divvala, R. Girshick, and A. Farhadi. You only look once:
+Unified, real-time object detection. In CVPR, 2016.
+[35] S. Ren, K. He, R. Girshick, and J. Sun. Faster R-CNN: Towards real-time
+object detection with region proposal networks. In NIPS, 2015.
+[36] P. Sermanet, K. Kavukcuoglu, S. Chintala, and Y. LeCun. Pedestrian
+detection with unsupervised multi-stage feature learning. In CVPR, 2013.
+[37] Z. Shanshan, R. Benenson, M. Omran, J. Hosang, and B. Schiele. How
+far are we from solving pedestrian detection. In CVPR, 2016.
+[38] R. Sutton and A. Barto. Reinforcement Learning: An Introduction. MIT
+Press, 1998.
+[39] Y. Tian, P. Luo, X. Wang, and X. Tang. Deep learning strong parts for
+pedestrian detection. In ICCV, 2015.
+[40] Y. Tian, P. Luo, X. Wang, and X. Tang. Pedestrian detection aided by
+deep learning semantic tasks. In CVPR, 2015.
+[41] S. Walk, N. Majer, K. Schindler, and B. Schiele. New features and
+insights for pedestrian detection. In CVPR, 2010.
+[42] R. Williams. Simple statistical gradient-following algorithms for connec-
+tionist reinforcement learning. Machine Learning, 8(3):229–56, 1992.
+[43] C. Wojek, S. Walk, and B. Schiele. Multi-cue onboard pedestrian
+detection. In CVPR, 2009.
+[44] J. Yan, X. Zhang, Z. Lei, S. Liao, and S.. Li. Robust multi-resolution
+pedestrian detection in traffic scenes. In CVPR, 2014.
+[45] B. Yang, J. Yan, Z. Lei, , and S. Li. Convolutional channel features. In
+ICCV, 2015.
+[46] F. Yang, W. Choi, and Y. Lin. Exploit all the layers: Fast and accurate
+cnn object detector with scale dependent pooling and cascaded rejection
+classifiers. In CVPR, 2016.
+[47] Q. Fan Z. Cai, R. Feris, , and N. Vasconcelos. A unified multi-scale deep
+convolutional neural network for fast object detection. In ECCV, 2016.
+[48] L. Zhang, L. Lin, X. Liang, and K. He. Is faster R-CNN doing well for
+pedestrian detection? In ECCV, 2016.
+[49] S. Zhang, R. Benenson, M. Omran, J. Hosang, and B. Schiele. How far
+are we from solving pedestrian detection? In CVPR, 2016.
+[50] S. Zhang, R. Benenson, and B. Schiele. Filtered channel features for
+pedestrian detection. In CVPR, 2015.
+[51] B. Zhou, A. Khosla, A. Lapedriza, A. Oliva, and A. Torralba. Learning
+deep features for discriminative localization. In CVPR, 2016.

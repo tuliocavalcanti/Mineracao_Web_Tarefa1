@@ -1,0 +1,626 @@
+Automatic Document Image Binarization
+Ekta Vats, Anders Hast and Prashant Singh
+Department of Information Technology
+Uppsala University, SE-751 05 Uppsala, Sweden
+ekta.vats@it.uu.se; anders.hast@it.uu.se; prashant.singh@it.uu.se
+ABSTRACT
+Document image binarization is often a challenging task due to
+various forms of degradation. Although there exist several bina-
+rization techniques in literature, the binarized image is typically
+sensitive to control parameter settings of the employed technique.
+This paper presents an automatic document image binarization
+algorithm to segment the text from heavily degraded document
+images. The proposed technique uses a two band-pass filtering ap-
+proach for background noise removal, and Bayesian optimization
+for automatic hyperparameter selection for optimal results. The
+effectiveness of the proposed binarization technique is empirically
+demonstrated on the Document Image Binarization Competition
+(DIBCO) and the Handwritten Document Image Binarization Com-
+petition (H-DIBCO) datasets.
+KEYWORDS
+Document image binarization, band-pass filters, Bayesian optimiza-
+tion, hyperparameter selection
+ACM Reference format:
+Ekta Vats, Anders Hast and Prashant Singh. 2017. Automatic Document
+Image Binarization. In Proceedings of , , , 6 pages.
+https://doi.org/
+1 INTRODUCTION
+Document image binarization aims to segment the foreground text
+in a document from the noisy background during the preprocessing
+stage of document analysis. Document images commonly suffer
+from various degradations over time, rendering document image
+binarization a daunting task. Typically, a document image can be
+heavily degraded due to ink bleed-through, faded ink, wrinkles,
+stains, missing data, contrast variation, warping effect, and noise
+due to lighting variation during document scanning.
+Though document image binarization has been extensively stud-
+ied, thresholding of heavily degraded document images remains a
+largely unexplored problem due to difficulties in modelling different
+types of document degradations. The Document Image Binarization
+Competition (DIBCO), and the Handwritten Document Image Bi-
+narization Competition (H-DIBCO), held from 2009 to present aim
+to address this problem by introducing challenging benchmarking
+datasets to evaluate the recent advancement in document image
+Permission to make digital or hard copies of part or all of this work for personal or
+classroom use is granted without fee provided that copies are not made or distributed
+for profit or commercial advantage and that copies bear this notice and the full citation
+on the first page. Copyrights for third-party components of this work must be honored.
+For all other uses, contact the owner/author(s).
+, ,
+© 2017 Copyright held by the owner/author(s).
+ACM ISBN .
+https://doi.org/
+binarization. However, competition results so forth indicate a scope
+for improvement in the binarized image quality.
+The performance of binarization techniques significantly de-
+pends on the associated control parameter values [11], i.e., the
+hyperparameters. Despite the significance of optimal hyperparam-
+eter selection for document image binarization, automatic binariza-
+tion has still not been sufficiently explored. This paper presents
+an automatic document image binarization technique that uses
+two band-pass filters for background noise removal, and Bayesian
+optimization [33] for automatic thresholding and hyperparameter
+selection. The band-pass filtering method uses a high frequency
+band-pass filter to separate the fine detailed text from the back-
+ground, and subsequently a low frequency band-pass filter as a
+mask to remove noise. The parameters of the two band-pass filter-
+ing algorithm include a threshold for removing noise, the mask size
+for blurring the text, and the window size to be set dynamically de-
+pending upon the degree of degradation. Bayesian optimization is
+used to automatically infer the optimal values of these parameters.
+The proposed method is simple, robust and fully automated
+for handling heavily degraded document images. This makes it
+suitable for use by, e.g., librarians and historians for quick and
+easy binarization of ancient texts. Since optimum parameter values
+are selected on-the-fly using Bayesian optimization, the average
+binarization performance is improved. This is due to each image
+being assigned its respective ideal combination of hyperparameter
+values instead of using a global sub-optimal parameter setting for
+all images. To the best of authors’ knowledge, this is the first work
+in the community that uses Bayesian optimization on binarization
+algorithm for selecting multiple hyperparameters dynamically for
+a given input image.
+2 DOCUMENT BINARIZATION METHODS
+Numerous document image binarization techniques have been pro-
+posed in literature, and are well-documented as part of the DIBCO
+reports [6, 24, 26–30]. Under normal imaging conditions, a simple
+global thresholding approach, such as Otsu’s method [25], suffices
+for binarization. However, global thresholding is not commonly
+used for severely degraded document images with varying intensi-
+ties. Instead, an adaptive thresholding approach that estimates a
+local threshold for each pixel in a document is popular [2, 23, 32].
+In general, the local threshold is estimated using the mean and
+standard deviation of the pixels in a document image within a local
+neighborhood window. However, the prime disadvantage of using
+adaptive thresholding is that the binarization performance depends
+upon the control parameters such as the window size, that cannot
+be accurately determined without any prior knowledge of the text
+strokes. Moreover, methods such as Niblack’s thresholding [23]
+commonly introduce additional noise, while Sauvola’s thresholding
+[32] is highly sensitive to contrast variations.
+ar
+X
+iv
+:1
+70
+9.
+01
+78
+2v
+1 
+ [
+cs
+.I
+R
+] 
+ 6
+ S
+ep
+ 2
+01
+7
+, , E. Vats et al.
+Figure 1: The proposed automatic document image binarization framework.
+Other popular methods in literature include [7, 10, 11, 15, 16, 37,
+39]. The binarization algorithms of the winners of competitions are
+more sophisticated than mere adaptive thresholding. The winning
+algorithms achieve high performance partially due to thresholding,
+but primarily by modelling the text strokes and the background to
+enable accurate pixel classification. Lu et al. [16] modelled the back-
+ground using iterative polynomial smoothing, and a local thresh-
+old was selected based on detected text stroke edges. Lelore and
+Bouchara [15] proposed a technique where a coarse threshold is
+used to partition pixels into ink, background, and unknown groups.
+The method is based on a double threshold edge detection approach
+that is capable of detecting fine details along with being robust to
+noise. However, these methods combine a variety of image related
+information and domain specific knowledge, and are often com-
+plex [39]. For example, methods proposed in [7, 37] made use of
+document specific domain knowledge. Gatos et al. [7] estimated
+the document background based on the binary image generated
+using Sauvola’s thresholding [32]. Su et al. [37] used image contrast
+evaluated based on the local maximum and minimum to find the
+text stroke edges.
+Although there exist several document thresholdingmethods, au-
+tomatic selection of optimal hyperparameters for document image
+binarization has received little attention. Gatos et al. [7] proposed
+a parameter-free binarization approach that depends on detailed
+modelling of the document image background. Dawoud [5] pro-
+posed a method based on cross-section sequence that combines
+results at multiple threshold levels into a single binarization result.
+Badekas and Papamarkos [1] introduced an approach that performs
+binarization over a range of parameter values, and estimates the fi-
+nal parameter values by iteratively narrowing the parameter range.
+Howe [11] proposed an interesting method that optimizes a global
+energy function based on the Laplacian image, and automatically
+estimates the best parameter settings. The method dynamically
+sets the regularization coefficient and Canny thresholds for each
+image by using a stability criterion on the resultant binarized im-
+age. Mesquita et al. [18] investigated a racing procedure based on a
+statistical approach, named I/F-Race, to fine-tune parameters for
+document image binarization. Cheriet et al. [4] proposed a learning
+framework for automatic parameter optimization of the binariza-
+tion methods, where optimal parameters are learned using support
+vector regression. However, the limitation of this work is the de-
+pendence on ground truth for parameter learning.
+This work uses Bayesian optimization [12, 33] to efficiently infer
+the optimal values of the control parameters. Bayesian optimization
+is a general approach for hyperparameter tuning that has shown
+excellent results across applications and disciplines [33, 35]. The
+following section explains the proposed approach in detail.
+3 PROPOSED BINARIZATION TECHNIQUE
+The overall pipeline of the proposed automatic document image
+binarization technique is presented in Fig. 1 using an example
+image from H-DIBCO 2016 dataset. The binarization algorithm is
+discussed in detail as follows.
+3.1 Document Image Binarization
+Given a degraded document image, adaptive thresholding using
+median filters is first performed that separates the foreground text
+from the background with non-uniform illumination. The output
+is a grayscale image with reduced background noise and distortion.
+The grayscale image is then passed through two band-pass filters
+separately for further background noise removal. A high frequency
+band-pass filter is used to separate the fine detailed text from the
+background, and a low frequency band-pass filter is used for mask-
+ing that image in order to remove great parts of the noise. Finally,
+the noise reduced grayscale image is converted into a binary image
+using Kittler’s minimum error thresholding algorithm [14].
+Figure 1 illustrates the overall binarization algorithm for a given
+degraded document image. The image output generated at each fil-
+tering step is presented for better understanding of the background
+noise removal algorithm. It can be observed from Fig. 1 that the
+input document image is heavily degraded with stains, wrinkles
+and contrast variation. After performing adaptive median filtering,
+the image becomes less noisy, and is enhanced further using the
+two band-pass filtering approach. The final binarized image rep-
+resents the document image with foreground text preserved and
+noisy background removed. However, the performance of the bina-
+rization algorithm depends upon six hyperparameter values that
+include two control parameters required by the adaptive median
+filter, namely the local threshold and the local window size; and
+four control parameters required by the band-pass filters, namely
+the mask size for blurring the text, a local threshold and two win-
+dow size values for high frequency and low frequency band-pass
+filters. The value of these hyperparameters must be chosen such
+that quality metrics corresponding to the binarized image (e.g.,
+Automatic Document Image Binarization , ,
+F-measure, Peak Signal-To-Noise Ratio (PSNR), etc. [6]) are maxi-
+mized (or error is minimized). This corresponds to an optimization
+problem that must be solved to arrive at the best combination of
+hyperparameters. For example, the following optimization problem
+finds optimal values of d hyperparameters x = (x1,x2, ...,xd ) with
+respect to maximizing the F-measure [6],
+maximize
+x
+fmeasure(x)
+subject to min_x1 ? x1 ? max_x1, min_x2 ? x1 ? max_x2,
+· · · , min_xd ? xd ? max_xd ,
+wheremin_xi andmax_xi span the search space for parameter xi .
+No-reference image quality metrics [19] can be optimized in place
+of metrics such as F-measure in applications where ground truth
+reference images are not available.
+Bayesian optimization [33] is a popular and efficient approach
+to solve such hyperparameter optimization problems as it aims
+to minimize the number of evaluations of the objective function
+(document quality metrics in this case) required to infer the hyper-
+parameters.
+3.2 Bayesian Optimization
+Bayesian optimization is a model based approach involving learning
+the relationship between the hyperparameters and the objective
+function [12]. A model is constructed using a training set known as
+an initial design that covers the hyperparameter space in a space-
+filling manner. Statistical designs such as Latin hypercubes and
+factorial designs [34] can be used for this purpose. The initial design
+may also be random. The goal is to gather initial information about
+the parameter space in absence of any prior knowledge.
+After the model is trained using the initial design, an iterative
+sampling approach follows. The sampling algorithm uses the in-
+formation offered by the model to intelligently select additional
+samples in regions of the hyperparameter space that are likely to
+lead to the optimal solution (i.e., good binarization performance as
+quantified by metrics such as F-measure). The model is then refined
+by extending the training set with the selected samples. Bayesian
+optimization involves using a Bayesian model such as Gaussian
+process models [31], and the sampling scheme exploits the mean
+and variance of prediction offered by the model to select additional
+samples iteratively. This work considers Gaussian process models
+in the context of Bayesian optimization. A detailed explanation of
+Gaussian processes can be found in [31].
+3.3 Gaussian Processes
+A Gaussian process (GP) is the multivariate Gaussian distribution
+generalized to an infinite-dimensional stochastic process where
+any finite combination of dimensions are jointly-Gaussian [3, 31].
+A Gaussian process f is completely described by its meanm and
+covariance k functions, f (x) ? GP(m(x),k(x, x?)).
+The mean function incorporates prior domain-specific knowl-
+edge, if available. The mean functionm(x) = 0 is a popular choice
+without loss of generality in absence of any prior knowledge about
+the problem at hand. The covariance function k incorporates varia-
+tion of the process from the mean function and essentially controls
+the expressive capability of the model.
+Numerous covariance functions exist in literature including
+squared exponential (SE) function [35] and the Matérn kernels
+[31]. The SE kernel is a good general-purpose kernal and is used for
+experiments in this paper. The SE kernel is described as, k(xi , xj ) =
+exp
+(
+? 12? 2 ?xi ?xj ?
+2
+)
+, with ? being a hyperparameter that controls
+the width of the kernel.
+Let D = (X , y) be a n-point training set. Let K be the kernel matrix
+holding the pairwise covariances between points in X ,
+K =
+???????
+k(x1, x1) . . . k(x1, xn )
+...
+. . .
+...
+k(xn , x1) . . . k(xn , xn )
+??????? . (1)
+Let yn+1 = y?(xn+1) be the predicted value of a query sample xn+1
+using the GP model y?. Since y and yn+1 are jointly-Gaussian by
+definition of Gaussian processes,[
+y
+yn+1
+]
+? N
+(
+0,
+[
+K k
+k? k(xn+1, xn+1)
+] )
+, (2)
+with k = [k(xn+1, x1, ), . . .k(xn+1, xn , )]. The posterior distribution
+is calculated as P(yn+1 |T , xn+1) = N(µn (xn+1),? 2n (xn+1)), where,
+µn (xn+1) = k?K?1y, (3)
+? 2n (xn+1) = k(xn+1, xn+1) ? k?K?1k. (4)
+Themean and variance of prediction is used by the sampling process
+to solve the optimization problem, and described as follows.
+3.4 Sampling Algorithms
+A sampling scheme must make a trade-off between exploration of
+the hyperparameter space, and exploitation of sub-spaces with a
+high likelihood of containing the optima. The variance estimates
+provided by the GP offer insight on unexplored regions, while the
+mean predictions point towards estimates of the behavior of the
+objective function in a region of interest. Therefore, the model can
+be an effective tool to select a set of samples from a large number of
+candidates (e.g., generated randomly), that either enrich the model
+itself (by sampling unexplored regions), or drive the search towards
+the optima (by exploiting regions with optimal predicted objective
+function values).
+Popular sampling schemes in literature include the expected
+improvement criterion, the probability of improvement criterion
+and upper/lower confidence bounds [33] (UCB/LCB). Sampling
+algorithms are also known as acquisition functions in the context of
+Bayesian optimization [33]. The upper and lower confidence bounds
+offer a good mix of exploration and exploitation. The probability
+of improvement favors exploitation much more than exploration,
+while expected improvement lies in between the two. This work
+uses the UCB criterion for its balanced sampling characteristics in
+absence of any problem-specific knowledge. Let µ(x) and? (x) be the
+posterior mean and variance of prediction provided by the Gaussian
+process (GP) model. The value of the UCB criterion corresponding
+to a set of hyperparameters x is defined as, ?UCB (x) = µ(x)+?? (x).
+This essentially corresponds to exploring ? intervals of standard
+deviation around the posterior mean provided by the GP model.
+The value of ? can be set to achieve optimal regret according to
+well-defined guidelines [36]. A detailed discussion of the sampling
+approaches is out of scope of this work, and the reader is referred to
+, , E. Vats et al.
+Table 1: Evaluation results of popular binarization methods on DIBCO datasets. The ? marks the cases where existing bina-
+rization methods outperform the proposed approach.
+Datasets Methods F-measure (%)(?) PSNR (?) DRD (?) NRM (x 10?2) (?) MPM (x 10?3) (?)
+DIBCO-2009
+Otsu [25] 78.72 15.34 N/A 5.77 13.30
+Sauvola [32] 85.41 16.39 N/A 6.94 3.20
+Niblack [23] 55.82 9.89 N/A 16.40 61.50
+Bernsen [2] 52.48 8.89 N/A 14.29 113.80
+Gatos et al. [7] 85.25 16.50 N/A 10.00 0.70?
+LMM [37] 91.06? 18.50? N/A 7.00 0.30?
+Lu et al. [16] 91.24? 18.66? N/A 4.31? 0.55?
+Proposed method 90.58 18.13 - 5.50 2.26
+H-DIBCO 2010
+Otsu [25] 85.27 17.51 N/A 9.77 1.35
+Sauvola [32] 75.3 15.96 N/A 16.31 1.96
+Niblack [23] 74.10 15.73 N/A 19.06 1.06
+Bernsen [2] 41.30 8.57 N/A 21.18 115.98
+Gatos et al. [7] 71.99 15.12 N/A 21.89 0.41?
+LMM [37] 85.49 17.83 N/A 11.46 0.37?
+Lu et al. [16] 86.41 18.14 N/A 9.06 1.11
+Proposed method 89.65 18.78 - 5.82 0.66
+DIBCO-2011
+Otsu [25] 82.22 15.77 8.72 N/A 15.64
+Sauvola [32] 82.54 15.78 8.09 N/A 9.20
+Niblack [23] 68.52 12.76 28.31 N/A 26.38
+Bernsen [2] 47.28 7.92 82.28 N/A 136.54
+Gatos et al. [7] 82.11 16.04 5.42 N/A 7.13
+LMM [37] 85.56 16.75 6.02 N/A 6.42
+Lu et al. [16] 81.67 15.59 11.24 N/A 11.40
+Lelore [15] 80.86 16.13 104.48 N/A 64.43
+Howe [10] 88.74? 17.84? 5.37 N/A 8.64
+Su et al. [39] 87.8 17.56? 4.84 N/A 5.17
+Proposed method 88.61 17.54 3.92 - 4.39
+H-DIBCO 2012
+Otsu [25] 80.18 15.03 26.45 N/A N/A
+Sauvola [32] 82.89 16.71 6.59 N/A N/A
+LMM [37] 91.54? 20.14? 3.05 N/A N/A
+Improved Lu et al. [16] 90.38 19.30 3.35 N/A N/A
+Su et al. [38] 87.01 18.26 4.42 N/A N/A
+Lelore [15] 92.85? 20.57? 2.66? N/A N/A
+Howe [10] 89.47 21.80? 3.44 N/A N/A
+Proposed method 90.96 19.44 2.96 - -
+DIBCO-2013
+Otsu [25] 83.94 16.63 10.98 N/A N/A
+Sauvola [32] 85.02 16.94 7.58 N/A N/A
+LMM [37] 92.12? 20.68? 3.10 N/A N/A
+Howe [11] 92.70? 21.29? 3.18 N/A N/A
+Combined [11] and [21] 91.81? 20.68? 4.02 N/A N/A
+Combined [21] and [22] 89.79 18.99 4.24 N/A N/A
+Combined [21] and [20] 84.90 17.04 8.25 N/A N/A
+Proposed method 91.28 19.65 2.77 - -
+H-DIBCO 2014
+Otsu [25] 91.78 18.72 2.65 N/A N/A
+Sauvola [32] 86.83 17.63 4.89 N/A N/A
+Howe [11] 96.63? 22.40? 1.00? N/A N/A
+Combined [11] and [17] 96.88? 22.66? 0.90? N/A N/A
+Modified [22] 93.35 19.45 2.19 N/A N/A
+Golestan University team [24] 89.24 18.49 4.50 N/A N/A
+University of Thrace team [24] 89.77 18.46 4.22 N/A N/A
+Proposed method 93.79 19.74 1.90 - -
+[33, 35] for a deeper treatment of sampling algorithms, and Bayesian
+optimization in general.
+4 EXPERIMENTS
+The following section demonstrates the proposed approach on
+benchmark datasets and compares it to existing approaches.
+4.1 Experimental setup
+The proposed binarization method has been tested on the images
+from the DIBCO dataset [6, 27, 29] that consists of machine-printed
+and handwritten images with associated ground truth available for
+validation and testing, and the H-DIBCO [24, 26, 28, 30] dataset that
+consists of handwritten document test images. The performance
+of the proposed method is compared with the state-of-the-art bi-
+narization methods such as [2, 11, 23, 25, 32, 37]. Six hyperparame-
+ters of the binarization algorithm are automatically selected using
+Bayesian optimization. These include a local threshold ?1 and local
+window sizews for adaptive median filtering; and local threshold
+?2, mask size for blurring the textms , window sizewsh andwsl for
+high frequency and low frequency band-pass filters respectively.
+Automatic Document Image Binarization , ,
+Figure 2: Document image binarization results obtained on
+sample test images from the H-DIBCO 2016 dataset.
+Table 2: Evaluation results on theH-DIBCO 2016 dataset and
+comparisonwith top rankedmethods from the competition.
+Rank Methods F-measure (%)(?) PSNR (?) DRD (?)
+1 Technion team [13] 87.61±6.99 18.11±4.27 5.21±5.28
+2 Combined [9] and [8] 88.72±4.68 18.45±3.41 3.86±1.57
+3 Method based on [8] 88.47±4.45 18.29±3.35 3.93±1.37
+4 UFPE Brazil team [30] 87.97±5.17 18.00±3.68 4.49±2.65
+5 Method adapted from [9] 88.22±4.80 18.22±3.41 4.01±1.49
+- Otsu [25] 86.61±7.26 17.80±4.51 5.56±4.44
+- Sauvola [32] 82.52±9.65 16.42±2.87 7.49±3.97
+- Proposed method 92.03±7.61 19.75±4.36 3.19±2.17
+The corresponding optimization problem is formulated as,
+maximize
+x
+fmeasure(x)
+subject to 0.05 ? ?1 ? 0.2, 35 ? ws ? 95, 0.05 ? ?2 ? 0.5,
+0 ? ms ? 10, 200 ? wsh ? 400, 50 ? wsl ? 150,
+where x = (?1,ws,?2,ms,wsh ,wsl ). This work uses the Bayesian
+optimization framework available as part of MATLAB (R2017a).
+The parameter ? of UCB criterion was set to 2.
+4.2 Experimental results
+The evaluation measures are adapted from the DIBCO reports [6, 24,
+26–30], and include F-measure, Peak Signal-to-Noise Ratio (PSNR),
+Distance Reciprocal Distortion metric (DRD), Negative Rate Metric
+(NRM) and Misclassification Penalty Metric (MPM). The binarized
+image quality is better with high F-measure and PSNR values, and
+low DRD, MPM and NRM values. For details on the evaluation
+measures, the reader is referred to [6, 30].
+The experimental results are presented in Table 1. The proposed
+method is compared to several popular binarization methods on
+competition datasets from 2009 to 2014. Table 2 illustrates the eval-
+uation results on the most recent H-DIBCO 2016 dataset, and a
+comparison is drawn with the top five ranked methods from the
+competition, and the state-of-the-art methods. Figure 2 highlights
+the document image binarization results for sample test images
+from the H-DIBCO 2016 dataset and compares with the results ob-
+tained from the algorithm of the competition winner. Finally, Table
+3 presents the average F-measure, PSNR and DRD values across
+different dataset combinations. In Tables 1-3, ? implies that a higher
+Figure 3: The evolution of F-measure during the Bayesian
+optimization process. The estimated objective refers to the
+value of F-measure predicted by the GP model trained as
+part of the optimization process. The model accurately
+tracks the value of the objective function. The objective val-
+ues are negative since the implementation followed the con-
+vention of minimizing the objective function rather than
+maximizing. Therefore, the objective function here is ?1 ?
+F ?Measure. Figure best viewed in color.
+value of F-measure and PSNR is desirable, while ? implies that a
+lower value of DRD, NRM and MPM is desirable. The ? indicates
+a case where the result of an existing method is better than the
+proposed method.
+It is observed from Table 2 and Figure 2 that the proposedmethod
+achieves higher scores with respect to F-measure, PSNR and DRD,
+as compared to other methods. However, on closely inspecting
+Table 1, it can be seen that there are instances where existing bi-
+narization methods outperform the proposed method by a close
+margin (marked as ?). Nevertheless, with reference to all datasets
+used in the experiments, the proposed method is found to be most
+consistent and stable with high F-measure and PSNR, and low DRD,
+NRM and MPM scores. Table 3 empirically evaluates the perfor-
+mance of the proposed method with respect to all 86 images from
+DIBCO 2009-2016. On an average, the proposed method achieves
+90.99% F-measure and 19.00 PSNR for all test images under the ex-
+perimental settings. For DIBCO 2009-2013, the top ranked method
+[37] from the competition achieves 89.15% F-measure, and the pro-
+posed method outperforms it by achieving 90.21% accuracy. The
+top ranked method [11] in DIBCO 2011-2014 competition obtains
+91.88% accuracy, which is marginally higher (by 0.72%) than the ac-
+curacy achieved using the proposed method (91.16%). The proposed
+method produces least visual distortions (DRD) in comparison to
+other methods.
+Figure 3 conveys the accuracy of the GP model trained as part
+of the Bayesian optimization process. The estimated values of the
+F-measure (the green curve) are in line with the observed values
+(obtained by computing F-measure values of the selected samples,
+represented by the blue curve). This validates the accuracy of the
+GP model and subsequently, the correctness of the Bayesian op-
+timization process. In general, the Bayesian optimization-based
+approach used herein can aid in automating state-of-the-art bina-
+rization methods.
+, , E. Vats et al.
+Table 3: Comparison results of average F-measure (%), PSNR and DRD values obtained using different binarization methods.
+Methods DIBCO 2009-2016 DIBCO 2009-2013 DIBCO 2011-2014
+F-measure (%) (?) PSNR (?) F-measure (%) (?) PSNR (?) F-measure (%) (?) PSNR (?) DRD (?)
+Otsu [25] 84.10 16.68 82.06 16.05 84.53 16.53 12.20
+Sauvola [32] 82.93 16.54 82.23 16.35 84.32 16.76 6.78
+LMM [37] - - 89.15 18.78? - - -
+Howe [11] - - - - 91.88? 20.83? 3.24
+Proposed method 90.99 19.00 90.21 18.71 91.16 19.09 2.88
+5 CONCLUSIONS
+A novel binarization technique is presented in this paper that effi-
+ciently segments the foreground text from heavily degraded docu-
+ment images. The proposed technique is simple, robust and fully
+automated using Bayesian optimization for on-the-fly hyperparam-
+eter selection. The experimental results on challenging DIBCO and
+H-DIBCO datasets demonstrate the effectiveness of the proposed
+method. On an average, the accuracy of the proposed method for
+all test images is found to be 90.99% (F-measure). As future work,
+the ideas presented herein will be scaled to perform preprocess-
+ing of images in word spotting algorithms, and hybridization of
+the proposed technique with existing state-of-the-art binarization
+methods will be explored.
+REFERENCES
+[1] E Badekas and N Papamarkos. 2008. Estimation of proper parameter values for
+document binarization. In International Conference on Computer Graphics and
+Imaging. 600–037.
+[2] John Bernsen. 1986. Dynamic thresholding of grey-level images. In Proc. 8th
+International Confceeren on Pattern Recognition, 1986. 1251–1255.
+[3] Eric Brochu, Vlad M Cora, and Nando De Freitas. 2010. A Tutorial on Bayesian
+Optimization of Expensive Cost Functions, with Application to Active User
+Modeling and Hierarchical Reinforcement Learning. arXiv:1012.2599 (2010).
+[4] Mohamed Cheriet, Reza Farrahi Moghaddam, and Rachid Hedjam. 2013. A learn-
+ing framework for the optimization and automation of document binarization
+methods. Computer vision and image understanding 117, 3 (2013), 269–280.
+[5] Amer Dawoud. 2007. Iterative cross section sequence graph for handwritten
+character segmentation. IEEE Transactions on Image Processing 16, 8 (2007),
+2150–2154.
+[6] Basilis Gatos, Konstantinos Ntirogiannis, and Ioannis Pratikakis. 2009. ICDAR
+2009 document image binarization contest (DIBCO 2009). In Document Analysis
+and Recognition, 2009. 10th International Conference on. IEEE, 1375–1382.
+[7] Basilios Gatos, Ioannis Pratikakis, and Stavros J Perantonis. 2006. Adaptive
+degraded document image binarization. Pattern recognition 39, 3 (2006), 317–327.
+[8] Abdelâali Hassaïne, Somaya Al-Maadeed, and Ahmed Bouridane. 2012. A set of
+geometrical features for writer identification. In Neural Information Processing.
+Springer, 584–591.
+[9] Abdelâali Hassaïne, Etienne Decencière, and Bernard Besserer. 2011. Efficient
+restoration of variable area soundtracks. Image Analysis & Stereology 28, 2 (2011),
+113–119.
+[10] Nicholas R Howe. 2011. A laplacian energy for document binarization. In Docu-
+ment Analysis and Recognition, 2011 International Conference on. IEEE, 6–10.
+[11] Nicholas R Howe. 2013. Document binarization with automatic parameter tuning.
+International Journal on Document Analysis and Recognition 16, 3 (2013), 247–258.
+[12] Donald R Jones. 2001. A taxonomy of global optimization methods based on
+response surfaces. Journal of global optimization 21, 4 (2001), 345–383.
+[13] Sagi Katz, Ayellet Tal, and Ronen Basri. 2007. Direct visibility of point sets. In
+ACM Transactions on Graphics, Vol. 26. ACM, 24.
+[14] Josef Kittler and John Illingworth. 1986. Minimum error thresholding. Pattern
+recognition 19, 1 (1986), 41–47.
+[15] Thibault Lelore and Frederic Bouchara. 2011. Super-resolved binarization of
+text based on the fair algorithm. In Document Analysis and Recognition, 2011
+International Conference on. IEEE, 839–843.
+[16] Shijian Lu, Bolan Su, and Chew Lim Tan. 2010. Document image binarization
+using background estimation and stroke edges. International journal on document
+analysis and recognition 13, 4 (2010), 303–314.
+[17] Rafael G Mesquita, Carlos AB Mello, and LHEV Almeida. 2014. A new thresh-
+olding algorithm for document images based on the perception of objects by
+distance. Integrated Computer-Aided Engineering 21, 2 (2014), 133–146.
+[18] Rafael G Mesquita, Ricardo MA Silva, Carlos AB Mello, and Péricles BC Miranda.
+2015. Parameter tuning for document image binarization using a racing algorithm.
+Expert Systems with Applications 42, 5 (2015), 2593–2603.
+[19] Anish Mittal, Anush Krishna Moorthy, and Alan Conrad Bovik. 2012. No-
+reference image quality assessment in the spatial domain. IEEE Transactions on
+Image Processing 21, 12 (2012), 4695–4708.
+[20] Reza Farrahi Moghaddam and Mohamed Cheriet. 2010. A multi-scale framework
+for adaptive binarization of degraded document images. Pattern Recognition 43, 6
+(2010), 2186–2198.
+[21] Reza FarrahiMoghaddam, Fereydoun FarrahiMoghaddam, andMohamed Cheriet.
+2013. Unsupervised ensemble of experts (EoE) framework for automatic bina-
+rization of document images. In Document Analysis and Recognition, 2013 12th
+International Conference on. IEEE, 703–707.
+[22] Hossein Ziaei Nafchi, Reza Farrahi Moghaddam, and Mohamed Cheriet. 2012.
+Historical document binarization based on phase information of images. In Asian
+Conference on Computer Vision. Springer, 1–12.
+[23] Wayne Niblack. 1985. An introduction to digital image processing. Strandberg
+Publishing Company.
+[24] Konstantinos Ntirogiannis, Basilis Gatos, and Ioannis Pratikakis. 2014. ICFHR2014
+competition on handwritten document image binarization (H-DIBCO 2014). In
+Frontiers in Handwriting Recognition, 2014 14th International Conference on. IEEE,
+809–813.
+[25] Nobuyuki Otsu. 1975. A threshold selection method from gray-level histograms.
+Automatica 11, 285-296 (1975), 23–27.
+[26] Ioannis Pratikakis, Basilis Gatos, and Konstantinos Ntirogiannis. 2010. H-DIBCO
+2010-handwritten document image binarization competition. In Frontiers in Hand-
+writing Recognition, 2010 International Conference on. IEEE, 727–732.
+[27] Ioannis Pratikakis, Basilis Gatos, and Konstantinos Ntirogiannis. 2011. ICDAR
+2011 Document Image Binarization Contest (DIBCO 2011). In Document Analysis
+and Recognition, 2011. 11th International Conference on. IEEE, 1506–1510.
+[28] Ioannis Pratikakis, Basilis Gatos, and Konstantinos Ntirogiannis. 2012. ICFHR
+2012 competition on handwritten document image binarization (H-DIBCO 2012).
+In Frontiers in Handwriting Recognition, 2012 International Conference on. IEEE,
+817–822.
+[29] Ioannis Pratikakis, Basilis Gatos, and Konstantinos Ntirogiannis. 2013. ICDAR
+2013 document image binarization contest (DIBCO 2013). In Document Analysis
+and Recognition, 2013 12th International Conference on. IEEE, 1471–1476.
+[30] Ioannis Pratikakis, Konstantinos Zagoris, George Barlas, and Basilis Gatos. 2016.
+ICFHR2016 Handwritten Document Image Binarization Contest (H-DIBCO 2016).
+In Frontiers in Handwriting Recognition, 2016 15th International Conference on.
+IEEE, 619–623.
+[31] Carl Edward Rasmussen and Christopher KI Williams. 2006. Gaussian processes
+for machine learning. Vol. 1. MIT press Cambridge.
+[32] Jaakko Sauvola and Matti Pietikäinen. 2000. Adaptive document image binariza-
+tion. Pattern recognition 33, 2 (2000), 225–236.
+[33] Bobak Shahriari, Kevin Swersky, ZiyuWang, Ryan PAdams, and Nando de Freitas.
+2016. Taking the human out of the loop: A review of bayesian optimization. Proc.
+IEEE 104, 1 (2016), 148–175.
+[34] Prashant Singh. 2016. Design of experiments for model-based optimization. Ph.D.
+Dissertation. Ghent University.
+[35] Jasper Snoek, Hugo Larochelle, and Ryan P Adams. 2012. Practical bayesian
+optimization of machine learning algorithms. In Advances in neural information
+processing systems. 2951–2959.
+[36] Niranjan Srinivas, Andreas Krause, ShamMKakade, andMatthiasW Seeger. 2012.
+Information-theoretic regret bounds for gaussian process optimization in the
+bandit setting. IEEE Transactions on Information Theory 58, 5 (2012), 3250–3265.
+[37] Bolan Su, Shijian Lu, and Chew LimTan. 2010. Binarization of historical document
+images using the local maximum and minimum. In Proceedings of the 9th IAPR
+International Workshop on Document Analysis Systems. ACM, 159–166.
+[38] Bolan Su, Shijian Lu, and Chew LimTan. 2012. A learning framework for degraded
+document image binarization using Markov random field. In Pattern Recognition,
+2012 21st International Conference on. IEEE, 3200–3203.
+[39] Bolan Su, Shijian Lu, and Chew Lim Tan. 2013. Robust document image bina-
+rization technique for degraded document images. IEEE transactions on image
+processing 22, 4 (2013), 1408–1417.

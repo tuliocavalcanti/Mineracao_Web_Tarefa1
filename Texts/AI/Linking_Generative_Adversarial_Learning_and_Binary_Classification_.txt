@@ -1,0 +1,320 @@
+ar
+X
+iv
+:1
+70
+9.
+01
+50
+9v
+1 
+ [
+cs
+.L
+G
+] 
+ 5
+ S
+ep
+ 2
+01
+7
+Linking Generative Adversarial Learning and Binary Classification
+Akshay Balsubramani
+abalsubr@stanford.edu
+September 6, 2017
+Abstract
+In this note, we point out a basic link between generative adversarial (GA) training and binary classi-
+fication – any powerful discriminator essentially computes an (f -)divergence between real and generated
+samples. The result, repeatedly re-derived in decision theory, has implications for GA Networks (GANs),
+providing an alternative perspective on training f -GANs by designing the discriminator loss function.
+1 Generating a Distribution
+Imagine we are given real data with distribution Pr(x) over a feature space X , and wish to learn a distribution
+Pg(x) that is as “close” as possible to Pr. Closeness will be measured by some divergence function D(·, ·)
+between probability distributions. So the generator is typically solving
+P ?g = arg inf
+Pg
+D(Pg , Pr) (1)
+where Pg is in some class of distributions specified by the generator. This manuscript considers D(·, ·) to be
+an f -divergence:
+Definition 1. f-divergence. For any convex f(t) with f(1) = 0, define the f -divergence of Pg to Pr
+1 as
+Df (Pg, Pr) = Ex?Pr
+[
+f
+(
+Pg(x)
+Pr(x)
+)]
+Here we examine the method of highlighting differences between Pr and Pg by feeding them to a binary
+classifier (discriminator) with corresponding labels y = ±1, in equal proportion as for a typical GAN setup,
+so that the data input to the discriminator are assigned a positive label if they are real data:
+p := Pr (y = +1) =
+1
+2
+, Pr(x) = Pr (x | y = +1) , Pg(x) = Pr (x | y = ?1)
+Recall that any two-class loss function can equivalently be written in terms of partial losses ?+(g) and ??(g);
+these are the losses with respect to true labels ±1 respectively, as a function of the label prediction g.
+The discrimination problem is to find a function h in some model class H that attempts to minimize
+some loss on average over the data:
+inf
+h?H
+E(x,y) [?(y, h(x))] (2)
+The generative view of binary classification [RW11] writes this in terms of the class-conditional distributions
+Pr (x | y = ±1):
+Ey [?(y, h(x))] = Pr (x, y = +1) ?+(h(x)) + Pr (x, y = ?1) ??(h(x))
+= pPr (x | y = +1) ?+(h(x)) + (1? p) Pr (x | y = ?1) ??(h(x))
+=
+1
+2
+[Pr(x)?+(h(x)) + Pg(x)??(h(x))] (3)
+1Note that Df (Pg, Pr) need not be positive.
+1
+The optimization problem (2) is standard in binary classification. Typically, H is chosen to be a fairly
+rich class of deep binary classifiers. This means that its performance is close to the Bayes risk, i.e. the
+minimum risk over measurable functions infh E(x,y) [?(y, h(x))] [RW11]. So the excess risk
+?(H) := inf
+h?H
+E(x,y) [?(y, h(x))]? inf
+h
+E(x,y) [?(y, h(x))]
+is small.
+2 Main Result
+Theorem 2. Take any loss function ?± and any model class H. Define f(s) := sup
+?
+(??+(?) ? s??(?)).
+This is a maximum of linear functions, so it is convex. Then
+inf
+h?H
+E(x,y) [?(y, h(x))] = ?
+1
+2
+Df(Pg , Pr) + ?(H)
+Changing the model class H only changes the second term of Thm. 2. Therefore, when H is rich enough
+that the excess risk ?(H) is small, the loss function ? of the discrimination problem corresponds almost
+exactly to an f -divergence.
+2.1 GA Training Solves the Generation Problem with f-Divergences
+Revisiting (1), to find P ?g to be “close” to Pr under some f -divergence Df , one could solve
+P ?g = arg inf
+Pg
+Df (Pg, Pr) = arg sup
+Pg
+[?Df(Pg, Pr)] = arg sup
+Pr(x|y=?1)
+[
+inf
+h?H
+E(x,y) [?(y, h(x))] ? ?(H)
+]
+? arg sup
+Pr(x|y=?1)
+[
+inf
+h?H
+E(x,y) [?(y, h(x))]
+]
+So the adversarial game interaction between the generator and discriminator emerges as the solution to the
+generation problem for powerful enough discriminators, for any ?,H.
+2.2 Examples
+Table 1 shows the correspondence between ? and f for several common f -divergences. Similar lists can be
+found in [NWJ09, RW11].
+In the GA setup, the variable s is always a function over the data space X . The maximizing ? in
+arg sup? (??+(?) ? s??(?)) is a function of s; as a function of the data ?(x), it is the optimal discriminator
+h?(x) = h?(s(x)).
+3 Related Work
+The most related work to this manuscript is the f -GAN approach of [NCT16], to our knowledge. This solves
+the same problem of minimizing the f -divergence to the true distribution, but by changing the discriminator
+objective from the binary classification risk, (in contrast to Thm. 2 which just interprets the risk). The
+key fact is that a convex function f has a well-defined convex conjugate function f? such that f(u) =
+supt?R [tu? f
+?(t)], so that the following is true2:
+Df(Pr , Pg) = Ex?Pg
+[
+sup
+t
+(
+t
+Pr(x)
+Pg(x)
+? f?(t)
+)]
+= sup
+t
+(
+Ex?Pg
+[
+t
+Pr(x)
+Pg(x)
+? f?(t)
+])
+= sup
+h
+[
+Ex?Pr [h(x)]? Ex?Pg [f
+?(h(x))]
+]
+? sup
+h?H
+[
+Ex?Pr [h(x)] ? Ex?Pg [f
+?(h(x))]
+]
+(4)
+2Ignoring conjugacy domain issues for simplicity.
+2
+Loss ? Partial losses f(s) h?(s) f -divergence
+0-1 ?±(g) =
+1
+2
+(1? g) 1
+2
+|s? 1| sgn(s? 1) Total variation dist.
+Log ?±(g) = ln
+(
+2
+1±g
+)
+? ln (1 + s) ?
+s ln
+(
+1+s
+s
+)
+1?s
+1+s
+Jensen-Shannon dist.
+Square ?±(g) = (1? g)2 ? s1+s + 12 1?s1+s Triangular discrimi-
+nation dist.
+CW (param. c) ?±(g) =
+(
+1
+2
+?
+(
+1
+2
+? c
+))
+(1? g) |1? c? cs| ?
+cs+c?|1? 2c|
+sgn(1? c? cs) –
+Exponential ?±(g) = exp(?g) ?2
+?
+s+ 2 ? 1
+2
+ln s Hellinger dist.
+“Boosting” ?±(g) =
+?
+1?g
+1±g
+?2?s+ 2 1?s
+1+s
+Hellinger dist.
+Table 1: Some discriminator losses, with corresponding f -divergences.
+[NCT16] use this bound from [NWJ10]. It is quite tight when H is rich, exactly when Thm. 2 is strong,
+though the order of the arguments is switched. 3
+More broadly, since the original GAN paper [GPAM+14], the GA approach has enjoyed a string of recent
+empirical successes with very rich model classes H [RMC15, BSM17], in accordance with Thm. 2.
+4 Summary
+The correspondences here fundamentally link generative adversarial training and the generation problem,
+and most are well known in decision theory. However, within the GAN literature they do not appear well
+known and lack references, which we address in this note.
+References
+[BSM17] David Berthelot, Tom Schumm, and Luke Metz. Began: Boundary equilibrium generative
+adversarial networks. arXiv preprint arXiv:1703.10717, 2017.
+[GPAM+14] Ian Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley, Sherjil
+Ozair, Aaron Courville, and Yoshua Bengio. Generative adversarial nets. In Advances in
+neural information processing systems, pages 2672–2680, 2014.
+[LV06] Friedrich Liese and Igor Vajda. On divergences and informations in statistics and information
+theory. IEEE Transactions on Information Theory, 52(10):4394–4412, 2006.
+[NCT16] Sebastian Nowozin, Botond Cseke, and Ryota Tomioka. f-gan: Training generative neural sam-
+plers using variational divergence minimization. In Advances in Neural Information Processing
+Systems, pages 271–279, 2016.
+[NWJ09] XuanLong Nguyen, Martin J Wainwright, and Michael I Jordan. On surrogate loss functions
+and f-divergences. The Annals of Statistics, pages 876–904, 2009.
+3Note that (4) puts the modeled (generated) distribution in the second argument rather than the first; the two orderings
+are related by Csisza?r duality [RW11]. Our proof of Theorem 2 can be followed to prove an exact analogue of Theorem 2
+viewing the discriminator risk as Df (Pr , Pg) with the arguments interchanged as in (4). The analogue result only differs in the
+definition of the convex function generating the divergence, which is sup? (???(?)? s?+(?)) instead of f as defined in Thm.
+2. In this manuscript, we follow the convention of taking the real distribution to be the second argument with respect to which
+we measure the “excess description length” of using Pg.
+3
+[NWJ10] XuanLong Nguyen, Martin J Wainwright, and Michael I Jordan. Estimating divergence func-
+tionals and the likelihood ratio by convex risk minimization. IEEE Transactions on Information
+Theory, 56(11):5847–5861, 2010.
+[RMC15] Alec Radford, Luke Metz, and Soumith Chintala. Unsupervised representation learning with
+deep convolutional generative adversarial networks. arXiv preprint arXiv:1511.06434, 2015.
+[RW11] Mark D Reid and Robert C Williamson. Information, divergence and risk for binary experi-
+ments. Journal of Machine Learning Research, 12(Mar):731–817, 2011.
+5 Proofs
+This section relates binary classification loss functions to f -divergences, recapitulating [LV06, NWJ09].
+Proof of Theorem 2. From (3), if µ is the base measure over X ,
+inf
+h
+E(x,y) [?(y, h(x))] = inf
+h
+Ex [Ey [?(y, h(x))]] =
+1
+2
+inf
+h
+Ex?µ [Pr(x)?+(h(x)) + Pg(x)??(h(x))]
+=
+1
+2
+inf
+h
+Ex?µ
+[
+Pr(x)
+(
+?+(h(x)) +
+Pg(x)
+Pr(x)
+??(h(x))
+)]
+=
+1
+2
+inf
+h
+Ex?Pr
+[
+?+(h(x)) +
+Pg(x)
+Pr(x)
+??(h(x))
+]
+=
+1
+2
+Ex?Pr
+[
+inf
+?
+(
+?+(?) +
+Pg(x)
+Pr(x)
+??(?)
+)]
+= ?
+1
+2
+Ex?Pr
+[
+sup
+?
+(
+??+(?)?
+Pg(x)
+Pr(x)
+??(?)
+)]
+= ?
+1
+2
+Df (Pg, Pr)
+Adding ?(H) to both sides proves the result.
+4

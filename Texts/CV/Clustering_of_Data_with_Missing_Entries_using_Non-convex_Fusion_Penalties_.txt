@@ -1,0 +1,1912 @@
+1
+Clustering of Data with Missing Entries using
+Non-convex Fusion Penalties
+Sunrita Poddar, Student Member, IEEE, and Mathews Jacob, Senior Member, IEEE
+Abstract—The presence of missing entries in data often creates challenges for pattern recognition algorithms. Traditional algorithms
+for clustering data assume that all the feature values are known for every data point. We propose a method to cluster data in the
+presence of missing information. Unlike conventional clustering techniques where every feature is known for each point, our algorithm
+can handle cases where a few feature values are unknown for every point. For this more challenging problem, we provide theoretical
+guarantees for clustering using a l0 fusion penalty based optimization problem. Furthermore, we propose an algorithm to solve a
+relaxation of this problem using saturating non-convex fusion penalties. It is observed that this algorithm produces solutions that
+degrade gradually with an increase in the fraction of missing feature values. We demonstrate the utility of the proposed method using a
+simulated dataset, the Wine dataset and also an under-sampled cardiac MRI dataset. It is shown that the proposed method is a
+promising clustering technique for datasets with large fractions of missing entries.
+F
+1 INTRODUCTION
+C LUSTERING is an exploratory data analysis techniquethat is widely used to discover natural groupings in
+large datasets, where no labeled or pre-classified samples
+are available apriori. Specifically, it assigns an object to a
+group if it is similar to other objects within the group,
+while being dissimilar to objects in other groups. Example
+applications include analysis of gene experssion data, image
+segmentation, identification of lexemes in handwritten text,
+search result grouping and recommender systems [1]. A
+wide variety of clustering methods have been introduced
+over the years; see [2] for a review of classical methods.
+However, there is no consensus on a particular clustering
+technique that works well for all tasks, and there are pros
+and cons to most existing algorithms. The common clus-
+tering techniques such as k-means [3], k-medians [4] and
+spectral clustering [5] are implemented using the Lloyd’s
+algorithm which is non-convex and thus sensitive to ini-
+tialization. Recently, linear programming and semi-definite
+programming based convex relaxations of the k-means and
+k-medians algorithms have been introduced [6] to over-
+come the dependence on initialization. Unlike the Lloyd’s
+algorithm, these relaxations can provide a certificate of
+optimality. However, all of the above mentioned techniques
+require apriori knowledge of the desired number of clusters.
+Hierarchical clustering methods [7], which produce easily
+interpretable and visualizable clustering results for a vary-
+ing number of clusters, have been introduced to overcome
+the above challenge. A drawback of [7] is its sensitivity
+to initial guess and perturbations in the data. The more
+recent convex clustering technique (also known as sum-of-
+norms clustering) [8] retains the advantages of hierarchical
+clustering, while being invariant to initialization, and pro-
+ducing a unique clustering path. Theoretical guarantees for
+successful clustering using the convex-clustering technique
+are also available [9].
+• S. Poddar and M. Jacob are with the Department of Electrical and
+Computer Engineering, University of Iowa, Iowa City, IA, 52246.
+Most of the above clustering algorithms cannot be di-
+rectly applied to real-life datasets, where a large fraction
+of samples are missing. For example, gene expression data
+often contains missing entries due to image corruption, fab-
+rication errors or contaminants [10], rendering gene cluster
+analysis difficult. Likewise, large databases used by recom-
+mender systems (e.g Netflix) usually have a huge amount
+of missing data, which makes pattern discovery challenging
+[11]. The presence of missing responses in surveys [12] and
+failing imaging sensors in astronomy [13] are reported to
+make the analysis in these applications challenging. Several
+approaches were introduced to extend clustering to missing-
+data applications. For example, a partially observed dataset
+can be converted to a fully observed one using either
+deletion or imputation [14]. Deletion involves removal of
+variables with missing entries, while imputation tries to
+estimate the missing values and then performs clustering on
+the completed dataset. An extension of the weighted sum-
+of-norms algorithm (originally introduced for fully sampled
+data [8]) has been proposed where the weights are estimated
+from the data points by using some imputation techniques
+on the missing entries [15]. Kernel-based methods for clus-
+tering have also been extended to deal with missing entries
+by replacing Euclidean distances with partial distances [16],
+[17]. A majorize minimize algorithm was introduced to
+solve for the cluster-centres and cluster memberships in [18],
+which offers proven reduction in cost with iteration. In [19]
+and [20] the data points are assumed to lie on a mixture
+of K distributions, where K is known. The algorithms then
+alternate between the maximum likelihood estimation of the
+distribution parameters and the missing entries. A challenge
+with these algorithms is the lack of theoretical guarantees
+for successful clustering in the presence of missing entries.
+In contrast, there has been a lot of work in recent years
+on matrix completion for different data models. Algorithms
+along with theoretical guarantees have been proposed for
+low-rank matrix completion [21] and subspace clustering
+from data with missing entries [22], [23]. However, these
+algorithms and their theoretical guarantees cannot be triv-
+ar
+X
+iv
+:1
+70
+9.
+01
+87
+0v
+1 
+ [
+cs
+.C
+V
+] 
+ 6
+ S
+ep
+ 2
+01
+7
+2
+ially extended to the problem of clustering in the presence
+of missing entries.
+The main focus of this paper is to introduce an algorithm
+for the clustering of data with missing entries and to theo-
+retically analyze the conditions needed for perfect clustering
+in the presence of missing data. The proposed algorithm is
+inspired by the sum-of-norms clustering technique [8]; it is
+formulated as an optimization problem, where an auxiliary
+variable assigned to each data point is an estimate of the
+centre of the cluster to which that point belongs. A fusion
+penalty is used to enforce equality between many of these
+auxiliary variables. Since we have experimentally observed
+that non-convex fusion penalties provide superior clustering
+performance, we focus on the analysis of clustering using a
+`0 fusion penalty in the presence of missing entries, for an
+arbitrary number of clusters. The analysis reveals that per-
+fect clustering is guaranteed with high probability, provided
+the number of measured entries (probability of sampling)
+is high enough; the required number of measured entries
+depends on several parameters including intra-cluster vari-
+ance and inter-cluster distance. We observe that the required
+number of entries is critically dependent on coherence,
+which is a measure of the concentration of inter cluster
+differences in the feature space. Specifically, if the clustering
+of the points is determined only by a very small subset of
+all the available features, then the clustering becomes quite
+unstable if those particular feature values are unknown for
+some points. Other factors which influence the clustering
+technique are the number of features, number of clusters
+and total number of points. We also extend the theoretical
+analysis to the case without missing entries. The analysis
+in this setting shows improved bounds when a uniform
+random distribution of points in their respective clusters
+is considered, compared to the worst case analysis consid-
+ered in the missing-data setting. We expect that improved
+bounds can also be derived for the case with missing data
+when a uniform random distribution is considered.
+We also propose an algorithm to solve a relaxation
+of the above `0 penalty based clustering problem, using
+non-convex saturating fusion penalties. The algorithm is
+demonstrated on a simulated dataset with different fractions
+of missing entries and cluster separations. We observe that
+the algorithm is stable with changing fractions of missing
+entries, and the clustering performance degrades gradually
+with an increase in the number of missing entries. We also
+demonstrate the algorithm on clustering of the Wine dataset
+[24] and reconstruction of a dynamic cardiac MRI dataset
+from few Fourier measurements.
+2 CLUSTERING USING `0 FUSION PENALTY
+2.1 Background
+We consider the clustering of points drawn from one of
+K distinct clusters C1, C2, . . . , CK . We denote the center
+of the clusters by c1, c2, . . . , cK ? RP . For simplicity, we
+assume that there are M points in each of the clusters. The
+individual points in the kth cluster are modelled as:
+zk(m) = ck + nk(m); m = 1, ..,M, k = 1, . . . ,K (1)
+Here, nk(m) is the noise or the variation of zk(m) from the
+cluster center ck. The set of input points {xi}, i = 1, ..,KM
+is obtained as a random permutation of the points {zk(m)}.
+The objective of a clustering algorithm is to estimate the
+cluster labels, denoted by C(xi) for i = 1, ..,KM .
+The sum-of-norms (SON) method is a recently proposed
+convex clustering algorithm [8]. Here, a surrogate variable
+ui is introduced for each point xi, which is an estimate of the
+centre of the cluster to which xi belongs. As an example, let
+K = 2 and M = 5. Without loss of generality, let us assume
+that x1,x2, . . . ,x5 belong to C1 and x6,x7, . . . ,x10 belong
+to C2. Then, we expect to arrive at the solution: u1 = u2 =
+. . . = u5 = c1 and u6 = u7 = . . . = u10 = c2. In order to
+find the optimal {u?i }, the following optimization problem
+is solved:
+{u?i } = arg min{ui}
+KM?
+i=1
+?xi ? ui?22 + ?
+KM?
+i=1
+KM?
+j=1
+?ui ? uj?p (2)
+The fusion penalty (?ui ? uj?p) can be enforced using
+different `p norms, out of which the `1, `2 and `? norms
+have been used in literature [8]. The use of sparsity promot-
+ing fusion penalties encourages sparse differences ui ? uj ,
+which facilitates the clustering of the points {ui}. For an ap-
+propriately chosen ?, the ui’s corresponding to xi’s from the
+same cluster converge to the same point. The main benefit
+of this convex scheme over classical clustering algorithms is
+the convergence of the algorithm to the global minimum.
+The above optimization problem can be solved effi-
+ciently using the Alternating Direction Method of Multipli-
+ers (ADMM) algorithm and the Alternating Minimization
+Algorithm (AMA) [25]. Truncated `1 and `2 norms have
+also been used recently in the fusion penalty, resulting in
+non-convex optimization problems [26]. It has been shown
+that these penalties provide superior performance to the
+traditional convex penalties. Convergence to local minimum
+using an iterative algorithm has also been guaranteed in the
+non-convex setting.
+The sum-of-norms algorithm has also been used as a
+visualization and exploratory tool to discover patterns in
+datasets [15]. Clusterpath diagrams are a common way to
+visualize the data. This involves plotting the solution path
+as a function of the regularization parameter ?. For a very
+small value of ?, the solution is given by: u?i = xi, i.e. each
+point forms its individual cluster. For a very large value
+of ?, the solution is given by: u?i = c, i.e. every point
+belongs to the same cluster. For intermediate values of ?,
+more interesting behaviour is seen as various {ui} merge
+and reveal the cluster structure of the data.
+In this paper, we extend the algorithm to account for
+missing entries in the data. We present theoretical guaran-
+tees for clustering with and without missing entries using
+an `0 fusion penalty. Next, we approximate the `0 penalty
+by non-convex saturating penalties, and solve the resulting
+relaxed optimization problem using an iterative reweighted
+least squares (IRLS) strategy [27]. The proposed algorithm
+is shown to perform clustering correctly in the presence of
+large fractions of missing entries.
+2.2 Central Assumptions
+We make the following assumptions (illustrated in Fig 1),
+which are key to the successful clustering of the points:
+3
+Fig. 1: Central Assumptions: (a) and (b) illustrate different
+instances where points belonging to R2 are to be separated
+into 3 different clusters (denoted by the colours red, green
+and blue). Assumptions A.1 and A.2 related to cluster sep-
+aration and cluster size respectively, are illustrated in both
+(a) and (b). The importance of assumption A.3 related to
+feature concentration can also be appreciated by comparing
+(a) and (b). In (a), points in the red and blue clusters cannot
+be distinguished solely on the basis of feature 1, while the
+red and green clusters cannot be distinguished solely on the
+basis of feature 2. Thus, it is difficult to correctly cluster these
+points if either of the feature values is unknown. In (b), due
+to low coherence (as assumed in A.3), this problem does not
+arise.
+A.1: Cluster separation: Points from different clus-
+ters are separated by ? > 0 in the `2 sense, i.e:
+min
+{m,n}
+?zk(m)? zl(n)?2 ? ?; ? k 6= l (3)
+We require ? > 0 for the clusters to be non-
+overlapping. A high ? corresponds to well sepa-
+rated clusters.
+A.2: Cluster size: The maximum separation of points
+within any cluster in the `? sense is  ? 0, i.e:
+max
+{m,n}
+?zk(m)? zk(n)?? = ; ?k = 1, . . . ,K
+(4)
+Thus, the kth cluster is contained within a cube
+of size , with center ck.
+A.3: Feature concentration: The coherence of a vector
+y ? RP is defined as [21]:
+µ(y) =
+P?y?2?
+?y?22
+(5)
+By definition: 1 ? µ(y) ? P . Intuitively, a vector
+with a high coherence has a few large values
+and several small ones. Specifically, if µ(y) = P ,
+then y has only 1 non-zero value. In contrast, if
+µ(y) = 1, then all the entries of y are equal. We
+bound the coherence of the difference between
+points from different clusters as:
+max
+{m,n}
+µ(zk(m)? zl(n)) ? µ0; ? k 6= l (6)
+µ0 is indicative of the difficulty of the cluster-
+ing problem in the presence of missing data. If
+µ0 = P , then two clusters differ only a single
+feature, suggesting that it is difficult to assign
+the correct cluster to a point if this feature is
+not sampled. The best case scenario is µ0 = 1,
+when all the features are equally important.
+In general, cluster recovery from missing data
+becomes challenging with increasing µ0.
+The quantity ? = 
+?
+P
+? is a measure of the difficulty of the
+clustering problem. Small values of ? suggest large inter-
+cluster separation compared to the cluster size; the recovery
+of such well-defined clusters is expected to be easier than
+the case with large ? values. Note the `2 norm is used in
+the definition of ?, while the `? norm is used to define . If
+? = 
+?
+P , then ? = 1; this value of ? is of special importance
+since ? < 1 is a requirement for successful recovery in our
+main results.
+We study the problem of clustering the points {xi} in
+the presence of entries missing uniformly at random. We
+arrange the points {xi} as columns of a matrix X. The rows
+of the matrix are referred to as features. We assume that
+each entry of X is observed with probability p0. The entries
+measured in the ith column are denoted by:
+yi = Si xi, i = 1, ..,KM (7)
+where Si is the sampling matrix, formed by selecting rows
+of the identity matrix. We consider solving the following
+optimization problem to obtain the cluster memberships
+from data with missing entries:
+{u?i } = min{ui}
+KM?
+i=1
+KM?
+j=1
+?ui ? uj?2,0
+s.t ?Si (xi ? ui)?? ?
+
+2
+, i ? {1 . . .KM}
+(8)
+We use the above constrained formulation rather than the
+unconstrained formulation in (2) to avoid the dependence
+on ?. The `2,0 norm is defined as:
+?x?2,0 =
+{
+0 , if ?x?2 = 0
+1 , otherwise
+(9)
+Similar to the SON scheme (2), we expect that all ui’s
+that correspond to xi in the same cluster are equal, while
+ui’s from different clusters are not equal. We consider the
+cluster recovery to be successful when there are no mis-
+classifications. We claim that the above algorithm can suc-
+cessfully recover the clusters with high probability when:
+1) The clusters are well separated (i.e, low ? = 
+?
+P
+? )).
+2) The sampling probability p0 is sufficiently high.
+3) The coherence µ0 is small.
+Before moving on to a formal statement and proof of
+this result, we consider a simple special case to illustrate
+the approach. In order to aid the reader in following the
+results, all the important symbols used in the paper have
+been summarized in Table 1.
+2.3 Noiseless Clusters with Missing Entries
+We consider the simple case where all the points belonging
+to the same cluster are identical. Thus every cluster is
+”noiseless”, and we have:  = 0 and hence ? = 0. The
+optimization problem (8) now reduces to:
+4
+TABLE 1: Notations used
+K Number of clusters
+M Number of points in each cluster
+P Number of features for each point
+Ci The ith cluster
+ci Centre of Ci
+zi(m) m
+th point in Ci
+{xi} Random permutation of KM points {zk(m)}
+for k ? {1, 2, . . . ,K},m ? {1, 2, . . . ,M}
+Si Sampling matrix for xi
+X Matrix formed by arranging {xi} as columns,
+such that the ith column is xi
+p0 Probability of sampling each entry in X
+? Parameter related to cluster separation de-
+fined in (3)
+ Parameter related to cluster size defined in (4)
+? Defined as ? = 
+?
+P
+?
+µ0 Parameter related to coherence defined in (6)
+?0 Defined in (16)
+?0 Defined in (17)
+?0 Defined in (18)
+?0 Defined in (19)
+?0,approx Upper bound for ?0 for the case of 2 clusters,
+defined in (21)
+c Parameter related to cluster centre separation
+defined in (27)
+?? Defined as ?? = 
+?
+P
+c
+?1 Defined in (28)
+?1 Probability of failure of Theorem 2.7
+{u?i } = min{ui}
+KM?
+i=1
+KM?
+j=1
+?ui ? uj?2,0
+s.t Si xi = Si ui, i ? {1 . . .KM}
+(10)
+Next, we state a few results for this special case in order to
+provide some intuition about the problem. The results are
+not stated with mathematical rigour and are not accompa-
+nied by proofs. In the next sub-section, when we consider
+the general case, we will provide lemmas and theorems
+(with proofs in the appendix), which generalize the results
+stated here. Specifically, Lemmas 2.1, 2.2, 2.3 and Theorem
+2.4 generalize Results 2.1, 2.2, 2.3 and 2.4 respectively.
+We will first consider the data consistency constraint in
+(10) and determine possible feasible solutions. We observe
+that all the points in any specified cluster can share a centre
+without violating the data consistency constraint:
+Result 2.1. Consider any two points x1 and x2 from the same
+cluster. A solution u exists for the following equations:
+Si xi = Si u; i = 1, 2 (11)
+with probability 1.
+The proof for the above result is trivial in this special
+case, since all points in the same cluster are the same. We
+now consider two points from different clusters.
+Result 2.2. Consider two points x1 and x2 from different
+clusters. A solution u exists for the following equations:
+Si xi = Si u; i = 1, 2 (12)
+with low probability, when the sampling probability p0 is high
+and coherence µ0 is low.
+By definition, S1 = SI1 and S2 = SI2 , where I1 and
+I2 are the index sets of the features that are sampled (not
+missing) in x1 and x2 respectively. We observe that (12) can
+be satisfied, iff:
+SI1?I2(x1 ? x2) = 0 (13)
+which implies that the features of x1 and x2 are the same
+on the index set I1 ? I2. If the probability of sampling p0 is
+sufficiently high, then the number of samples at commonly
+observed locations:
+|I1 ? I2| = q (14)
+will be high, with high probability. If the coherence µ0
+defined in assumption A3 is low, then with high probability
+the vector x1?x2 does not have q entries that are equal to 0.
+In other words, the cluster memberships are not determined
+by only a few features. Thus, for a small value of µ0 and high
+p0, we can ensure that (13) occurs with very low probability.
+We now generalize the above result to obtain the following:
+Result 2.3. Assume that {xi : i ? I, |I| = M} is a set of points
+chosen randomly from multiple clusters (not all are from the same
+cluster). A solution u exists for the following equations:
+Si xi = Si u; ?i ? I (15)
+with low probability, when the sampling probability p0 is high
+and coherence µ0 is low.
+The key message of the above result is that large mis-
+classified clusters are highly unlikely. We will show that all
+feasible solutions containing small mis-classified clusters are
+associated with higher cost than the correct solution. Thus,
+we can conclude that the algorithm recovers the ground
+truth solution with high probability, as summarized by the
+following result.
+Result 2.4. The optimization problem (10) results in the ground-
+truth clustering with a high probability if the sampling probability
+p0 is high and the coherence µ0 is low.
+2.4 Noisy Clusters with Missing Entries
+We will now consider the general case of noisy clusters with
+missing entries, and will determine the conditions required
+for (8) to yield successful recovery of clusters. The reasoning
+behind the proof in the general case is similar to that for the
+special case discussed in the previous sub-section. Before
+proceeding to the statement of the lemmas and theorems,
+we define the following quantities:
+• Upper bound for probability that two points have
+less than p
+2
+0P
+2 commonly observed locations:
+?0 := (
+e
+2
+)?
+p20P
+2 (16)
+• Given that two points from different clusters have
+more than p
+2
+0P
+2 commonly observed locations, upper
+bound for probability that they can yield the same u
+without violating the constraints in (8):
+?0 := e
+? p
+2
+0P (1??
+2)2
+µ20 (17)
+5
+• Upper bound for probability that two points from
+different clusters can yield the same u without vio-
+lating the constraints in (8):
+?0 := 1? (1? ?0)(1? ?0) (18)
+• Upper bound for failure probability of (8):
+?0 :=
+?
+{mj}?S
+??? 12 (M2??j m2j )0 ?
+j
+(
+M
+mj
+)?? (19)
+where S is the set of all sets of positive integers {mj}
+such that: 2 ? U({mj}) ? K and
+?
+jmj = M .
+Here, the function U counts the number of non-zero
+elements in a set. For example, if K = 2 then S
+contains all sets of 2 positive integers {m1,m2}, such
+that m1 +m2 = M . Thus, S = {{1,M ? 1}, {2,M ?
+2}, {3,M ? 3}, . . . , {M ? 1, 1}} and (19) reduces to:
+?0 =
+M?1?
+i=1
+???i(M?i)0
+(
+M
+i
+)2?? (20)
+• We note that the expression for ?0 is quite involved.
+Hence, to provide some intuition, we simplify this
+expression for the special case where there are only
+two clusters. Under the assumption that log ?0 ?
+1
+M?1 +
+2
+M?2 log
+1
+M?1 , it can be shown that ?0 is
+upper-bounded as:
+?0 =
+M?1?
+i=1
+???i(M?i)0
+(
+M
+i
+)2??
+?M3?M?10
+:= ?0,approx
+(21)
+The above upper bound is derived in Appendix F.
+We now state the results for clustering with missing entries
+in the general noisy case. The following two lemmas are
+generalizations of Results 2.1 and 2.2 to the noisy case.
+Lemma 2.1. Consider any two points x1 and x2 from the same
+cluster. A solution u exists for the following equations:
+?Si (xi ? u)?? ?
+
+2
+; i = 1, 2 (22)
+with probability 1.
+The proof of this lemma is in Appendix A.
+Lemma 2.2. Consider any two points x1 and x2 from different
+clusters, and assume that ? < 1. A solution u exists for the
+following equations:
+?Si (xi ? u)?? ?
+
+2
+; i = 1, 2 (23)
+with probability less than ?0.
+The proof of this lemma is in Appendix C. We note
+that ?0 decreases with a decrease in ?. A small  implies
+less variability within clusters and a large ? implies well-
+separated clusters, together resulting in a low value of ?.
+Both these characteristics are desirable for clustering and
+result in a low value of ?0. This lemma also demonstrates
+that the coherence assumption is important in ensuring that
+the sampled entries are sufficient to distinguish between
+a pair of points from different clusters. As a result, ?0
+decreases with a decrease in the value of µ0. As expected,
+we also observe that ?0 decreases with an increase in p0.
+The above result can be generalized to consider a large
+number of points from multiple clusters. If we choose M
+points such that not all of them belong to the same cluster,
+then it can be shown that with high probability, they cannot
+share the same u without violating the constraints in (8).
+This idea (a generalization of Result 2.3) is expressed in the
+following lemma:
+Lemma 2.3. Assume that {xi : i ? I, |I| = M} is a set of
+points chosen randomly from multiple clusters (not all are from
+the same cluster). If ? < 1, a solution u does not exist for the
+following equations:
+?Si (xi ? u)?? ?
+
+2
+; ?i ? I (24)
+with probability exceeding 1? ?0.
+The proof of this lemma is in Appendix D. We note here,
+that for a low value of ?0 and a high value of M (number of
+points in each cluster), we will arrive at a very low value of
+?0. Using Lemmas 2.1, 2.2 and 2.3, we now move on to our
+main result which is a generalization of Result 2.4:
+Theorem 2.4. If ? < 1, the solution to the optimization problem
+(8) is identical to the ground-truth clustering with probability
+exceeding 1? ?0.
+The proof of the above theorem is in Appendix E. The
+reasoning follows from Lemma 2.3. It is shown in the proof
+that all solutions with cluster sizes smaller than M are
+associated with a higher cost than the ground-truth solution.
+2.5 Clusters without Missing Entries
+We now study the case where there are no missing entries.
+In this special case, optimization problem (8) reduces to:
+{u?i } = min{ui}
+KM?
+i=1
+KM?
+j=1
+?ui ? uj?2,0
+s.t ?xi ? ui?? ?
+
+2
+, i ? {1 . . .KM}
+(25)
+We have the following theorem guaranteeing successful
+recovery for clusters without missing entries:
+Theorem 2.5. If ? < 1, the solution to the optimization problem
+(25) is identical to the ground-truth clustering.
+The proof for the above Theorem is in Appendix G.
+We note that the above result does not consider any par-
+ticular distribution of the points in each cluster. Instead,
+if we consider that the points in each cluster are sampled
+from certain particular probability distributions such as the
+uniform random distribution, then a larger ? is sufficient
+to ensure success with high probability. In the general case
+where no such distribution is assumed, we cannot make
+a probabilistic argument, and a smaller ? is required. We
+now consider a special case, where the noise nk(m) is a
+zero mean uniform random variable ? U(?/2, /2). Thus,
+the points within each cluster are uniformly distributed in a
+cube of side . We note that ? is now a random variable, and
+6
+thus instead of using the constant ? = 
+?
+P
+? (as in previous
+lemmas), we define the following constant:
+?? =
+
+?
+P
+c
+(26)
+where c is defined as the minimum separation between the
+centres of any 2 clusters in the dataset:
+min
+{k,l}
+?ck ? cl?2 ? c; ? k 6= l (27)
+We also define the following quantity:
+?1 = e
+?
+P (1? 5
+6
+??2)2
+8??2 (28)
+We arrive at the following result for two points in different
+clusters:
+Lemma 2.6. Let ?? <
+?
+6
+5 . If the points in each cluster follow
+a uniform random distribution, then for two points x1 and x2
+belonging to different clusters, a solution u exists for the following
+equations:
+?xi ? u?? ?
+
+2
+; i = 1, 2 (29)
+with probability less than ?1.
+The proof for the above lemma is in Appendix H. This
+implies that for ?? <
+?
+6
+5 , two points from different clusters
+cannot be misclassified to a single cluster with high proba-
+bility. As ?0 is expressed in terms of ?0 in (19), we can also
+express ?1 in terms of ?1. We get the following guarantee
+for perfect clustering:
+Theorem 2.7. If the points in each cluster follow a uniform
+random distribution and ?? <
+?
+6
+5 , then the solution to the opti-
+mization problem (25) is identical to the ground-truth clustering
+with probability exceeding 1? ?1.
+Note that ? = ?? c? . Thus, the above result allows for
+values ? > 1. Our results show that if we do not consider the
+distribution of the points, then we arrive at the bound ? < 1
+with and without missing entries, as seen from Theorems
+2.4 and 2.5 respectively. A uniform random distribution can
+also be assumed in the case of missing entries. Similar to
+Theorem 2.7, we expect an improved bound for the case
+with missing entries as well.
+3 RELAXATION OF THE `0 PENALTY
+3.1 Constrained formulation
+We propose to solve a relaxation of the optimization prob-
+lem (8), which is more computationally feasible. The relaxed
+problem is given by:
+{u?i } = min{ui}
+KM?
+i=1
+KM?
+j=1
+? (?ui ? uj?2)
+s.t ?Si(xi ? ui)?? ?
+
+2
+, i ? {1 . . .KM}
+(30)
+where ? is a function approximating the `0 norm. Some
+examples of such functions are:
+• `p norm: ?(x) = |x|p, for some 0 < p < 1.
+• H1 penalty: ?(x) = 1? e?
+x2
+2?2 .
+Fig. 2: Different penalty functions ?. (a) The `0 norm (b) The
+`p penalty function which is non-convex for 0 < p < 1 and
+convex for p = 1 (c) The H1 penalty function. The `p and H1
+penalties closely approximate the `0 norm for low values of p
+and ? respectively.
+These functions approximate the `0 penalty more accurately
+for lower values of p and ?, as illustrated in Fig 2. We re-
+formulate the problem using a majorize-minimize strategy.
+Specifically, by majorizing the penalty ? using a quadratic
+surrogate functional, we obtain:
+?(x) ? w(x)x2 + d (31)
+where w(x) = ?
+?
+(x)
+2x , and d is a constant. For the two
+penalties considered here, we obtain the weights as:
+• `p norm: w(x) = ( 2px
+(2?p) + ?)?1 . The infinitesi-
+mally small ? term is introduced to deal with sit-
+uations where x = 0. For non-zero x, we get the
+expression w(x) ? p2x
+p?2.
+• H1 penalty: w(x) = 12?2 e
+? x2
+2?2 .
+We can now state the majorize-minimize formulation for
+problem (30) as:
+{u?i , w?ij} = arg min{ui,wij}
+KM?
+i=1
+KM?
+j=1
+wij ?ui ? uj?22
+s.t ?Si(xi ? ui)?? ?
+
+2
+, i ? {1 . . .KM}
+(32)
+where the constant d has been ignored. In order to solve
+problem (32), we alternate between two sub-problems till
+convergence. At the nth iteration, these sub-problems are
+given by:
+w
+(n)
+ij =
+?
+?
+(
+?u(n?1)i ? u
+(n?1)
+j ?2
+)
+2?u(n?1)i ? u
+(n?1)
+j ?2
+(33)
+{u(n)i } = arg min{ui}
+KM?
+i=1
+KM?
+j=1
+w
+(n)
+ij ?ui ? uj?
+2
+2
+s.t ?Si(xi ? ui)?? ?
+
+2
+, i ? {1 . . .KM}
+(34)
+3.2 Unconstrained formulation
+For larger datasets, it might be computationally intensive to
+solve the constrained problem. In this case, we propose to
+solve the following unconstrained problem:
+{u?i } = arg min{ui}
+KM?
+i=1
+?Si(ui?xi)?22+?
+KM?
+i=1
+KM?
+j=1
+?(?ui?uj?2)
+(35)
+7
+Fig. 3: Comparison of different penalties. We show here the
+2 most significant principal components of the solutions
+obtained using the IRLS algorithm. (a) It can be seen that
+the `1 penalty is unable to cluster the points even though
+the clusters are well-separated. (b) The `0.1 penalty is able to
+cluster the points correctly. However, the cluster-centres are
+not correctly estimated. (c) The H1 penalty correctly clusters
+the points and also gives a good estimate of the centres.
+As before, we can state the majorize-minimize formulation
+for problem (35) as:
+{u?i , w?ij} = arg min{ui,wij}
+KM?
+i=1
+?Si(ui ? xi)?22
++?
+KM?
+i=1
+KM?
+j=1
+wij?ui ? uj?22
+(36)
+In order to solve the problem (36), we alternate between
+two sub-problems till convergence. The 1st sub-problem is
+the same as (33). The 2nd sub-problem is given by:
+{u(n)i } = arg min{ui}
+KM?
+i=1
+?Si(ui ? xi)?22
++?
+KM?
+i=1
+KM?
+j=1
+w
+(n)
+ij ?ui ? uj?
+2
+2
+(37)
+3.3 Comparison of penalties
+We compare the performance of different penalties when
+used as a surrogate for the `0 norm. For this purpose, we use
+a simulated dataset with points in R50 belonging to 3 well-
+separated clusters, with 200 points in each cluster. For this
+particular experiment, we considered x1,x2, . . . ,x200 ? C1,
+x201,x202, . . . ,x400 ? C2 and x401,x402, . . . ,x600 ? C3. We
+do not consider the presence of missing entries for this
+experiment. We solve problem (35) to cluster the points
+using the `1, `p (for p = 0.1) and H1 (for ? = 0.5) penalties.
+The results are shown in Fig 3. Only for the purpose of
+visualization, we take a PCA of the data matrix X ? R50×600
+and retain the 2 most significant principal components to
+get a matrix of points ? R2×600. These points are plotted
+in the figure, with red, blue and green representing points
+from different clusters. We similarly obtain the 2 most
+significant components of the estimated centres and plot
+the resulting points in black. In (b) and (c), we note that
+u?1 = u
+?
+2 = . . . = u
+?
+200, u
+?
+201 = u
+?
+202 = . . . = u
+?
+400 and
+u?401 = u
+?
+402 = . . . = u
+?
+600. Thus, the `p penalty and the
+H1 penalty are able to correctly cluster the points. This
+behaviour is not seen in (a). Thus it is concluded that the
+convex `1 penalty is unable to cluster the points.
+The cluster-centres estimated using the `p penalty are
+inaccurate. The H1 penalty out-performs the other two
+penalties and accurately estimates the cluster-centres. We
+can explain this behaviour intuitively by observing the plots
+in Fig 2. The `1 norm penalizes differences between all pairs
+of points. The `0.1 semi-norm penalizes differences between
+points that are close. Due to the saturating nature of the
+penalty, it does not heavily penalize differences between
+points that are further away. The same is true for the H1
+penalty. However, we note that the H1 penalty saturates
+to 1 very quickly, similar to the `0 norm. This behaviour is
+missing for the `0.1 penalty. For this reason, it is seen that the
+`0.1 penalty also penalizes inter-cluster distances (unlike the
+H1 penalty), and shrinks the distance between the estimated
+centres of different clusters.
+3.4 Initialization Strategies
+Our experiments emphasize the need for a good initializa-
+tion of the weights wij for convergence to the correct cluster
+centre estimates. This dependence on the initial value arises
+from the non-convexity of the optimization problem. We
+consider two different strategies for initializing the weights:
+• Partial Distances: Consider a pair of points x1,x2
+observed by sampling matrices S1 = SI1 and
+S2 = SI2 respectively. Let the set of common indices
+be ? := I1 ? I2. We define the partial distance as
+?y?? =
+?
+P
+|?|?x1? ? x2??, where xi? represents
+the set of entries of xi restricted to the index set
+?. Instead of the actual distances which are not
+available, the partial distances ?y?? can be used for
+computing the weights.
+• Imputation Methods: The weights can be computed
+from estimates {u(0)i }, where:
+u
+(0)
+i = Sixi + (I? Si)m (38)
+Here m is a constant vector, specific to the impu-
+tation technique. The zero-filling technique corre-
+sponds to m = 0. Better estimation techniques can
+be derived where the jth row of m can be set to the
+mean of all measured values in the jth row of X.
+We will observe experimentally that for a good approx-
+imation of the initial weights W(0), we get the correct
+clustering. Conversely, the clustering fails for a bad initial
+guess. Our experiments demonstrate the superiority of a
+partial distance based initialization strategy over a zero-
+filled initialization.
+4 RESULTS
+We study the proposed theoretical guarantees for Theorem
+2.4 for different settings. We also test the proposed algorithm
+on simulated and real datasets. The simulations are used
+to study the performance of the algorithm with change in
+parameters such as fraction of missing entries, number of
+points to be clustered etc. We also study the effect of differ-
+ent initialization techniques on the algorithm performance.
+We demonstrate the algorithm on the publicly available
+Wine dataset [24], and use the algorithm to reconstruct a
+dataset of under-sampled cardiac MR images.
+8
+Fig. 4: Study of Theoretical Guarantees. The quantities ?0, ?0 and ?0 defined in Section 2.4 are studied in (a), (b) and (c)
+respectively. In (b) and (c), P = 50 and µ0 = 1.5 are assumed. ?0 gives the probability that 2 points from different clusters
+can share a centre. As expected, this value decreases with increase in p0 and decrease in ?. Considering K = 2 clusters, a
+lower bound for the probability of successful clustering (1? ?0) using the proposed algorithm is shown in (d) for different
+values of ?. The approximate values (1? ?0,approx) computed using (21) are shown in (e).
+4.1 Study of Theoretical Guarantees
+We observe the behaviour of the quantities ?0, ?0, ?0, ?0 and
+?0,approx (defined in section 2.4) as a function of parameters
+p0, P, ? and M . Fig 4 shows a few plots that illustrate the
+change in these quantities as the different parameters are
+varied. ?0 is an upper bound for the probability that a pair
+of points have < p
+2
+0P
+2 entries observed at common locations.
+In Fig 4 (a), the change in ?0 is shown as a function of p0
+for different values of P . In subsequent plots, we fix P = 50
+and µ0 = 1.5. ?0 is an upper bound for the probability that
+a pair of points from different clusters can share a common
+centre, given that ? p
+2
+0P
+2 entries are observed at common
+locations. In Fig 4 (b), the change in ?0 is shown as a function
+of p0 for different values of ?. In Fig 4 (c), the behaviour of
+?0 = 1? (1? ?0)(1? ?0) is shown, which is the probability
+mentioned in Lemma 2.2.
+We consider the two cluster setting, (i.e. K = 2) for
+subsequent plots. ?0 is the probability of failure of the
+clustering algorithm (8). In (d) and (e), plots are shown for
+(1 ? ?0) and (1 ? ?0,approx) as a function of p0 for different
+values of ? and M . Here, ?0,approx is an upper bound for ?0
+computed using (21). As expected, the probability of success
+of the clustering algorithm increases with increase in p0 and
+M and decrease in ?.
+4.2 Clustering of Simulated Data
+We simulated datasets with K = 2 disjoint clusters in
+R50 with a varying number of points per cluster (M =
+6, 12, 25, 50, 100). The points in each cluster follow a uni-
+form random distribution. We study the probability of
+success of the H1 penalty based constrained clustering
+algorithm (with partial-distance based initialization) as a
+function of ?, M and p0. For a particular set of parameters
+the experiment was conducted 20 times to compute the
+probability of success of the algorithm. Between these 20
+trials, the cluster-centers remain the same, while the points
+sampled from these clusters are different and the locations
+of the missing entries are different. Fig 5 (a) shows the
+result for datasets with ? = 0.39 and µ0 = 2.3. The
+theoretical guarantees for successfully clustering the dataset
+are shown in (b). Note that the theoretical guarantees do not
+assume that the points are taken from a uniform random
+distribution. Also, the theoretical bounds assume that we
+are solving the original problem using a `0 norm, whereas
+the experimental results were generated for the H1 penalty.
+Our theoretical guarantees hold for ? < 1. However, we
+demonstrate in (c) that even for the more challenging case
+where ? = 1.15 and µ0 = 13.2, our clustering algorithm is
+successful. Note that we do not have theoretical guarantees
+for this case. However, by assuming a uniform random
+distribution on the points, we expect that we can get better
+theoretical guarantees (similar to Theorem 2.7 for the case
+9
+Fig. 5: Experimental results for probability of success. Guar-
+antees are shown for a simulated dataset with K = 2 clus-
+ters. The clustering was performed using (32) with an H1
+penalty and partial distance based initialization. For (a) and
+(b) it is assumed that ? = 0.39 and µ0 = 2.3. (a) shows the
+experimentally obtained probability of success of clustering
+for clusters with points from a uniform random distribution.
+(b) shows the theoretical lower bound for the probability of
+success. (c) shows the experimentally obtained probability
+of success for a more challenging dataset with ? = 1.15 and
+µ0 = 13.2. Note that we do not have theoretical guarantees
+for this case, since our analysis assumes that ? < 1.
+without missing entries).
+Clustering results with K = 3 simulated clusters are
+shown in Fig 6. We simulated Dataset-1 with K = 3 disjoint
+clusters in R50 and M = 200 points in each cluster. In order
+to generate this dataset, 3 cluster centres in R50 were chosen
+from a uniform random distribution. The distances between
+the 3 pairs of cluster-centres are 3.5, 2.8 and 3.3 units respec-
+tively. For each of these 3 cluster centres, 200 noisy instances
+were generated by adding zero-mean white Gaussian noise
+of variance 0.1. The dataset was sub-sampled with varying
+fractions of missing entries (p0 = 1, 0.9, 0.8, . . . , 0.3, 0.2).
+The locations of the missing entries were chosen uniformly
+at random from the full data matrix. We also generate
+Dataset-2 by halving the distance between the cluster cen-
+tres, while keeping the intra-cluster variance fixed. We test
+both the constrained (30) and unconstrained (35) formula-
+tions of our algorithm on these datasets. Both the proposed
+initialization techniques for the IRLS algorithm (i.e. zero-
+filling and partial-distance) are also tested here. Since the
+points lie in R50, we take a PCA of the points and their
+estimated centres (similar to Fig 3) and plot the 2 most
+significant components. The 3 colours distinguish the points
+according to their ground-truth clusters. Each point xi is
+joined to its centre estimate u?i by a line. As expected,
+we observe that the clustering algorithms are more stable
+with fewer missing entries. We also note that the results are
+quite sensitive to the initialization technique. We observe
+that the partial distance based initialization technique out-
+performs the zero-filled initialization. The unconstrained
+algorithm with partial distance-based initialization shows
+superior performance to the alternative schemes. Thus, we
+use this scheme for subsequent experiments on real datasets.
+4.3 Clustering of Wine Dataset
+We apply the clustering algorithm to the Wine dataset [24].
+The data consists of the results of a chemical analysis of
+wines from 3 different cultivars. Each data point has P = 13
+features. The 3 clusters have 59, 71 and 48 points respec-
+tively, resulting in a total of 178 data points. We created a
+dataset without outliers by retaining only M = 40 points
+per cluster, resulting in a total of 120 data points. We under-
+sampled these datasets using uniform random sampling
+with different fractions of missing entries. The results are
+displayed in Fig 7 using the PCA technique as explained in
+the previous sub-section. It is seen that the clustering is quite
+stable and degrades gradually with increasing fractions of
+missing entries.
+4.4 Cardiac MR Image Reconstruction
+We apply the proposed algorithm to the reconstruction
+of a cardiac MR image time series. In MRI, samples are
+collected in the Fourier domain. However, due to the slow
+nature of the acquisition, only a small fraction of the Fourier
+samples can be acquired in each time frame. The goal of
+image reconstruction is to recover the image series from
+the incomplete Fourier observations. In the case of cardiac
+MRI, the different images in the time series appear in
+clusters determined by the cardiac and respiratory phase.
+Thus, the proposed algorithm can be applied to the image
+reconstruction problem.
+The cardiac data was acquired on a Siemens Aera MRI
+scanner at the University of Iowa. The subject was asked
+to breathe freely, and 10 radial lines of Fourier data was
+acquired to reconstruct each image frame. Fourier data
+corresponding to 1000 frames was acquired and the image
+series was reconstructed using the proposed unconstrained
+algorithm. We performed spectral clustering [5] on the re-
+constructed images to form 20 clusters. A few reconstructed
+frames belonging to 2 different clusters are illustrated in Fig
+8. The images displayed have minimal artefacts and are of
+diagnostic quality.
+5 DISCUSSION
+We have proposed a technique to cluster points when some
+of the feature values of all the points are unknown. We
+theoretically studied the performance of an algorithm that
+minimizes an `0 fusion penalty subject to certain constraints
+relating to consistency with the known features. We con-
+cluded that under favourable clustering conditions, such as
+well-separated clusters with low intra-cluster variance, the
+proposed method performs the correct clustering even in
+the presence of missing entries. However, since the prob-
+lem is NP-hard, we propose to use other penalties that
+approximate the `0 norm. We observe experimentally that
+the H1 penalty is a good surrogate for the `0 norm. This
+10
+Fig. 6: Clustering results in simulated datasets. The H1 penalty is used to cluster two datasets with varying fractions
+of missing entries. Both the constrained and unconstrained formulation results are presented with different initialization
+techniques (zero-filled and partial-distance based). We show here the 2 most significant principal components of the
+solutions. The original points {xi} are connected to their cluster centre estimates {ui} by lines. Inter-cluster distances in
+Dataset 2 are half of those in Dataset 1, while intra-cluster distances remain the same. Consequently, Dataset 1 performs
+better at a higher fraction of missing entries. For the unconstrained clustering formulation with partial-distance based
+initialization, the cluster centre estimates are relatively stable with varying fractions of missing entries.
+11
+Fig. 7: Clustering on Wine dataset. The H1 penalty is used to
+cluster the Wine datasets with varying fractions of missing
+entries.
+non-convex saturating penalty is shown to perform better
+in the clustering task than previously used convex norms
+and penalties. We describe an IRLS based strategy to solve
+the relaxed problem using the surrogate penalty.
+Our theoretical analysis reveals the various factors that
+determine whether the points will be clustered correctly
+in the presence of missing entries. It is obvious that the
+performance degrades with the decrease in the fraction of
+sampled entries (p0). Moreover, it is shown that the dif-
+ference between points from different clusters should have
+low coherence (µ0). This means that the expected clustering
+should not be dependent on only a few features of the
+points. Intuitively, if the points in different clusters can be
+distinguished by only 1 or 2 features, then a point missing
+these particular feature values cannot be clustered correctly.
+Moreover, we note that a high number of points per cluster
+(M ), high number of features (P ) and a low number of
+clusters (K) make the data less sensitive to missing entries.
+Finally, well-separated clusters with low intra-cluster vari-
+ance (resulting in low values of ?) are desirable for correct
+clustering.
+Our experimental results show great promise for the
+proposed technique. In particular, for the simulated data,
+we note that the cluster-centre estimates degrade gradually
+with increase in the fraction of missing entries. Depending
+on the characteristics of the data such as number of points
+and cluster separation distance, the clustering algorithm
+fails at some particular fraction of missing entries. We also
+show the importance of a good initialization for the IRLS
+algorithm, and our proposed initialization technique using
+partial distances is shown to work very well.
+The proposed algorithm performs well on the MR im-
+age reconstruction task, resulting in images with minimal
+artefacts and diagnostic quality. It is to be noted that the
+MRI images are reconstructed satisfactorily from very few
+Fourier samples. In this case the fraction of observed sam-
+ples is around 5%. However, we see that the simulated
+datasets and the Wine datasets cannot be clustered at such
+a high fraction of missing samples. The fundamental dif-
+Fig. 8: Cardiac MRI reconstruction results. The images were
+reconstructed from highly under-sampled Fourier data us-
+ing the unconstrained formulation. A sampling mask for 1
+particular frame is shown in (a), along with the Fourier data
+for that frame in (b). The missing Fourier entries were filled
+with zeros and an inverse Fourier Transform was taken to
+get the corrupted image in (c). The clustering algorithm was
+applied to this data and the resulting images were clustered
+into 20 clusters using spectral clustering. (d) shows some
+reconstructed images from 2 different clusters.
+ference between the MRI dataset and the other datasets is
+the coherence µ0. For the MRI data, we acquire Fourier
+samples. Since we know that the low frequency samples
+are important for image reconstruction, the MRI scanner
+acquires more low frequency samples. This is a case where
+high coherence is helpful in clustering. However, for the
+simulated and Wine data, we do not know apriori which
+features are more important. In any case the sampling
+pattern is random, and as predicted by theory, it is more
+useful to have low coherence. The conclusion is that if the
+sampling pattern is within our control, it is useful to have
+high coherence if the relative importance of the different
+features is known apriori. If this is unknown, then random
+sampling is preferred and it is useful to have low coherence.
+Our future work will focus on deriving guarantees for the
+case of high µ0 when the locations of the important features
+are known with some confidence, and the sampling pattern
+can be adapted accordingly.
+Our theory assumes well-separated clusters and does
+not consider the presence of any outliers. Theoretical and
+experimental analysis for the clustering performance in the
+presence of outliers needs to be investigated. Improving the
+algorithm performance in the presence of outliers is a direc-
+tion for future work. Moreover, we have shown improved
+bounds for the clustering success in the absence of missing
+entries when the points within a cluster are assumed to
+12
+follow a uniform random distribution. We expect this trend
+to also hold for the case with missing entries. This case will
+be analyzed in future work.
+6 CONCLUSION
+We propose a clustering technique for data in the presence
+of missing entries. We prove theoretically that a constrained
+`0 norm minimization problem recovers the clustering cor-
+rectly even in the presence of missing entries. An efficient
+algorithm that solves a relaxation of the above problem is
+presented next. It is demonstrated that the cluster centre
+estimates obtained using the proposed algorithm degrade
+gradually with an increase in the number of missing entries.
+The algorithm is also used to cluster the Wine dataset and
+reconstruct MRI images from under-sampled Fourier data.
+The presented theory and results demonstrate the utility of
+the proposed algorithm in clustering data when some of the
+feature values of the data are unknown.
+REFERENCES
+[1] A. Saxena, M. Prasad, A. Gupta, N. Bharill, O. P. Patel, A. Tiwari,
+M. J. Er, W. Ding, and C.-T. Lin, “A review of clustering techniques
+and developments,” Neurocomputing, 2017.
+[2] A. K. Jain, M. N. Murty, and P. J. Flynn, “Data clustering: a review,”
+ACM computing surveys (CSUR), vol. 31, no. 3, pp. 264–323, 1999.
+[3] J. MacQueen et al., “Some methods for classification and analysis
+of multivariate observations,” in Proceedings of the fifth Berkeley
+symposium on mathematical statistics and probability, vol. 1, no. 14.
+Oakland, CA, USA., 1967, pp. 281–297.
+[4] P. S. Bradley, O. L. Mangasarian, and W. N. Street, “Clustering via
+concave minimization,” in Advances in neural information processing
+systems, 1997, pp. 368–374.
+[5] A. Y. Ng, M. I. Jordan, Y. Weiss et al., “On spectral clustering:
+Analysis and an algorithm,” in NIPS, vol. 14, no. 2, 2001, pp. 849–
+856.
+[6] P. Awasthi, A. S. Bandeira, M. Charikar, R. Krishnaswamy, S. Villar,
+and R. Ward, “Relax, no need to round: Integrality of clustering
+formulations,” in Proceedings of the 2015 Conference on Innovations
+in Theoretical Computer Science. ACM, 2015, pp. 191–200.
+[7] J. H. Ward Jr, “Hierarchical grouping to optimize an objective
+function,” Journal of the American statistical association, vol. 58, no.
+301, pp. 236–244, 1963.
+[8] T. D. Hocking, A. Joulin, F. Bach, and J.-P. Vert, “Clusterpath an
+algorithm for clustering using convex fusion penalties,” in 28th
+international conference on machine learning, 2011, p. 1.
+[9] C. Zhu, H. Xu, C. Leng, and S. Yan, “Convex optimization pro-
+cedure for clustering: Theoretical revisit,” in Advances in Neural
+Information Processing Systems, 2014, pp. 1619–1627.
+[10] M. C. De Souto, P. A. Jaskowiak, and I. G. Costa, “Impact of
+missing data imputation methods on gene expression clustering
+and classification,” BMC bioinformatics, vol. 16, no. 1, p. 64, 2015.
+[11] R. M. Bell, Y. Koren, and C. Volinsky, “The bellkor 2008 solution to
+the netflix prize,” Statistics Research Department at AT&T Research,
+2008.
+[12] J. M. Brick and G. Kalton, “Handling missing data in survey
+research,” Statistical methods in medical research, vol. 5, no. 3, pp.
+215–238, 1996.
+[13] K. L. Wagstaff and V. G. Laidler, “Making the most of missing
+values: Object clustering with partial data in astronomy,” in Astro-
+nomical Data Analysis Software and Systems XIV, vol. 347, 2005, p.
+172.
+[14] J. K. Dixon, “Pattern recognition with partly missing data,” IEEE
+Transactions on Systems, Man, and Cybernetics, vol. 9, no. 10, pp.
+617–621, 1979.
+[15] G. K. Chen, E. C. Chi, J. M. O. Ranola, and K. Lange, “Convex
+clustering: An attractive alternative to hierarchical clustering,”
+PLoS Comput Biol, vol. 11, no. 5, p. e1004228, 2015.
+[16] R. J. Hathaway and J. C. Bezdek, “Fuzzy c-means clustering of in-
+complete data,” IEEE Transactions on Systems, Man, and Cybernetics,
+Part B (Cybernetics), vol. 31, no. 5, pp. 735–744, 2001.
+[17] M. Sarkar and T.-Y. Leong, “Fuzzy k-means clustering with miss-
+ing values.” in Proceedings of the AMIA Symposium. American
+Medical Informatics Association, 2001, p. 588.
+[18] J. T. Chi, E. C. Chi, and R. G. Baraniuk, “k-pod: A method for
+k-means clustering of missing data,” The American Statistician,
+vol. 70, no. 1, pp. 91–99, 2016.
+[19] L. Hunt and M. Jorgensen, “Mixture model clustering for mixed
+data with missing information,” Computational Statistics & Data
+Analysis, vol. 41, no. 3, pp. 429–440, 2003.
+[20] T. I. Lin, J. C. Lee, and H. J. Ho, “On fast supervised learning
+for normal mixture models with missing information,” Pattern
+Recognition, vol. 39, no. 6, pp. 1177–1187, 2006.
+[21] E. J. Cande?s and B. Recht, “Exact matrix completion via convex
+optimization,” Foundations of Computational mathematics, vol. 9,
+no. 6, p. 717, 2009.
+[22] B. Eriksson, L. Balzano, and R. D. Nowak, “High-rank
+matrix completion and subspace clustering with missing
+data,” CoRR, vol. abs/1112.5629, 2011. [Online]. Available:
+http://arxiv.org/abs/1112.5629
+[23] E. Elhamifar, “High-rank matrix completion and clustering under
+self-expressive models,” in Advances in Neural Information Process-
+ing Systems, 2016, pp. 73–81.
+[24] M. Lichman, “UCI machine learning repository,” 2013. [Online].
+Available: http://archive.ics.uci.edu/ml
+[25] E. C. Chi and K. Lange, “Splitting methods for convex clustering,”
+Journal of Computational and Graphical Statistics, vol. 24, no. 4, pp.
+994–1013, 2015.
+[26] W. Pan, X. Shen, and B. Liu, “Cluster analysis: unsupervised
+learning via supervised learning with a non-convex penalty.”
+Journal of Machine Learning Research, vol. 14, no. 1, pp. 1865–1889,
+2013.
+[27] R. Chartrand and W. Yin, “Iteratively reweighted algorithms for
+compressive sensing,” in Acoustics, speech and signal processing,
+2008. ICASSP 2008. IEEE international conference on. IEEE, 2008,
+pp. 3869–3872.
+[28] D. W. Matula, The largest clique size in a random graph. Department
+of Computer Science, Southern Methodist University, 1976.
+APPENDIX A
+PROOF OF LEMMA 2.1
+Proof. Since x1 and x2 are in the same cluster, ?x1?x2?? ?
+. For all the points in this particular cluster, let the pth
+feature be bounded as: fpmin ? x(p) ? fpmax. Then we
+can construct a vector u, such that u(p) = 12 (f
+p
+min + f
+p
+max).
+Now, since fpmax?f
+p
+min ? , the following condition will be
+satisfied for this particular choice of u:
+?xi ? u?? ?
+
+2
+; i = 1, 2 (39)
+From this, it follows trivially that the following will also
+hold:
+?Si (xi ? u)?? ?
+
+2
+; i = 1, 2 (40)
+APPENDIX B
+LEMMA B.1
+Lemma B.1. Consider any pair of points x1,x2 ? RP observed
+by sampling matrices S1 = SI1 and S2 = SI2 , respectively.
+We assume the set of common indices (? := I1 ? I2) to
+be of size q = |I1 ? I2|. Then, for some 0 < t < qP ,
+the following result holds true regarding the partial distance
+?y??2 = ?SI1?I2 (x1 ? x2) ?2:
+P
+(
+?y??22 ?
+( q
+P
+? t
+)
+?y?22
+)
+? e
+? 2t2P2
+qµ20 (41)
+Proof. We use some ideas for bounding partial distances
+from Lemma 3 of [22]. We rewrite the partial distance ?y??22
+13
+as the sum of q variables drawn uniformly at random from
+{y21 , y22 , . . . , y2P }. By replacing a particular variable in the
+summation by another one, the value of the sum changes by
+at most ?y?2?. Applying McDiarmid’s Inequality, we get:
+P
+(
+E(?y??22)? ?y??22 ? c
+)
+? e
+? 2c2?q
+i=1
+?y?4? = e
+? 2c2
+q?y?4?
+(42)
+From our assumptions, we haveE(?y??22) =
+q
+P ?y?
+2
+2. We
+also have ?y?
+2
+2
+?y?2?
+? Pµ0 by (6). We now substitute c = t?y?
+2
+2,
+where 0 < t < qP . Using the results above, we simplify
+expression (42) as:
+P
+(
+?y??22 ?
+( q
+P
+? t
+)
+?y?22
+)
+? e?
+2t2?y?42
+q?y?4?
+? e
+? 2t2P2
+qµ20
+(43)
+APPENDIX C
+PROOF OF LEMMA 2.2
+Proof. We will use proof by contradiction. Specifically, we
+consider two points x1 and x2 belonging to different clus-
+ters and assume that there exists a point u that satisfies:
+?Si (xi ? u)?? ?
+
+2
+; i = 1, 2 (44)
+We now show that the above assumption is violated with
+high probability. Following the notation of Lemma B.1, we
+denote the difference between the vectors by y = x1 ? x2
+and the partial distances by:
+?y??2 = ?SI1?I2 (x1 ? x2) ?2 (45)
+Using (44) and applying triangle inequality, we obtain
+?y??? ? , which translates to ?y??2 ? 
+?
+q, where
+q = |I1?I2| is the number of commonly observed locations.
+We need to show that with high probability, the partial
+distances satisfy:
+?y??22 > 2q (46)
+which will contradict (44). We first focus on finding a lower
+bound for q. Using the Chernoff bound and setting E(q) =
+p20 P , we have:
+P
+(
+q ? p
+2
+0P
+2
+)
+> 1? ?0 (47)
+where ?0 = ( e2 )
+? p
+2
+0P
+2 . Thus, we can assume that q ? p
+2
+0P
+2
+with high probability.
+Using Lemma B.1, we have the following result for the
+partial distances:
+P
+(
+?y??22 ?
+( q
+P
+? t
+)
+?y?22
+)
+? e
+? 2t2P2
+qµ20 (48)
+Since x1 and x2 are in different clusters, we have ?y?2 ? ?.
+We will now determine the value of t for which the above
+upper bound will equal the RHS of (46):( q
+P
+? t
+)
+?y?22 = 2q (49)
+or equivalently:
+t =
+q
+P
+? 
+2q
+?y?22
+? q
+P
+? 
+2q
+?2
+=
+q
+P
+(1? ?2) (50)
+Since t > 0, we require ? < 1, where ? = 
+?
+P
+? . Using
+the above, we get the following bound if we assume that
+q ? p
+2
+0P
+2 :
+t2
+q
+? q
+P 2
+(1? ?2)2 ? p
+2
+0
+2P
+(1? ?2)2 (51)
+We now obtain the following probability bound for any q ?
+p20P
+2 :
+P
+(
+?y??2 > 2q
+)
+? 1? e
+? 2t2P2
+qµ20
+? 1? e
+? p
+2
+0P (1??
+2)2
+µ20
+= 1? ?0
+(52)
+Combining (47) and (52), the probability for (44) to hold is
+? 1? (1? ?0)(1? ?0) = ?0.
+APPENDIX D
+PROOF OF LEMMA 2.3
+Proof. We construct a graph where each point xi is repre-
+sented by a node. Lemma 2.1 implies that a pair of points
+belonging to the same cluster can yield the same u in a
+feasible solution with probability 1. Hence, we will assume
+that there exists an edge between two nodes from the same
+cluster with probability 1. Lemma 2.2 indicates that a pair
+of points belonging to different clusters can yield the same
+u in a feasible solution with a low probability of ?0. We will
+assume that there exists an edge between two nodes from
+different clusters with probability ?0. We will now evaluate
+the probability that there exists a fully-connected sub-graph
+of size M , where all the nodes have not been taken from the
+same cluster. We will follow a methodology similar to [28],
+which gives an expression for the probability distribution of
+the maximal clique (i.e. largest fully connected sub-graph)
+size in a random graph. Unlike the proof in [28], in our
+graph every edge is not present with equal probability.
+We define the following random variables:
+• t := Size of the largest fully connected sub-graph
+containing nodes from more than 1 cluster
+• n := Number of M membered complete sub-graphs
+containing nodes from more than 1 cluster
+Our graph can have anM membered clique iff n is non-zero.
+Thus, we have:
+P (t ?M) = P (n 6= 0) (53)
+Since the distribution of n is restricted only to the non-
+negative integers, it can be seen that:
+P (n 6= 0) ? E(n) (54)
+Combining the above 2 results, we get:
+P (t ?M) ? E(n) (55)
+14
+Let us consider the formation of a particular clique
+of size M using m1,m2, . . . ,mK nodes from clusters
+C1, C2, . . . , CK respectively such that
+?K
+j=1mj = M , and
+at least 2 of the variables {mj} are non-zero. The number of
+ways to choose such a collection of nodes is:
+?
+j
+(M
+mj
+)
+. In or-
+der to form a solution {mj}, we need 12 (M
+2?
+?
+jm
+2
+j ) inter-
+cluster edges to be present. We recall that each of these edges
+is present with probability ?0. Thus, the probability that
+such a collection of nodes forms a clique is ?
+1
+2 (M
+2?
+?
+j m
+2
+j )
+0 .
+This gives the following result:
+E(N) =
+?
+{mj}?S
+?
+1
+2 (M
+2?
+?
+j m
+2
+j )
+0
+?
+j
+(
+M
+mj
+)
+= ?0 (56)
+where S is the set of all sets of positive integers {mj}
+such that: 2 ? U({mj}) ? K and
+?
+jmj = M . Here, the
+function U counts the number of non-zero elements in a set.
+Thus, we have:
+P (t ?M) ? ?0 (57)
+This proves that with probability ? 1? ?0, a set of points of
+cardinality?M not all belonging to the same cluster cannot
+all have equal cluster-centre estimates.
+APPENDIX E
+PROOF OF THEOREM 2.4
+Proof. Lemma 2.1 indicates that fully connected original
+clusters with size M are likely with probability 1, while
+Lemma 2.3 shows that the size of misclassified large clusters
+cannot exceed M ? 1 with very high probability. These
+results enable us to re-express the optimization problem
+(8) as a simpler maximization problem. We will then show
+that with high probability, any feasible solution other than
+the ground-truth solution results in a cost higher than the
+ground-truth solution.
+Let a candidate solution have k groups of sizes
+M1,M2, . . . ,Mk respectively. The centre estimates for all
+points within a group are equal. These are different from the
+centre estimates of other groups. Without loss of generality,
+we will assume that at most K of these groups each have
+points belonging to only a single ground-truth cluster, i.e.
+they are ”pure”. The rest of the clusters in the candidate so-
+lution are ”mixed” clusters. If we have a candidate solution
+with greater than K pure clusters, then they can always be
+merged to form K pure clusters; the merged solution will
+always result in a lower cost.
+The objective function in (8) can thus be rewritten as:
+KM?
+i=1
+KM?
+j=1
+?ui ? uj?2,0 =
+k?
+i=1
+Mi(KM ?Mi)
+= K2M2 ?
+k?
+i=1
+M2i
+(58)
+Since we assume that the first K clusters are pure, therefore
+they have a size 0 ? Mi ? M , i = 1, . . . ,K . The remaining
+clusters are mixed and have size?M?1 with probability?
+1??0. Hence, we have the constraints 0 ?Mi ? (M?1), i =
+K + 1, . . . , k. We also have a constraint on the total number
+of points, i.e.
+?k
+i=1Mi = KM . Thus, the problem (8) can be
+rewritten as the constrained optimization problem:
+{M?i , k?} = max{Mi},k
+k?
+i=1
+M2i
+s.t. 0 ?Mi ?M, i = 1, . . . ,K
+0 ?Mi ?M ? 1, i = K + 1, . . . , k
+k?
+i=1
+Mi = KM
+(59)
+Note that we cannot have k < K , with probability ? 1? ?0,
+since that involves a solution with cluster size > M . We can
+evaluate the best solution {M?i } for each possible value of
+k in the range K ? k ? MK . Then we can compare these
+solutions to get the solution with the highest cost. We note
+that the feasible region is a polyhedron and the objective
+function is convex. Thus, for each value of k, we only need
+to check the cost at the vertices of the polyhedron formed
+by the constraints, since the cost at all other points in the
+feasible region will be lower. The vertex points are formed
+by picking k ? 1 out of the k box constraints and setting
+Mi to be equal to one of the 2 possible extremal values.
+We note that all the vertex points have either K or K + 1
+non-zero values. As a simple example, if we choose M =
+10 and K = 4, then the vertex points of the polyhedron
+(corresponding to different solutions {Mi}) are given by all
+possible permutations of the following:
+• (10, 10, 10, 10, 0, 0 . . . 0) : 4 clusters
+• (10, 10, 10, 0, 1, 9, 0 . . . 0): 5 clusters
+• (10, 10, 0, 0, 2, 9, 9, 0 . . . 0): 5 clusters
+• (10, 0, 0, 0, 3, 9, 9, 9, 0 . . . 0): 5 clusters
+• (0, 0, 0, 0, 4, 9, 9, 9, 9, 0 . . . 0): 5 clusters
+In the general case the vertices are given by permutations of
+the following:
+• (M,M, . . . ,M, 0, 0 . . . 0): K clusters
+• (M,M, . . . , 0, 0, 1,M ? 1, 0 . . . 0): K + 1 clusters
+• (M,M, . . . , 0, 0, 2,M?1,M?1 . . . 0): K+1 clusters
+• . . .
+• (0, 0, . . . 0,K,M?1,M?1 . . .M?1, 0):K+1 clusters
+Now, it is easily checked that the 1st candidate solution
+in the list (which is also the ground-truth solution) has the
+maximum cost. Mixed clusters with size > M ? 1 cannot
+be formed with probability > 1 ? ?0. Thus, with the same
+probability, the solution to the optimization problem (8) is
+identical to the ground-truth clustering. This concludes the
+proof of the theorem.
+APPENDIX F
+UPPER BOUND FOR ?0 IN THE 2-CLUSTER CASE
+Proof. We introduce the following notation:
+1) F (i) = i(M ? i) log ?0, for i ? [1,M ? 1].
+2) G(i) = 2[log ?(M + 1) ? log ?(i + 1) ? log ?(M ?
+i + 1)], for i ? [1,M ? 1] where ? is the Gamma
+function.
+We note that both the functions F and G are symmetric
+about i = M2 , and have unique minimum and maximum
+15
+respectively for i = M2 . We will show that the maximum for
+the function F + G is achieved at the points i = 1,M ? 1.
+We note that:
+G?(i) = ?2[?(i+ 1)??(M ? i+ 1)] (60)
+where ? is the digamma function, defined as the log deriva-
+tive of the ? function. We now use the expansion:
+?(i+ 1) = log i+
+1
+2i
+(61)
+Substituting, we get:
+G?(i) = ?2
+[
+log
+i
+M ? i
++
+M ? 2i
+2i(M ? i)
+]
+(62)
+We also have:
+F ?(i) = (M ? 2i) log ?0 (63)
+Adding, we get:
+F ?(i) +G?(i) = (M ? 2i)( log ?0 ?
+1
+i(M ? i)
+)
+? 2 log i
+(M ? i)
+)
+(64)
+Now, in order to ensure that F ?(i) + G?(i) ? 0, we have to
+arrive at conditions such that:
+log ?0 ?
+1
+i(M ? i)
++
+2
+M ? 2i
+log
+i
+M ? i
+(65)
+Since the RHS is monotonically increasing in the interval
+i ? [1, M2 ? 1] the above condition reduces to:
+log ?0 ?
+1
+M ? 1
++
+2
+M ? 2
+log
+1
+M ? 1
+(66)
+Under the above condition, for all i ? [1, M2 ] :
+F ?(i) +G?(i) ? 0 (67)
+Thus, the function F +G reaches its maxima at the extremal
+points given by i = 1,M ? 1. For positive integer values of
+i, i.e. i ? {1, 2, . . . ,M ? 1}:
+F (i) +G(i) = log[?
+i(M?i)
+0
+(
+M
+i
+)2
+] (68)
+Thus, the function ?i(M?i)0
+(M
+i
+)2
+also reaches its maxima at
+i = 1,M ? 1. This maximum value is given by: ?M?10 M2.
+This gives the following upper bound for ?0:
+?0 ?
+M?1?
+i=1
+[?M?10 M
+2]
+= M2(M ? 1)?M?10
+?M3?M?10
+= ?0,approx
+(69)
+APPENDIX G
+PROOF OF THEOREM 2.5
+Proof. We consider any two points x1 and x2 that are in
+different clusters. Let us assume that there exists some u
+satisfying the data consistency constraint:
+?xi ? u?? ? /2, i = 1, 2. (70)
+Using the triangle inequality, we have ?x1 ? x2?? ?  and
+consequently, ?x1 ? x2?2 ? 
+?
+P . However, if we have
+a large inter-cluster separation ? > 
+?
+P , then this is not
+possible.
+Thus, if ? > 
+?
+P , then points in different clusters cannot
+be misclassified to a single cluster. Among all feasible solu-
+tions, clearly the solution to problem (25) with the minimum
+cost is the one where all points in the same cluster merge
+to the same u. Thus, ? < 1 ensures that we will have the
+correct clustering.
+APPENDIX H
+PROOF OF LEMMA 2.6
+Proof. The idea is similar to that in Theorem 2.5. We will
+show that with high probability two points x1 and x2 that
+are in different clusters satisfy ?x1?x2?2 > 
+?
+P with high
+probability, which implies that (29) is violated.
+Let points inC1 andC2 follow uniform random distribu-
+tions in RP with centres c1 and c2 respectively. The expected
+distance between x1 ? C1 and x2 ? C2 is given by:
+E(?x1 ? x2?22) =
+1
+2
+P?
+p=1
+? cp1+ 2
+cp1?
+
+2
+? cp2+ 2
+cp2?
+
+2
+(xp1 ? x
+p
+2)
+2dxp1dx
+p
+2
+= ?c1 ? c2?22 +
+P
+6
+2
+= c212 +
+P
+6
+2
+(71)
+where cpi and x
+p
+i are the p
+th features of ci and xi re-
+spectively, and c12 = ?c1 ? c2?2. Let ci = |ci1 ? ci2|, for
+i = 1, 2, . . . , P . Using Mcdiarmid’s inequality:
+P
+(
+?x1 ? x2?22 ? E(?x1 ? x2?22)? t
+)
+? e
+? 2t2?P
+i=1
+|(ci+)2?(ci?)2|2
+= e
+? t2
+82c212
+(72)
+Let t = E(?x1 ? x2?22)? P2. Then we have:
+P
+(
+?x1 ? x2?2 ? 
+?
+P
+)
+? e
+?
+(c212?
+5P
+6
+2)2
+82c212 (73)
+We note that the RHS above is a decreasing function of c12.
+Thus, we consider some c ? c12, such that c is the minimum
+distance between any 2 cluster centres in the dataset. We
+then have the following bound:
+P
+(
+?x1 ? x2?2 ? 
+?
+P
+)
+? e?
+(c2? 5P
+6
+2)2
+82c2 (74)
+To ensure t > 0, we require: c >
+?
+5P
+6 , or equivalently,
+?? = 
+?
+P
+c <
+?
+6
+5 .
+16
+We now get the probability bound:
+P
+(
+?x1 ? x2?2 ? 
+?
+P
+)
+? e?
+P (1? 5
+6
+??2)2
+8??2 = ?1 (75)
+Thus, (29) is violated with probability exceeding 1? ?1.

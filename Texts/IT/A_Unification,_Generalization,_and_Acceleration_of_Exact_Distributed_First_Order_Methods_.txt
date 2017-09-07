@@ -1,0 +1,1938 @@
+A Unification, Generalization, and Acceleration of
+Exact Distributed First Order Methods
+Dus?an Jakovetic?
+Abstract—Recently, there has been significant progress in
+the development of distributed first order methods. (At least)
+two different types of methods, designed from very different
+perspectives, have been proposed that achieve both exact and
+linear convergence when a constant step size is used – a favorable
+feature that was not achievable by most prior methods. In this
+paper, we unify, generalize, and accelerate these exact distributed
+first order methods. We first carry out a novel unifying analysis
+that sheds light on how the different existing methods compare.
+The analysis reveals that a major difference between the methods
+is on how a past dual gradient of an associated augmented
+Lagrangian dual function is weighted. We then capitalize on the
+insights from the analysis to derive a novel method – with a
+tuned past gradient weighting – that improves upon the existing
+methods. We establish for the proposed generalized method
+global R-linear convergence rate under strongly convex costs with
+Lipschitz continuous gradients.
+Index Terms—Distributed optimization, Consensus optimiza-
+tion, Exact distributed first order methods, R-linear convergence
+rate.
+I. INTRODUCTION
+Context and motivation. Distributed optimization methods
+for solving convex optimization problems over networks,
+e.g., [1]–[8], have gained a significant renewed and growing
+interest over the last decade, motivated by various applications,
+ranging from inference problems in sensor networks, e.g., [9],
+[10], to distributed learning, e.g., [11], to distributed control
+problems, e.g., [12].
+Recently, there have been significant advances in the context
+of distributed first order methods. A distinctive feature of
+the novel methods, proposed and analyzed in [13]–[26], is
+that, unlike most of prior distributed first order algorithms,
+e.g., [1], [27], [5], [7], they converge to the exact solution
+even when a constant (non-diminishing) step size is used.
+This property allows the methods to achieve global linear
+convergence rates, when the nodes’ local costs are strongly
+convex and have Lipschitz continuous gradients. Among the
+exact distributed first order methods, (at least) two different
+types of methods have been proposed, each designed through
+a very different methodology. The method in [13], dubbed
+Extra, see also [25], [23], modifies the update of the standard
+distributed gradient method, e.g., [1], by introducing two
+different sets of weighting coefficients (weight matrices) for
+any two consecutive iterations of the algorithm, as opposed
+to a single weight matrix with the standard method [1].
+The second type of methods, [14], [19], [18], [20], [21],
+replaces the nodes’ local gradient with a “tracked” value
+D. Jakovetic? is with the Department of Mathematics and Informatics,
+Faculty of Sciences, University of Novi Sad, Novi Sad, Serbia. The research is
+supported by Ministry of Education, Science and Technological Development,
+Republic of Serbia, grant no. 174030. Author’s e-mail: djakovet@uns.ac.rs.
+of the network-wide average of the nodes’ local gradients.
+The two types of methods exhibit inherent mutual tradeoffs
+with respect to various algorithmic aspects. For example, the
+method in [13] has an advantage over [14] in that it utilizes
+one communication round per iteration while [14] uses two
+rounds; however, the method in [14] has been proved to be
+convergent under time-varying networks, node-varying step
+sizes, and Nesterov acceleration (see the literature review
+ahead for details), while such results are currently not known
+in the literature for the method in [13]. Both references [13]
+and [14] establish global linear convergence rates of the
+exact distributed first order methods that they study. Further,
+reference [28] shows that Extra is equivalent to a primal-dual
+gradient-like method (see, e.g., [29], [30], [31], for primal-dual
+(sub)gradient methods) applied on the augmented Lagrangian
+dual problem of a reformulation of the original problem of
+interest. Finally, reference [18] demonstrates that the method
+in [14] can be put in the form of Extra, with a specific choice
+of the two Extra’s weight matrices. (A more detailed review
+of works [13]–[26] is provided further ahead.)
+Contributions. The main contributions of this paper are
+to unify, generalize, and accelerate exact distributed first
+order methods. First, besides Extra [13] being equivalent to
+a primal-dual gradient-like method applied on the augmented
+Lagrangian (AL) dual problem (a known result, [28]), we show
+here that the method in [14] is also a primal-dual gradient-
+like method – to the best of our knowledge a novel result.
+While Extra utilizes solely the current gradient of the AL dual
+function, the method in [14] uses the current gradient of the
+AL dual plus a gradient from the previous iteration weighted
+by the algorithm’s weight matrix. With both methods, we
+provide a characterization of the (joint) evolution of primal
+and dual errors along iterations; this characterization reveals
+the effect of the difference between the two methods on their
+performance and sheds light on understanding of how the
+two methods compare under various problem model scenarios.
+We further provide a generalized method, parameterized with
+an additional, easy-to-tune network-wide weight matrix, that
+determines the weighting of the past dual gradient term.
+The generalized method subsumes the two known methods
+in [13] and [14] upon setting a weighting parameter matrix
+to appropriate specific values. We describe how to set the
+weighting parameter matrix to improve upon both existing
+methods.
+The paper carries out convergence rate analysis of the
+proposed generalized method when nodes’ local costs are
+strongly convex, have Lipschitz continuous gradient, and the
+underlying network is static. With the proposed generalized
+method, we establish a global R-linear convergence rate,
+ar
+X
+iv
+:1
+70
+9.
+01
+31
+7v
+1 
+ [
+cs
+.I
+T
+] 
+ 5
+ S
+ep
+ 2
+01
+7
+2
+when the algorithm’s step size is appropriately set. Numerical
+examples confirm the insights from our analysis on the mutual
+comparison of the methods in [13] and [14], as well as the
+improvements of the proposed generalized method over the
+two existing ones.
+Brief literature review. Distributed computation and op-
+timization has been studied for a long time, e.g., [32]. More
+recently, reference [1] proposes a distributed first order (sub-
+gradient) method for unconstrained problems, allowing for
+possibly non-differentiable, convex nodes’ local costs and car-
+ries out its convergence and convergence rate analysis for de-
+terministically time varying networks. A distributed projected
+subgradient method for constrained problems and possibly
+non-differentiable local costs has been proposed and analyzed
+in [27]. References [7], [17], [13], [14], [15], [16], [18], [19],
+[20], [21], [22] study unconstrained distributed optimization
+under more structured local costs. In [7], distributed gradient
+methods with an acceleration based on the Nesterov (central-
+ized) gradient method [33] have been proposed and analyzed
+under differentiable local costs with Lipschitz continuous and
+bounded gradients. The methods in [1], [27], [7], [34] converge
+to the exact solution only when a diminishing step-size is
+used; when a constant step size is used they converge to a
+solution neighborhood. References [35], [36] propose different
+types of primal-dual methods, prove their convergence to
+the exact solution for a wide class of problems assuming
+diminishing step-sizes, and are not concerned with establishing
+the methods’ convergence rates. The authors of [37] use
+insights from control theory to propose a gradient-like algo-
+rithm for which they prove exact convergence under certain
+conditions, while the paper is not concerned with analyzing the
+method’s convergence rate. Reference [17] proposes several
+variants of distributed AL methods that converge to the exact
+solution under a constant step size and establishes their linear
+convergence rates for twice continuously differentiable costs
+with bounded Hessian.
+References [13], [14], [15], [16], [18], [19], [20], [21], [22]
+develop and/or analyze different variants of exact distributed
+first order methods under various assumptions on the nodes’
+local costs, algorithm step sizes, and the underlying network.
+The papers [13], [14] propose two different exact distributed
+first order methods and analyze their convergence rates, as
+already discussed above. References [15], [16] develop exact
+methods based on diffusion algorithms (see, e.g., [3]) and
+through a primal-dual type method on an associated AL
+function. Under twice differentiable local costs, each node’s
+cost having Lipschitz continuous gradient, and at least one
+node’s cost being strongly convex, the papers show linear
+convergence rates for the methods therein, allowing for dif-
+ferent step sizes across nodes and for a wider range of step
+sizes and admissible weight matrices with respect to [13]. The
+papers [18], [19], [20], [21] consider strongly convex local
+costs with Lipschitz continuous gradients. Under this setting,
+reference [18] establishes global linear convergence of the
+method studied therein when nodes utilize uncoordinated step
+sizes. The paper [19] establishes global linear convergence for
+time-varying networks. The authors of [21] prove global linear
+rates under both time varying networks and uncoordinated
+step sizes. Finally, the paper [22] proposes an accelerated
+exact distributed first order method based on the Nesterov
+acceleration [33] and establishes its convergence rates for local
+costs with Lipschitz continuous gradients, both in the presence
+and in absence of the strong convexity assumption. Under
+strongly convex local costs that have Lipschitz continuous
+gradients, the authors of [26] develop optimal distributed
+methods, where the optimality is in terms of the number of
+oracle calls of a therein appropriately defined oracle. However,
+their method is of a different type than [18], [19], [20], [21],
+[22] and is different from the method proposed here. Namely,
+the method in [26] requires evaluation of Fenchel conjugates of
+the nodes’ local costs at each iteration, and hence it in general
+has a much larger computational cost per iteration than the
+methods in [18], [19], [20], [21], [22] and the method proposed
+in this paper. To the best of our knowledge, optimality of
+distributed first order methods that do not involve Fenchel
+conjugates has not been studied to date.
+Paper organization. The next paragraph introduces nota-
+tion. Section II explains the model that we assume and reviews
+existing distributed first order methods. Section III presents the
+proposed algorithm and relates it with the existing methods.
+Section IV establishes global R-linear convergence rate of the
+proposed method, while Section V provides simulation ex-
+amples. Finally, we conclude in Section VI. Certain auxiliary
+proofs are provided in the Appendix.
+Notation. We denote by: R the set of real numbers; Rd
+the d-dimensional Euclidean real coordinate space; Aij the
+entry in the i-th row and j-th column of a matrix A; A>
+the transpose of a matrix A; ? the Kronecker product of
+matrices; I , 0, and 1, respectively, the identity matrix, the
+zero matrix, and the column vector with unit entries; J the
+N × N matrix J := (1/N)11>; A  0 (A  0) means
+that the symmetric matrix A is positive definite (respectively,
+positive semi-definite); ?·? = ?·?2 the Euclidean (respectively,
+spectral) norm of its vector (respectively, matrix) argument;
+?i(·) the i-th largest eigenvalue; Diag (a) the diagonal matrix
+with the diagonal equal to the vector a; | · | the cardinality
+of a set; ?h(w) and ?2h(w), respectively, the gradient and
+Hessian evaluated at w of a function h : Rd ? R, d ? 1.
+Finally, for two positive sequences ?n and ?n, we have:
+?n = O(?n) if lim supn??
+?n
+?n
+< ?; and ?n = ?(?n) if
+lim infn??
+?n
+?n
+> 0.
+II. MODEL AND PRELIMINARIES
+Subsection II-A describes the optimization and network
+models that we assume. Subsection II-B reviews the standard
+(inexact) distributed gradient method in [1], as well as the
+exact methods in [13] and [14], and it reviews the known
+equivalence (see [28]) of the method in [13] and a primal-
+dual gradient-like method.
+A. Optimization and network models
+We consider distributed optimization where N nodes in a
+connected network solve the following problem:
+minx?Rd f(x) :=
+N?
+i=1
+fi(x). (1)
+3
+Here, fi : Rd ? R is a convex function known only by node i.
+Throughout the paper, we impose the following assumption on
+the fi’s.
+Assumption 1 Each function fi : Rd ? R, i = 1, ..., N , is
+strongly convex with strong convexity parameter µ, and it
+has Lipschitz continuous gradient with Lipschitz constant L,
+where L ? µ > 0. That is, for all i = 1, ..., N , there holds:
+fi(y) ? fi(x) +?fi(x)>(y ? x)
++
+µ
+2
+?x? y?2, x, y ? Rd
+??fi(x)??fi(y)? ? L ?x? y?, x, y ? Rd.
+For a specific result (precisely, Lemma 3 ahead), we addition-
+ally assume the following.
+Assumption 2 Each function fi : Rd ? R, i = 1, ..., N , is
+twice continuously differentiable.
+Under Assumptions 1 and 2, there holds for every x ? Rd
+that:
+µ I  ?2fi(x)  LI.
+Further, under Assumption 1, problem (1) is solvable and has
+the unique solution x? ? Rd.
+Nodes i = 1, ..., N constitute an undirected network G =
+(V, E), where V is the set of nodes and E is the set of edges.
+The presence of edge {i, j} ? E means that the nodes i and
+j can directly exchange messages through a communication
+link. Further, let ?i be the set of all neighbors of a node i
+(including i).
+Assumption 3 The network G = (V, E) is connected, undi-
+rected and simple (no self-loops nor multiple links).
+We associate with network G a N×N symmetric, (doubly)
+stochastic weight matrix W . Further, we let: Wij = Wji > 0,
+if {i, j} ? E, i 6= j; Wij = Wji = 0, if {i, j} /? E, i 6= j; and
+Wii = 1?
+?
+j 6=iWij > 0, for all i = 1, ..., N . Denote by ?i,
+i = 1, 2, ..., N , the eigenvalues of W , ordered in a descending
+order; it can be shown that they obey 1 = ?1 > ?2 ? ... ?
+?N > ?1.
+Throughout the paper, we consider several iterative dis-
+tributed methods to solve (1). An algorithm’s iterations are
+indexed by k = 0, 1, 2, ... Further, we denote by x(k)i ? Rd the
+estimate of the solution to (1) available to node i at iteration k.
+To avoid notational clutter, we will keep the same notation
+x
+(k)
+i across different methods, while it is clear from context
+which method is in question. For compact notation, we use
+x(k) =
+(
+(x
+(k)
+1 )
+>, (x
+(k)
+2 )
+>, ..., (x
+(k)
+N )
+>
+)>
+? RNd to denote
+the vector that stacks the solution estimates by all nodes at
+iteration k. We use analogous notation for certain auxiliary
+sequences that the algorithms maintain (e.g., see ahead s(k)i
+and s(k) with (14).) Again, to simplify notation, with all
+methods to be considered we will assume equal initialization
+across all nodes, i.e., we let x(0)1 = x
+(0)
+2 = ... = x
+(0)
+N ; e.g.,
+nodes can set x(0)i = 0, for all i.
+For future reference, we introduce the following quantities.
+We let the (Nd)× (Nd) matrix W = W ? I , where I is the
+d × d identity matrix. That is, W is a N × N block matrix
+with d× d blocks, such that the block at the (i, j)-th position
+equals Wij I .1 Note that the (i, j)-th and (j, i)-th block of W
+equal to zero if {i, j} /? E, i 6= j. In other words, we say that
+W respects the sparsity pattern of the underlying graph G.
+Further, recall that J = 1N 11
+> is the ideal consensus matrix,2
+and let J = J?I . Denote by W? =W?J = (W?J)?I the
+matrix that describes how far is W from the ideal matrix J .
+It can be shown that ?W?? = max{?2,??N} =: ? ? [0, 1).
+Next, let x• = 1 ? x?, where we recall that 1 is an all-ones
+vector (here of size N × 1), and x? is the (d× 1) solution to
+(1). In other words, x• concatenates N repetitions of x? on
+top of each other; the i-th repetition corresponds to node i in
+the network. Our goal is that, with a distributed method, we
+have x(k) ? x•, or, equivalently, x(k)i ? x?, for all nodes
+i = 1, ..., N . Further, we define function F : RNd ? R, by
+F (x) := F (x1, ..., xN ) =
+N?
+i=1
+fi(xi). (2)
+Note that, under Assumption 1, F is strongly convex with
+strong convexity parameter µ, and it has Lipschitz continuous
+gradient with Lipschitz constant L.
+B. Review of distributed first order methods
+We review three existing distributed first order methods
+that are of relevance to our studies – the standard distributed
+gradient method in [1], the Extra method in [13], and the
+method in [14].
+Standard distributed gradient method in [1]. The method
+updates the solution estimate x(k)i at each node i by weight-
+averaging node i’s solution estimate with the estimates of its
+immediate neighbors j ? ?i \ {i}, and then by taking a step
+in the negative local gradient’s direction. This corresponds to
+the following update rule at arbitrary node i:
+x
+(k+1)
+i =
+?
+j??i
+Wij x
+(k)
+j ? ??fi(x
+(k)
+i ), k = 0, 1, ... (3)
+In matrix format, the network-wide update is as follows:3
+x(k+1) =W x(k) ? ??F (x(k)), k = 0, 1, ... (4)
+1We will frequently work with Kronecker products of types A?B, a?B,
+and a?b, where A is an N×N matrix, a – N×1 vector, B – d×d matrix,
+and b – d×1 vector. In other words, the Kronecker products throughout always
+appear with the first argument of dimension either N ×N or N × 1, and the
+second argument either d× d or d× 1. As the capital letters denote matrices
+and the lower case letters denote vectors, the dimensions of the Kronecker
+products arguments will be clear.
+2The consensus algorithm, e.g., [38], computes the global average of nodes’
+local quantities through a linear system iteration with a stochastic system
+matrix W . When W = J , consensus converges in a single iteration, hence
+we name J the ideal consensus matrix. Clearly, J is not realizable over a
+generic graph as it is not sparse, but it is usually desirable to have W as
+close as possible to J in an appropriate sense, given the constraints on the
+network sparsity.
+3To save space, we will present all subsequent algorithms in compact forms
+only. From a compact form, it is straightforward to recover local update forms
+at any node i.
+4
+Here, constant ? > 0 is the algorithm’s step size. A drawback
+of algorithm (4) is that (when constant step size ? is used)
+it does not converge to the exact solution x• := 1 ? x?,
+but only to a point in a O(?) solution neighborhood; see,
+e.g., [39]. The algorithm can be made convergent to x• by
+taking an appropriately set diminishing step size (e.g., square
+summable, non-summable), but the convergence rate of the
+resulting method is sublinear.
+Extra [13]. The method modifies the update rule (1) and
+achieves exact (global linear) convergence with a fixed step
+size ?. Extra works as follows. It uses the following update
+rule:4
+x(1) = W x(0) ? ??F (x(0)) (5)
+x(k+1) = 2W x(k) ? ??F (x(k))?W x(k?1) (6)
++??F (x(k?1)), k = 1, 2, ...
+Reference [28] demonstrates that algorithm (5)–(6) is a
+primal-dual gradient-like method; see, e.g., [29], [30], [31], for
+primal-dual (sub)gradient methods. Denote by L := I ?W ,
+and consider the following constrained problem:
+minimize F (x) subject to
+1
+?
+L1/2 x = 0. (7)
+It can be shown, e.g., [28], that L1/2 x = 0, if and only if x1 =
+x2 = ... = xN , where xi ? Rd is the i-th consecutive block
+of x = ( (x1)>, ..., (xN )> )>. Therefore, (7) is equivalent to
+(1). Introduce the augmented Lagrangian function A : RNd×
+RNd ? R (with the penalty parameter equal to ?) associated
+with (7):
+A(x, µ) = F (x) + 1
+?
+µ>L1/2x+ 1
+2?
+x>Lx, (8)
+and the corresponding dual problem:
+maximizeµ?RNd inf
+x?RNd
+A(x, µ). (9)
+Consider the following primal-dual method to solve (9):5
+x(k+1) = x(k) ? ??xA(x(k), µ(k)) (10)
+µ(k+1) = µ(k) + ??µA(x(k+1), µ(k)), k = 0, 1, ...(11)
+with step size ? > 0, arbitrary x(0) ? RNd, and µ(0) = 0.
+Here, ?x and ?µ denote the partial derivatives with respect
+to x and µ, respectively. Evaluating the partial derivatives, we
+arrive at the following method:
+x(k+1) = x(k) ? ?
+(
+1
+?
+Lx(k)
++ ?F (x(k)) + L
+1/2
+?
+µ(k)
+)
+4The Extra method is represented in (5)–(6) in a slightly different but
+equivalent way with respect to [13]; the formulas appear different because
+W? = 1
+2
+(I+W ) in [13] corresponds toW here. It is required in [13] for the
+analysis of (5)–(6) that (in our notation) (2W ? I) be doubly stochastic and
+that W be, besides being doubly stochastic, also positive definite. The latter
+assumptions are not imposed here when analyzing the proposed method (16)–
+(17) (Section IV).
+5More precisely, under appropriate conditions, with (10) one has that(
+x(k), µ(k)
+)
+converges to a saddle point of function A(x, µ), which then
+implies that x(k) solves (7) and µ(k) solves (9).
+µ(k+1) = µ(k) + L1/2 x(k+1), k = 0, 1, ...
+Introducing the new variable u(k) := 1?L
+1/2 µ(k), one arrives
+at the following method:6
+x(k+1) = x(k) ? ?
+(
+1
+?
+Lx(k) +?F (x(k)) + u(k)
+)
+(12)
+u(k+1) = u(k) +
+1
+?
+Lx(k+1), k = 0, 1, ... (13)
+It turns out that (12)–(13) with a proper initialization is
+equivalent to (5)–(6).7
+Lemma 1 ([28]) The sequence of iterates {x(k)} generated by
+algorithm (5)–(6), with initialization x(0)i = x
+(0)
+j , for all i, j,
+is the same as the sequence of iterates generated by (12)–(13),
+with the same initialization of x(0)i , i = 1, ..., N , and with u
+(k)
+initialized to zero.
+Under Assumptions 1 and 3 an appropriately chosen step size
+?, one has that x(k) ? x•, and u(k) ? ??F (x•), at an
+R-linear rate [13].
+The exact method in [14]. The authors of [14], see
+also [18], [19], [20], [21], [22], consider a distributed first
+order method that, besides solution estimate x(k) ? RNd, also
+maintains an auxiliary variable s(k) ? RNd. Here, at each node
+i, quantity s(k)i ? Rd serves to approximate the network-wide
+gradient average 1N
+?N
+i=1?fi(x
+(k)
+i ); then, the gradient con-
+tribution ???F (x(k)) with the standard distributed gradient
+method (4) is replaced with s(k). More precisely, the update
+rule for k = 0, 1, ... is as follows:
+x(k+1) = W x(k) ? ? s(k) (14)
+s(k+1) = W s(k) +?F (x(k+1))??F (x(k)), (15)
+with s(0) = ?F (x(0)). The method also achieves a global
+R-linear convergence under appropriately chosen step-size ?,
+when Assumptions 1 and 3 are in force.
+III. THE PROPOSED METHOD
+Subsection III-A presents the method that we propose and
+explains how to recover the existing methods in [13], [14] by
+a particular setting of a proposed method’s parameter matrix.
+Subsection III-B gives further insights into the proposed
+method and explains how to tune the parameter matrix. Finally,
+Subsection III-C provides a primal-dual interpretation of the
+proposed method and the methods in [13], [14].
+A. The proposed method and its relation with existing algo-
+rithms
+We now describe the generalized exact first order method
+that we propose. The method subsumes the known meth-
+ods [13] and [14] upon a specific choice of the tuning
+parameters, as explained below. The algorithm maintains over
+iterations k the primal variable (solution estimate) x(k) ? RNd
+6See also [17] for similar methods with multiple primal updates per each
+dual update.
+7Reference [28] shows the equivalence under a more general initialization;
+we keep the one as in Lemma 1 for simplicity.
+5
+and the dual variable u(k) ? RNd, initialized with the zero
+vector. The update rule is for k = 0, 1, ... given as follows:
+x(k+1) = W x(k) ? ?
+(
+?F (x(k)) + u(k)
+)
+(16)
+u(k+1) = u(k) ? L
+(
+?F (x(k)) + u(k) ? B x(k)
+)
+.(17)
+Here, quantitiesW , L, and ? are the same as before. Quantity
+B is a (Nd)× (Nd) symmetric matrix that respects the block-
+sparsity pattern of the underlying graph G and satisfies the
+property that, for any y ? Rd, there exists some c ? R, such
+that B (1? y) = c (1? y). Specifically, we will consider the
+following choices (that clearly obey the latter conditions): 1)
+B = b I , where b ? 0 is a scalar parameter; and 2) B = b?W ,
+for b? ? 0. These choices are easy to implement and incur
+no additional communication overhead while lead to efficient
+algorithms (see also Section V).
+The next lemma, proved in the Appendix, explains how
+to recover the existing exact distributed first order methods
+from (16)–(17).8
+Lemma 2 Consider algorithm (16)–(17). Then, the following
+holds.
+(a) Algorithm (16)–(17) with B = 0 is equivalent to
+method (14), proposed in [14].
+(b) Algorithm (16)–(17) with B = 1?W is equivalent to
+method (5)–(6), proposed in [13].
+Regarding communication cost, by careful inspection one
+can see that implementing the method in [13] requires one
+communication (of a d-dimensional real vector) per node, per
+iteration k, while the method in [14] requires two communica-
+tions. The proposed method also requires two communications
+per node, per k. All methods have similar storage and com-
+putational requirements per iteration.
+B. Further insights into the proposed method and parameter
+tuning
+We give further intuition and insights into the proposed
+method, the existing algorithms in [14] and [13], and we also
+describe how to improve upon existing methods by appropri-
+ately setting matrix B. Denote by e(k)x := x(k)?x• and e(k)u :=
+u(k) +?F (x•) the primal and dual errors, respectively. Also,
+let the primal-dual error vector e(k) :=
+(
+(e
+(k)
+x )>, (e
+(k)
+u )>
+)>
+,
+and Hk :=
+? 1
+t=0
+?2F
+(
+x• + t (x(k) ? x•)
+)
+dt. We have the
+following Lemma.9
+Lemma 3 Let Assumptions 1–3 hold, and consider algo-
+rithm (16)–(17). Then, the primal-dual error vector e(k) :=
+8The equivalence claimed in Lemma 2 is in the sense that the methods
+generate the same sequence of iterates {x(k)} under the same initialization
+x(0), the appropriate initialization of methods’ auxiliary variables, and the
+same step size ?.
+9In Section IV, we show that, under Assumptions 1 and 3, e(k) converges
+to zero R-linearly.
+(
+(e
+(k)
+x )>, (e
+(k)
+u )>
+)>
+, for k = 0, 1, ..., satisfies the following
+recursion:[
+e
+(k+1)
+x
+e
+(k+1)
+u
+]
+=
+[
+W ? ?Hk ?? I
+(W ? I) (Hk ? B) W ?J
+] [
+e
+(k)
+x
+e
+(k)
+u
+]
+. (18)
+Lemma 3 expresses the primal dual error e(k) as a recursion,
+guided by a time varying matrix:
+Mk :=
+[
+W ? ?Hk ?? I
+(W ? I) (Hk ? B) W ?J
+]
+, (19)
+that we refer to as the error dynamics matrix.10 Equation (19)
+shows the partitioning of the error dynamics matrix as a
+2 × 2 block matrix with blocks of size (Nd) × (Nd). The
+(1, 1)-th block (W ? ?Hk) describes how the current primal
+error affects the next primal error, the (1, 2)-th block (?? I)
+describes how the current dual error affects the next primal
+error, and so on. Specifically, with the methods in [14]
+and [13], the blocks on the positions (1, 1), (1, 2), and (2, 2)
+are of the same structure for both methods, and are of the
+same structure as in (19).11 For clarity of explanation, assume
+that the fi’s are strongly convex quadratic functions, so that
+Hk = H = ?2F (x) = const, for any x ? RNd, with
+µ I  H  LI , and of course the same H appearing in
+the error dynamics matrices for each of the three methods.
+Then, the blocks (1, 1), (1, 2), and (2, 2) match completely
+for the three methods. However, the error dynamics matrices
+for different methods differ in the (2, 1)-th block. Specifically,
+with [14], the (2, 1)-th block of the corresponding error
+dynamics matrix equals (W ? I) H. On the other hand, with
+[13] the block equals (W ? I)
+(
+H? 1?W
+)
+. Intuitively, one
+may expect that if [Mk]2,1 is smaller (as measured by an
+appropriate matrix norm), then the algorithm’s convergence
+is likely to be faster.12 This provides an intuition on the
+comparison between [14] and [13]. Namely, if H is small
+relative to (H ? 1?W) (for instance, when ? is very small
+and so 1?W has a very large norm), then we expect that the
+method in [14] is faster than the method in [13], and vice
+versa. This intuition is confirmed in Section V by numerical
+examples.
+We can go one step further and seek to tune matrix B such
+that [Mk]2,1 = (W? I)(H?B) is smallest in an appropriate
+sense. We consider separately the cases B = b I and B =
+b?W . For the former, a possible worst case-type approach is as
+follows: choose parameter b that solves the following problem:
+min b?0
+{
+sup
+H?H
+?H ? b I?
+}
+, (20)
+where H is the set of all (Nd) × (Nd) symmetric block
+diagonal matrices H with arbitrary d× d diagonal blocks that
+in addition obey the following condition: µ I  H  LI . It is
+easy to show (see the Appendix for details) that the solution
+to (20) is b? = µ+L2 . Note that the choice B =
+µ+L
+2 I in (16)–
+(17) does not match either [14] or [13] method and thus
+10In Section IV, we show that, under appropriate choice of parameters ?
+and B, the primal-dual error e(k) converges to zero R-linearly.
+11Modulo different value of matrix Hk for each of the methods.
+12This intuition is corroborated more formally in Theorem 4 and Remark 4.
+6
+represents a novel algorithm. For the latter choice B = b?W ,
+the analogous problem:
+min b??0
+{
+sup
+H?H
+?H ? b?W?
+}
+(21)
+is more challenging. A sub-optimal choice for ?N > 0, as
+shown in the Appendix, is b? = L+µ1+?N , where we recall that ?N
+is the smallest eigenvalue of matrix W . Extensive simulations
+(see Also Section V) show that the simple choice b? = L
+works well in practice.
+Note that, ideally, one would like to minimize with respect
+to b the following quantity: supH:µ IHL I ?Mk?, i.e., one
+wants to take into account the full matrix Mk. This problem
+is challenging in general and is hence replaced here by
+method (20) (or, similarly, (21)), i.e., by considering the
+(2, 1)-th block of Mk only. Note that a smaller norm of
+the (2, 1)-th block of Mk might not necessarily imply a
+smaller norm of the full matrix Mk. However, extensive
+numerical experiments on quadratic and logistic losses (see
+also Section 5) demonstrate that tuning method (20) yields
+fast algorithms while at the same time is very cheap.
+C. Primal-dual interpretations
+It is also instructive to write the methods (5)–(6) and
+(14)–(15) in another equivalent form (see the Appendix as
+to why this equivalence also holds.) Namely, (5)–(6) can be
+equivalently represented as follows (this is essentially a re-
+write of (12)–(13)) but is useful to present it here):
+x(k+1) = W x(k) ? ?
+(
+?F (x(k)) + u(k)
+)
+(22)
+u(k+1) = u(k) +
+1
+?
+Lx(k+1), k = 0, 1, ... (23)
+Similarly, (14) can be, for k = 0, 1, ..., equivalently repre-
+sented as:
+x(k+1) = W x(k) ? ?
+(
+?F (x(k)) + u(k)
+)
+(24)
+u(k+1) = u(k) +
+1
+?
+Lx(k+1) ? 1
+?
+WLx(k). (25)
+We can re-interpret (24) as a primal-dual gradient-like method
+for solving (9). Namely, due to the fact that matrices W and
+L commute, it is easy to see that (24)–(25) corresponds to the
+following method:
+x(k+1) = x(k) ? ??xA(x(k), µ(k)) (26)
+µ(k+1) = µ(k) + ??µA(x(k+1), µ(k)) (27)
+??W?µA(x(k), µ(k)).
+Hence, (24) is a primal-dual gradient-like method that mod-
+ifies the dual update step to also incorporate the (weighted)
+previous dual gradient term. Clearly, the proposed generalized
+method (16)–(17) also incorporates the (weighted) previous
+dual gradient term. It is shown in the Appendix that, assuming
+that matrices B and L commute (which is the case for the two
+specific choices B = b I and B = b?W considered here), we
+have that (16)–(17) is equivalent to the following primal-dual
+method:
+x(k+1) = x(k) ? ??xA(x(k), µ(k)) (28)
+µ(k+1) = µ(k) + ??µA(x(k+1), µ(k)) (29)
+?? (W ? ?B) ?µA(x(k), µ(k)).
+IV. CONVERGENCE RATE ANALYSIS
+This Section presents the results on global R-linear con-
+vergence of the proposed method (16)–(17), and provides
+the needed intermediate results and proofs. The Section is
+organized as follows. First, Subsection IV-A states the result
+(Theorem 4) on global R-linear convergence of the proposed
+method (16)–(17) and discusses the implications of the result.
+Subsection IV-B sets up the analysis and gives preliminary
+Lemmas. Finally, Subsection IV-C proves a series of interme-
+diate Lemmas, followed by the proof of Theorem 4.
+A. Global R-linear convergence rate: Statement of the result
+We show that, under appropriate choice of step size ?, the
+proposed method (16)–(17) converges to the exact solution at
+a global R-linear rate. Recall quantity ? = max{?2,??N} ?
+[0, 1), with ?i the i-th largest eigenvalue of W .
+Theorem 4 Consider algorithm (16)–(17) with B = b I ,
+and let Assumptions 1 and 3 hold. Further, let ? <
+min
+{
+(1??)µ
+24L2 ,
+(1??)2 µ
+240L? L
+}
+, where L? =
+(
+L2 + b2 ? 2 b µ
+)1/2
+.
+Then, the sequence of iterates x(k) generated by algo-
+rithm (16)–(17) converges to x• = 1?x? R-linearly, i.e., there
+holds ?x(k)?x•? = O
+(
+rk
+)
+, with r ? (0, 1). The convergence
+factor r is at most
+(
+max{1? ?µ2 ,
+1+?
+2 }+ 
+)
+, where  > 0 is
+arbitrarily small.
+Several Remarks on Theorem 4 are now in order.
+Remark 1 When B = b I is replaced with a generic symmetric
+matrix B that respects the sparsity pattern of graph G and
+satisfies the property that, for any y ? Rd, there exists some
+c ? R, such that B (1? y) = c (1? y), Theorem 4 continues
+to hold with L? replaced with constant (L+ ?B?); see the
+Appendix for the proof.
+Remark 2 The maximal admissible step size for which The-
+orem 4 guarantees R-linear convergence can be very small
+for poorly conditioned problems (L/µ large) and/or weekly
+connected networks (? close to one). However, extensive
+simulations show that the proposed method converges (R-
+linearly) in practice with large step sizes, e.g., ? = 13L . Similar
+theoretical and practical admissible values for step size ? are
+reported in earlier works for the methods studied therein [14],
+[13].
+Remark 3 Theorem 4 generalizes existing R-linear conver-
+gence rate results of exact distributed first order methods, e.g.,
+[14], to a wider class of algorithms. Recall that for b = 0
+we recover the method in [14]. Note that for b = 0 we
+have L? = L. Abstracting universal constants, the conver-
+gence factor obtained in [14] (see Theorem 1 and Lemma 2
+therein) and the one obtained here are the same and equal
+7
+1 ? ?
+(
+(1??)2µ2
+L2
+)
+. This bound is obtained here by setting
+the maximal step size ? permitted by Theorem 4, which is
+? = ?
+(
+(1??)2 µ
+L2
+)
+.
+Remark 4 It is interesting to observe what happens in The-
+orem 4 when b = µ – the case that corresponds to a novel
+exact method. Then, one has L? =
+(
+L2 ? µ2
+)1/2
+, which is
+arbitrarily small when L becomes close to µ. Hence, for well-
+conditioned problems (L close to µ), the maximal admissible
+step size in Theorem 4 becomes ? = ?
+(
+(1??)µ
+L2
+)
+, and the
+corresponding convergence factor is 1??
+(
+(1??)µ2
+L2
+)
+. Hence,
+according to the upper bounds derived here and in [14], the
+proposed method with b = µ improves convergence factor
+over [14] from 1??
+(
+(1??)2µ2
+L2
+)
+to 1??
+(
+(1??)µ2
+L2
+)
+for well-
+conditioned problems (L sufficiently close to µ). Simulations
+confirm large gains in convergence speed of the new method
+over [14] (see Section V).
+B. Setting up analysis and preliminary Lemmas
+The proof of Theorem 4 is based on the small gain The-
+orem [40]. We follow a proof strategy similar to the one
+in [18], in the sense that we also utilize the small gain Theorem
+and construct a certain sequence of arrows13 to carry out the
+analysis. However, the sequences involved in the arrow paths
+here are different and involve a smaller number of sequences
+and arrows.The Subsection also reviews some known results
+on the convergence of inexact (centralized) gradient methods
+that will be used subsequently.
+We start by reviewing the setting of the small gain the-
+orem [40]. Denote by a := a(0), a(1), ..., a(k), ... an infinite
+sequence of vectors, a(k) ? Rp, k = 0, 1, ... For a fixed ? ?
+(0, 1), define the following quantities:
+?a??,K := max
+k=0,...,K
+{
+1
+?k
+?a(k)?
+}
+(30)
+?a?? := sup
+k?0
+{
+1
+?k
+?a(k)?
+}
+. (31)
+Clearly, we have that ?a??,K ? ?a??,K? ? ?a?? , for
+K ? ? K ? 0. It is also clear that, if ?a?? is finite, then the se-
+quence a(k) converges to zero R-linearly. Indeed, provided that
+?a?? ? Ca < ?, there holds: ?a(k)? ? Ca ?k, k = 0, 1, ...
+Hence, if for some ? ? (0, 1) we have that ?a?? is finite,
+then the sequence {a(k)} converges to zero R-linearly with
+convergence factor at most ?. We state the small gain theorem
+for two infinite sequences a and b as this suffices for our
+analysis; for the more general Theorem involving an arbitrary
+(finite) number of infinite sequences, see, e.g., [40], [18].
+Theorem 5 Consider two infinite sequences a = a(0), a(1), ...,
+and b = b(0), b(1), ..., with a(k), b(k) ? Rp, k = 0, 1, ...
+13An arrow a ? b corresponds to bounding an appropriate metric (see
+(30)) of the infinite sequence a by the same metric of the infinite sequence
+b, through a bound of type (38).
+Suppose that for some ? ? (0, 1), and for all K = 0, 1, ...,
+there holds:
+?a??,K ? ?1 ?b??,K + ?1 (32)
+?b??,K ? ?2 ?a??,K + ?2, (33)
+where ?1, ?2 ? 0 and ?1 ?2 < 1. Then, there holds:
+?a?? ? 1
+1? ?1 ?2
+(?2 ?1 + ?1) . (34)
+We will frequently use the following simple Lemma.
+Lemma 6 Consider two infinite sequences a = a(0), a(1), ...,
+and b = b(0), b(1), ..., with a(k), b(k) ? Rp. Suppose that, for
+all k = 0, 1, ..., there holds:
+?a(k+1)? ? c1 ?a(k)?+ c2 ?b(k)?, (35)
+where ci ? 0, i = 1, 2. Then, for all K = 0, 1, ..., for any
+? ? (0, 1), we have:
+?a??,K ? c1
+?
+?a??,K + c2
+?
+?b??,K + ?a(0)?. (36)
+Proof: Divide inequality (35) by 1
+?k+1
+, ? ? (0, 1). The
+resulting inequality implies, for all K = 1, 2, ... that:
+max
+k=0,...,K?1
+{
+1
+?k+1
+?a(k+1)?
+}
+? c1
+?
+max
+k=0,...,K?1
+{
+1
+?k
+?a(k)?
+}
++
+c2
+?
+max
+k=0,...,K?1
+{
+1
+?k
+?b(k)?
+}
+=
+c1
+?
+?a??,K?1 + c2
+?
+?b??,K?1
+? c1
+?
+?a??,K + c2
+?
+?b??,K . (37)
+Note that (37) implies that, for all K = 0, 1, ...
+?a??,K = max
+k=?1,0,...,K?1
+{
+1
+?k+1
+?a(k+1)?
+}
+? c1
+?
+?a??,K + c2
+?
+?b??,K + ?a(0)?,
+which is precisely what we wanted to show.
+The use of the Lemma will be to bound ?a??,K by ?b??,K .
+Namely, whenever c3 := c1? < 1, (35) implies the following
+bound:
+?a??,K ? c2/?
+1? c3
+?b??,K + 1
+1? c3
+?a(0)?. (38)
+We will also need the following Lemma from [41] on the
+convergence of inexact (centralized) gradient methods.
+Lemma 7 Consider unconstrained minimization of function
+? : Rp ? R, where ? is assumed to be strongly convex
+with strong convexity parameter m, and it also has Lipschitz
+continuous gradient with Lipschitz constant M , M ? m > 0.
+Consider the following inexact gradient method with step size
+? ? 1M :
+y(k+1) = y(k) ? ?
+(
+??(y(k)) + (k)
+)
+, k = 0, 1, ...,
+with arbitrary initialization y(0) ? Rp and (k) ? Rp. Then,
+for all k = 0, 1, ..., there holds:
+?y(k+1) ? y?? ? (1? ? m) ?y(k) ? y??+ ? ?(k)?, (39)
+where y? = arg miny?Rp?(y).
+8
+Quantity (k) in (39) is an inexactness measure that says how
+far is the employed search direction from the exact gradient
+at the iterate y(k).
+C. Intermediate Lemmas and proof of Theorem 4
+We now carry out convergence proof of Theorem 4 through
+a sequence of intermediate Lemmas. We first split the primal
+error as follows: e(k)x = x(k) ? x• =
+(
+x(k) ? 1? x(k)
+)
++1?(
+x(k) ? x?
+)
+=: x?(k)+1?e(k)x . Quantity x?(k) = x(k)?1?x(k)
+says how mutually different are the solution estimates x(k)i ’s at
+different nodes; quantity e(k)x says how far is the global average
+x(k) = 1N
+?N
+i=1 x
+(k)
+i from the solution x
+?. We decompose the
+dual error e(k)u = u(k) +?F (x•) in the following way:
+e(k)u = u?
+(k) + 1? e(k)u .
+Here, e(k)u = 1N (1 ? I)
+> e
+(k)
+u =
+1
+N
+?N
+i=1[e
+(k)
+u ]i, and u?(k) =
+(I ? J )e(k)u = e(k)u ? 1 ? e(k)u . Note that e(k)u = u(k) +
+1
+N
+?N
+i=1?fi(x?) = u
+(k), where u(k) = 1N
+?N
+i=1 u
+(k)
+i .
+We will be interested in deriving bounds on ?ex??,K =
+maxk=0,...,K
+1
+?k
+?e(k)x ?, for some ? ? (0, 1), and on the
+analogous quantities that correspond to other primal and dual
+errors that we defined above. Specifically, the proof path is as
+follows. First, Lemma 8 shows that e(k)u = 0, for all k, which
+simplifies further analysis. Our goal is to apply Theorem 5
+with the following identification of infinite sequences: a? x?,
+and b ? u?. Then, Lemmas 9-11 are devoted to deriving
+a bound like in (32), while Lemma 12 devises a bound
+that corresponds to (33). As shown below, this sequence of
+Lemmas will be sufficient to complete the proof of Theorem 4.
+Lemma 8 With algorithm (16)–(17), there holds: e(k)u =
+u(k) = 0, for all k = 0, 1, ...
+Proof: Consider (17). Multiplying the equality from the
+left by 1N (1?I)
+>, using (1?I)>L = (1>?I)((I?W )?I)
+= (1>(I ?W ))? I = 0, we obtain that:
+u(k+1) = u(k), k = 0, 1, ... (40)
+Recall that u(0) = 0, by assumption. Thus, the result.
+Lemma 9 Consider algorithm (16)–(17), with ? ? 1/L. Then,
+for any ? ?
+(
+1? ?µ2 , 1
+)
+, there holds:
+?ex??,K ?
+4L?
+N µ
+?x???,K + 2
+?µ
+?e(0)x ?. (41)
+Proof: Consider (16). Multiplying the equation from the
+left by 1N (1 ? I )
+>, using the fact that 1N (1 ? I )
+>W =
+1
+N (1 ? I )
+>, and the fact that 1N (1 ? I )
+> u(k) = u(k) = 0,
+for all k (by Lemma 8), we obtain:
+x(k+1) = x(k) ? ?
+N
+N?
+i=1
+?fi(x(k)i ) = x
+(k) ? ?
+N
+N?
+i=1
+?fi(x(k))
+? ?
+N
+N?
+i=1
+(
+?fi(x(k)i )??fi(x
+(k))
+)
+= x(k) ? ?
+N
+(
+?f(x(k)) + (k)
+)
+, where
+(k) =
+N?
+i=1
+(
+?fi(x(k)i )??fi(x
+(k))
+)
+.
+Now, applying Lemma 7, with e(k)x = x(k) ? x?, we obtain:
+?e(k+1)x ? ? (1? ?µ) ?e(k)x ?+
+?
+N
+?(k)?. (42)
+We next upper bound ?N ?
+(k)? as follows:
+?
+N
+?(k)? ? ?
+N
+N?
+i=1
+????fi(x(k)i )??fi(x(k))???
+? ?
+N
+N?
+i=1
+L
+???x(k)i ? x(k)??? (43)
+? ?L?
+N
+???x?(k)??? . (44)
+Inequality (43) is by the Lipschitz continuity of the ?fi’s,
+while (44) is by noting that
+N?
+i=1
+?x(k)i ? x
+(k)? =
+N?
+i=1
+?x?(k)i ? ?
+?
+N ?x?(k)?.
+Substituting the last bound in (42), we obtain:
+?e(k+1)x ? ? (1? ?µ) ?e(k)x ?+
+?L?
+N
+?x?(k)?. (45)
+Now, applying Lemma 6, we obtain:
+?ex??,K ?
+1
+?
+(1? ?µ) ?ex??,K +
+?L?
+N
+1
+?
+?x???,K + ?e(0)x ?.
+(46)
+From (46), using ? ? 1/L, one can verify that, for all ? ?
+1? ?µ2 , there holds:
+?ex??,K ?
+(
+1? ?µ
+2
+)
+?ex??,K
+2
+?L?
+N
+?x???,K + ?e(0)x ?. (47)
+The last bound yields the desired result.
+Lemma 10 Let ? < 1??3L , and ? ?
+(
+1? ?µ2 , 1
+)
+. Then, there
+holds:
+?x???,K ? 3 ?L
+?
+N
+1? ?
+?ex??,K
++ 3
+?
+1? ?
+?u???,K + 2
+1? ?
+?x?(0)?.
+Proof: Consider (16). Subtracting x• = 1?x? from both
+sides of the equation, and noting thatW x• = (W?I)(1?x?)
+= (W 1)? (I x?) = 1? x? = x•, we obtain:
+e(k+1)x =W e(k)x ? ?
+(
+?F (x(k)) + u(k)
+)
+. (48)
+Next, note that
+?F (x(k)) + u(k) =
+(
+?F (x(k))??F (x•)
+)
++
+(
+?F (x•) + u(k)
+)
+(49)
+=
+(
+?F (x(k))??F (x•)
+)
++ u?(k). (50)
+9
+In (50), we use that ?F (x•) + u(k) = e(k)u = u?(k) (by
+Lemma 8). Substituting (50) into (48), we get:
+e(k+1)x =W e(k)x ? ?
+(
+?F (x(k))??F (x•)
+)
+? ? u?(k) (51)
+We next multiply (51) from the left by I ?J = (I ? J)? I ,
+and we use that [ (I ? J)? I ]e(k)x = x?(k). Noting that
+[ (I ? J)? I ] W = [ (I ? J)? I ] [W ? I ]
+= [ (I ? J)W ]? I
+= W? ? I = W?,
+and (I ? J )u?(k) = u?(k), we get:
+x?(k+1) = W? x?(k) ? ? (I ? J )
+(
+?F (x(k))
+? ?F (x•))? ? u?(k). (52)
+Next, use the decomposition x(k)?x• = e(k)x = x?(k)+1?e(k)x ,
+and Lipschitz continuity of ?F , to note that:
+??F (x(k))??F (x•)? ? L ?x?(k)?+ L
+?
+N ?e(k)x ?. (53)
+Using the latter bound and taking the 2-norm in (52), while
+using its sub-additive and sub-multiplicative properties, we
+get:
+?x?(k+1)? ? (? + ?L) ?x?(k)?+ ?L
+?
+N ?e(k)x ?+ ? ?u?(k)?.
+(54)
+Now, similarly to Lemma 6, it is easy to see that the last
+equation implies:
+?x???,K ? 1
+?
+(? + ?L) ?x???,K
++
+1
+?
+?L
+?
+N ?ex??,K +
+?
+?
+?u???,K + ?x?(0)?. (55)
+Next, note that for ? ?
+(
+1? ?µ2 , 1
+)
+, and ? < 1??3L , there
+holds:
+1
+?
+(? + ?L) <
+? + 1
+2
+. (56)
+Also, as ? < 1??3L <
+1
+3L , we have that 1/? ? 6/5. Substituting
+the last two bounds in (55), we obtain:
+?x???,K ? 1 + ?
+2
+?x???,K + 6
+5
+?L
+?
+N ?ex??,K
++
+6?
+5
+?u???,K + ?x?(0)?.
+Rearranging terms in the last equality, the desired result
+follows.
+Lemma 11 Let ? < (1??)µ24L2 , and ? ?
+(
+1? ?µ2 , 1
+)
+. Then, there
+holds:
+?x???,K ? 6?
+1? ?
+?u???,K + 4
+1? ?
+?x?(0)?+ 12L
+?
+N
+µ (1? ?)
+?e(0)x ?.
+(57)
+Proof: We combine Lemmas 9 and 10, to obtain:
+?x???,K ? 12?L
+2
+(1? ?)µ
+?x???,K + 6
+?
+N L
+(1? ?)µ
+?e(0)x ?
++
+3?
+1? ?
+?u???,K + 2
+1? ?
+?x?(0)?. (58)
+Next, note that, for ? < (1??)µ24L2 , we have that
+12?L2
+(1??)µ <
+1/2. Substituting the latter bound in (58) and manipulating
+the terms, the desired result follows.
+Lemma 12 Let ? ?
+(
+1+?
+2 , 1
+)
+, and recall L? =(
+L2 + b2 ? 2 b µ
+)1/2
+. Then, the following holds:
+?u??,K ? 40L
+? L
+µ (1? ?)
+?x???,K + 2
+1? ?
+?u?(0)?
++
+16
+1? ?
+L?
+?
+N
+?µ
+?ex(0)?.
+Proof: Consider (17). Adding ?F (x•) to both sides of
+the equality, and recalling that e(k)u = u(k) +?F (x•) = u?(k),
+we obtain:
+u?(k+1) = u?(k) ? L (?F (x(k))??F (x•) + u(k)
++?F (x•)? b (x(k) ? x•) ) (59)
+= W u?(k) ? L (?F (x(k))??F (x•) )
++ bL (x(k) ? x•)
+= W? u?(k) ? L (?F (x(k))??F (x•) )
++ bL (x(k) ? x•). (60)
+Here, (59) uses the fact that Lx• = 0, while (60) holds
+because W? u?(k) = (W ? J ) u?(k) = W u?(k), as J u?(k) =
+J (I ? J )eu(k) = (J ? J )eu(k) = 0. We next upper bound
+the term
+(
+?F (x(k))??F (x•)? b (x(k) ? x•)
+)
+as follows:
+??F (x(k))??F (x•)? b (x(k) ? x•)?2
+= ??F (x(k))??F (x•)?2 + b2 ?x(k) ? x•?2
+?2 b
+(
+?F (x(k))??F (x•)
+)> (
+x(k) ? x•
+)
+? L2 ?x(k) ? x•?2 + b2 ?x(k) ? x•?2
+? 2 b µ ?x(k) ? x•?2,
+where the last inequality holds by the Lipschitz continuity of
+?F , and by the strong monotonicity of ?F :
+(?F (x)??F (y))> (x? y) ? µ ?x?y?2, for all x, y ? Rd.
+Hence, we have that:
+??F (x(k))??F (x•)? b (x(k) ? x•)? ? L? ?x(k) ? x•?.
+Next, taking the norm in (60), using ?L? ? 2, exploiting its
+sub-additive and sub-multiplicative properties, and using the
+Lipschitz continuity of ?F , we obtain:
+?u?(k+1)? ? ? ?u?(k)?+ 2L? ?e(k)x ?. (61)
+Decomposing e(k)x = x?(k) + 1? e(k)x , and applying Lemma 6,
+we obtain:
+?u???,K ? ?
+?
+?u???,K + 2L
+?
+?
+?x???,K
++
+2L?
+?
+N
+?
+?ex??,K + ?u?(0)?.
+Next, applying Lemma 9, we get:
+?u???,K ? ?
+?
+?u???,K +
+(
+2L?
+?
+) (
+1 +
+4L
+µ
+)
+?x???,K
+10
++
+4
+?
+N L?
+?µ ?
+?e(0)x ?+ ?u?(0)?.
+From now on, assume that ? ?
+(
+1+?
+2 , 1
+)
+. Then, it is easy to
+see that there holds: ?? <
+1+?
+2 . Also, note that
+1
+? ? 2. Thus,
+we have:
+?u???,K ? 1 + ?
+2
+?u???,K + 20L
+? L
+µ
+?x???,K
++
+8L?
+?
+N
+?µ
+?ex(0)??,K + ?u?(0)?.
+After rearranging expressions, the desired result follows.
+We are now ready to prove Theorem 4.
+Proof of Theorem 4: We apply Theorem 5 with the
+identification a ? x? and b ? u?, by utilizing Lemma 11
+and Lemma 12. Assume the algorithm parameters obey the
+conditions of Lemmas 11 and 12, namely that:
+? <
+µ (1? ?)
+24L2
+and ? ?
+(
+max{1 + ?
+2
+, 1? ?µ
+2
+}, 1
+)
+.
+Then, by the two Lemmas, the product of gains equals:
+?1 ?2 =
+6?
+1??
+40L? L
+µ (1??) We need that ?1 ?2 < 1 in order for (34)
+to hold. Therefore, when ? < min{µ (1??)
+2
+240L? L ,
+µ(1??)
+24L2 }, we have
+that ?x??? ? C < ?, for a constant C ? (0,?). Note also
+that, by Lemma 9, we have:
+?ex?? ?
+4L?
+N µ
+?x??? + 2
+?µ
+?e(0)x ?. (62)
+As e(k)x = x?(k)+1?e(k)x , we have: ?ex?? ?
+(
+1 + 4L?
+N µ
+)
+?x???
++ 2?µ ?e
+(0)
+x ? =
+(
+1 + 4L?
+N µ
+)
+C+ 4?µ ?e
+(0)
+x ?=: C ? < +?.
+Therefore, ?e(k)x ? ? C ? ?k, for all k, for any ? ?(
+max{ 1+?2 , 1?
+?µ
+2 }, 1
+)
+, as desired.
+V. SIMULATIONS
+This Section provides a simulation example on learning a
+linear classifier via minimization of the `2-regularized logistic
+loss. Simulations confirm the insights gained through the
+theoretical analysis and demonstrate that the proposed gener-
+alized method improves convergence speed over the existing
+methods [13], [14].
+The simulation setup is as follows. We consider distributed
+learning of a linear classifier via the `2-regularized logistic
+loss, e.g., [11]. Each node i has J data samples {aij , bij}Jj=1.
+Here, aij ? Rd?1, d ? 2, is a feature vector, and bij ?
+{?1,+1} is its class label. The goal is to learn a vector x =
+(x>1 , x0)
+>, x1 ? Rd?1, and x0 ? R, d ? 1, such that the total
+`2-regularized surrogate loss
+?N
+i=1 fi(x) is minimized, where,
+for i = 1, ..., N , we have:
+fi(x) = ln
+(
+1 + exp
+(
+?bij ( a>ijx1 + x0 )
+))
++
+1
+2
+R?x?2.
+Here, R is a positive regularization parameter. We can take the
+strong convexity constant as µ = R, while a Lipschitz constant
+L can be taken as 14N ?
+?N
+i=1
+?J
+j=1 cij c
+>
+ij?+R, where cij =
+(bij a
+>
+ij , bij)
+>.
+With all experiments, we test the algorithms on a connected
+network with N = 30 nodes and 123 links, generated as
+a realization of the random geometric graph model with
+communication radius
+?
+ln(N)/N .
+We generate data and set the algorithm parameters as
+follows. Each node i has J = 2 data points whose dimension
+is d ? 1 = 5. The aij’s are generated independently over
+i and j; each entry of aij is drawn independently from the
+standard normal distribution. We generate the “true” vector
+x? = ((x?1)
+>, x?0)
+> by drawing its entries independently from
+standard normal distribution. The class labels are generated
+as bij = sign
+(
+(x?1)
+>aij + x
+?
+0 + ij
+)
+, where ij’s are drawn
+independently from normal distribution with zero mean and
+variance 0.4. We set the regularization parameter as R = 0.03.
+With all algorithms, we initialize x(0)i to zero for all
+i = 1, ..., N . The auxiliary variables for each algorithm
+are initialized as described in Subsection II-B. Further, the
+weight matrix is as follows: Wij = 12 (max{deg(i),deg(j)}+1) ,
+for i 6= j, {i, j} ? E; Wij = 0, for i 6= j, {i, j} /? E; and
+Wii = 1 ?
+?
+j 6=iWij , for i = 1, ..., N . Here, deg(i) is the
+number of neighbors of node i (excluding i).
+As an error metric, we use the following quantity:
+1
+N
+?N
+i=1
+?x(k)i ?x
+??
+?x?? , x
+? 6= 0, that we refer to as the relative
+error. Quantity x? is obtained numerically beforehand by a
+centralized Nesterov gradient method [33].
+We compare four methods: the method in [14], that we
+refer to here as “harnessing”; the Extra method in [13]; the
+proposed method (16)–(17) with B = L+µ2 I – that we refer to
+as the modified “harnessing”; and the proposed method (16)–
+(17) with B = LW – that we refer to as the modified Extra.
+Figure 1 plots the relative error versus number of iterations k
+for the four methods, for different values of step sizes: the
+top Figure: ? = 1/(3L); middle: ? = 1/(9L); and bottom:
+? = 1/(15L). First, on the top Figure, we can see that the
+proposed modifications yield improvements in the convergence
+speed over the respective original methods in [14] and [13].
+While the improvement is not very large for [13], it is quite
+significant for the method in [14].
+As the step size decreases (the middle and bottom Figures),
+we can see that the gain of the proposed method is reduced,
+and the four methods tend to behave mutually very similarly.
+Next, while for the large step size (the top Figure) Extra [13]
+performs better than the method in [14], for the small step
+size (bottom Figure) the performance of the two methods
+is reversed, as predicted by our theoretical considerations.
+(Though the difference between the methods is quite small
+for the small step size.)
+Figure 2 repeats the experiment for a 100-node, 561-link,
+connected network (generated also as an instance of a random
+geometric graph model with radius
+?
+ln(N)/N ), and for step-
+sizes ? = 1/(6L) (top Figure); ? = 1/(18L) (middle); and
+? = 1/(54L) (bottom). We can see that a similar behavior of
+the four methods can be observed here, as well.
+VI. CONCLUSION
+We considered exact first order methods for distributed op-
+timization problems where N nodes collaboratively minimize
+the aggregate sum of their local convex costs. Specifically,
+we unified, generalized, and accelerated the existing methods,
+11
+Fig. 1: Relative error versus number of iterations k, for three
+different values of step-size ?: Top: ? = 13L ; middle: ? =
+1
+9L ;
+and bottom: ? = 115L .
+Fig. 2: Relative error versus number of iterations k, for three
+different values of step-size ?: Top: ? = 16L ; middle: ? =
+1
+18L ; and bottom: ? =
+1
+54L .
+12
+e.g., [13], [14]. While it was known that the method in [13] is
+equivalent to a primal-dual gradient-like method, we show here
+that this is true also with [14], where the corresponding primal-
+dual update rule incorporates a weighted past dual gradient
+term, in addition to the current dual gradient term. We then
+generalize the method by proposing an optimized, easy-to-
+tune weighting of the past dual gradient term, and show both
+theoretically and by simulation that the modification yields
+significant improvements in convergence speed. We establish
+for the proposed exact method global R-linear convergence
+rate, assuming strongly convex local costs with Lipschitz
+continuous gradients and static networks. Future work includes
+extensions to time varying and/or random networks and unco-
+ordinated step-sizes across nodes.
+APPENDIX
+A. Proof of Lemma 2
+We first prove part (b), i.e., we set B = 1?W . We must
+show that (16)–(17) is equivalent to (5)–(6). It suffices to show
+that (16)–(17) is equivalent to (12)–(13), due to Lemma 1.
+First, note that, due to identity L = I ?W , we have that (16)
+and (12) are the same. Next, from (16), we have that:
+?F (x(k)) + u(k) = ? 1
+?
+x(k+1) +
+1
+?
+W x(k).
+Substituting this into (17), and using B = 1?W , we re-
+cover (13). Hence, the equivalence of (16)–(17) and (5)–(6)
+with B = 1?W . Next, we prove part (a). That is, we consider
+(14) and (16)–(17) with B = 0. The key is to note that s(k),
+k = 0, 1, ..., can be written as: s(k) = u(k) +?F (x(k)), where
+u(k) is defined by the following recursion:
+u(k+1) = W u(k) + (W ? I)?F (x(k))
+= u(k) ? L (u(k) +?F (x(k))), (63)
+for k = 0, 1, ..., and u(0) = 0. Substituting (63) into (16),
+yields the desired equivalence.
+B. Proof of Lemma 3
+Consider (16). Subtracting x• from both sides of the equal-
+ity, noting that W x• = x•, and adding and subtracting
+?F (x•) to the term in the parenthesis on the right hand side
+of the equality, we obtain:
+e(k+1)x = W e(k)x ? ?
+(
+?F (x(k))??F (x•) +?F (x•) + u(k)
+)
+= W e(k)x ? ?Hk e(k)x ? ? e(k)u , (64)
+where (64) follows by the definition of Hk, Hk =? 1
+t=0
+?2F
+(
+x• + t (x(k) ? x•)
+)
+dt, and by the definition of
+e
+(k)
+u . Next, consider (17). Using identity L = I ? W , the
+equality can be equivalently written as:
+u(k+1) =W u(k) ? L
+(
+?F (x(k))? B x(k)
+)
+. (65)
+Next, add ?F (x•) to both sides of the equality, and express
+the quantity on the right hand side as?F (x•) =W?F (x•)+
+L?F (x•). We obtain:
+e(k+1)u = W (u(k) +?F (x•))? L
+(
+?F (x(k))
+? ?F (x•)) + LB x(k)
+= W e(k)u ? LHk e(k)x + LB x(k). (66)
+Next, by the property B x• = c x•, for some c ? R, it follows
+that: LB x• = cLx• = c [ (I ?W ) ? I ] [1 ? x?] = c [ (I ?
+W )1 ] ? [ I ? x? ] = 0. Hence, we can subtract LB x• = 0
+from the right hand side of (66) to obtain the following:
+e(k+1)u = W e(k)u ? LHk e(k)x + LB e(k)x
+= W e(k)u + L (B ?Hk) e(k)x . (67)
+Finally, note from (67) that:
+J e(k+1)u = J e(k)u , k = 0, 1, ...,
+because J L = [J ? I ] [ (I ?W )? I ] = [ J(I ?W ) ]? I =
+[J ? J ] ? I = 0. Note that J e(0)u = J (0 + ?F (x•)) =
+1
+N 1(
+?N
+i=1?fi(x?) ) = 0. Thus, we conclude that J e
+(k)
+u = 0,
+for all k. Applying the latter fact to (67), we obtain:
+e(k+1)u = (W ?J ) e(k)u + L (B ?Hk) e(k)x . (68)
+The relations (64) and (68) yield the claim of the Lemma.
+C. Derivation of the solution to (20) and of an approximate
+solution to (21)
+We first consider (20). Note that, for any H ? H,
+we have that: ?b I ? H? = maxi=1,...,Nd |b ? hi| =
+max {|b? hNd|, |h1 ? b|} ? max {|b? µ|, |L? b|} . Here,
+hi denotes the i-th largest eigenvalue of H. In the last
+inequality above, we used the fact that µ I  H  LI , for all
+H ? H. Therefore, we have that:
+max
+H?H
+?b I ?H? = max{|b? µ|, |L? b|}. (69)
+The maximum in (69) is attained, e.g., for H =
+Diag(L, µ, ..., µ), where µ is repeated (Nd ? 1) times. The
+quantity (69) is clearly minimized over b ? 0 at b = b? =
+L+µ
+2 .
+Now, consider (21), and assume that ?N > 0. Note that
+the maximal eigenvalue of W = W ? I equals one, and the
+minimal eigenvalue of W equals ?N . We have:
+?b?W ?H? ? max {|b? ? µ|, |L? b? ?N |} . (70)
+We choose a sub-optimal b? that minimizes the upper bound
+in (70) on the desired function supH?H ?b?W?H?. It is easy
+to see that the corresponding value is b? = L+µ1+?N .
+D. Proof of equivalence of (16)–(17) and (28)–(29)
+Consider (16). From the equation, we have: ?F (x(k)) +
+u(k) = ? 1?
+(
+x(k+1) ?W x(k)
+)
+. Substituting the latter relation
+in (17), and using the fact that matrices L and W commute,
+as well as that L and B commute, (17) leads to (25). Now,
+consider (28). Proceeding by the same steps as in deriving
+(12) from (10), it is straightforward to verify that (28) leads
+to (24). Thus, the equivalence between (16)–(17) and (28)–
+(29). The respective equivalence for the method in [14] follows
+by setting B = 0 in (28)–(29).
+E. Proof of Theorem 4 for generic matrices B
+We show here that, when B = b I is replaced with a
+generic symmetric matrix B that respects the sparsity pattern
+13
+of graph G and obeys that for any y ? Rd, there exists some
+c ? R, such that B (1? y) = c (1? y), Theorem 4 continues
+to hold with L? replaced with constant (L+ ?B?). Namely,
+it is easy to see that Lemma 8 continues to hold unchanged.
+Further, Lemmas 9–11 pertain to the update equation (16) that
+does not depend on B, and hence they also hold unchanged.
+The only modifications occur with Lemma 12. Namely, (60)
+becomes: u?(k+1) = W? u?(k) ? L (?F (x(k)) ? ?F (x•) )
++LB (x(k) ? x•). Using Lipschitz continuity of ?F and
+the fact that ?L? ? 2, the latter equality implies: ?u?(k+1)?
+? ? ?u?(k)?+ 2L ?x(k) ? x•? +2?B? ?x(k) ? x•?. The proof
+of the modified Lemma 12 then proceeds in the same way
+as the remaining part of the proof of Lemma 12. Finally, the
+proof of the modified Theorem 4 then also proceeds in the
+same way as the proof of Theorem 4.
+REFERENCES
+[1] A. Nedic and A. Ozdaglar, “Distributed subgradient methods for multi-
+agent optimization,” IEEE Transactions on Automatic Control, vol. 54,
+no. 1, pp. 48–61, January 2009.
+[2] C. Lopes and A. H. Sayed, “Adaptive estimation algorithms over
+distributed networks,” in 21st IEICE Signal Processing Symposium,
+Kyoto, Japan, Nov. 2006.
+[3] F. Cattivelli and A. H. Sayed, “Diffusion LMS strategies for distributed
+estimation,” IEEE Trans. Sig. Process., vol. 58, no. 3, pp. 1035–1048,
+March 2010.
+[4] A. H. Sayed, S.-Y. Tu, J. Chen, X. Zhao, and Z. Towfic, “Diffusion
+strategies for adaptation and learning over networks,” IEEE Sig. Process.
+Mag., vol. 30, no. 3, pp. 155–171, May 2013.
+[5] J. Duchi, A. Agarwal, and M. Wainwright, “Dual averaging for dis-
+tributed optimization: Convergence and network scaling,” IEEE Trans.
+Aut. Contr., vol. 57, no. 3, pp. 592–606, March 2012.
+[6] I. Lobel and A. Ozdaglar, “Convergence analysis of distributed sub-
+gradient methods over random networks,” in 46th Annual Allerton
+Conference onCommunication, Control, and Computing, Monticello,
+Illinois, September 2008, pp. 353 – 360.
+[7] D. Jakovetic, J. Xavier, and J. M. F. Moura, “Fast distributed gradient
+methods,” IEEE Trans. Autom. Contr., vol. 59, no. 5, pp. 1131–1146,
+May 2014.
+[8] ——, “Convergence rates of distributed Nesterov-like gradient methods
+on random networks,” IEEE Transactions on Signal Processing, vol. 62,
+no. 4, pp. 868–882, February 2014.
+[9] S. Kar, J. M. F. Moura, and K. Ramanan, “Distributed parameter esti-
+mation in sensor networks: Nonlinear observation models and imperfect
+communication,” IEEE Transactions on Information Theory, vol. 58,
+no. 6, pp. 3575–3605, June 2012.
+[10] M. Rabbat and R. Nowak, “Distributed optimization in sensor networks,”
+in IPSN 2004, 3rd International Symposium on Information Processing
+in Sensor Networks, Berkeley, California, USA, April 2004, pp. 20 –
+27.
+[11] S. Boyd, N. Parikh, E. Chu, B. Peleato, and J. Eckstein, “Distributed
+optimization and statistical learning via the alternating direction method
+of multipliers,” Foundations and Trends in Machine Learning, Michael
+Jordan, Editor in Chief, vol. 3, no. 1, pp. 1–122, 2011.
+[12] F. Bullo, J. Cortes, and S. Martinez, Distributed control of robotic
+networks: A mathematical approach to motion coordination algorithms.
+Princeton University Press, 209.
+[13] W. Shi, Q. Ling, G. Wu, and W. Yin, “EXTRA: An exact first-order
+algorithm for decentralized consensus optimization,” SIAM J. Optim.,
+vol. 25, no. 2, pp. 944–966, 2015.
+[14] G. Qu and N. Li, “Harnessing smoothness to accelerate distributed
+optimization,” to appear in IEEE Transactions on Control of Network
+Systems, 2017, DOI: 10.1109/TCNS.2017.2698261.
+[15] K. Yuan, B. Ying, X. Zhao, and A. H. Sayed, “Exact diffusion for
+distributed optimization and learning — Part I: Algorithm development,”
+2017, arxiv preprint, arXiv:1702.05122.
+[16] ——, “Exact diffusion for distributed optimization and learning — Part
+II: Convergence analysis,” 2017, arxiv preprint, arXiv:1702.05142.
+[17] D. Jakovetic, J. Xavier, and J. M. F. Moura, “Linear convergence rate of
+a class of distributed augmented Lagrangian algorithms,” IEEE Trans.
+Autom. Contr., vol. 60, no. 4, pp. 922–936, April 2015.
+[18] A. Nedic, A. Olshevsky, W. Shi, and C. A. Uribe, “Geometrically con-
+vergent distributed optimization with uncoordinated step-sizes,” 2016,
+arXiv preprint arXiv:1609.05877.
+[19] A. Nedic, A. Olshevsky, and W. Shi, “Achieving geometric convergence
+for distributed optimization over time-varying graphs,” 2016, arXiv
+preprint arXiv:1607.03218.
+[20] J. Xu, S. Zhu, Y. Soh, and L. Xie, “Augmented distributed gradient
+methods for multi-agent optimization under uncoordinated constant
+stepsizes,” in 54th IEEE Conference on Decision and Control (CDC),
+2015, pp. 2055–2060.
+[21] Q. Lu and H. Li, “Geometrical convergence rate for distributed optimiza-
+tion with time-varying directed graphs and uncoordinated step-sizes,”
+2016, arXiv preprint arXiv:1611.00990.
+[22] G. Qu and N. Li, “Accelerated distributed Nesterov gradient descent,”
+2017, arxiv preprint arXiv:1705.07176.
+[23] C. Xi and U. A. Khan, “Dextra: A fast algorithm for optimization over
+directed graphs,” IEEE Transactions on Automatic Control, 2017, to
+appear, DOI: 10.1109/TAC.2017.2672698.
+[24] J. Zeng and W. Yin, “Extrapush for convex smooth decentralized
+optimization over directed networks,” Journal of Computational Math-
+ematics, vol. 35, no. 4, pp. 381–394, 2017.
+[25] W. Shi, Q. Ling, G. Wu, and W. Yin, “A proximal gradient algorithm
+for decentralized composite optimization,” Journal of Machine Learning
+Research, vol. 63, no. 22, pp. 6013–6023, 2015.
+[26] K. Scaman, F. Bach, S. Bubeck, Y. T. Lee, and L. Massoulie, “Optimal
+algorithms for smooth and strongly convex distributed optimization in
+networks,” 2017, arxiv preprint, arXiv:1702.08704.
+[27] A. Nedic, A. Ozdaglar, and A. Parrilo, “Constrained consensus and
+optimization in multi-agent networks,” IEEE Transactions on Automatic
+Control, vol. 55, no. 4, pp. 922–938, April 2010.
+[28] A. Mokhtari and A. Ribeiro, “DSA: Decentralized double stochastic
+averaging gradient algorithm,” Journal of Machine Learning Research,
+vol. 17, pp. 1–35, 2016.
+[29] A. Nedic and A. Ozdaglar, “Subgradient methods for saddle point
+problems,” Journal of Optimization Theory and Applications, vol. 145,
+no. 1, pp. 205–228, July 2009.
+[30] M. Kallio and C. H. Rosa, “Large-scale convex optimization via saddle-
+point computation,” Oper. Res., pp. 93–101, 1999.
+[31] H. Uzawa, “Iterative methods in concave programming,” 1958, in Arrow,
+K., Hurwicz, L., Uzawa, H. (eds.) Studies in Linear and Nonlinear
+Programming, pp. 154-165. Stanford University Press, Stanford.
+[32] J. Tsitsiklis, D. Bertsekas, and M. Athans, “Distributed asynchronous
+deterministic and stochastic gradient optimization algorithms,” IEEE
+Trans. Autom. Contr., vol. 31, no. 9, pp. 803–812, Sep. 1986.
+[33] Y. E. Nesterov, “A method for solving the convex programming problem
+with convergence rate O(1/k2),” Dokl. Akad. Nauk SSSR, vol. 269, pp.
+543–547, 1983, (in Russian).
+[34] D. Jakovetic, D. Bajovic, N. Krejic, and N. K. Jerinkic, “Distributed
+gradient methods with variable number of working nodes,” IEEE Trans-
+actions on Signal Processing, vol. 64, no. 15, pp. 4080–4095, August
+2016.
+[35] M. Zhu and S. Martinez, “On distributed convex optimization under
+inequality and equality constraints,” IEEE Transactions on Automatic
+Control, vol. 57, no. 1, pp. 151–164, Jan. 2012.
+[36] T.-H. Chang, A. Nedic, and A. Scaglione, “Distributed constrained op-
+timization by consensus-based primal-dual perturbation method,” IEEE
+Transactions on Automatic Control, vol. 59, no. 6, pp. 1524–1538, June
+2014.
+[37] J. Wang and N. Elia, “Control approach to distributed optimization,”
+in 48th Annual Allerton Conference onCommunication, Control, and
+Computing, Monticello, IL, Oct. 2010.
+[38] A. Dimakis, S. Kar, J. M. F. Moura, M. Rabbat, and A. Scaglione,
+“Gossip algorithms for distributed signal processing,” Proceedings of
+the IEEE, vol. 98, no. 11, pp. 1847–1864, 2010.
+[39] K. Yuan, Q. Ling, and W. Yin, “On the convergence of decentralized
+gradient descent,” SIAM J. Optim., vol. 26, no. 3, pp. 1835–1854, 2016.
+[40] C. Desoer and M. Vidyasagar, Feedback Systems: Input-Output Proper-
+ties. SIAM, 2009.
+[41] M. Schmidt, N. L. Roux, and F. Bach, “Convergence rates of inexact
+proximal-gradient methods for convex optimization,” in Advances in
+Neural Information Processing Systems 24, 2011, pp. 1458–1466.

@@ -1,0 +1,674 @@
+ar
+X
+iv
+:1
+70
+9.
+00
+17
+8v
+1 
+ [
+cs
+.I
+T
+] 
+ 1
+ S
+ep
+ 2
+01
+7
+Improving the coding speed of erasure codes with
+polynomial ring transforms
+Jonathan Detchart, Je?ro?me Lacan
+Universite? de Toulouse ISAE-SUPAERO, Toulouse, France
+{jonathan.detchart, jerome.lacan}@isae-supaero.fr
+Abstract—Erasure codes are widely used in today’s
+storage systems to cope with failures. Most of them use
+the finite field arithmetic. In this paper, we propose
+an implementation and a coding speed evaluation of
+an original method called PYRIT (PolYnomial RIng
+Transform) to perform operations between elements of
+a finite field into a bigger ring by using fast transforms
+between these two structures. Working in such a ring
+is much easier than working in a finite field. Firstly, it
+reduces the coding complexity by design. Secondly, it
+allows simple but efficient xor-based implementations
+by unrolling the operations thanks to the properties
+of the ring structure. We evaluate this proposition
+for Maximum Distance Separable erasure codes and
+we show that our method has better performances
+than common codes. Compared to the best known
+implementations, the coding speeds are increased by
+a factor varying from 1.5 to 2.
+I. Introduction
+In today’s storage systems, erasure codes are widely
+used and provide reliability to failures. They are used by
+RAID solutions [1], Cloud storage [2], or as an elementary
+building block in large scale coding systems [3]. They
+replace replication by reducing the amount of extra storage
+needed to tolerate the same amount of erasures ([4]). But
+this kind of technique is limited by the complexity of the
+arithmetic used. Most of the complexity of erasure codes
+consists in making linear combinations over a finite field.
+To speedup these linear combinations, several solutions
+have been presented:
+Recently, the use of SIMD instructions have been pro-
+posed to drastically increase the speed of erasure codes,
+particularly by optimizing the multiplication of a large
+region of elements of a finite field by a constant element:
+[5], [6], [7]. In [8], the authors consider the elements of
+a finite field of characteristic 2 as a binary matrix where
+the entries represent a xor between two parts of data. In
+[9], we extended an idea proposed in [10] by defining other
+transforms to speedup the coding process in the context of
+erasure codes. The contribution of this paper is essentially
+theoretical.
+In this paper, we propose an extension to other finite
+fields and a complete performance analysis of the method
+introduced in [9], called PYRIT (PolYnomial RIng Trans-
+form), replacing the multiplication in a finite field by
+the multiplication in a ring by using transforms between
+particular finite fields and polynomial rings. We show that
+an element of a field can have several representations
+in a bigger ring, and that the choice of this element
+can have an impact on the performances. We also show
+that using a ring to perform multiplications allows to
+reduce the complexity of the coding process. It also allows
+some optimizations in the implementation which are not
+possible when using a classic xor based implementation.
+We compare our implementation with other implementa-
+tions and show that we are faster than the best known
+implementations for both single and multithreading.
+II. Correspondence between field and ring
+A. Algebraic context
+Let us recall some known properties about polynomial
+rings and fields:
+Let p(x) be an irreducible polynomial of degree w. The
+field F2[x]/(p(x)) is denoted by F2w . The polynomial x
+n+1
+is not irreducible, and thus F2[x]/(x
+n + 1) is a ring. Let
+us denote it by R2,n.
+Let us now consider the factorization of xn + 1 into
+irreducible polynomials: xn + 1 = pu11 (x)p
+u2
+2 (x) . . . p
+ul
+l (x).
+If n is odd, it can be shown that u1 = u2 = . . . = ul = 1
+(see [11]). In this document, we only consider this case.
+The proofs of the following propositions can be found
+in [11] or [12].
+Proposition 1. The ring R2,n is equal to the direct sum of
+the principal ideals of F2[x] Ai = ((x
+n + 1)/pi(x)) for i =
+1, . . . , l. Each ideal contains an unique idempotent ?i(x).
+Proposition 2. For each i = 1, . . . , l, Ai is isomorphic to
+the finite field Bi = F2[x]/(pi(x)). The isomorphism is :
+?i :
+Bi ? Ai
+b(x) ? b?(x) = b(x)?i(x)
+(1)
+and the inverse isomorphism is :
+??1i :
+Ai ? Bi
+a(x) ? a(x) mod pi(x)
+(2)
+We will use this kind of morphism to transform each
+finite field element from the source vectors and the gen-
+erator matrix of the erasure code into ring elements to
+perform xor operations and apply reverse transforms on
+the generated vectors.
+B. The sparse transform for generator matrices
+One of the main challenges in the erasure code con-
+struction is the choice of the generator matrix. Since we
+here only consider systematic codes, the parity part of the
+matrix must verify two main properties:
+• it must be as sparse as possible. Indeed, the number
+of xor done on the data is defined by the number of
+ones in the binary form of the generator matrix,
+• any square submatrix must be invertible to verify the
+MDS property.
+For the first point, we use an interesting property of
+the correspondences between the ring and the field. The
+number of ring elements is 2n, which is greater than the
+number of the elements of the field: 2w.
+In fact, the important point behind the use of a ring
+is that one of its ideals, A1, is isomorphic to the field. A
+naive approach to multiply two elements of the field u(x)
+and v(x) would consist in sending them in A1 by applying
+the isomorphism ?1 to obtain u?(x) and v?(x). The second
+step would consist in multiplying u?(x) and v?(x) and apply
+the inverse isomorphism ??11 on the result.
+However, we can observe that the structure of the ring
+(which is decomposed as a direct sum of ideals) allows to
+consider that the operations on the ring can be decom-
+posed into ”parallel” and independent operations in each
+ideal. It follows that in the function from the field to the
+ring, we can add other ring elements which belong to the
+other ideals. These do not interfere with the operations in
+A1 which are the ones important for the field.
+To be more precise, let us define a function ? from the
+field to the ring which is such that : for any u(x) in the
+field, ?(u(x)) = u?(x) + u?(x), where u?(x) = ?1(u(x)) ? A1
+and u?(x) is an element of the ring which does not have a
+component in A1 (see Proposition 1).
+Then, to multiply the field elements u(x) and v(x), we
+can compute the product ?(u(x)).?(v(x)) which is equal to
+u?(x).v?(x) + u?(x).v?(x). The application ??1 to this result
+removes the part outside A1 and then outputs u(x).v(x)
+in the field. This means that, to perform computations
+with element u(x), we can use any element of the form
+u?(x)+ u?(x) in the ring, where u?(x) = ?1(u(x)) and u?(x) is
+an element of the ring which does not have a component
+in A1. The number of ring elements which do not have a
+component in A1 is equal to 2
+n?w.
+The interest of this property is that the complexity of
+the multiplication in the ring is not the same for all the ele-
+ments. Indeed, for the generator matrix in the binary form,
+the complexity depends on the number of ones. So this
+transfom allows to choose the element in the ring having
+the lowest weight among the ring elements corresponding
+to a given field element. We call this operation the sparse
+transform.
+C. Pyrit using AOP
+All One Polynomials (AOP) of degree w are equal to
+xw + xw?1 + xw?2 + . . . + x + 1. The AOP of degree w is
+irreducible over F2 if and only if w + 1 is a prime and w
+generates F?w+1, where F
+?
+w+1 is the multiplicative group in
+Fw+1 [13]. The values w + 1, such that w is an irreducible
+AOP is the sequence A001122 in [14].
+The use of AOPs for fast operations in finite fields was
+studied by [10] and then by [15] in the context of hardware
+implementations of large finite field operations.
+Irreducible AOP of degree w appears in the factorization
+of xw+1 + 1 which is equal to (xw + xw?1 + xw?2 + . . . +
+x + 1).(x + 1). Some of the previous propositions can be
+specified for these polynomials.
+Let p(x) be the AOP of degree w. Then:
+• the ring R2,w+1 is equal to the direct sum of the
+principal ideals of F2[x] A1 generated by x + 1 and
+A2 generated by p(x). The idempotent of A1 and A2
+are respectively p(x) + 1 and p(x).
+• The isomorphism between B1 = F2[x]/(p(x)) = F2w
+and A1 is equal to
+?1 :
+B1 ? A1
+b(x) ? b?(x) = b(x)(p(x) + 1)
+(3)
+and the inverse isomorphism is:
+??1i :
+Ai ? Bi
+b?(x) ? b?(x) mod p(x)
+(4)
+An interesting property of A1 is that it is equal to the
+set of polynomials of even weight. Indeed, since an element
+of A1 is a multiple of x+ 1 (modulo x
+w+1 + 1), it contains
+an even number of monomials. And since the number of
+elements of A1, which is equal to 2
+w, corresponds to the
+number of polynomials of even weight, A1 is equal to the
+set of even weight polynomials.
+For example, by considering the finite field F24 defined
+by the irreducible All-One Polynomial p(x) = 1+x+x2 +
+x3+x4, we can define R2,5 = F2[x]/(x
+5 +1) as the quotient
+ring of polynomials of the polynomial F2[x] quotiented by
+the ideal generated by the polynomial x5 ? 1.
+The polynomial x5 + 1 is the product of the irreducible
+polynomials p1(x) = x
+4 +x3 +x2 +x+1 and p2(x) = x+1.
+The ring R2,5 is the direct sum of the ideal A1 generated
+by the polynomial (x5 + 1)/p1(x) = p2(x) and the ideal
+A2 generated by the (x
+5 + 1)/p2(x) = p1(x). In others
+words, any element u(x) of R2,5 can be written in a unique
+way as the sum of two components u1(x) + u2(x), where
+u1(x) ? A1 and u2(x) ? A2. It can be verified that A1
+(resp. A2) contains one and only one idempotent ?1(x) =
+x4 + x3 + x2 + x (resp. ?2(x) = x
+4 + x3 + x2 + x + 1). A
+construction of this idempotent is given in [16, Chap. 8,
+Theorem 6].
+Since Fq[x]/(pi(x)) is isomorphic to Bi = Fqwi where
+pi(x) is of degree wi, R2,5 is isomorphic to the fol-
+lowing cartesian product R2,5 ? B1 ? B2 with B1 =
+F2[x]/(p(x)) = F24 and B2 = F2[x]/(x ? 1) = F2.
+The image by the isomorphism of b(x) ? B1 into A1 is
+b?(x) = ?1(b(x)) = b(x)?1(x). On the other side, the image
+of the element b?(x) of A1 by the inverse isomorphism is
+equal to b(x) = ??1i (b?(x)) = b?(x) mod p1(x).
+In R2,5, let us consider a(x) = 1 + x
+2 and b(x) = x + x4
+and their respective matrix and vector representations:
+a(x) ?? , b(x) ??
+where the filled squares represent the ones and the empty
+squares represent the zeros.
+To compute the multiplication, we just have to perform
+the matrix vector multiplication:
+a(x).b(x) ?? ? = ?? c(x) = x3 + x4
+We can verify that we obtain the same result with the
+multiplication of polynomials in the ring:
+a(x).b(x) = (1 + x2).(x + x4) mod (x5 + 1)
+= x3 + x4
+The field F24 = F2[x]/(x
+4 +x3 +x2 +x+1) is isomorphic
+to the ideal A1 of the ring R2,5 generated by (x+1). Let us
+consider the element u(x) = x2 of the field. According to
+Proposition 2, its image u?(x) in A1 is equal to u(x)?1(x) =
+x2.(x + x2 + x3 + x4) = 1 + x + x3 + x4. According to the
+previous paragraph, to perform multiplications with this
+element in the ring, we can use any element of the form
+u?(x) + r(x) where r(x) does not have a component in A1.
+The 2n?w = 2 elements which have this property are 0
+and p(x) = 1 + x + x2 + x3 + x4. So we can consider the
+binary matrices associated to u?(x) and u?(x) + p(x):
+u?(x) ?? u?(x) + p(x) ??
+We can observe that the matrix associated to u?(x)+p(x) is
+more sparse than the one associated to u?(x). So this matrix
+is chosen to perform the multiplication corresponding to
+u(w) in the ring.
+The function which makes the correspondence between
+the elements of the field and the sparsest matrices among
+their corresponding ones is denoted by ?S . You can see
+an example of the binary representation for a generator
+matrix in figure 1. Note that in the example, the ele-
+ments of the ring are represented by a 5x5 binary matrix.
+However, depending on the transforms applied to the
+data, some operations are useless, and we can remove
+the corresponding row or column. So the elements are
+represented by 4x5 or 5x4 matrices (see II-C1 and II-C2).
+Now, we have to define the function that sends the
+data vector from the field into the ring. Even if the
+function ?S can be used, it is not optimal because the xor-
+based representation handles the data by blocks and not
+sequentially. Thus, it is not efficient to access the binary
+representation of each field element in order to determine
+the sparsest corresponding ring element.
+Fig. 1. binary generator matrices in a field and a ring
+1) The parity transform: The first function we propose
+is to compute simple parity bits on the data blocks. In
+this case, the inverse operation just consists in removing
+the parity bits from the results of the matrix vector multi-
+plication. As we explained in [9], this transform is not an
+isomorphism, but just a bijection. That means operations
+in the field and in the ring are not compatible, and both
+encoder and decoder must use the parity transform to
+perform coding operations.
+For an irreducible AOP of degree w, the usual isomor-
+phism that sends the finite field elements into the ideal A1
+of the ring R2,w+1 consists in multiplying the polynomial
+by the idempotent. However, we showed that A1 is the
+set of polynomials of even weight. It follows that the
+function ?P which adds a single parity bit to the vector
+corresponding to the finite field element (in order to have
+an even weight) can be used to make the correspondence
+between the field and the ideal. In the following equations,
+suppose b(x) = a + b.x + c.x2 + d.x3 as an element of F24 .
+?P : b(x) ? (a + b + c + d).x
+4 + b(x)
+For the inverse function, the vector resulting from the
+matrix vector multiplication contains elements of the ideal
+because the data vector belongs to the ideal and the matrix
+elements, obtained with ?S , belongs to the ring. So the
+finite field elements can be obtained by just removing the
+parity bit of each ring elements. We call this function ??1P .
+??1P : e.x
+4 + b(x) ? b(x)
+To summarize, the ?P function adds a single parity bit to
+the finite field elements and the inverse function removes it
+from the ring elements. These two functions can be very
+efficiently performed on the xor-based representation of
+the data. We can note that ??1P is not an isomorphism.
+This implies that both the encoder and the decoder must
+use ?P and ?
+?1
+P .
+2) The embedding transform: The second function we
+propose is a simple embedding, denoted by ?E from the
+field in the ring. In other words, the polynomial corre-
+sponding to the finite field element is simply ”padded”
+with n?w zeros and considered as an element of the ring.
+?E : b(x) ? b(x) + 0.x
+4
+For the inverse function, we use the the traditional
+inverse isomorphism ??1 presented in Proposition 2 which
+corresponds to the computation modulo p(x) where p(x)
+is the irreducible polynomial. Note that these functions
+correspond to the ones proposed by [10]. According to
+the embedding function, the elements of the field are just
+padded by one 0 and considered as elements of the ring.
+The inverse function is the computation of the remain-
+der modulo p(x). Since p(x) is AOP, this operation consists
+in adding the last bit (the coefficient of the monomial of
+degree w) to all the other coefficients.
+??1E : e.x
+4 +b(x) ? (a+e)+(b+e).x+(c+e).x2 +(d+e).x3
+D. Pyrit using ESP
+Similar approach can be used with F26 . First, let’s recall
+the ESP definition.
+Definition 1 ([10]). A polynomial g(x) = xsr + xs(r?1) +
+xs(r?2) + . . . + xs + 1 = p(xs), where p(x) is an AOP of
+degree r, is called s-equally spaced polynomial (s-ESP) of
+degree sr.
+According to [10, Theorem 3], g(x) is irreducible if and
+only if p(x) is irreducible and for some integer t, s = (r +
+1)t?1 and 2r(r+1)
+t?2
+6= 1 mod (r + 1)t.
+The first values of the pair (r, s) for which the ESP is
+irreducible are (2, 3), (2, 9), (4, 5), (2, 27), . . .
+The ESP g(x) = xsr + xs(r?1) + . . . + xs + 1 divides the
+polynomials xs.(r+1) + 1 because xs.(r+1) + 1 = g(x).(xs +
+1). Thus, according to Proposition 1, if the ESP g(x) is
+irreducible, the field F2[x]/(g(x)) = F2r.s is isomorphic to
+the ideal A1 generated by (x
+s.(r+1) ? 1)/g(x) = xs + 1.
+It can be shown that the idempotent ?1(x) of A1 is equal
+to g(x) + 1. Thus, the idempotent between the field B =
+F2[x]/(g(x)) = F2w and the ideal A1 are the following:
+? :
+B1 ? A1
+b(x) ? b?(x) = b(x)(g(x) + 1)
+(5)
+and the inverse isomorphism is:
+??1 :
+A1 ? B1
+b?(x) ? b?(x) mod g(x)
+(6)
+Like AOPs, ideals associated to ESP have an interesting
+parity property. Indeed, any element is a multiple of the
+generator polynomial xs + 1. So the element a(x) is equal
+to u(x).(xs + 1) = (
+?sr?1
+i=0 uix
+i).(xs + 1). u(x) can also
+be expressed under the form
+?s?1
+j=0 x
+jvj(x
+s) where vj(x)
+is a polynomial of degree r ? 1, for j = 0, . . . , s ? 1.
+Thus, we have u(x).(xs + 1) =
+?s?1
+j=0 x
+jvj(x
+s).(xs +
+1) =
+?s?1
+j=0 x
+jv?j(x
+s) where v?j(x) = vj(x).(x + 1), for
+j = 0, . . . , s ? 1. Like for the AOP, this implies that the
+weight of each v?j is even. This means that any element
+of A1 can be seen as the interleaving of s even weight
+elements of length r. The number of elements which verify
+this property is exactly the number of elements of A1, so
+this property characterizes the elements of A1.
+In our case, we have s = 3 and r = 2. The ESP
+g(x) = x6 + x3 + 1 is irreducible and allows to represent
+the finite field F26 . Its elements are sent onto the ring
+R2,9 = F2[x]/(x
+9 + 1) to perform fast operations.
+1) The parity transform: As we said, the ideal corre-
+sponding to a finite field determined by an ESP is the set
+of elements which can be seen as an interleaving of s even
+weight words of length r. Like AOP, we propose to add
+a single parity bit to each ”interleaved” word of length r
+in order to verify the parities. In the following equations,
+let’s suppose b(x) = a + b.x + c.x2 + d.x3 + e.x4 + f.x5 as
+an element of F26 .
+?P : b(x) ? b(x) + (a + d).x
+6 + (b + e).x7 + (c + f).x8
+For the inverse function, for the same reasons as for
+AOPs, we can just remove the parity bits from the vector
+obtained after the matrix vector multiplication.
+??1P : b(x) + (a + d).x
+6 + (b + e).x7 + (c + f).x8 ? b(x)
+2) The embedding transform: Like for AOPs, the em-
+bedding function for ESPs is direct.
+?E : b(x) ? b(x) + 0.x
+6 + 0.x7 + 0.x8
+The inverse function consists in computing the remain-
+der modulo p(x), an ESP of degree r.s. Thanks to the form
+of ESP, we can observe that this operation is equivalent
+to xoring the last block of s bits to the r blocks of s bits:
+??1E :
+b(x) + g.x6 + h.x7 + i.x8 ?
+(a + g) + (b + h).x + (c + i).x2+
+(d + g).x3 + (e + h).x4 + (f + i).x5
+III. Implementation
+We have implemented our method into an MDS erasure
+code making linear combinations over two finite fields (F24
+and F26 ) using generalized Cauchy matrices. The code is
+written in C, except the coding part which is written in
+inline assembly. Indeed, by applying the transforms, we
+need to generate additional data before doing the xor
+operations. This data is never used after these xor’s. In
+order to avoid useless memory writes, we compute this
+additional data into the CPU core by using SIMD registers
+without writing back the result into the DRAM memory.
+For the field F2w , we use w SIMD registers to load w
+chunks of a source block, and w other registers to load w
+chunks of the destination block.
+Assume we are working on F24 using the SSE SIMD
+instruction set. We use four 128-bit registers to load 64
+bytes of data at a time, which is generally the size of a
+cache line. Four other registers are used to load the coded
+2 KB 32 KB 512 KB 8 MB
+5
+10
+15
+20
+(12,8) coding
+2 KB 32 KB 512 KB 8 MB
+1
+2
+3
+4
+(60,40) coding
+2 KB 32 KB 512 KB 8 MB
+1
+2
+3
+4
+5
+6
+7
+8
+(60,20) coding
+Fig. 2. Coding speed (GB/s) comparison of MDS erasure codes depending on the block size
+data in the same way, and one last register is used to
+perform the ring transform.
+Once the data is loaded into the registers, depending
+on the finite field and the transform, we use one or three
+registers to compute the additional data to transform the
+field elements into ring elements. Then, we do the xor
+operations before applying the reverse transform to go
+back from the ring to the field. As the binary matrices
+representing the constant elements are only composed
+by diagonals, we do not need to read the operations to
+carry out from the memory: for each bit equal to 1 in
+the constant element, w independent xor operations are
+unrolled. These binary matrices are built with the ”sparse
+transform” introduced in II-B.
+Depending on the code parameters, different transforms
+can be used. Indeed, when k >= r, the embedding
+transform is faster, when k < r, the parity transform is
+faster [9]. Of course, the corresponding reverse transform
+must be used.
+IV. Performance evaluation
+In this section, we measure the performances of the
+encoding and decoding processes. For our tests, we used
+a machine with a 3.40 GHz Intel Core i7-6700 (Skylake
+architecture) and 16GB of DRAM. The CPU has 4 cores
+with hyper threading, 2*32 kB of L1 cache (32 kB of data
++ 32 kB of instructions) and 256 kB of L2 cache per core,
+and 8 MB of shared L3 cache. It supports SSE, AVX and
+AVX2 instructions sets.
+We defined 3 use cases: a (12, 8) over F24 with em-
+bedding transform, a (60, 40) over F26 with embedding
+transform and a (60, 20) over F26 with parity transform.
+We first focused on the excellent Jerasure library [17]
+because it provides a lot of different methods to perform
+MDS erasure codes. In [7], the authors show that the
+split tables method using SIMD instructions is the fastest
+implementation for erasure codes based on F2w and have
+the same performances when w = 4 and w = 8. As we
+partially did our implementation in assembly code, we
+fairly compared it with erasure code of the Intel ISA-
+L library [18], another assembly code implementing an
+erasure code using the split tables method with SIMD
+instructions sets.
+As far as we know, ISA-L is the fastest MDS erasure
+code available because it implements one of the best
+methods to perform multiplications in a finite field, and
+it is written in assembly.
+We compared our codec with ISA-L on the 3 different
+use cases. We also studied the impact of multithreading
+on the coding speed.
+A. Performance analysis using 1 thread
+Figure 2 shows the performances of our codec using F24
+or F26 compared to ISA-L. Both codecs are configured to
+use AVX2 instructions. We encode and decode data by
+varying the block size for two code parameters: (12, 8),
+(60, 40) and (60, 20). We repeat the measurements 1000
+times for each point.
+For the 3 cases, Pyrit is faster than ISA-L for both en-
+coding and decoding. Some reasons are that Pyrit does not
+use lookup tables like split tables, and needs less instruc-
+tions to perform the multiplications. Note that when the
+total amount of data manipulated ((k + r) ? (symbolsize))
+is greater than the L3 cache (8MB), the coding speed is
+constant for both codecs.
+B. Performance analysis using multithreading
+We modified both ISA-L and Pyrit to support multi-
+threading coding. To do that, we split the data to encode
+or decode, and send a different part to all the threads,
+synchronized with pthread barriers. That means that each
+thread is writing and reading a different part of the
+symbols to code. Figure 3 shows the results for 1,2,4 and
+8 threads using ISA-L and Pyrit (over F24).
+Both codecs have increased performances using multiple
+threads, even if Pyrit is still faster than ISA-L. But, when
+the number of threads is greater than the number of cores,
+for 8 threads on 4 cores, the performance of the ISA-L
+codec decreases whereas this is not the case for Pyrit, even
+if the gain is low.
+C. Results
+For any coding parameters, the Pyrit method performs
+much faster than ISA-L. Even when the data does not fit
+into the CPU caches, our method drastically improves the
+performances. Making linear combinations over F24 or F26
+using Pyrit gives the same performances for the encoding
+process. This can be explained since we use a generalized
+2 KB 32 KB 512 KB 8 MB
+5
+10
+15
+20
+(60,40) encoding
+2 KB 32 KB 512 KB 8 MB
+5
+10
+15
+20
+(60,20) encoding
+2 KB 32 KB 512 KB 8 MB
+5
+10
+15
+20
+(60,40) decoding
+2 KB 32 KB 512 KB 8 MB
+5
+10
+15
+20
+25
+30
+(60,20) decoding
+Fig. 3. Coding speed (GB/s) comparison depending on the block size and the number of threads
+Cauchy matrix which is sparse but generic matrix. For
+the decoding process, as the inverse matrix depends on
+the loss pattern, we have a slightly dense matrix using
+F26 , so working in F24 is faster. The only constraint is the
+number of symbols which is respectively 16 and 64 for F24
+and F26 . With ISA-L, it is possible to have 256 symbols.
+Nevertheless, when n <= 64, Pyrit is the fastest method.
+V. Conclusion
+In this paper, we have presented a new method to
+accelerate both coding and decoding processes of erasure
+codes. By using transforms between a finite field and a
+polynomial ring, sparse generator matrices can be ob-
+tained. This allows to significantly reduce the complexity
+of matrix vector multiplication. We presented two fast
+erasure codes implementations using F24 and F26 and
+evaluated the performances for several use cases. For each
+cases, Pyrit has better performances. The performance
+analysis was done for MDS erasure codes, but Pyrit can
+be used by every code using matrix vector multiplication
+over a finite field.
+References
+[1] P. H. Anvin, “The mathematics of RAID-6,” in
+http://kernel.org/pub/linux/kernel/people/hpa/raid6.pdf,
+2009.
+[2] C. Huang, H. Simitci, Y. Xu, A. Ogus, B. Calder, P. Gopalan,
+J. Li, and S. Yekhanin, “Erasure coding in windows azure
+storage,” in USENIX ATC’12.
+[3] M. Sathiamoorthy, M. Asteris, D. Papailiopoulos, A. G. Di-
+makis, R. Vadali, S. Chen, and D. Borthakur, “Xoring ele-
+phants: novel erasure codes for big data,” in Proceedings of the
+39th international conference on Very Large Data Bases, ser.
+PVLDB’13, 2013.
+[4] H. Weatherspoon and J. D. Kubiatowicz, “Erasure coding vs.
+replication: A quantitative comparison,” in Peer-to-Peer Sys-
+tems: First InternationalWorkshop, IPTPS 2002, 2002.
+[5] H. Li and Q. Huan-yan, “Parallelized network coding with SIMD
+instruction sets,” in Proceedings of the 2008 International Sym-
+posium on Computer Science and Computational Technology,
+ser. ISCSCT ’08, 2008.
+[6] K. M. Greenan, E. L. Miller, and S. J. T. J. E. Schwarz, “Opti-
+mizing galois field arithmetic for diverse processor architectures
+and applications,” in 2008 IEEE International Symposium on
+Modeling, Analysis and Simulation of Computers and Telecom-
+munication Systems, 2008.
+[7] J. S. Plank, K. M. Greenan, and E. L. Miller, “Screaming
+fast Galois Field arithmetic using Intel SIMD instructions,”
+in FAST-2013: 11th Usenix Conference on File and Storage
+Technologies, San Jose, February 2013.
+[8] J. Bloemer, M. Kalfane, M. Karpinski, R. Karp, M. Luby,
+and D. Zuckerman, “An XOR-Based Erasure-Resilient Coding
+Scheme,” in Technical Report ICSI TR-95-048, 1995.
+[9] J. Detchart and J. Lacan, “Fast xor-based erasure coding based
+on polynomial ring transforms,” in ISIT17.
+[10] T. Itoh and S. Tsujii, “Structure of parallel multipliers for a class
+of fields gf(2m),” Information and Computation, 1989.
+[11] A. Poli and L. Huguet, Error correcting codes: theory and
+applications, 1992.
+[12] F. MacWilliams, “Orthogonal circulant matrices over finite
+fields, and how to find them,” Journal of Combinatorial Theory,
+Series A, 1971.
+[13] P. Wah and M. Wang, “Realization and application of the
+massey-omura lock,” in Proceedings, International Zurich Sem-
+inar, 1984.
+[14] N. J. A. Sloane, “A001122 sequence,” in
+https://oeis.org/A001122.
+[15] J. H. Silverman, “Fast multiplication in finite fields GF (2n),”
+in Cryptographic Hardware and Embedded Systems: First Inter-
+national Workshop, CHES’99 Worcester, 1999.
+[16] F. J. MacWilliams and N. J. A. Sloane, The Theory of Error-
+Correcting Codes. North-Holland, 1977.
+[17] “Jerasure: Erasure coding library,” in http://jerasure.org/.
+[18] “ISA-L: Intel storage acceleration library,” in
+https://01.org/intel-storage-acceleration-library-open-source-
+version.
+This figure "transform.png" is available in "png"
+ format from:
+http://arxiv.org/ps/1709.00178v1

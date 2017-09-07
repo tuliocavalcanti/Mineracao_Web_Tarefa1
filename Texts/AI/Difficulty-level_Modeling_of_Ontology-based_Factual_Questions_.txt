@@ -1,0 +1,1166 @@
+Undefined 0 (2017) 1–0 1
+IOS Press
+Difficulty-level Modeling of Ontology-based
+Factual Questions
+Editor(s): Name Surname, University, Country
+Solicited review(s): Name Surname, University, Country
+Open review(s): Name Surname, University, Country
+Vinu E.V ? and P Sreenivasa Kumar
+Department of Computer Science and Engineering, Indian Institute of Technology Madras, Chennai,
+India
+E-mail: {vinuev,psk}@cse.iitm.ac.in
+Abstract. Semantics-based knowledge representations such as ontologies are found to be very useful in automatically
+generating meaningful factual questions. Determining the difficulty-level of these system generated questions is
+helpful to effectively utilize them in various educational and professional applications. The existing approaches for
+finding the difficulty-level of factual questions are very simple and are limited to a few basic principles. We propose
+a new methodology for this problem by considering an educational theory called Item Response Theory (IRT).
+In the IRT, knowledge proficiency of end users (learners) are considered for assigning difficulty-levels, because of
+the assumptions that a given question is perceived differently by learners of various proficiencies. We have done a
+detailed study on the features/factors of a question statement which could possibly determine its difficulty-level
+for three learner categories (experts, intermediates, and beginners). We formulate ontology-based metrics for the
+same. We then train three logistic regression models to predict the difficulty-level corresponding to the three learner
+categories. The output of these models is interpreted using the IRT to find the question’s overall difficulty-level. The
+performance of the models based on cross-validation is found to be satisfactory and, the predicted difficulty-levels of
+questions (chosen from four domains) were found to be close to their actual difficulty-levels determined by domain
+experts. Comparison with the state-of-the-art method shows an improvement of 8.5% in correctly predicating the
+difficulty-levels of benchmark questions.
+Keywords: Difficulty-level estimation, Item response theory, Question generation
+1. Introduction
+A considerable amount of effort has been in-
+vested into the creation of a semantics-based
+knowledge representations such as ontologies where
+information is formalized into machine-interpretable
+formats. Among these are SNOMED CT1, Bio-
+*Corresponding author. E-mail: vinuev@cse.iitm.ac.in,
+mvsquare1729@gmail.com
+1http://www.snomed.org/
+Portal2, Disease ontology3, to name a few, which
+capture domain-specific knowledge. Given these
+knowledge repositories, the opportunity for creat-
+ing automated systems which utilize the under-
+lying knowledge is enormous. Making use of the
+semantics of the information, such systems could
+perform various intelligently challenging opera-
+tions. For example, a challenging task which of-
+ten required in an e-Learning system is to gener-
+ate questions about a given topic which match the
+2http://bioportal.bioontology.org/
+3http://www.berkeleybop.org/ontologies/doid.owl
+0000-0000/17/$00.00 c© 2017 – IOS Press and the authors. All rights reserved
+ar
+X
+iv
+:1
+70
+9.
+00
+67
+0v
+1 
+ [
+cs
+.A
+I]
+  3
+ S
+ep
+ 2
+01
+7
+2 F. Author et al. / Instructions for the preparation of a camera-ready paper in LATEX
+end users’ (learners’) educational need and their
+proficiency level.
+The problem of generating question items from
+ontologies has recently gained much attention in
+the computer science community [1,2,6,7,22,23].
+This is mainly due to the utility of the gener-
+ated questions in various educational and profes-
+sional activities, such as learner assessments in e-
+Learning systems, quality control in human com-
+putational tasks and, fraud detection in crowd-
+sourcing platforms [19], to name a few.
+Traditionally, question generation (QG) ap-
+proaches have largely focused on retrieving ques-
+tions from raw text, databases and other non-
+semantics based data sources. However, since these
+sources do not capture the semantics of the do-
+main of discourse, the generated questions cannot
+be machine-processed, making them less employ-
+able in many of the real-world applications. For ex-
+ample, questions that are generated from raw text
+are suitable only for language learning tasks [5].
+Using semantics-based knowledge sources in QG
+has various advantages, such as (1) in ontologies,
+we model the semantic relationships between do-
+main entities, which help in generating meaning-
+ful and machine-processable questions (2) ontolo-
+gies enable standard reasoning and querying ser-
+vices over the knowledge, providing a framework
+for generating questions more easily.
+Many efforts in the ontology-based QG are ac-
+companied by methods for automating the task
+of difficulty-level estimation. In the E-ATG sys-
+tem [21], a state-of-the-art QG system, we have
+proposed an interesting method for predicting
+difficulty-level of the system generated factual
+questions. To recall, in that method, we assign a
+relatively high difficulty score to a question, if the
+concepts and roles in the question form a rare com-
+bination/pattern. For example, considering movie
+domain, if a question contains the roles: is based on
+and won oscar, which rarely appear together, the
+question is likely to be more difficult than those
+questions which are formed using a common role
+combination, say, is directed by and is produced by.
+Even though this method can correctly predict the
+difficulty-levels to a large extent, there are cases
+where this method fails. This is because there are
+other factors which influence the difficulty-level of
+a question.
+An early effort to identify factors that could po-
+tentially predict the difficulty-level was by Seyler
+et. al [17,18]. They have introduced a method
+to classify a question as easy or hard by find-
+ing the features of the similar question entities in
+the Linked Open Data (LOD). Feature values for
+the classification task are obtained based on the
+connectivity of the question entities in the LOD.
+We observed that, rather than mapping to LOD –
+which is not always possible in the case of highly
+specific domains/domain-entities – incorporating
+domain knowledge in the form of terminological
+axioms and following an educational theory called
+Item Response Theory (IRT), the prediction can
+be made more accurate.
+The contributions of this paper can be listed as
+follows.
+– We reformulate some of the existing fac-
+tors/features and propose new factors which
+influence the difficulty-level of a question, by
+taking into account the learners’ knowledge
+level (or learners’ category).
+– We introduce ontology-based metrics for find-
+ing the feature values.
+– With the help of standard feature selection
+methods in machine learning and by using a
+test dataset, we study the influence of these
+factors in predicting hardness of a question
+for three standard learner categories.
+– We then propose three learner-specific regres-
+sion models trained only with the respective
+influential features and, the output of the
+models is interpreted using the IRT to find
+the overall difficulty-level of a question.
+This paper is organized as follows. Section 2 con-
+tains the preliminaries required for understand-
+ing the paper. Section 3 discusses the outline of
+the proposed method. In Section 4, we give an
+account of the related works. Section 5 proposes
+the set of features of a question which determines
+its difficulty-level. In Section 6, we explain the
+machine learning methods that we have adopted
+to develop the Difficulty-level Model (DLM). Fur-
+ther, we discuss the performance of DLM in Sec-
+tion 6.1. A comparison with the state-of-the-art
+method is given in Section 7. Conclusions and fu-
+ture line of research are detailed at the end.
+2. Preliminaries
+We assume the reader to be familiar with De-
+scription Logics[9] (DLs). DLs are decidable frag-
+F. Author et al. / Instructions for the preparation of a camera-ready paper in LATEX 3
+ments of first-order logic with the following build-
+ing blocks: unary predicates (called concepts), bi-
+nary predicates (called roles), instances of con-
+cepts (called individuals) and values in role asser-
+tions (called literals). A DL ontology is thought of
+as a body of knowledge describing some domain
+using a finite set of DL axioms. The concept asser-
+tions and role assertions form the assertion com-
+ponent (or ABox) of the ontology. The concept in-
+clusion, concept equality, role hierarchy etc. (the
+type of axioms depend on the expressivity of the
+DL) form the terminological component (or TBox)
+of the ontology.
+2.1. Question generation using patterns
+For a detailed study of difficulty-level estima-
+tion, we use the pattern-based method, employed
+in the E-ATG system, for generating factual ques-
+tions from the ABox of the given ontologies.
+In the pattern-based question generation, a
+question can be considered as a set of conditions
+that asks for a solution which is explicitly present
+in the ontology. The set of conditions is formed us-
+ing different combinations of concepts and roles as-
+sertions associated with an individual in the ontol-
+ogy. Example-1 is on such question, framed from
+the following assertions that are associated with
+the (key) individual birdman.
+Movie(birdman)
+isDirectedBy(birdman,alejandro)
+hasReleaseDate(birdman,"Aug 27 2014")
+Example 1 Name the Movie that is directed by
+Alejandro and has release date Aug 27, 2014.
+For generating a question of the above type,
+we may need to use a (generic) SPARQL query
+template as shown below. The resultant tuples
+are then associated with a question pattern (E.g.,
+Name the [?C], that is [?R1] [?o1] and [?R2] [?o2].
+(key: ?s)) to frame the questions.
+SELECT ?s ?C ? R1 ?o1 ?R2 ?o2 WHERE
+{
+?s a ?C . ?s ?R1 ?o1 . ?s ?R2 ?o2 .
+?R1 a owl:ObjectProperty .
+?R2 a owl:DatatypeProperty .
+}
+In [21], the authors have studied all the possible
+generic question patterns that are useful in gener-
+ating common factual questions. They have also
+proposed methods for selecting domain-relevant
+resultant tuple55s/questions for conducting do-
+main related assessments. A resultant tuple of the
+above query (for example, ?s = birdman, ?C =
+Movie, ?R1 = isDirectedBy, ?o1 = alejandro,
+?R2 = hasReleaseDate, ?o2 = "Aug 27 2014")
+can be represented in the form of a set of triples
+({(birdman, a, Movie), (birdman, isDirectedBy,
+alejandro), (birdman, hasReleaseDate, "Aug
+27 2014")}). These triples, without the key, give
+rise to concept expressions that represent the con-
+ditions in the question. For example, the con-
+cept expression of “( , a, Movie)” is the con-
+cept Movie itself. Similarly, the concept expres-
+sion of “( , isDirectedBy, alejandro)” is
+?isdirectedBy.{alejandro}. The conditions for
+the question given in Example-1 are:
+Conditions: Movie, ?isdirectedBy.{alejandro},
+?hasReleaseDate.{"Aug 27 2014"}
+It should be noted that, ?directedBy.{alejandro}
+does not imply that the movie is directed only by
+Alejandro, but it is mandatory that he should be
+a director of the movie.
+For the ease of understanding, all examples pre-
+sented in this paper are from the Movie domain.
+2.2. Item Response Theory
+Item Response Theory (IRT) [14] models re-
+lationship between the ability or trait of a per-
+son and his responses to the items in an experi-
+ment. The term item denotes an entry, statement
+or a question used in the experiment. The item re-
+sponse can be dichotomous (yes or no; correct or
+incorrect; true or false) or polytomous (more than
+two options such as rating of a product). The qual-
+ity measured by the item may be knowledge profi-
+ciency, aptitude, belief or even attitude. This the-
+ory was first proposed in the field of psychomet-
+rics, later, the theory was employed widely in ed-
+ucational research to calibrate and evaluate ques-
+tions items in the world-wide examinations such as
+the Scholastic Aptitude Test (SAT) and Graduate
+Record Examination (GRE) [8].
+In our experiments, we use the simplest IRT
+model often called Rasch model or the one-
+parameter logistic model (1PL) [11]. According to
+this model, a learner’s response to a question item
+is determined by her knowledge proficiency level
+(a.k.a. trait level) and the difficulty of the item.
+1PL is expressed in terms of the probability that
+4 F. Author et al. / Instructions for the preparation of a camera-ready paper in LATEX
+a learner with a particular trait level will correctly
+answer a question that has a particular difficulty-
+level. [14] represents this model as:
+P (Rli = 1|?l, ?i) =
+e(?l??i)
+1 + e(?l??i)
+(1)
+In the equation, Rli refers to the response (R)
+made by the learner l for the question item i
+(where Rli = 1 refers to a correct response), ?l
+denotes the trait level of the learner l, ?i repre-
+sents the difficulty score of item i. ?l and ?i val-
+ues are normalized to be in the range [-1.5 to 1.5].
+P (Rli = 1|?l, ?i) denotes the conditional probabil-
+ity that a learner l will respond to item i correctly.
+For example, the probability that a below-average
+trait level (say, ?l = ?1.4) learner will correctly
+answer a question that has a relatively high hard-
+ness (say, ? = 1.3) is:
+P =
+e(?1.4?1.3)
+1 + e(?1.4?1.3)
+=
+e(?2.7)
+1 + e(?2.7)
+= 0.063
+In the paper, we intend to find the ?i of the factual
+questions which are meant for learners, whose trait
+levels are known to be either high, medium or low.
+We find the trait levels of the learners by gathering
+(and normalizing) their grades or marks obtained
+for a standard test of subject matter conducted
+in their enrolled institutions. The corresponding
+P values are obtained by finding the ratio of the
+number of learners (in the trait level under con-
+sideration) who have correctly answered the item,
+to the total number of learners at that trait level.
+On getting the values for ?l and P , the value for
+?i was calculated using the Equation-2.
+?i = ?l ? loge(
+P
+1? P
+) (2)
+In the equation, ?i = ?l, when P is 0.50. That
+is, a question’s difficulty is defined as the trait level
+required for a learner to have 50 percent prob-
+ability of answering the question item correctly.
+Therefore, for a trait level of ?l = 1.5, if ?i ? 1.5,
+we can consider that the question as having a
+high difficulty-level. Similarly, for a trait level of
+?l = 0, if ?i ? 0, the question has a medium
+difficulty-level. In the same sense, for a trait level
+of ?l = ?1.5, if ?i ? ?1.5, then question has a low
+difficulty-level.
+3. Outline of the proposed method
+In this paper, based on the insights obtained
+by the study of the questions that are generated
+from the ATG[20] and E-ATG systems, we propose
+features/factors that can positively or negatively
+influence the difficulty-level of a question. Albeit
+there are existing methods which utilize some of
+these factors for predicting difficulty-level, study-
+ing the psychometric aspects of these factors by
+considering learners’ perspective about the ques-
+tion, has given us further insight into the problem.
+As we saw in Section 2.2, IRT is an item oriented
+theory which could be used to find the difficulty-
+level of a question by knowing the question’s hard-
+ness (difficult or not difficult) with respect to var-
+ious learner categories. Therefore, on finding the
+hardness of a given question based each on learner
+category, we can effectively use the IRT model for
+interpreting its overall difficulty-level.
+According to IRT, a question is assigned a high
+difficulty-level if it is difficult for an expert learner
+to answer it correctly. A question is said to be dif-
+ficult for an expert if the probability of a group
+of expert learners answering the question correctly
+is ? 0.5. Similarly, a question can be assigned a
+medium and low difficulty-level if the probability
+with which the question is answered by a group of
+intermediate learners is ? 0.5 and a group of be-
+ginner level learners is ? 0.5, respectively. Table 1
+shows the difficulty-level assignment of three ques-
+tions: Q1, Q2 and Q3, based on whether they are
+difficult (denoted as d) or not difficult (represented
+as nd) for three learner categories.
+Table 1
+Assigning one of the three difficulty-levels: high, medium
+and low, by considering whether the question is difficult (d)
+or not-difficult (nd) for three learner categories.
+Qn. Expert Intermed. Beginner Difficulty
+-level
+Q1 d d d high
+Q2 nd d d medium
+Q3 nd nd d low
+We consider three standard categories of learn-
+ers: beginners, intermediates and experts, and
+model three classifiers for predicting the difficulty
+corresponding to the three learner categories, as
+shown in Fig. 1. Since the hardness (d/nd) corre-
+F. Author et al. / Instructions for the preparation of a camera-ready paper in LATEX 5
+Fig. 1. Block diagram of the proposed model for predicting
+a question’s difficulty-level
+sponding to the three categories of learners should
+be predicted first from the feature values, machine
+learning models/classifiers which can learn from
+available training data is an obvious choice. We
+consider only those factors which are influential
+for a given learner category for training the mod-
+els. The output of the three classifiers is matched
+with the content of Table 1 to find the question’s
+overall difficulty-level.
+4. Related Work: Difficulty-level Estimation
+A simple notion to find the difficulty-level
+of an ontology-generated multiple choice ques-
+tions (MCQs) was first introduced by Cubric and
+Tosic[10]. Later, in [3], Alsubait et al. extended
+the idea and proposed a similarity-based theory
+for controlling the difficulty of ontology-generated
+MCQs. In [6], they have applied the theory on
+analogy type MCQs. In [4], the authors have ex-
+perimentally verified their approach in a student-
+course setup. The practical solution which they
+have suggested to find out the difficulty-level of an
+MCQ is with respect to the degree of similarity
+of the distractors to the key. If the distractors are
+very similar to the key, students may find it very
+difficult to answer the question, and hence it can
+be concluded that the MCQ is difficult.
+In many a case, the question statement in an
+MCQ is also a deciding factor for the difficulty of
+an MCQ. For instance, the predicate combination
+or the concepts used in a question can be cho-
+sen such that they can make the MCQ difficult
+or easy to answer. This is the reason why in this
+paper we focus on finding difficulty-level of ques-
+tions having no choices (i.e., non-MCQs). An ini-
+tial investigation of this aspect was done in [21].
+Concurrently, there was another relevant work by
+Seyler et. al[17,18], focusing on QG from knowl-
+edge graphs (KGs) such as DBpedia. For judging
+the difficulty-level of such questions, they have de-
+signed a classifier trained on Jeopardy! data. The
+classifier features were based on statistics com-
+puted from the KGs (Linked Open Data) and
+Wikipedia. However, they have not considered the
+learner’s knowledge level, as followed in the IRT,
+while formulating the feature metrics. This makes
+their measures less employable in sensitive applica-
+tions such as in an e-Learning system. While con-
+sidering ontology-based questions, one of the main
+limitation of their approach is that the feature val-
+ues were determined based on the connectivity of
+question entities in the KG, whereas in the con-
+text of DL ontologies, the terminological axioms
+can be also incorporated to derive more meaning-
+ful feature metrics. In addition, the influence of
+the proposed factors in determining the difficulty
+using feature selection methods was not studied.
+5. Proposed Factors to determine Difficulty-level
+of Questions
+In this section, we look at a set of factors which
+can possibly influence the difficulty-level of a ques-
+tion and propose ontology-based metrics to calcu-
+late them. The intuitions for choosing those fac-
+tors are also detailed.
+To recall, a given question can be thought of as a
+set of conditions. For example, consider the follow-
+ing questions (where the underlined portions de-
+note the equivalent ontology concepts/roles used).
+Qn-1: Name the Movie that was directed by Clint
+Eastwood.
+Qn-2: Name the Oscar movie that was directed by
+Clint Eastwood.
+The equivalent set of conditions of the two ques-
+tions can be written as:
+Conditions in Qn-1: Movie,
+?directedBy.{clint eastwood}
+Conditions in Qn-2: Oscar movie,
+?directedBy.{clint eastwood}
+5.1. Popularity
+Popularity is considered as a factor because of
+the intuition that the greater the popularity of
+6 F. Author et al. / Instructions for the preparation of a camera-ready paper in LATEX
+the entities that form the question, more likely
+that a learner answers the question correctly. (We
+observe that this notion is applicable for learn-
+ers of all categories.) Therefore, the question be-
+comes easier to answer if the popularity of the con-
+cepts and roles that are present in the question is
+high. For example, out of the following two ques-
+tions, Qn-3 is likely to be easy to answer than Qn-
+4, since Oscar movie is a popular concept than
+Thriller movie.
+Qn-3: Name an oscar movie.
+Qn-4: Name a thriller movie.
+Our approach for measuring popularity is based
+on the observation that, (similar to what we see in
+Wikipedia data) if more articles talk about a cer-
+tain entity, the more important, or popular, this
+entity is. In Wikipedia, when an article mentions a
+related entity, it is usually denoted by a link to the
+corresponding Wikipedia page. These links form a
+graph which is exploited for measuring the impor-
+tance of an entity within Wikipedia. Keeping this
+in mind, we can define the popularity of an entity
+(individual) in an ontology as the number of ob-
+ject properties which are linked to it from other
+individuals. For obtaining a measure in the inter-
+val [0,1], we divide the number of in-links by the
+total amount of individuals in the ontology.
+To find the popularity of a concept C in ontol-
+ogy O, we find the mean of the popularities of all
+the individuals which satisfy C in O. If the con-
+dition in a question is a role restriction, then the
+concept expression of it will be considered, and
+popularity is calculated. The overall popularity of
+the question is determined by taking the mean of
+the popularities of all the concepts and role re-
+strictions present in it.
+5.2. Selectivity
+Selectivity of the conditions in a question helps
+in measuring the quality of the hints that are
+present in it [17]. Given a condition, selectivity
+refers to the number of individuals that satisfy it.
+When the selectivity is high, a question tends to
+be easy to answer. For example, among the fol-
+lowing questions, clearly, Qn-5 is easier to answer
+than Qn-6. This is because finding an actor who
+has acted in at least a movie is easy to answer
+than finding an actor who has acted in a particu-
+lar movie; finding the latter requires more specific
+knowledge.
+Qn-5: Name an actor who acted in a movie.
+Qn-6: Name an actor who acted in Argo.
+To formalize such a notion, we can look at the an-
+swer space corresponding to each of the conditions
+in the questions. Answer space simply denotes the
+count of individuals satisfying a given condition.
+We will represent answer space of a condition c as
+ASpace(c).
+The conditions in the above questions are:
+Conditions in Qn-5: Actor, ?actedIn.Movie
+Conditions in Qn-6: Actor, ?actedIn.{argo}
+Since ASpace(?actedIn.{argo}) is very much
+lesser than ASpace(?actedIn.Movie), we can say
+that Qn-6 is difficult to answer than Qn-5. (Actors
+who acted only in dramas are not possible answers
+to Qn-5.)
+As a question can have more than one conditions
+present in it, answer spaces of all the condition
+have to be taken into account while calculating
+the overall difficulty score of the question. It is
+debatable that including a specific condition in the
+question can always make the question difficult to
+answer – sometimes a specific condition can give
+a better hint to a (proficient) learner.
+For example, the following question is more dif-
+ficult to answer than Qn-5 and Qn-6 for a non-
+expert, since ASpace(American actor) <<ASpace(Actor).
+Qn-7: Name an American actor who acted in Argo.
+However, for an expert, given that the actor is an
+American is an additional hint, making the ques-
+tion sometimes easier than Qn-5 and 6. There-
+fore, we can roughly assume the relation between
+difficulty-level and answer space as follows, where
+Dexpert and Dbeginner correspond to the difficulty-
+level for an expert learner and difficulty-level for a
+beginner respectively. We will closely look at these
+relations in the following subsections.
+Dexpert ? ASpace
+Dbeginner ?
+1
+ASpace
+When a question contains multiple conditions,
+we do an aggregation of their normalized (or
+relative) answer spaces (denoted as RASpace)
+to find the overall answer space (addressed as
+ASpaceOverall) of the question. We find the
+RASpace of a concept by dividing the count of in-
+F. Author et al. / Instructions for the preparation of a camera-ready paper in LATEX 7
+Fig. 2. Relation between selectivity and answer space for
+experts
+dividuals satisfying the concept by the total count
+of individuals in the apex concept (Thing class)
+of the ontology. For instance, RASpace({argo})
+= ASpace({argo})/ASpace(owl:Thing). Simi-
+larly, if the condition is a role related restric-
+tion, corresponding domain concept of the role
+will be used to find the relative answer space.
+For ?actedIn.{argo}, RASpace is calculated as:
+ASpace(?actedIn.{argo})/ASpace(Domain(actedIn)).
+The overall answer space can be found by tak-
+ing the average of all the relative answer spaces
+of the conditions in the question, where CS =
+{t1, t2, ..., tn} is the set of conditions in the ques-
+tion S, and |CS | = n.
+ASpaceOverall(CS) =
+?n
+i=1RASpace(ti)
+n
+(3)
+In the following paragraphs, we discuss how the
+selectivity feature would affect the difficulty-level
+of an item. We discuss the cases of expert, interme-
+diate and beginner learners separately. In the pro-
+cess, we define two selectivity based features and
+specify how to compute them using the knowledge
+base and the domain ontology.
+Expert learner An expert learner is assumed to
+have a well developed structured knowledge about
+the domain of discourse. She is supposed to clearly
+distinguish the terminologies of the domain and is
+capable of doing reasoning over them. Therefore,
+in general, selectivity can be assumed to be di-
+rectly proportional to the difficulty-level; that is,
+when the ASpaceOverall increases, the underlying
+hints becomes poor and the question is likely to
+become difficult for her. However, intuitively, be-
+low and beyond particular ASpaceOverall values, a
+question’s difficulty does not necessarily follow this
+Fig. 3. Relation between selectivity and answer space for
+beginners
+proportionality. As pointed out in [21,20] when a
+question pattern becomes rare, it becomes diffi-
+cult to answer the question correctly. Therefore, in
+Fig. 2, towards the left of the point A, the question
+tends to become difficult, since the answer space
+becomes too small. Similarly, towards the right of
+the point B, the question tends to become more
+generic and its difficulty diminishes. To accurately
+predict whether a question is difficult or not, it is
+necessary to statistically determine the positions
+of the points A and B. Based on the initial analysis
+of the empirical data obtained from [21], we pro-
+cessed with an assumption that the question tends
+to become too generic when the ASpaceOverall
+? 50% of the total number of individuals in the
+ontology. Similarly, the question starts to become
+difficult when the ASpaceOverall ? 10% of the
+total number of individuals. The selectivity corre-
+sponding to an expert is expressed as SelectivityEx.
+Knowing the overall answer space of a question,
+selectivity is computed directly from the graph in
+Fig. 2 – in the graph, Max, A(10%) and B(50%)
+are known points.
+Beginner learner A beginner is assumed to have
+a less developed internal knowledge structure. She
+can be assumed to be familiar with the generic
+(sometimes popular) information about the do-
+main and is less aware about the detailed specifics.
+We assume that the selectivity factor behaves pro-
+portionally to the ASpaceOverall, unlike what we
+saw in the experts’ case. The intuition behind this
+assumption is that, when the overall answer space
+increases, as in the case of an expert the so-called
+hints in the question cannot be expected to be-
+come poor; this is because, a person with poorly
+developed domain knowledge may not be able to
+8 F. Author et al. / Instructions for the preparation of a camera-ready paper in LATEX
+differentiate the quality or property of the hint,
+making it rather a factor for generalizing the ques-
+tion (thereby making the question easily answer-
+able). Therefore, we can follow a linear propor-
+tionality relation as shown in Fig. 3, to find the
+difficulty for a beginner, and we can denote this
+new selectivity as SelectivityBg.
+Intermediate learner An intermediate learner
+can be assumed to have partially both the per-
+spective of an expect as well that of a beginner.
+Therefore, we can assume her selectivity value as
+combination of SelectivityEx and SelectivityBg –
+considering them as two factors.
+5.3. Coherence
+In the current context, coherence captures the
+semantic relatedness of entities (individuals and
+concepts) in a question. It can be best compared
+to measuring the co-occurrences of individuals and
+concepts in the text. While considering coherence
+as a factor, we assume that higher the coherence
+between individuals/concepts in a question, lower
+is its difficulty-level and vice versa, because intu-
+itively, the facts about highly coherent entities are
+likely to be recalled easier than the facts about less
+coherent entities. It is observed that this notion is
+applicable for learners of all categories.
+Qn-8: Name the hollywood-movie starring Anil Kapoor
+and Tom Cruise.
+Qn-9: Name the hollywood-movie starring Tom Cruise
+and Tim Robbins.
+Considering the above two questions, coherence
+between the concept HollywoodMovie and the
+individuals: anil kapoor, tom cruise, is lesser
+(since there is only one movie they both have acted
+together) than the coherence between HollywoodMovie,
+tom cruise and tim robbins, making the former
+question difficult to answer than the latter.
+Given an ontology, we measure the coherence
+between two of its individuals as the sum of the
+ratio between the size of the set of entities that
+point to both individuals and the size of the union
+of the sets of entities that point to either one of the
+individuals, and the ratio between the size of the
+set of entities that are pointed by both individuals
+and the size of the union of the sets of entities
+that are pointed by either one of the individuals.
+Formally, the coherence between two individuals
+p and q can be represented as in Eq. 4, where Ii
+is the set of entities from which the individual i
+is having incoming relations and Oi is the set of
+entities to which i is having outgoing relations.
+Coherence(p, q) =
+|Ip ? Iq|
+|Ip ? Iq|
++
+|Op ?Oq|
+|Op ?Oq|
+(4)
+Each portion of the measure is known as the Jac-
+card similarity coefficient, which is a statistical
+method to compare the similarity of sets.
+5.4. Specificity
+Specificity refers to how specific a question is.
+For example, among the following questions, Qn-2
+is more specific question than Qn-10 and requires
+more knowledge proficiency to answer it correctly.
+We consider Qn-2 as more difficult to answer than
+Qn-10.
+Qn-2: Name an Oscar movie that was directed by
+Clint Eastwood.
+Qn-10: Name the movie that is related to Clint East-
+wood.
+For a learner, the difficulty-level depends on how
+detailed the question is. Intuitively, if a question
+contains domain specific conditions, the probabil-
+ity of a learner for correctly answering the ques-
+tion will reduce. (This notion is observed to be
+applicable for all categories of learners.) To cap-
+ture this notion, we utilize the concept and role
+hierarchies in the domain ontology. We relate the
+depths of the concepts and roles that are used in
+the question to the concept and role hierarchies of
+the ontology, to determine the question difficulty.
+To achieve this, we introduce depthRatio for each
+predicate p in an ontology. depthRatio is defined
+as:
+depthRatioO(p) =
+Depth (or length) of p
+from the root of the hierarchy
+Maximum length of
+the path containing p
+(5)
+For a question S, generated from an ontology O,
+with x as key and P as the set of concepts/roles
+in S, let C denote the set of concepts satisfied by
+x, and let R represents the set of roles such that
+either x is present at their domain (subject) or
+range (object) position
+(
+i.e., R ? R =? O |=
+F. Author et al. / Instructions for the preparation of a camera-ready paper in LATEX 9
+R(x, i) ? R(i, x), where i is an arbitrary instance
+in O
+)
+. For each p ? P , we find the largest subset
+in C (if p is a concept) or we find the largest subset
+in R (if p is a role), such that the elements in the
+subset can be related using the relation v, and p is
+an element in that subset. The cardinality of such
+a subset forms the denominator of Eq. 5, and the
+numerator is the position of the predicate p from
+the right (right represents the top concept or top
+role) when the elements in the subset are arranged
+using the relation v.
+A stem can have more than one predicate
+present in it. In that case, we assume that the
+predicate with a highest depthRatio (associated
+with the reference individual) could potentially
+make the stem more specific. Therefore, we define
+the overall depthRatio of a stem (called the speci-
+ficity) as the product of the average depthRatio
+with the maximum of all the depthRatios.
+6. Difficulty-level Modeling of Questions
+In the previous section, we have proposed a set
+of features which possibly influence the difficulty-
+level of a question. In this section, we do a fea-
+ture selection study using three widely used filter
+models to find out the amount of influence of the
+proposed factors in predicting question difficulty.
+We then train three logistic regression models
+(RMe, RMi, RMb) for each learner category (ex-
+perts, intermediates and beginners, respectively)
+using the selected prominent features. Their pre-
+dictions for a given question are taken to find the
+overall difficulty-level. Ten-fold cross validation is
+used to find the performance of the three models.
+Training data The training data consisted of a
+set of 520 questions that were generated from four
+ontologies (DSA, MAHA, GEO and PD ontologies
+– see our project website4 for details) available on-
+line. These questions were classified as difficult or
+not-difficult for each of the three learner categories
+(we denote the training data for experts, interme-
+diate and beginners respectively as TDe, TDi and
+TDb). The classification is done by either of the
+two ways, (1) in a classroom setting by using IRT
+or (2) with the help of subject matter experts. In
+the former case, we find the probability by which
+4Project website: https://sites.google.com/site/ontoassess/
+Item identifier: dsa_1
+Popularity: 0.231
+Selectivity_Ex: 0.320
+Selectivity_Bg: 0.113
+Coherence: 0.520
+Specificity: 0.440
+Difficulty: d
+Fig. 4. An instance of the training data
+a particular question is answered correctly by a
+learner of specific knowledge proficiency level and
+assign it as difficulty (d) or not (nd). In the lat-
+ter case, more than 5 domain experts were asked
+to do the ratings and their majority ratings were
+considered for assigning d or nd. All the question
+that were used for training had been previously
+used as benchmark sets in [12,21,20]. In the train-
+ing data, the question identifiers are accompanied
+by five feature values tabulated from the respec-
+tive ontologies along with their difficulty assign-
+ment. The feature values are normalized to values
+between 0 and 1. An instance of the training data
+is given in Fig. 4.
+Feature Selection In order to find out the amount
+of influence of each of the proposed factors, we did
+an attribute evaluation study using three popular
+feature selection approaches: Information Gain[15]
+(IG), ReliefF[16] (RF) and Correlation-based[13]
+(CB) methods. These feature selection approaches
+select a subset of features that minimize redun-
+dancy and maximize relevance to the target such
+as the class labels in classification. The ranking
+scores/weights obtained for the features are given
+in Table 2.
+In Table 2, we can see that, the least promi-
+nent feature for finding the difficulty for experts is
+the SelectivityBg, since all the three filter models
+ranked it as the least influential one – see the fields
+shaded in blue in the three TDe columns. In the
+case of predicting difficulty for intermediates, the
+ranking scores of SelectivityEx is less than that of
+SelectivityBg when the models used are RF and
+CB – see the fields shaded in red. When it comes to
+beginner learners, the factor SelectivityEx is found
+to have the least influence – see the fields shaded
+in gray. While developing the IDM, we have ig-
+nored the least influential features for training the
+regression models.
+10 F. Author et al. / Instructions for the preparation of a camera-ready paper in LATEX
+Table 2
+Ranking score of features for the three training sets using three popular filter models. (IG, RF and CB, denote the three
+filter models: Information Gain, ReliefF and Correlation-based, respectively.)
+IG RF CB
+TDe TDi TDb TDe TDi TDb TDe TDi TDb
+Popularity 0.7613 0.6344 0.7925 0.831 0.378 0.178 0.766 0.621 0.562
+SelectivityEx 0.8802 0.6913 0.0963 0.738 0.451 0.120 0.699 0.258 0.058
+SelectivityBg 0.0012 0.6553 0.9996 0.008 0.668 0.177 0.114 0.442 0.249
+Coherence 0.5638 0.3251 0.8112 0.761 0.487 0.211 0.731 0.538 0.315
+Specificity 0.6577 0.5436 0.5751 0.651 0.521 0.459 0.657 0.761 0.602
+Observations Consistent to what we have postu-
+lated in Section 5.2, SelectivityEx is found to be a
+more influential factor than SelectivityBg, for de-
+ciding the difficulty of a question for an expert
+learner. Similarly, for a beginner, SelectivityBg is
+found to be more influential than SelectivityEx.
+6.1. Performance of regression models
+The performances of three learner-specific re-
+gression models: RMe, RMi, RMb, considering all
+the 5 features are 76.73%, 78.6% and 84.23% re-
+spectively. These percentage values indicate the
+ratio of the number of instances classified correctly
+to the total number of instances given for classifi-
+cation, under 10-fold cross-validation setting. Af-
+ter removing the least influential features, the per-
+formance of the classifiers became 76.9%, 79.8%,
+and 85% respectively. The difference in the perfor-
+mance before and after feature selection is roughly
+the same because the model can theoretically as-
+sign minimum or zero weight to non-influential
+features. However, we did the feature selection and
+ranking to evaluate our hypothesis about what fea-
+tures are influential in which case.
+When the overall system was run on the avail-
+able dataset of factual questions from different do-
+mains (520 questions), it is observed that DLM
+correctly classifies about 77% of them. These ques-
+tions are relevant to the domain selected using the
+heuristics given in [21].
+6.2. Non-classifiable Questions
+Following from what we have seen in Section 3,
+the DLM could not assign a difficulty-level to a
+given question if the outcomes of the three regres-
+sion models do not agree with the three possible
+Fig. 5. Classifiable Vs Non-classifiable questions
+assignments (see Fig. 1). We call such questions
+as non-classifiable ones and the others as classi-
+fiable questions. We investigated the percentage
+of such non-classifiable cases by analyzing ques-
+tions generated from five ontologies available on-
+line (available in our project website). We used
+questions that were generated in [20] for our study,
+the statistics of the non-classifiable cases are given
+in Fig. 5 (Note that the X-axis begins with 50%).
+On an average, 10% of all the questions generated
+from an ontology are found to be non-classifiable.
+An analysis of the non-classifiable questions
+taken from the DSA ontology shows that incom-
+pleteness of the ontology and the way the domain
+is modeled as an ontology are the main reasons
+for this discrepancy. For example, Name a doubly
+linked list is a question which is assigned to be dif-
+ficult for an expert (since the Doubly Linked List
+concept has only one individual and the incom-
+pleteness of data makes it a less popular concept),
+and not difficult for a beginner (the depthRatio
+is high for the concept Doubly Linked List be-
+F. Author et al. / Instructions for the preparation of a camera-ready paper in LATEX 11
+cause, it forms a specific concept in the ontology.
+However, this issue would not have appeared, if
+the concept Doubly Linked List had been mod-
+eled as an individual.
+7. Comparison with existing method
+In this section, we compare the predictions of
+difficult-levels by the proposed model and the
+method given in [21]. We call the latter as E-ATG
+method. We do not report a comparison with the
+model proposed in [17,18] because their difficulty-
+level model is not a domain ontology-based model
+and prediction is possible only if the question com-
+ponents can be mapped to Linked Open Data en-
+tities. In addition, they could predict the ques-
+tion difficulty either as easy or hard, whereas our
+model classifies the question into three standard
+difficulty-levels: high, medium and low.
+In [21], effectiveness of E-ATG method is estab-
+lished by comparing the predicated difficulty-levels
+with their actual difficulty-levels determined in a
+classroom setting. DSA ontology was used for the
+study. Twenty four representative questions (given
+in Appendix A), selected from 128213 generated
+questions, were utilized for the comparison. (More
+details about the selection process can be found
+at [21]). A correlation of 67% between the pre-
+dicted and actual difficulty-levels was observed5.
+We tested the approach proposed in this paper on
+the above set of questions.
+While comparing the proposed difficulty-levels
+with the actual difficult-levels, we found that
+21 out of 24 are matching (87.5% correlation),
+and one benchmark question is identified as non-
+classifiable.
+7.1. Discussion
+The E-ATG method mainly considered only one
+feature, the triviality score (which denotes how
+rare the property combination in the stem are), for
+doing the predication. Our results (8.5% improve-
+ment) show that the proposed set of new features
+could improve the correctness of the prediction.
+5To get more accurate result, the calculations were re-
+done with ? values between: [-1.5, 1.5], and 1.25, 0 and -1.25
+as the medians of the ? values for experts, beginners and
+intermediates, respectively with ±.25 standard deviation
+The current model is trained only using 520 train-
+ing samples. We expect the system to perform even
+better after training with more data as and when
+they are available, and by identifying other im-
+plicit features. Due to unavailability of large train-
+ing data, unsupervised feature learning methods
+cannot be effectively applied in this context.
+8. Conclusions and Future Work
+Establishing mechanisms to control and predict
+the difficulty of assessment questions is clearly a
+big gap in existing question generation literature.
+Our contributions have covered the deeper aspects
+of the problem, and proposed strategies, that ex-
+ploit ontologies and associated measures, to pro-
+vide a better difficulty-level predicting model, that
+can address this gap. We developed the difficulty-
+level model (DLM) by introducing three learner-
+specific logistic regression models for predicting
+the difficulty of a given question for three cate-
+gories of learners. The output of these three mod-
+els was then interpreted using the Item Response
+Theory to assign high, medium or low difficulty-
+level. The overall performance of the DLM and
+the individual performance of the three regression
+models based on cross-validation were reported
+and they are found to be satisfactory. Compar-
+ison with the state-of-the-art method shows an
+improvement of 8.5% in correctly predicating the
+difficulty-levels of benchmark questions.
+The model proposed in this paper for predicting
+the difficulty-level of questions is limited to ABox-
+based factual questions. It would be interesting to
+extend this model to questions that are generated
+using the TBox-based approaches. However, the
+challenges to be addressed would be much more,
+since, in the TBox-based methods, we have to deal
+with many complex restriction types (unlike in the
+case of ABox-based methods) and their influence
+on the difficulty-level of the question framed out
+of them needs a detailed investigation.
+For establishing the propositions and techniques
+stated in this paper, we have implemented a sys-
+tem which demonstrates the feasibility of the
+methods on medium sized ontologies. It would be
+interesting to investigate the working of the sys-
+tem on large ontologies.
+12 F. Author et al. / Instructions for the preparation of a camera-ready paper in LATEX
+Acknowledgements
+This project is funded by Ministry of Human
+Resource Development, Gov. of India. We express
+our fullest gratitude to the participants of our eval-
+uation process: Dr. S.Gnanasambadan (Director
+of Plant Protection, Quarantine & Storage), Min-
+istry of Agriculture, Gov. of India; Mr. J. Delince
+and Mr. J. M. Samraj, Department of Social Sci-
+ences AC & RI, Killikulam, Tamil Nadu, India;
+Ms. Deepthi.S (Deputy Manager), Vegetable and
+Fruit Promotion Council Keralam (VFPCK), Ker-
+ala, India; Dr. K.Sreekumar (Professor) and stu-
+dents, College of Agriculture, Vellayani, Trivan-
+drum, Kerala, India. We also thank all the under-
+graduate and post-graduate students of Indian In-
+stitute of Technology, Madras, who have partici-
+pated in the empirical study.
+References
+[1] Asma Ben Abacha, Marcos Da Silveira, and Ce?dric
+Pruski. Medical ontology validation through ques-
+tion answering. In AIME, pages 196–205, 2013.
+10.1007/978-3-642-38326-7 30.
+[2] Maha Al-Yahya. Ontology-based multiple choice ques-
+tion generation. The Scientific World Journal, Vol
+2014, page 9, ID: 10.1155/2014/274949, 2014.
+[3] T. Alsubait, B. Parsia, and U. Sattler. A similarity-
+based theory of controlling mcq difficulty. In e-
+Learning and e-Technologies in Education (ICEEE),
+2013 Second International Conference on, pages 283–
+288, Sept 2013.
+[4] T. Alsubait, B. Parsia, and U. Sattler. Generating mul-
+tiple choice questions from ontologies: Lessons learnt.
+In Proceedings of the 11th International Workshop on
+OWL: Experiences and Directions (OWLED 2014),
+volume 1265, pages 73–84, Oct 2014.
+[5] Tahani Alsubait. Ontology-based multiple-choice ques-
+tion generation. PhD thesis, School of Computer Sci-
+ence, The University of Manchester, 2015.
+[6] Tahani Alsubait, Bijan Parsia, and Ulrike Sattler. Min-
+ing ontologies for analogy questions: A similarity-based
+approach. volume 849 of CEUR Workshop Proceed-
+ings. OWL Experiences and Directions, 2012.
+[7] Tahani Alsubait, Bijan Parsia, and Ulrike Sattler.
+Generating multiple choice questions from ontologies:
+Lessons learnt. volume 1265 of CEUR Workshop Pro-
+ceedings. OWL Experiences and Directions, 2014.
+[8] Xinming An and Yiu-Fai Yung. Item response theory:
+What it is and how you can use the irt procedure to
+apply it. In SAS Global Forum, 2014.
+[9] Franz Baader, Diego Calvanese, Deborah L. McGuin-
+ness, Daniele Nardi, and Peter F. Patel-Schneider, ed-
+itors. The description logic handbook: theory, imple-
+mentation, and applications. Cambridge University
+Press, New York, NY, USA, 2003.
+[10] Marija Cubric and Milorad Tosic. Towards automatic
+generation of e-assessment using semantic web tech-
+nologies. In Proceedings of the 2010 International
+Computer Assisted Assessment Conference, 2010.
+[11] Christine DeMars. Item Response Theory: Under-
+standing Statistics. Oxford University Press, 2010.
+[12] Vinu E.V. and Kumar P. Sreenivasa. A novel
+approach to generate mcqs from domain ontol-
+ogy: Considering dl semantics and open-world as-
+sumption. Web Semantics: Science, Services and
+Agents on the World Wide Web, 34:40 – 54, 2015.
+http://dx.doi.org/10.1016/j.websem.2015.05.005.
+[13] Mark A Hall. Correlation-based Feature Selection for
+Machine Learning. PhD thesis, Department of Com-
+puter Science, The University of Waikato, 1999.
+[14] R. Michael Furr and Verne R. Bacharach. Psychomet-
+rics, An Introduction. Second Edition. SAGE Publi-
+cations, Inc, 2014.
+[15] Hanchuan Peng, Fuhui Long, and Chris Ding. Fea-
+ture selection based on mutual information: Criteria of
+max-dependency, max-relevance, and min-redundancy.
+IEEE Trans. Pattern Anal. Mach. Intell., 27(8):1226–
+1238, August 2005.
+[16] Marko Robnik-S?ikonja and Igor Kononenko. Theoret-
+ical and empirical analysis of relieff and rrelieff. Ma-
+chine Learning, 53(1):23–69, 2003.
+[17] Dominic Seyler, Mohamed Yahya, and Klaus
+Berberich. Generating quiz questions from knowledge
+graphs. In Proceedings of the 24th International Con-
+ference on World Wide Web, WWW ’15 Companion,
+pages 113–114, New York, NY, USA, 2015. ACM.
+[18] Dominic Seyler, Mohamed Yahya, and Klaus
+Berberich. Knowledge questions from knowledge
+graphs. CoRR, abs/1610.09935, 2016.
+[19] Dominic Seyler, Mohamed Yahya, Klaus Berberich,
+and Omar Alonso. Automated question generation for
+quality control in human computation tasks. In Pro-
+ceedings of the 8th ACM Conference on Web Science,
+WebSci 2016, Hannover, Germany, May 22-25, 2016,
+pages 360–362, 2016.
+[20] Ellampallil Venugopal Vinu and Puligundla Sreeni-
+vasa Kumar. Improving large-scale assessment tests
+by ontology based approach. In Proceedings of the
+Twenty-Eighth International Florida Artificial Intel-
+ligence Research Society Conference, FLAIRS 2015,
+Hollywood, Florida. May 18-20, 2015., page 457, 2015.
+[21] E.V Vinu and P. Sreenivasa Kumar. Automated gener-
+ation of assessment tests from domain ontologies. Se-
+mantic Web Journal, In Press, 2016.
+[22] Branko Z?itko, Slavomir Stankov, Marko Rosic?, and Ani
+Grubi?sic?. Dynamic test generation over ontology-based
+knowledge representation in authoring shell. Expert
+Systems with Applications, 36(4):8185 – 8196, 2009.
+http://dx.doi.org/10.1016/j.eswa.2008.10.028.
+[23] Konstantinos Zoumpatianos, Andreas Papasalouros,
+and Konstantinos Kotis. Automated transformation of
+swrl rules into multiple-choice questions. In R. Charles
+Murray and Philip M. McCarthy, editors, FLAIRS
+Conference. AAAI Press, 2011.
+F. Author et al. / Instructions for the preparation of a camera-ready paper in LATEX 13
+Appendix A
+Tables 3-5 contain benchmark stems that are
+generated from the Data Structures and Algo-
+rithms (DSA) ontology. In those tables, the stems
+1 to 6, 7 to 16 and 17 to 24 correspond to high,
+medium and low (actual) difficulty-levels respec-
+tively. These stems were employed in the experi-
+ment mentioned in Section 7. Stems- 7, 8 and 20
+are the uncorrelated ones. Stem-20 is identified as
+non-classifiable questions by our approach.
+Table 3
+Questions generated from the DSA ontology that are having
+high actual difficulty-levels.
+Item No. Stems of MCQs
+1 Name a polynomial time problem with appli-
+cation in computing canonical form of the dif-
+ference between bound matrices.
+2. Name an NP-complete problem with applica-
+tion in pattern matching and is related to fre-
+quent subtree mining problem.
+3. Name an all pair shortest path algorithm that
+is faster than Floyd-Warshall Algorithm.
+4. Name an application of an NP-complete prob-
+lem that is also known as Rucksack problem.
+5. Name a string matching algorithm that is
+faster than Robin-Karp algorithm.
+6. Name a polynomial time problem that is also
+known as maximum capacity path problem.
+Table 4
+Questions generated from the DSA ontology that are hav-
+ing medium actual difficulty-levels.
+Item No. Stems of MCQs
+7. Name an NP-hard problem with application in
+logistics.
+8. Name the one whose worst time complexity is
+n exp 2 and with Avg time complexity n exp
+2.
+9. Name the one which operates on output re-
+stricted dequeue and operates on input re-
+stricted dequeue.
+10. Name the operation of a queue that operates
+on a priority queue.
+11. Name a queue operation that operates on dou-
+ble ended queue and operates on a circular
+queue.
+12. Name the ADT that has handling process
+“LIFO”.
+13. Name an internal sorting algorithm with worse
+time complexity m plus n.
+14. Name a minimum spanning tree algorithm
+with design technique greedy method.
+15. Name an internal sorting algorithm with time
+complexity n log n.
+16. Name an Internal Sorting Algorithm with
+worse time complexity n exp 2.
+Table 5
+Questions generated from the DSA ontology that are hav-
+ing low actual difficulty-levels.
+Item No. Stems of MCQs
+17. Name a file operation.
+18. Name a heap operation.
+19. Name a tree search algorithm.
+20. Name a queue with operation dequeue.
+21. Name a stack operation.
+22. Name a single shortest path algorithm.
+23. Name a matrix multiplication algorithm.
+24. Name an external sorting algorithm.

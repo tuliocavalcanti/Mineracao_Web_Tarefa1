@@ -1,0 +1,1145 @@
+Towards Understanding Adversarial Learning for
+Joint Distribution Matching
+Chunyuan Li, Hao Liu, Changyou Chen, Yunchen Pu, Liqun Chen,
+Ricardo Henao, Lawrence Carin
+Duke University
+cl319@duke.edu
+Abstract
+We investigate the non-identifiability issues associated with bidirectional adver-
+sarial training for joint distribution matching. Within a framework of conditional
+entropy, we propose both adversarial and non-adversarial approaches to learn
+desirable matched joint distributions for unsupervised and supervised tasks. We
+unify a broad family of adversarial models as joint distribution matching problems.
+Our approach stabilizes learning of unsupervised bidirectional adversarial learning
+methods. Further, we introduce an extension for semi-supervised learning tasks.
+Theoretical results are validated in synthetic data and real-world applications.
+1 Introduction
+Deep directed generative models are a powerful framework for modeling complex data distributions.
+Generative Adversarial Networks (GANs) [1] can implicitly learn the sample generating distribution;
+more specifically, GAN can learn to sample from it. In order to do this, GAN trains a generator to
+mimic real samples, by learning a mapping from a latent space (where the samples are easily drawn)
+to the data space. Concurrently, a discriminator is trained to distinguish between generated and real
+samples. The key idea behind GAN is that if the discriminator finds it difficult to distinguish real from
+artificial samples, then the generator is likely to be a good approximation to the true data distribution.
+However, in its standard form, GAN only allows for a one-way mapping, i.e., it lacks an inverse
+mapping mechanism (from data to latent space), which prevents GAN from being able to do infer-
+ence. The ability to compute a posterior distribution of the latent variable conditioned on a given
+input observation may be important for data interpretation and for downstream applications (e.g.,
+classification from the latent variable) [2, 3, 4, 5]. Efforts have been made to simultaneously learn
+an efficient bidirectional model that can produce high-quality samples for both the latent and data
+spaces [3, 4, 6, 7, 8]. Among them, the recently proposed Adversarially Learned Inference (ALI)
+[4, 8] casts the learning of such a bidirectional model in a GAN-like adversarial framework. Specifi-
+cally, a discriminator is trained to distinguish between two joint distributions: that of the real data
+sample and its inferred latent code, and that of the real latent code and its generated data sample.
+While ALI is an inspiring and elegant approach, it tends to produce reconstructions that are not
+necessarily faithful reproductions of the inputs [4]. This is because ALI only seeks to match two
+joint distributions, but the dependency structure (correlation) between the two random variables
+(conditionals) within each joint is not specified or constrained. In practice, this results in solutions
+that satisfy ALI’s objective and that are able to produce real-looking samples, but have difficulties
+reconstructing observed data [4]. ALI also has difficulty discovering the correct pairing relationship
+in domain transformation tasks [9, 10, 11].
+In this paper, (i) we first describe the non-identifiability issue of ALI. To solve this problem, we
+propose to regularize ALI using the framework of Conditional Entropy (CE), hence we call the
+proposed approach ALICE. (ii) Adversarial learning schemes are proposed to estimate the conditional
+31st Conference on Neural Information Processing Systems (NIPS 2017), Long Beach, CA, USA.
+ar
+X
+iv
+:1
+70
+9.
+01
+21
+5v
+1 
+ [
+st
+at
+.M
+L
+] 
+ 5
+ S
+ep
+ 2
+01
+7
+entropy, for both unsupervised and supervised learning paradigms. (iii) We provide a unified view
+for a family of recently proposed GAN models from the perspective of joint distribution matching,
+including ALI [4, 8], CycleGAN [9, 10, 11] and Conditional GAN [12]. (iv) Extensive experiments
+on synthetic and real data demonstrate that ALICE is significantly more stable to train than ALI, in
+that it consistently yields more viable solutions (good generation and good reconstruction), without
+being too sensitive to perturbations of the model architecture, i.e., hyperparameters. We also show
+that ALICE results in more faithful image reconstructions. (v) Further, our framework can leverage
+paired data (when available) for semi-supervised tasks. This is empirically demonstrated on the
+discovery of relationships for cross domain tasks based on image data.
+2 Background
+Consider two general marginal distributions q(x) and p(z) over x ? X and z ? Z . One domain
+can be inferred based on the other using conditional distributions, q(z|x) and p(x|z). Further, the
+combined structure of both domains is characterized by joint distributions q(x, z) = q(x)q(z|x) and
+p(x, z) = p(z)p(x|z).
+To generate samples from these random variables, adversarial methods [1] provide a sampling
+mechanism that only requires gradient backpropagation, without the need to specify the conditional
+densities. Specifically, instead of sampling directly from the desired conditional distribution, the
+random variable is generated as a deterministic transformation of two inputs, the variable in the source
+domain, and an independent noise, e.g., a Gaussian distribution. Without loss of generality, we use an
+universal distribution approximator specification [7], i.e., the sampling procedure for conditionals
+x? ? p?(x|z) and z? ? q?(z|x) is carried out through the following two generating processes:
+x? = g?(z, ), z ? p(z),  ? N (0, I), and z? = g?(x, ?), x ? q(x), ? ? N (0, I), (1)
+where g?(·) and g?(·) are two generators, specified as neural networks with parameters ? and
+?, respectively. In practice, the inputs of g?(·) and g?(·) are simple concatenations, [z ] and
+[x ?], respectively. Note that (1) implies that p?(x|z) and q?(z|x) are parameterized by ? and ?
+respectively, hence the subscripts.
+The goal of GAN [1] is to match the marginal p?(x) =
+?
+p?(x|z)p(z)dz to q(x). Note that q(x)
+denotes the empirical distribution of the data and p(z) is specified as a simple parametric distribution,
+e.g., isotropic Gaussian. In order to do the matching, GAN trains a ?-parameterized adversarial
+discriminator network, f?(x), to distinguish between samples from p?(x) and q(x). Formally, the
+minimax objective of GAN is given by the following expression:
+min
+?
+max
+?
+LGAN = Ex?q(x)[log ?(f?(x))] + Ex??p?(x|z),z?p(z)[log(1? ?(f?(x?)))], (2)
+where ?(·) is the sigmoid function. The following lemma characterizes the solutions of (2) in terms
+of marginals p?(x) and q(x).
+Lemma 1 ([1]) The optimal decoder and discriminator, parameterized by {??,??}, correspond to
+a saddle point of the objective in (2), if and only if p??(x) = q(x).
+Alternatively, ALI [4] matches the joint distributions p?(x, z) = p?(x|z)p(z) and q?(x, z) =
+q(x)q?(z|x), using an adversarial discriminator network similar to (2), f?(x, z), parameterized by
+?. The minimax objective of ALI can be then written as
+min
+?,?
+max
+?
+LALI = Ex?q(x),z??q?(z|x)[log ?(f?(x, z?))]
++ Ex??p?(x|z),z?p?(z)[log(1??(f?(x?, z)))].
+(3)
+Lemma 2 ([4]) The optimum of the two generators and the discriminator with parameters
+{??,??,??} form a saddle point of the objective in (3), if and only if p??(x, z) = q??(x, z).
+From Lemma 2, if a solution of (3) is achieved, it is guaranteed that all marginals and conditional
+distributions of the pair {x, z} match. Note that this implies that q?(z|x) and p?(z|x) match;
+however, (3) imposes no restrictions on these two conditionals. This is key for the identifiability
+issues of ALI described below.
+3 Adversarial Learning with Information Measures
+The relationship (mapping) between random variables x and z is not specified or constrained by
+ALI. As a result, it is possible that the matched distribution ?(x, z) , p??(x, z) = q??(x, z) is
+undesirable for a given application.
+2
+x2
+z1 z2
+x1
+0
+0
+z1 z2
+x2
+x1
+x2
+z1 z2
+x1
+0
+0
+z1 z2
+x2
+x1
+x2
+z1 z2
+x1
+z1 z2
+x2
+x1
+(a) (b) (c)
+ /2
+ /2 1/2
+1/21/2
+1/2(1  )/2
+(1  )/2
+Figure 1: Illustration of possible solutions to
+the ALI objective. The first row shows the map-
+pings between two domains, The second row
+shows matched joint distribution, ?(x,z), as
+contingency tables parameterized by ? = [0, 1].
+To illustrate this issue, Figure 1 shows all solutions
+(saddle points) to the ALI objective on a simple toy
+problem. The data and latent random variables can take
+two possible values, X = {x1, x2} and Z = {z1, z2},
+respectively. In this case, their marginals q(x) and p(z)
+are known, i.e., q(x = x1) = 0.5 and p(z = z1) = 0.5.
+The matched joint distribution, ?(x, z), can be repre-
+sented as a 2× 2 contingency table. Figure 1(a) repre-
+sents all possible solutions of the ALI objective in (3),
+for any ? ? [0, 1]. Figures 1(b) and 1(c) represent oppo-
+site extreme solutions when ? = 1 and ? = 0, respec-
+tively. Note that although we can generate “realistic”
+values of x from any sample of p(z), for 0 < ? < 1, we
+will have poor reconstruction ability since the sequence
+x ? q(x), z? ? q?(z|x), x? ? p?(x|z?), can easily
+result in x? 6= x. The two (trivial) exceptions where the model can achieve perfect reconstruction
+correspond to ? = {1, 0}, and are illustrated in Figures 1(b) and 1(c), respectively. From this simple
+example, we see that due to the flexibility of the joint distribution, ?(x, z), it is quite likely to obtain
+an undesirable solution to the ALI objective. For instance, i) one with poor reconstruction ability or
+ii) one where a single instance of z can potentially map to any possible value in X , e.g., in Figure 1(a)
+with ? = 0.5, z1 can generate either x1 or x2 with equal probability.
+Many applications require meaningful mappings. Consider two scenarios:
+• A1: In unsupervised learning, one desirable property is cycle-consistency [9], meaning that the
+inferred z of a corresponding x, can reconstruct x itself with high probability. In Figure 1 this
+corresponds to either ? ? 1 or ? ? 0, as in Figures 1(b) and 1(c).
+• A2: In supervised learning, the pre-specified correspondence between samples imposes restrictions
+on the mapping between x and z, e.g., in image tagging, x are images and z are tags. In this case,
+paired samples from the desired joint distribution are usually available, thus we can leverage this
+supervised information to resolve the ambiguity between Figure 1(b) and (c).
+From our simple example in Figure 1, we can see that in order to alleviate the identifiability issues
+associated with the solutions to the ALI objective, we have to impose constraints on the conditionals
+q?(z|x) and p?(z|x). Furthermore, to fully mitigate the identifiability issues we require supervision,
+i.e., paired samples from domains X and Z .
+To deal with the problem of undesirable but matched joint distributions, below we propose to use
+an information-theoretic measure to regularize ALI. This is done by controlling the “uncertainty”
+between pairs of random variables, i.e., x and z, using conditional entropies.
+3.1 Conditional Entropy
+Conditional Entropy (CE) is an information theoretic measure that quantifies the uncertainty of
+random variable x when conditioned on z, under joint distribution ?(x, z), i.e.,
+H?(x|z) , ?E?(x,z)[log ?(x|z)], and H?(z|x) , ?E?(x,z)[log ?(z|x)]. (4)
+The uncertainty of x given z is linked with H?(x|z); in fact, H?(x|z) = 0 if only if x is a
+deterministic mapping of z. Intuitively, by controlling the uncertainty of q?(z|x) and p?(z|x), we
+can restrict the solutions of the ALI objective to joint distributions whose mappings result in better
+reconstruction ability. Therefore, we propose to use the CE in (4), denoted as L?CE(x, z) = H?(x|z)
+or H?(z|x) (depending on the task; see below), as a regularization term in our framework, termed
+ALI with Conditional Entropy (ALICE), and defined as the following minimax objective:
+min
+?,?
+max
+?
+LALICE = LALI(x, z) + L?CE(x, z). (5)
+Ideally, we could select the desirable solutions of (5) by evaluating their CE, once all the saddle
+points of the ALI objective have been identified. However, in practice, L?CE(x, z) is intractable
+because we do not have access to the saddle points beforehand. Below, we propose to approximate
+the CE in (5) (ALICE) during ALI training for both unsupervised and supervised tasks. Since x and
+z are symmetric in terms of CE according to (4), we use x to derive our theoretical results. Similar
+arguments hold for z, as discussed in the Supplementary Material (SM).
+3
+3.2 Unsupervised Learning
+In the absence of explicit probability distributions needed for computing the CE, we can bound the CE
+using the criterion of cycle-consistency [9]. We denote the reconstruction of x as x?, via generating
+procedure (cycle) x? ? p?(x|z), z ? q?(z|x), x ? q(x). The criterion of cycle-consistency
+(reconstruction) is formulated as Eq?(z|x)[log p?(x = x?|z)] = ?(x ? x?), where log p?(x = x?|z)
+indicates the log-likelihood of x? under p?(x|z). Lemma 3 below shows that cycle-consistency is an
+upper bound of the conditional entropy in (4).
+Lemma 3 For random variables x and z with joint distributions p?(·) or q?(·), we have
+Hq?(x|z) , ?Eq?(x,z)[log q?(x|z)] = ?Eq?(x,z)[log p?(x = x?|z)]? Eq(z)[KL(q?(x|z)?p?(x|z))]
+? ?Eq?(x,z)[log p?(x = x?|z)] , LCycle(x, x?). (6)
+The proof is in the SM. Note that latent z is implicitly involved in LCycle(x, x?) via Eq?(x,z)[·]. For
+the unsupervised case we want to leverage (6) to optimize the following upper bound of (5):
+min
+?,?
+max
+?
+LALI(x, z) + LCycle(x, x?) . (7)
+Note that as ALI reaches its optimum, p?(x, z) and q?(x, z) reach saddle point ?(x, z), then
+LCycle(x, x?)? Hq?(x|z)? H?(x|z) in (4) accordingly, thus (7) effectively approaches (5) (AL-
+ICE). Besides, unlike L?CE(x, z) in (4), its upper bound, LCycle(x, x?), can be easily approximated
+via Monte Carlo simulation. Importantly, (7) can be frictionlessly added to ALI’s objective without
+additional changes to the original training procedure.
+The cycle-consistency property has been previously leveraged in CycleGAN [9], DiscoGAN [10]
+and DualGAN [11]. However, in [9, 10, 11], cycle-consistency, LCycle(x, x?), is implemented via `k
+losses, for k = 1, 2, and real-valued data such as images. As a consequence of a `2-based pixel-wise
+loss, the generated samples tend to be blurry [6]. Recognizing this limitation, we further suggest
+to enforce cycle-consistency (for better reconstruction) using fully adversarial training (for better
+generation), as an alternative to LCycle(x, x?) in (7). Specifically, to reconstruct x, we specify an
+?-parameterized discriminator f? to distinguish between two joints, the joint of x and itself, and the
+joint of x and its reconstruction x?.
+min
+?,?
+max
+?
+LACycle(x, x?) = Ex?q(x)[log ?(f?(x,x))]
++ Ex??p?(x|z?),z??q?(z|x) log(1? ?(f?(x, x?)))]. (8)
+Finally, the fully adversarial training algorithm for unsupervised learning using the ALICE framework
+is the result of replacing LCycle(x, x?) with LACycle(x, x?) in (7), thus we maximize wrt {?,?}.
+The use of paired samples {x, x?} is critical. It encourages the generators to mimic the reconstruction
+relationship implied in the first joint; on the contrary, the model may reduce to the basic GAN
+discussed in Section 3, and generate any realistic sample in X . The objective in (8) enjoys many
+theoretical properties of GAN. Particularly, Proposition 1 guarantees the existence of the optimal
+generator and discriminator.
+Proposition 1 The optimal generators and discriminator {??,??,??} of the objective in (8) is
+achieved, if and only if Eq?? (x,z)[log p??(x = x?|z)] = ?(x? x?).
+The proof is provided in the SM. The proposition implies that the optimum Eq?? (x,z)[log p??(x =
+x?|z)] = ?(x ? x?) guarantees the consistency of the cycle formed by x? ? p?(x|z), q?(z|x) and
+q(x), i.e., these two mappings ensure the reconstruction of x with high probability. Together with
+Lemma 2 and 3, we can also show that:
+Corollary 1 When cycle-consistency is satisfied (the optimum in (8) is achieved), (i) a determin-
+istic mapping enforces Eq(z)[KL(q?(x|z)?p?(x|z))] = 0, which indicates the conditionals are
+matched. (ii) On the contrary, the matched conditionals enforce Hq?(x|z) = 0, which indicates the
+corresponding mapping becomes deterministic.
+3.3 Semi-supervised Learning
+When the objective in (7) is optimized in an unsupervised way, the identifiability issues associated
+with ALI are largely reduced due to the cycle-consistency enforcing bound in Lemma 3. This
+means that samples in the training data have been probabilistically “paired” with high certainty,
+4
+by conditionals p?(x|z) and p?(z|x), though perhaps not in the desired configuration. In real-
+world applications, obtaining the correctly paired data samples for the entire dataset is expensive or
+even impossible. However, in some situations obtaining paired data for a very small subset of the
+observations may be feasible. In such a case, we can leverage the small set of empirically paired
+samples, to further provide guidance on selecting the correct configuration. This suggests that ALICE
+is suitable for semi-supervised classification.
+For a paired sample drawn from empirical distribution ??(x, z), its desirable joint distribution is well
+specified. Thus, one can directly approximate the CE as
+H ??(x|z) ? E??(x,z)[log p?(x|z)] , LMap(x, z) , (9)
+where the approximation (?) arises from the fact that p?(x|z) is an approximation to ??(x, z). For
+the supervised case we leverage (9) to approximate (5) using the following minimax objective:
+min
+?,?
+max
+?
+LALI(x, z) + LMap(x, z). (10)
+Note that as ALI reaches its optimum, p?(x, z) and q?(x, z) reach saddle point ?(x, z), then
+LMap(x, z)? H ??(x|z)? H?(x|z) in (4) accordingly, thus (10) approaches (5) (ALICE).
+We can employ standard losses for supervised learning objectives to approximate LMap(x, z) in
+(10), such as cross-entropy or `k loss in (9). Alternatively, to also improve generation ability, we
+propose an adversarial learning scheme to directly match p?(x|z) to the paired empirical conditional
+??(x|z), using conditional GAN [12] as an alternative to LMap(x, z) in (10). The ?-parameterized
+discriminator f? is used to distinguish the true pair {x, z} from the artificially generated one {x?, z}
+(conditioned on z), using
+min
+?
+max
+?
+LAMap(x, z) = Ex,z???(x,z)[log ?(f?(x, z)) + Ex??p?(x|z) log(1? ?(f?(x?, z)))]. (11)
+The fully adversarial training algorithm for supervised learning using the ALICE framework in (11)
+is the result of replacing LMap(x, z) with LAMap(x, z) in (10), thus we maximize wrt {?,?}.
+Proposition 2 The optimum of generators and discriminator {??,??} form saddle points of objective
+in (11), if and only if ??(x|z) = p??(x|z). Further, ??(x, z) = p??(x, z).
+The proof is provided in the SM. Proposition 2 enforces that the generator will map to the correctly
+paired sample in the other space. Together with the theoretical result for ALI in Lemma 2, we have
+Corollary 2 When the optimum in (10) is achieved, ??(x, z) = p??(x, z) = q??(x, z).
+Corollary 2 indicates that ALI’s drawbacks associated with identifiability issues can be alleviated for
+the fully supervised learning scenario. In practice, samples from the paired set ??(x, z) often contain
+enough information to readily approximate the sufficient statistics of the entire dataset. In such case,
+we may use the following objective for semi-supervised learning:
+min
+?,?
+max
+?
+LALI(x, z) + LCycle(x, z) + LMap(x, z) . (12)
+The first two terms operate on the entire set, while the last term only applies to the paired subset. Note
+that we can train (12) fully adversarially by replacingLCycle(x, z) andLMap(x, z) withLACycle(x, z)
+and LAMap(x, z) in (8) and (11), respectively.
+4 Related Work: A Unified Perspective for Joint Distribution Matching
+Connecting ALI and CycleGAN. We provide an information theoretical interpretation for cycle-
+consistency, and show that it is equivalent to controlling conditional entropies and matching con-
+ditional distributions. When cycle-consistency is satisfied, Corollary 1 shows that the conditionals
+are matched in CycleGAN. They also train additional discriminators to guarantee the matching of
+marginals for x and z using the original GAN objective in (2). This reveals the equivalence between
+ALI and CycleGAN, as the latter can also guarantee the matching of joint distributions p?(x, z) and
+q?(x, z). In practice, CycleGAN is easier to train, as it decomposes the joint distribution matching
+objective (as in ALI) into four subproblems. Our approach leverages a similar idea, and further
+improves it with adversarially learned cycle-consistency, when high quality samples are of interest.
+Stochastic Mapping vs. Deterministic Mapping. We propose to enforce the cycle-consistency in
+ALI for the case when two stochastic mappings are specified as in (1). When cycle-consistency is
+5
+(a) True x (b) True z (c) Inception Score (d) MSE
+Figure 2: Quantitative evaluation of generation (c) and reconstruction (d) results on toy data (a,b).
+achieved, Corollary 1 shows that the bounded conditional entropy vanishes, and thus the corresponding
+mapping reduces to be deterministic. In the literture, one deterministic mapping has been empirically
+tested in ALI’s framework [4], without explicitly specifying cycle-consistency. BiGAN [8] uses two
+deterministic mappings. In theory, deterministic mappings guarantee cycle-consistency in ALI’s
+framework. However, to achieve this, the model has to fit a delta distribution (deterministic mapping)
+to another distribution in the sense of KL divergence (see Lemma 3). Due to the asymmetry of
+KL, the cost function will pay extremely low cost for generating fake-looking samples [13]. This
+explains the underfitting reasoning in [4] behind the subpar reconstruction ability of ALI. Therefore,
+in ALICE, we explicitly add a cycle-consistency regularization to accelerate and stabilize training.
+Conditional GANs as Joint Distribution Matching. Conditional GAN and its variants [12, 14, 15,
+16] have been widely used in supervised tasks. Our scheme to learn conditional entropy borrows the
+formulation of conditional GAN [12]. To the authors’ knowledge, this is the first attempt to study the
+conditional GAN formulation as joint distribution matching problem. Moreover, we add the potential
+to leverage the well-defined distribution implied by paired data, to resolve the ambiguity issues of
+unsupervised ALI variants [4, 8, 9, 10, 11].
+5 Experimental Results
+5.1 Effectiveness and Stability of Cycle-Consistency
+To highlight the role of the CE regularization for unsupervised learning, we perform an experiment
+on a toy dataset. q(x) is a 2D Gaussian Mixture Model (GMM) with 5 mixture components, and
+p(z) is chosen as a standard Gaussian, N (0, I). Following [4], the covariance matrices and centroids
+are chosen such that the distribution exhibits severely separated modes, which makes it a relatively
+hard task despite its 2D nature. Following [17], to study stability, we run an exhaustive grid search
+over a set of architectural choices and hyper-parameters, 576 experiments for each method. We report
+Mean Squared Error (MSE) and inception score (denoted as ICP) [18] to quantitatively evaluate the
+performance of generative models. MSE is a proxy for reconstruction quality, while ICP reflects the
+plausibility and variety of sample generation. Lower MSE and higher ICP indicate better results. See
+SM for the details of the grid search and the calculation of ICP.
+We train on 2048 samples, and test on 1024 samples. The ground-truth test samples for x and z are
+shown in Figure 2(a) and (b), respectively. We compare ALICE, ALI and Denoising Auto-Encoders
+(DAEs) [19], and report the distribution of ICP and MSE values, for all (576) experiments in Figure 2
+(c) and (d), respectively. For reference, samples drawn from the “oracle” (ground-truth) GMM yield
+ICP=4.977±0.016. ALICE yields an ICP larger than 4.5 in 77% of experiments, while ALI’s ICP
+wildly varies across different runs. These results demonstrate that ALICE is more consistent and
+quantitatively reliable than ALI. The DAE yields the lowest MSE, as expected, but it also results in
+the weakest generation ability. The comparatively low MSE of ALICE demonstrates its acceptable
+reconstruction ability compared to DAE, though a very significantly improvement over ALI.
+Figure 3 shows the qualitative results on the test set. Since ALI’s results vary largely from trial to
+trial, we present the one with highest ICP. In the figure, we color samples from different mixture
+components to highlight their correspondance between the ground truth, in Figure 2(a), and their
+reconstructions, in Figure 3 (first row, columns 2, 4 and 6, for ALICE, ALI and DAE, respectively).
+Importantly, though the reconstruction of ALI can recover the shape of manifold in x (Gaussian
+mixture), each individual reconstructed sample can be substantially far away from its “original”
+mixture component (note the highly mixed coloring), hence the poor MSE. This occurs because the
+adversarial training in ALI only requires that the generated samples look realistic, i.e., to be located
+near true samples in X , but the mapping between observed and latent spaces (x? z and z ? x) is
+not specified. In the SM we also consider ALI with various combinations of stochastic/deterministic
+mappings, and conclude that models with deterministic mappings tend to have lower reconstruction
+ability but higher generation ability. In terms of the estimated latent space, z, in Figure 3 (first row,
+6
+(a) ALICE (b) ALI (c) DAEs
+Figure 3: Qualitative results on toy data. Two-column blocks represent the results of each method, with left for
+z and right for x. For the first row, left is sampling of z, and right is reconstruction of x. Colors indicate mixture
+component membership. The second row shows reconstructions, x, from linearly interpolated samples in z.
+columns 1, 3 and 5, for ALICE, ALI and DAE, respectively), we see that ALICE results in a better
+latent representation, in the sense of mapping consistency (samples from different mixture components
+remain clustered) and distribution consistency (samples approximate a Gaussian distribution). The
+results for reconstruction of z and sampling of x are shown in the SM.
+In Figure 3 (second row), we also investigate latent space interpolation between a pair of test set
+examples. We use x1 = [?2.2,?2.2] and x9 = [2.2, 2.2], map them into z1 and z9, linearly
+interpolate between z1 and z9 to get intermediate points z2, . . . ,z8, and then map them back to the
+original space as x2, . . . ,x8. We only show the index of the samples for better visualization. Figure 3
+shows that ALICE’s interpolation is smooth and consistent with the ground-truth distributions.
+Interpolation using ALI results in realistic samples (within mixture components), but the transition is
+not order-wise consistent. DAEs provides smooth transitions, but the samples in the original space
+look unrealistic as some of them are located in low probability density regions of the true model.
+5.2 Reconstruction and Cross-Domain Transformation on Real Datasets
+Two image-to-image translation tasks are considered. (i) Car-to-Car [20]: each domain (x and z)
+includes car images in 11 different angles, on which we seek to demonstrate the power of adversarially
+learned reconstruction and weak supervision. (ii) Edge-to-Shoe [21]: x domain consists of shoe
+photos and z domain consists of edge images, on which we report extensive quantitative comparisons.
+Cycle-consistency is applied on both domains. The goal is to discover the cross-domain relationship
+(i.e., cross-domain prediction), while maintaining reconstruction ability on each domain.
+Adversarially learned reconstruction To demonstrate the effectiveness of our fully adversarial
+scheme in (8) (Joint A.) on real datasets, we use it in place of the `2 losses in DiscoGAN [10]. In
+practice, feature matching [18] is used to help the adversarial objective in (8) to reach its optimum.
+We also compared with a baseline scheme (Marginal A.) in [9], which adversarially discriminates
+between x and its reconstruction x?.
+Inputs
+`2
+BiGAN
+Joint A.
+Marginal A.
+loss
+2 4 6 8 10
+Number of Paired Angles
+20
+40
+60
+80
+Cl
+as
+sif
+ica
+tio
+n 
+Ac
+cu
+ra
+cy
+ (%
+)
+ALICE (10% sup.)
+ALICE (1% sup.)
+DiscoGAN
+BiGAN
+(a) Reconstruction (b) Prediction
+Figure 4: Results on Car-to-Car task.
+The results are shown in Figure 4 (a). From
+top to bottom, each row shows ground-truth
+images, DiscoGAN (with Joint A., `2 loss
+and Marginal A. schemes, respectively) and
+BiGAN [8]. Note that BiGAN is the best
+ALI variant in our grid search compasion.
+The proposed Joint A. scheme can retain the
+same crispness characteristic to adversarially-
+trained models, while `2 tends to be blurry.
+Marginal A. provides realistic car images, but not faithful reproductions of the inputs. This explains
+the observations in [9] in terms of no performance gain. The BiGAN learns the shapes of cars, but
+misses the textures. This is a sign of underfitting, thus indicating BiGAN is not easy to train.
+Weak supervision The DiscoGAN and BiGAN are unsupervised methods, and exhibit very different
+cross-domain pairing configurations during different training epochs, which is indicative of non-
+identifiability issues. We leverage very weak supervision to help with convergence and guide the
+pairing. The results on shown in Figure 4 (b). We run each methods 5 times, the width of the
+colored lines reflect the standard deviation. We start with 1% true pairs for supervision, which yields
+7
+BiGAN BiGAN
+Lcycle+`2
+Lcycle+`A
+(a) Cross-domain transformation (b) Reconstruction (c) Generated edges
+Figure 5: SSIM and generated images on Edge-to-Shoe dataset.
+(a) ALICE (b) ALI (c) Generated faces
+Figure 6: (a)(b)Reconstruction. Odd/even columns are inputs/reconstructions, respectively. ALI results are
+from [4]. (c) Generated faces (even rows), based on the predicted attributes of the real face image (odd row).
+significantly higher accuracy than DiscoGAN/BiGAN. We then provided 10% supervison in only 2
+or 6 angles (of 11 total angles), which yields comparable angle prediction accuracy with full angle
+supervison in testing. This shows ALICE’s ability in terms of zero-shot learning, i.e., predicting
+unseen pairs. In the SM, we show that enforcing different weak supervision strategies affects the final
+pairing configurations, i.e., we can leverage supervision to obtain the desirable joint distribution.
+Quantitative comparison To quantitatively assess the generated images, we use structural similarity
+(SSIM) [22], which is an established image quality metric that correlates well with human visual
+perception. SSIM values are between [0, 1]; higher is better. The SSIM of ALICE on prediction and
+reconstruction is shown in Figure 5 (a)(b) for the edge-to-shoe task. As a baseline, we set DiscoGAN
+with `2-based supervision (`2-sup). BiGAN/ALI, highlighted with a circle is outperformed by
+ALICE in two aspects: (i) In the unpaired setting (0% supervision), cycle-consistency regularization
+(LCycle) shows significant performance gains, particularly on reconstruction. (ii) When supervision
+is leveraged (10%), SSIM is significantly increased on prediction. The adversarial-based supervision
+(`A-sup) shows higher prediction than `2-sup. ALICE achieves very similar performance with the
+50% and full supervision setup, indicating its advantage of in semi-supervised learning. Several
+generated edge images (with 50% supervision) are shown in Figure 5(c), `A-sup tends to provide
+more details than `2-sup. Both methods generate correct paired edges, and quality is higher than
+BiGAN and DiscoGAN. In the SM, we also report MSE metrics, and results on edge domain only,
+which are consistent with the results presented here.
+One-side cycle-consistency When uncertainty in one domain is desirable, we consider one-side
+cycle-consistency. This is demonstrated on the CelebA face dataset [23]. Each face is associated with
+a 40-dimensional attribute vector. In the first task, we consider the images x are generated from a
+128-dimensional Gaussian latent space z, and apply LCycle on x. We compare ALICE and ALI on
+reconstruction in Figure 6 (a)(b). ALICE shows more faithful reproduction of the input subjects. In
+the second task, we consider z as the attribute space, from which the images x are generated. The
+mapping from x to z is then attribute classification. We only apply LCycle on the attribute domain,
+and LAMap on both domains. When 10% paired samples are considered, the predicted attributes still
+reach 86% accuracy, which is comparable with the fully supervised case. To test the diversity on x,
+we first predict the attributes of a true face image, and then generated multiple images conditioned on
+the predicted attributes. Four examples are shown in Figure 6 (c). Additional results are in the SM.
+6 Conclusion
+We have studied the problem of non-identifiability in bidirectional adversarial networks. A unified
+perspective of understanding various GAN models as joint matching is provided to tackle this problem.
+This insight enables us to propose ALICE (with both adversarial and non-adversarial solutions) to
+reduce the ambiguity and control the conditionals in unsupervised and semi-supervised learning. For
+future work, the proposed view can provide opportunities to leverage the advantages of each model,
+to advance joint-distribution modeling.
+8
+References
+[1] I. Goodfellow, J. Pouget-Abadie, M. Mirza, B. Xu, D. Warde-Farley, S. Ozair, A. Courville, and Y. Bengio.
+Generative adversarial nets. In NIPS, 2014.
+[2] D. P. Kingma and M. Welling. Auto-encoding variational Bayes. In ICLR, 2014.
+[3] X. Chen, Y. Duan, R. Houthooft, J. Schulman, I. Sutskever, and P. Abbeel. InfoGAN: Interpretable
+representation learning by information maximizing generative adversarial nets. In NIPS, 2016.
+[4] V. Dumoulin, I. Belghazi, B. Poole, A. Lamb, M. A., O. Mastropietro, and A. Courville. Adversarially
+learned inference. ICLR, 2017.
+[5] L. Mescheder, S. Nowozin, and A. Geiger. Adversarial variational bayes: Unifying variational autoencoders
+and generative adversarial networks. arXiv preprint arXiv:1701.04722, 2017.
+[6] A. B. L. Larsen, S. K. Sønderby, H. Larochelle, and O. Winther. Autoencoding beyond pixels using a
+learned similarity metric. ICML, 2016.
+[7] A. Makhzani, J. Shlens, N. Jaitly, I. Goodfellow, and B. Frey. Adversarial autoencoders. arXiv preprint
+arXiv:1511.05644, 2015.
+[8] J. Donahue, K. Philipp, and T. Darrell. Adversarial feature learning. ICLR, 2017.
+[9] J. Zhu, T. Park, P. Isola, and A. Efros. Unpaired image-to-image translation using cycle-consistent
+adversarial networks. arXiv preprint arXiv:1703.10593, 2017.
+[10] T. Kim, M. Cha, H. Kim, J. Lee, and J. Kim. Learning to discover cross-domain relations with generative
+adversarial networks. arXiv preprint arXiv:1703.05192, 2017.
+[11] Z. Yi, H. Zhang, and P. Tan. DualGAN: Unsupervised dual learning for image-to-image translation. arXiv
+preprint arXiv:1704.02510, 2017.
+[12] M. Mirza and S. Osindero. Conditional generative adversarial nets. arXiv preprint arXiv:1411.1784, 2014.
+[13] M. Arjovsky and L. Bottou. Towards principled methods for training generative adversarial networks. In
+ICLR, 2017.
+[14] S. Reed, Z. Akata, X. Yan, L. Logeswaran, B. Schiele, and H. Lee. Generative adversarial text to image
+synthesis. In ICML, 2016.
+[15] P. Isola, J. Zhu, T. Zhou, and A. Efros. Image-to-image translation with conditional adversarial networks.
+CVPR, 2017.
+[16] C. Li, K. Xu, J. Zhu, and B. Zhang. Triple generative adversarial nets. arXiv preprint arXiv:1703.02291,
+2017.
+[17] J. Zhao, M. Mathieu, and Y. LeCun. Energy-based generative adversarial network. ICLR, 2017.
+[18] T. Salimans, I. Goodfellow, W. Zaremba, V. Cheung, A. Radford, and X. Chen. Improved techniques for
+training GANs. In NIPS.
+[19] P. Vincent, H. Larochelle, Y. Bengio, and P. Manzagol. Extracting and composing robust features with
+denoising autoencoders. In ICML, 2008.
+[20] S. Fidler, S. Dickinson, and R. Urtasun. 3D object detection and viewpoint estimation with a deformable
+3D cuboid model. In NIPS, 2012.
+[21] A. Yu and K. Grauman. Fine-grained visual comparisons with local learning. In Proceedings of the IEEE
+Conference on Computer Vision and Pattern Recognition, pages 192–199, 2014.
+[22] Z. Wang, A. C Bovik, H. R Sheikh, and E. P Simoncelli. Image quality assessment: from error visibility to
+structural similarity. IEEE trans. on Image Processing, 2004.
+[23] Z. Liu, P. Luo, X. Wang, and X. Tang. Deep learning face attributes in the wild. In ICCV, 2015.
+9
+Supplementary Material of
+Towards Understanding Adversarial Learning for
+Joint Distribution Matching
+A Information Measures
+For any probability measure ? on the random variables x and z, we have the following additive
+and subtractive relationships for various information measures, including Mutual Information (MI),
+Variation of Information (VI) and the Conditional Entropy (CE).
+VI(x, z) =? E?(z,x)[log ?(x|z)]? E?(x,z)[log ?(z|x)] (13)
+=? E?(z,x)[log
+?(x, z)
+?(x)?(z)
++ log ?(x, z)] (14)
+=? I?(x, z) +H?(x, z) (15)
+=? E?(z,x)[log
+?(x, z)
+?(x)?(z)
++ log ?(x, z)] (16)
+=? 2I?(x, z) +H?(x) +H?(z) (17)
+A.1 Relationship between Mutual Information, Conditional Entropy and the Negative Log
+Likelihood of Reconstruction
+The following shows how the negative log probability of the reconstruction is related to variation of
+information and mutual information. On the support of (x, z), we denote q as the encoder probability
+measure, and p as the decoder probability measure. Note that the reconstruction loss for z can be
+writen as its log likelihood form as LR = ?Ez?p(z),x?p(x|z)[log q(z|x)].
+Lemma 4 For random variables x and z with two different probability measures, p(x, z) and
+q(x, z), we have
+Hp(z|x) = ?Ez?p(z),x?p(x|z)[log p(z|x)] (18)
+= ?Ez?p(z),x?p(x|z)[log q(z|x)]? Ez?p(z),x?p(x|z)
+[
+log p(z|x)? log q(z|x)
+]
+(19)
+= ?Ez?p(z),x?p(x|z)[log q(z|x)]? Ep(x)(KL(p(z|x)?q(z|x))) (20)
+? ?Ez?p(z),x?p(x|z)[log q(z|x)] (21)
+where Hp(z|x) is the conditional entropy. From lemma 4, we have
+Corollary 3 For random variables x and z with probability measure p(x, z), the mutual information
+between x and z can be written as
+Ip(x, z) = Hp(z)?Hp(z|x) ? Hp(z) + Ez?p(z),x?p(x|z)[log q(z|x)]. (22)
+Given a simple prior p(z) such as isotropic Gaussian, H(z) is a constant.
+Corollary 4 For random variables x and z with probability measure p(x, z), the variation of
+information between x and z can be written as
+VIp(x, z) = Hp(x|z) +Hp(z|x) ? Hp(x|z)? Ez?p(z),x?p(x|z)[log q(z|x)]. (23)
+B Proof for Adversarial Learning Schemes
+The proof for cycle-consistency and conditional GAN using adversarial traning is shown below. It
+follows the proof of the original GAN paper: we first show the implication of optimal discriminator,
+and then show the corresponding optimal generator.
+10
+B.1 Proof of Proposition 1: Adversarially Learned Cycle-Consistency for Unpair Data
+In the unsupervised case, given data sample x, one desirable property is reconstruction. The following
+game learns to reconstruct:
+min
+?,?
+max
+?
+L(x, x?) = Ex?q(x)[log ?(f(x,x)) + Ez??q(z|x),x??p(x|z?) log(1? ?(f(x, x?)))] (24)
+Proposition 3 For p(x|z) and q(z|x) fixed, the optimal discriminator f? according to the game in
+(24) is given by Eq(z?|x)p(x?|z?) = ?(x?? x).
+Proof We start from a simple observation
+Ex?q(x) log ?(f(x,x)) = Ex?q(x),x??q?(x?|x) log ?(f(x, x?)) (25)
+where q?(x?|x) , ?(x?? x). Therefore, the objective in (24) can be expressed as
+Ex?q(x),x??q?(x?|x) log ?(f(x, x?)) + Ex?q(x),z??q(z|x),x??p(x|z?) log(1? ?(f(x, x?))) (26)
+=
+?
+x
+?
+x?
+{
+q(x)q?(x?|x) log ?(f(x, x?)) +
+?
+z?
+q(x)q(z?|x)p(x?|z?) log(1? ?(f(x, x?)))dz?
+}
+dxdx?
+(27)
+Note that ?
+z?
+q(x)q(z?|x)p(x?|z?) log(1? ?(f(x, x?)))dz? (28)
+=q(x) log(1? ?(f(x, x?)))
+?
+z?
+q(z?|x)p(x?|z?)dz? (29)
+=
+(
+q(x)Eq(z?|x)p(x?|z?)
+)
+log(1? ?(f(x, x?)))) (30)
+This integral of (26) is maximal as a function of f(x, x?) if and only if the integrand is maximal for
+every (x, x?). However, the problem maxt a log(t) + b log(1? t) attains its maximum at t = aa+b ,
+showing that
+?(f?(x, x?)) =
+q(x)q?(x?|x)
+q(x)q?(x?|x) + q(x)Eq(z?|x)p(x?|z?)
+=
+q?(x?|x)
+q?(x?|x) + Eq(z?|x)p(x?|z?)
+(31)
+Therefore, according to the optimal generator theorem in GAN [1], we have
+q(x?|x) = ?(x? x?) = Eq(z?|x)p(x?|z?). (32)
+
+Similarly, we can show the cycle consistency property for reconstructing z as Ep(x?|z)q(z?|x?) =
+?(z ? z?).
+B.2 Proof of Proposition 2: Adversarially Learned Conditional Generation for Paired Data
+In supervised case, given the paired data sample ?(x, z), the following game is used to conditionally
+generate x [12]:
+min
+?
+max
+?
+L(x, z) = Ex,z??(x,z)[log ?(f(x, z)) + Ex??p(x|z) log(1? ?(f(x?, z)))] (33)
+To show the results, we need the following Lemma:
+Lemma 5 The optimial generator and discriminator (????) forms the saddle points of game in (33),
+if and only if p(x|z) = ?(x|z). Further, p(x, z) = ?(x, z)
+Proof For the observed paired data ?(x, z), we have p(z) = ?(z), where ?(z) is marginal empirical
+distribution of z for the paired data.
+Also, ?(x?|z) = ?(x?? x) when x? is paired with z in the dataset. We start from the observation
+Ex,z??(x,z) log ?(f(x, z)) = Ez?p(z),x???(x?|z) log ?(f(x?, z)) (34)
+11
+Therefore, the objective in (33) can be expressed as
+Ex?p(z),x???(x?|z) log ?(f(x?, z)) + Ex?p(z),x??p(x|z) log(1? ?(f(x?, z))) (35)
+This integral is maximal as a function of f(x, z) if and only if the integrand is maximal for every
+(x, z). However, the problem maxt a log(t) + b log(1? t) attains its maximum at t = aa+b , showing
+that
+?(f?(x, z)) =
+p(x)?(x|z)
+p(x)?(x|z) + p(z)p(x|z) =
+?(x|z)
+?(x|z) + p(x|z) (36)
+or equivalently, the optimum generator is p(x|z) = ?(x|z). Since q(x) = ?(x), we further have
+p(x, z) = ?(x, z). Similarly, for conditional GAN of z, we can show that is p(z|x) = ?(z|x) and
+p(x, z) = ?(x, z) for the Combining them, we show that p(x, z) = ?(x, z) = q(x, z).
+
+C More Results on the Toy Data
+C.1 The detailed setup
+The 5-component Gaussian mixture model (GMM) in x is set with the means
+(0, 0), (2, 2), (?2, 2), (2,?2), (?2,?2), and standard derivation 0.2. The Isotropic Gaussian
+in z is set with mean (0, 0) and standard derivation 1.0.
+We consider various network architectures to compare the stability of the methods. The hyperpa-
+rameters includes: the number of layers and the number of neurons of the discriminator and two
+generators, and the update frenquency for discriminator and generator. The grid search specification
+is summarized in Table 1. Hence, the total number of experiments is 23 × 23 × 32 = 576.
+A generalized version of the inception score is calculated, ICP = ExKL(p(y)||p(y|x)), where
+x denotes a generated sample and y is the label predicted by a classifier that is trained off-line
+using the entire training set. It is also worth noting that although we inherit the name “inception
+score” from [18], our evaluation is not related to the “inception” model trained on ImageNet dataset.
+Our classifier is a regular 3-layer neural nets trained on the dataset of interest, which yields 100%
+classification accuracy on this toy dataset.
+C.2 Reconstruction of z and Sampling for x
+We show the additional results for the econstruction of z and sampling for x in Figure 7. ALICE
+shows good sampling ability, as it reflects the Guassian characteristics for each of 5 components,
+while ALI’s samples tends to be concentrated, reflected by the shrinked Guassian components. DAE
+learns an indentity mapping, and thus show weak generation ability.
+C.3 Comparisons of ALI with stochastic/deterministic mappings
+We investigate the ALI model with different mappings:
+• ALI: two stochastic mappings;
+• ALI?: one stochastic mapping and one deterministic mapping;
+• BiGAN: two deterministic mappings.
+We plot the histogram of ICP and MSE in Fig. 8, and report the mean and standard derivation in
+Table 2. In Fig. 9, we compare their reconstruction and generation ability. Models with deterministic
+mapping have higher recontruction ability, while show lower sampling ability.
+Comparison on Reconstruction Please see row 1 and 2 in Fig. 9. For reconstruction, we start from
+one sample (red dot), and pass it through the cycle formed by the two mappings 100 times. The
+resulted reconstructions are shown as blue dots. The reconstructed samples tends to be concentrated
+with more deterministic mappings.
+Comparison on Sampling Please see row 3 and 4 in Fig. 9. For sampling, we first draw 1024
+samples in each domain, and pass them through the mappings. The generated samples are colored as
+the index of Gaussian component it comes from in the original domain.
+12
+Table 1: Grid search specification.
+Settings Values
+Number of layers [2, 3]
+Number of neurons [256, 512]
+Update frenquency [1, 3, 5]
+Table 2: Testing MSE and ICP on toy dataset..
+Method MSE ICP
+ALICE 0.022± 0.029 4.595± 0.604
+ALI 4.856± 2.920 2.776± 1.516
+ALI? 3.888± 7.343 3.420± 1.299
+BiGAN 2.399± 3.605 3.712± 1.278
+DAEs 0.003± 0.004 2.913± 0.004
+(a) ALICE (b) ALI (c) DAEs
+Figure 7: Qualitative results on toy data. Every two columns indicate the results of a method, with
+left space as reconstruction of z and right space as sampling in x, respectively.
+1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0
+Inception Score
+0.0%
+20.0%
+40.0%
+60.0%
+80.0%
+P
+er
+ce
+nt
+ag
+e
+ALICE
+ALI
+ALI-
+BiGAN
+DAEs
+0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0
+MSE
+0.0%
+20.0%
+40.0%
+60.0%
+80.0%
+100.0%
+P
+er
+ce
+nt
+ag
+e
+ALICE
+ALI
+ALI-
+BiGAN
+DAEs
+(a) Inception Score (b) MSE
+Figure 8: Quantitative results on toy data.
+D More Details on Real Data Experiments
+D.1 Car to Car Experiment
+Setup The dataset [20] consists of rendered images of 3D car models with varying azimuth angles
+at 15? intervals. 11 views of each car are used. The dataset is split into train set ( 169×11=1859
+images) and test set ( 14×11 =154 images), and further split the train set into two groups, each of
+which is used as A domain and B domain samples. To evaluate, we trained a regressor and a classifier
+that predict the azimuth angle using the train set. We map the car image from one domain to the
+other, and then reconstruct to the original domain. The cycle-consistency is evaluted as the prediction
+accuracy of the reconstructed images.
+Table 3 shows the MSE and prediction accuracy by leverage the supervision in different number of
+angles.
+To demonstrate that we can easily control the correspondence configuration by designing the proper
+supervision, we use ALICE to enforce coherent supervsion and opposite supervision, respectively.
+Only 1% supervison information is used in each angle. We translated images in the test set using
+each of the three trained models, and azimuth angles were predicted using the regressor for both
+input and translated images. In Figure 10, we show the cross domain relationship discovered by
+each method. X and Y axis indicates predicted angles of original and transformed cars, respectively.
+All three plots are results at the 10th epoch. Scatter points with supervision are more concentrated
+on the diagnals in the plots, which indicates higher prediction/correlation. The learning curves are
+13
+3 2 1 0 1 2 3
+z1
+3
+2
+1
+0
+1
+2
+3
+z 2
+3 2 1 0 1 2 3
+z1
+3
+2
+1
+0
+1
+2
+3
+z 2
+3 2 1 0 1 2 3
+z1
+3
+2
+1
+0
+1
+2
+3
+z 2
+3 2 1 0 1 2 3
+z1
+3
+2
+1
+0
+1
+2
+3
+z 2
+3 2 1 0 1 2 3
+x1
+3
+2
+1
+0
+1
+2
+3
+x 2
+3 2 1 0 1 2 3
+x1
+3
+2
+1
+0
+1
+2
+3
+x 2
+3 2 1 0 1 2 3
+x1
+3
+2
+1
+0
+1
+2
+3
+x 2
+3 2 1 0 1 2 3
+x1
+3
+2
+1
+0
+1
+2
+3
+x 2
+3 2 1 0 1 2 3
+z1
+3
+2
+1
+0
+1
+2
+3
+z 2
+3 2 1 0 1 2 3
+z1
+3
+2
+1
+0
+1
+2
+3
+z 2
+3 2 1 0 1 2 3
+z1
+3
+2
+1
+0
+1
+2
+3
+z 2
+3 2 1 0 1 2 3
+z1
+3
+2
+1
+0
+1
+2
+3
+z 2
+3 2 1 0 1 2 3
+x1
+3
+2
+1
+0
+1
+2
+3
+x 2
+3 2 1 0 1 2 3
+x1
+3
+2
+1
+0
+1
+2
+3
+x 2
+3 2 1 0 1 2 3
+x1
+3
+2
+1
+0
+1
+2
+3
+x 2
+3 2 1 0 1 2 3
+x1
+3
+2
+1
+0
+1
+2
+3
+x 2
+3 2 1 0 1 2 3
+x1
+3
+2
+1
+0
+1
+2
+3
+x 2
+3 2 1 0 1 2 3
+x1
+3
+2
+1
+0
+1
+2
+3
+x 2
+(a) ALICE (b) ALI (c) ALI? (c) BiGAN
+Figure 9: Comparison with bidirectional GAN models with different stochastic or deterministic
+mappings. The 1st row is the reconstruction of z, and the 2nd row is the reconstruction of x. In these
+two rows, the red dot is the original data point, the blue dots are the reconstruction. The 3rd row is
+the sampling of z, and 4th row is the sampling of x. and 5th row is the reconstruction for x. In the
+3rd row, colors of the generated z indicate the component of x that z conditions on.
+14
+Table 3: ACC and MSE in prediction on car translation. The top four methods are our methods
+reported in the format of #Angle (supervison%).
+Methods MSE ACC (%)
+11 (1%) 438.71±5.43 80.32±5.30
+11 (10%) 366.74±0.38 84.83±2.68
+6 (10%) 380.61±4.94 83.27±3.37
+2 (10%) 656.28±20.9 16.20±3.50
+DiscoGAN 712.20±14.6 13.86±3.00
+BiGAN 790.13±15.0 12.07±4.03
+80 60 40 20 0 20 40 60 80
+80
+60
+40
+20
+0
+20
+40
+60
+80
+80 60 40 20 0 20 40 60 80
+80
+60
+40
+20
+0
+20
+40
+60
+80
+80 60 40 20 0 20 40 60 80
+80
+60
+40
+20
+0
+20
+40
+60
+80
+(a) DiscoGAN (b) ALICE: coherent sup. (c) ALICE: opposite sup. (d) Learning curves
+Figure 10: ALICE can control the correspondence configuration; the scatter plots on car to car.
+ALICE
+(coherent.sup. )
+ALICE
+(opposite.sup. )
+DiscoGAN
+BiGAN
+Inputs
+ALICE
+(coherent.sup. )
+ALICE
+(opposite.sup. )
+DiscoGAN
+BiGAN
+Inputs
+Figure 11: Cross-domain relationship discovery with weakly supervised information using ALICE.
+shown in Figure 10(d). The Y axis indicate the RMSE in angle prediction. We see that very weak
+supervision can largely imporve the convergence results and speed. Example and comparison arre
+shown in Figure11.
+D.2 Edge-to-Shoe Dataset
+The MSE results on cross-domain prediction and one-domain reconstruction are shown in Figure 12.
+15
+0 20 40 60 80 100
+Supervision (%)
+600
+800
+1000
+1200
+1400
+1600
+M
+SE
+ALICE ( rec + A-sup)
+ALICE ( rec+ 2-sup)
+ALICE (only 2-sup)
+DiscoGAN ( 2-sup)
+0 20 40 60 80 100
+Supervision (%)
+400
+600
+800
+1000
+1200
+1400
+M
+SE
+ALICE ( rec + A-sup)
+ALICE ( rec+ 2-sup)
+ALICE (only 2-sup)
+DiscoGAN ( 2-sup)
+(a) Cross-domain transformation on both sides (b) Reconstruction on both sides
+BiGAN BiGAN
+(c) Cross-domain transformation on both sides (d) Reconstruction on on both sides
+0 20 40 60 80 100
+Supervision (%)
+800
+900
+1000
+1100
+1200
+1300
+1400
+M
+SE
+ALICE ( rec + A-sup)
+ALICE ( rec+ 2-sup)
+ALICE (only 2-sup)
+DiscoGAN ( 2-sup)
+0 20 40 60 80 100
+Supervision (%)
+400
+600
+800
+1000
+1200
+1400
+M
+SE
+ALICE ( rec + A-sup)
+ALICE ( rec+ 2-sup)
+ALICE (only 2-sup)
+DiscoGAN ( 2-sup)
+(e) Cross-domain transformation on edges (f) Reconstruction on edges
+0 20 40 60 80 100
+Supervision (%)
+0.50
+0.55
+0.60
+0.65
+0.70
+SS
+IM
+ALICE ( rec + A-sup)
+ALICE ( rec+ 2-sup)
+ALICE (only 2-sup)
+DiscoGAN ( 2-sup)
+0 20 40 60 80 100
+Supervision (%)
+0.50
+0.55
+0.60
+0.65
+0.70
+SS
+IM
+ALICE ( rec + A-sup)
+ALICE ( rec+ 2-sup)
+ALICE (only 2-sup)
+DiscoGAN ( 2-sup)
+(g) Cross-domain transformation on edges (h) Reconstruction on edges
+Figure 12: SSIM and MSE on Edge-to-Shoe dataset. Top 2 rows are results reported for both domains, and the
+bottom 2 rows are results for edge domain only.
+D.3 Celeba Face Dataset
+More reconstruction results on the validation dataset of Celeba dataset are shown in Figure 13. ALI
+results are from the paper [4]. ALICE provides more faithful reconstruction to the input subjects. As
+a trade-off between theoretical optimum and practical convergence, we employ feature matching, and
+thus our results exhibits slight bluriness characteristic.
+16
+(a) ALICE (b) ALI
+Figure 13: Reconstruction of (a) ALICE and (b) ALI. Odd columns are original samples from the validation set
+and even columns are corresponding reconstructions.
+17
