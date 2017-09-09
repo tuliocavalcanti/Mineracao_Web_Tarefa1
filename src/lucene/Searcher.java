@@ -49,6 +49,7 @@ public class Searcher {
         {
             int docid = hits.scoreDocs[i].doc;
             Document doc = searcher.doc(docid);
+            //paths to the PDF files
             Path path = PDFswitchTXT.txtToPDF(Paths.get(doc.get("path")));
             doc_paths.add(path.toString());
         }
