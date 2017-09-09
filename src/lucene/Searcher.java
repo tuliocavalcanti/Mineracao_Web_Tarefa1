@@ -1,12 +1,15 @@
 package lucene;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
@@ -18,6 +21,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 
 import util.IndexedFileMapper;
+import util.PDFswitchTXT;
 
 public class Searcher {
 	
@@ -27,7 +31,7 @@ public class Searcher {
 		this.INDEX_DIR = indexDir;
 	}
 	
-	public TopDocs search(String textQuery, boolean isUsingStemming, boolean isUsingStopwords) throws IOException, ParseException{
+	public ArrayList<String> search(String textQuery, boolean isUsingStemming, boolean isUsingStopwords) throws IOException, ParseException{
 
 		IndexSearcher searcher = getIndexSearcher(isUsingStemming,isUsingStopwords);
 
@@ -39,7 +43,17 @@ public class Searcher {
 
 		TopDocs hits = searcher.search(query, 236);
 
-		return hits;
+		//paths to the TXT files
+		ArrayList<String> doc_paths = new ArrayList<String>();
+		for (int i = 0; i < hits.scoreDocs.length; i++) 
+        {
+            int docid = hits.scoreDocs[i].doc;
+            Document doc = searcher.doc(docid);
+            Path path = PDFswitchTXT.txtToPDF(Paths.get(doc.get("path")));
+            doc_paths.add(path.toString());
+        }
+		
+		return doc_paths;
 
 	}
 

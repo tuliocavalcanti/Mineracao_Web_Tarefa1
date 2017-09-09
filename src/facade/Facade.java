@@ -3,6 +3,7 @@ package facade;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.TopDocs;
@@ -13,7 +14,7 @@ import lucene.Writer;
 public class Facade {
 	
 	private static final Path DOCS_DIR = Paths.get("Texts");
-	private static final String INDEX_DIR = "indexedFiles";
+	private static final String INDEX_DIR = "indexedFiles\\base";
 	private Searcher searcher;
 	private Writer writer;
 	
@@ -26,7 +27,7 @@ public class Facade {
 		this.writer.createIndexedBases();
 	}
 	
-	public TopDocs searchFiles(String query, boolean isUsingStemming, boolean isUsingStopwords) throws IOException, ParseException {
+	public ArrayList<String> searchFiles(String query, boolean isUsingStemming, boolean isUsingStopwords) throws IOException, ParseException {
 		return this.searcher.search(query, isUsingStemming, isUsingStopwords);
 	}
 }

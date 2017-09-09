@@ -14,20 +14,20 @@ import java.nio.file.attribute.BasicFileAttributes;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 
+import util.PDFswitchTXT;
+
 
 
 public class PDFtoTXT {
 
-	public final static String DOC_DIRECTORY = System.getProperty("user.dir") + "\\Docs";
-	public final static String TEXT_DIRECTORY = "Texts\\";
 	
 	public static void main(String args[]) throws IOException {
 		
-		tryGetFileFromDir(Paths.get(DOC_DIRECTORY));
+		tryGetFileFromDir(Paths.get(PDFswitchTXT.DOC_DIRECTORY));
 		
     }
     
-	static void tryGetFileFromDir(Path path) throws IOException{
+	private static void tryGetFileFromDir(Path path) throws IOException{
 
 		if (Files.isDirectory(path)){
 
@@ -51,39 +51,21 @@ public class PDFtoTXT {
     
 	private static void writeInTxtFile(Path path,String text){
 		
-		//remove the "C:" from the path
-		Path doc_dir = Paths.get(DOC_DIRECTORY).subpath(0, Paths.get(DOC_DIRECTORY).getNameCount());
+		int docs_folder_index = Paths.get(PDFswitchTXT.DOC_DIRECTORY).getNameCount();
 		
-		int docs_folder_index = 1;
-		
-		for(; docs_folder_index <path.getNameCount(); docs_folder_index++){
-			
-			if(path.subpath(0, docs_folder_index).equals(doc_dir)){
-				
-				break;
-			}
-		}
-
 		Path p = path.subpath(docs_folder_index, path.getNameCount());
-
-		if(p.getNameCount()>1){
-			Path dir = p.subpath(0, p.getNameCount()-1);
-			File file_dir = new File(TEXT_DIRECTORY+dir);
-			if(!file_dir.exists()){
-				try{
-					file_dir.mkdir();
-				} 
-				catch(SecurityException se){ 
-					System.out.println("Error creating Directory.");
-				}
-			}
-		}
-
+		
+		createFolderFromPath(p);
+		
+		write(p,text);
+	}
+	
+	private static void write(Path path, String text){
 		BufferedWriter writer = null;
 
 		try{
 
-			File file = new File(TEXT_DIRECTORY+p.toString().substring(0,p.toString().length()-3)+"txt");
+			File file = new File(PDFswitchTXT.TEXT_DIRECTORY+path.toString().substring(0,path.toString().length()-3)+"txt");
 
 			writer = new BufferedWriter(new FileWriter(file));
 
@@ -97,7 +79,23 @@ public class PDFtoTXT {
 		} 
 	}
 	
-    static String getText(File pdfFile) throws IOException {
+	
+	private static void createFolderFromPath(Path path){
+		if(path.getNameCount()>1){
+			Path dir = path.subpath(0, path.getNameCount()-1);
+			File file_dir = new File(PDFswitchTXT.TEXT_DIRECTORY+dir);
+			if(!file_dir.exists()){
+				try{
+					file_dir.mkdir();
+				} 
+				catch(SecurityException se){ 
+					System.out.println("Error creating Directory.");
+				}
+			}
+		}
+	}
+	
+    private static String getText(File pdfFile) throws IOException {
         PDDocument doc = PDDocument.load(pdfFile);
         return new PDFTextStripper().getText(doc);
     }
