@@ -1,3 +1,4 @@
+package lucene;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,16 +28,18 @@ import org.apache.lucene.store.FSDirectory;
  
 public class Writer{
 	
-    public static void main(String[] args){
-
-        String docsPath = "inputFiles";
-         
-        String indexPath = "indexedFiles";
- 
-        final Path docDir = Paths.get(docsPath);
- 
-        try{
-        	for(int i =0; i < 4; i++){
+	private Path docDir;
+	
+	private String indexPath;
+	
+	public Writer(Path docDir, String indexPath) {
+		this.docDir = docDir;
+		this.indexPath = indexPath;
+	}
+	
+    public void createIndexedBases() {
+      try{
+        	for(int i = 0 ; i < 4; i++){
         		
         		Directory dir = FSDirectory.open( Paths.get(indexPath + "_" + i) );
             
@@ -65,7 +68,7 @@ public class Writer{
 				return new EnglishAnalyzer();
 			case 3:
 				return new PorterAnalyzer(getEmptyAnalyzer());
-			default:
+			default: //case 0
 				return new PorterAnalyzer(new EnglishAnalyzer());
 		}
 	}
@@ -77,7 +80,7 @@ public class Writer{
 		return new StandardAnalyzer(stopWords);
 	}
 
-    static void indexDocs(final IndexWriter writer, Path path) throws IOException {
+    private static void indexDocs(final IndexWriter writer, Path path) throws IOException {
 
         if (Files.isDirectory(path)){
 
@@ -100,7 +103,7 @@ public class Writer{
         }
     }
  
-    static void indexDoc(IndexWriter writer, Path file, long lastModified) throws IOException {
+    private static void indexDoc(IndexWriter writer, Path file, long lastModified) throws IOException {
         try (InputStream stream = Files.newInputStream(file)) {
             
             Document doc = new Document();

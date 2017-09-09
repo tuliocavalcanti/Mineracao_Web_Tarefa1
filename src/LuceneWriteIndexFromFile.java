@@ -28,7 +28,7 @@ public class LuceneWriteIndexFromFile
     public static void main(String[] args)
     {
         //Input folder
-        String docsPath = "inputFiles";
+        String docsPath = "../Texts";
          
         //Output folder
         String indexPath = "indexedFiles";

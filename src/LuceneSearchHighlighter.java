@@ -24,7 +24,7 @@ import org.apache.lucene.store.FSDirectory;
 public class LuceneSearchHighlighter
 {
     //This contains the lucene indexed documents
-    private static final String INDEX_DIR = "indexedFiles";
+    private static final String INDEX_DIR = "indexedFiles_0";
  
     public static void main(String[] args) throws Exception 
     {
@@ -41,10 +41,10 @@ public class LuceneSearchHighlighter
         Analyzer analyzer = new StandardAnalyzer();
          
         //Query parser to be used for creating TermQuery
-        QueryParser qp = new QueryParser("contents", analyzer);
+        QueryParser qp = new QueryParser("science", analyzer);//Lucene supports AND, “+”, NOT, OR and “-” as Boolean operators.
          
         //Create the query
-        Query query = qp.parse("the given order of the features is arbitrary");
+        Query query = qp.parse("a*");
          
         //Search the lucene documents
         TopDocs hits = searcher.search(query, 200);
