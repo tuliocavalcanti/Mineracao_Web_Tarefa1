@@ -1,14 +1,11 @@
 package gui;
 
-import java.io.IOException;
-
-import org.apache.lucene.queryparser.classic.ParseException;
-
 import facade.Facade;
 
-public class Main {
+public class Indexfiles {
 
 	public static void main(String[] args) {
+		System.out.println("Indexing Files...");
 		Facade fachada = new Facade();
 		fachada.indexFiles();
 		

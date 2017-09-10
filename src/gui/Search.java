@@ -20,6 +20,7 @@ public class Search extends JFrame implements ItemListener {
 
 	private JFrame frame;
 	private JTextField textField;
+	private Facade facade;
 
 	/**
 	 * Launch the application.
@@ -42,6 +43,7 @@ public class Search extends JFrame implements ItemListener {
 	 */
 	public Search() {
 		initialize();
+		facade = new Facade();
 	}
 
 	/**
@@ -76,10 +78,9 @@ public class Search extends JFrame implements ItemListener {
 		btnSearch.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(MouseEvent e) {
-				String search = textField.getText();
-				Facade facade = new Facade();
+				String searchQuery = textField.getText();
 				try {
-					ArrayList<String> res = facade.searchFiles(search, btnStemming.isSelected(), btnStopWords.isSelected());
+					ArrayList<String> res = facade.searchFiles(searchQuery, btnStemming.isSelected(), btnStopWords.isSelected());
 					Result result = new Result(res);
 					result.setLocationRelativeTo(frame.getContentPane());
 					result.setResizable(true);
