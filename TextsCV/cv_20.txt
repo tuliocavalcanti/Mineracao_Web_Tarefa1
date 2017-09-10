@@ -1,0 +1,474 @@
+BLIND IMAGE DEBLURRING USING CLASS-ADAPTED IMAGE PRIORS
+Marina Ljubenovic? and Ma?rio A. T. Figueiredo
+Instituto de Telecomunicac?o?es, Instituto Superior Te?cnico,
+Universidade de Lisboa, Lisbon, Portugal
+email: mlju@lx.it.pt and mario.figueiredo@lx.it.pt
+ABSTRACT
+Blind image deblurring (BID) is an ill-posed inverse problem,
+usually addressed by imposing prior knowledge on the (un-
+known) image and on the blurring filter. Most of the work on
+BID has focused on natural images, using image priors based
+on statistical properties of generic natural images. However,
+in many applications, it is known that the image being recov-
+ered belongs to some specific class (e.g., text, face, finger-
+prints), and exploiting this knowledge allows obtaining more
+accurate priors. In this work, we propose a method where
+a Gaussian mixture model (GMM) is used to learn a class-
+adapted prior, by training on a dataset of clean images of that
+class. Experiments show the competitiveness of the proposed
+method in terms of restoration quality when dealing with im-
+ages containing text, faces, or fingerprints. Additionally, ex-
+periments show that the proposed method is able to handle
+text images at high noise levels, outperforming state-of-the-
+art methods specifically designed for BID of text images.
+Index Terms— Blind deblurring, blind deconvolution,
+ADMM, Gaussian mixtures, plug-and-play.
+1. INTRODUCTION
+Blind image deblurring (BID) is an inverse problem where
+the observed image is modeled as the convolution of an un-
+derlying (sharp) image and an unknown blurring filter, often
+followed by additive noise. The goal of BID is usually to es-
+timate both the underlying image and the blurring filter. The
+problem is obviously severely ill-posed. In addition, since
+the convolution operator itself is typically ill-conditioned, the
+inverse problem is highly sensitive to the presence of noise.
+In recent years, researchers have investigated a variety ap-
+proaches to single image BID, mostly considering generic
+natural images [1], [2], [3], [4], [5], [6]. To deal with the
+ill-posed nature of the BID problem, most methods use prior
+information on both the image and the blurring filter. The
+The research leading to these results has received funding from the Eu-
+ropean Union’s H2020 Framework Programme (H2020-MSCA-ITN-2014)
+under grant agreement n 642685 MacSeNet, and was partially supported by
+the Fundac?a?o para a Cie?ncia e Tecnologia, grant UID/EEA/5008/2013
+most common choice for the image prior exploits the statis-
+tics of natural images [1], [3], [4], [7], [8], [5], [9] and is usu-
+ally based on implicit or explicit restoration of salient edges.
+Although that approach gives good results for natural im-
+ages, the prior itself is not designed for images that belong
+to specific classes (e.g., text, face, medical structures, finger-
+prints) appearing in many important applications, like docu-
+ment analysis, surveillance, and forensics. Methods that use
+priors that capture the properties of images belonging to spe-
+cific classes are more likely to provide better results, when
+dealing with those images, e.g., text [10], [11], [12] or face
+images [13], [14], [15]. Furthermore, images that belong to
+different specific classes may have different characteristics
+that are hard to capture with a unique prior. For example, face
+images do not contain much texture and text images have spe-
+cific structure due to the contents of interest being mainly in
+two tones (commonly, black and white).
+Here, we proposed a method that uses patch-based image
+priors learned from a set of clean images of the specific class
+of interest. The method is based on the so-called plug-and-
+play approach, recently proposed in [16]. In contrast with
+[16], we do not use a fixed denoiser, but a denoiser based
+on a Gaussian mixture model (GMM) that is learned from
+patches of clean images belonging to a specific class. A sim-
+ilar idea was recently proposed for non-blind image deblur-
+ring and compressive imaging [17]. Here, in addition to the
+GMM-based image prior, we also adopt a weak prior on the
+blurring filter. Considering the blur, earlier methods typically
+impose hard constrains for the (arguably) most relevant case
+of a generic motion blur by encouraging sparsity of the blur
+filter estimate [4], [18], [1], [8], [3], [19], [7]. In this paper,
+we use a weaker prior on the blur (limited support), thus being
+able to recover a wide variety of filters then those methods.
+2. OBSERVATION MODEL
+Consider the linear observation model y = Hx + n, where
+y ? Rn, x ? Rm denote the vectorized (lexicographically
+ordered) observed data and the (unknown) original image,
+respectively, and n is noise, assumed to be Gaussian, with
+zero mean and known variance ?2. For computational conve-
+nience, H ? Rn×m is the matrix that represents the convolu-
+ar
+X
+iv
+:1
+70
+9.
+01
+71
+0v
+1 
+ [
+cs
+.C
+V
+] 
+ 6
+ S
+ep
+ 2
+01
+7
+tion with the blurring filter h with periodic boundary condi-
+tions, thus with n = m.
+As explained above, to deal with the blind image deblur-
+ring problem, prior information (a regularizer) is imposed on
+both the underlying image and the blurring filter. The image
+x and the blurring operator H (equivalently, the filter h) are
+estimated by minimizing the cost function
+O?(x,h) =
+1
+2
+||y?H x||22 + ??(x) + ?S(h). (1)
+We assume a weak prior on the blurring filter, ?S, the indica-
+tor function of the set S (set of filters with positive entries on
+a given support). The rationale behind using a weak prior is
+that it covers a wider variety of blurring filters.
+?S(u) =
+{
+0 if u ? S
+? if u /? S.
+(2)
+The function ? represents the prior on the image used to pro-
+mote characteristics that the underlying sharp image is as-
+sumed to have, while parameter ? controls the trade-off be-
+tween data-fidelity term and the regularizer. As shown re-
+cently [20], [6], good results can be obtained by alternating
+estimation of the image and the blur kernel (Algorithm 1).
+Both steps are performed by using the alternating direction
+method of multipliers (ADMM) [6].
+Algorithm 1 Blind Image Deblurring Algorithm
+Input: Blurred image y
+Output: Estimated sharp image x? and the blur kernel h?
+1: Initialization: Initial estimate x? = y, h? set to the identity
+filter, ? > 0
+2: while stopping criterion is not satisfied do
+3: x?? argmin
+x
+O?(x, h?) {estimating x with h fixed}
+4: h?? argmin
+h
+O?(x?,h) {estimating h with x fixed}
+5: end while
+In contrast with [6], we do not decrease the regularization
+parameter ? at every iteration. We found that a fixed param-
+eter yields better results arguably due to the more expressive
+prior herein used, when compared with the total-variation reg-
+ularizer in [6].
+3. ADMM FOR IMAGE INVERSE PROBLEMS
+As discussed above, we use the ADMM optimization algo-
+rithm to perform estimation of both the image and the blurring
+filter, and therefore, in this section, we will briefly explain
+the ADMM for image inverse problems. Consider an uncon-
+strained optimization problem in which the objective function
+is the sum of two functions
+min
+z
+f1(z) + f2(z). (3)
+By using a variable splitting procedure, we introduce a new
+variable v as the argument of the function f2, under the con-
+strain that z = v. This leads to rewriting the unconstrained
+problem from above as a constrained one:
+min
+z,v
+f1(z) + f2(v) subject to z = v. (4)
+The rationale behind variable splitting methods, such as
+the method of multipliers or augmented Lagrangian method
+(ALM), is that it may be easier to solve the constrained prob-
+lem (4) instead of the unconstrained one (3). The main idea
+behind the ALM is to minimize alternatingly the so-called
+augmented Lagrangian function
+z?, v?? min
+z,v
+f1(z) + f2(v) + dT (z? v) +
+µ
+2
+||z? v||22, (5)
+and updating the vector of Lagrange multipliers d (Algorithm
+2). In Equation (5), µ ? 0 is called the penalty parameter. If
+we recall that, by definition, the proximity operator (PO) of
+some convex function g, computed at the point u is defined as
+proxg(u) = argmin
+x
+1
+2
+||x? u||22 + g(x), (6)
+it is clear that in Algorithm 2, lines 3 and 4 are the PO of f1
+and f2, computed at vk+dk and zk+1?dk, respectively. For-
+mulation (6) can be considered as the solution to a denoising
+problem, with u as the noisy observation and g the regularizer.
+Algorithm 2 ADMM
+1: Initialization: Set k = 0, µ > 0, initialize v0 and d0
+2: while stopping criterion is not satisfied do
+3: zk+1 ? min
+z
+f1(z) + µ2 ||z? v
+k ? dk||22
+4: vk+1 ? min
+v
+f2(v) + µ2 ||z
+k+1 ? v? dk||22
+5: dk+1 ? dk ? (zk+1 ? vk+1)
+6: k ? k + 1
+7: end while
+4. GMM-BASED DENOISER
+For the image estimate update (line 3 of Algorithm 1), in-
+stead of using the PO of a convex regularizer (line 4 of the Al-
+gorithm 2), we implemented a state-of-the-art denoiser con-
+sidering the fact that the PO itself is a denoising function.
+This approach, also known as plug-and-play, was recently ex-
+ploited in [16], but instead of using a fixed denoiser, such
+as BM3D [21] or K-SVD [22], we consider a class-adapted
+GMM-based denoiser [23].
+In [23], the authors show that clean image patches are
+well modeled by a GMM estimated from a collection of clean
+images using the expectation-maximization (EM) algorithm.
+Furthermore, for a GMM-based prior for the clean patches,
+the corresponding minimum mean squared error (MMSE) es-
+timate can be obtained in closed form [24]. We use these facts
+to obtain a GMM-based prior learned from the set of clean
+images that belong to the specific class. The rationale behind
+this approach is that with the class-adapted image prior, we
+may achieve better performance than with a fixed, generic de-
+noiser, when we process images that do belong to the same
+specific class.
+5. PROPOSED METHOD
+The proposed method uses ADMM for solving each of the
+inner minimization problems in Algorithm 1 (lines 3 and 4),
+with O?(x,h) as defined in (1) with the PO of ? replaced by
+the MMSE estimator using a class-adapted GMM prior.
+5.1. Image Estimate
+The image estimation problem (line 3 of Algorithm 1) can be
+formulated as:
+x? = argmin
+x
+1
+2
+||y?H x||22 + ??(x). (7)
+This problem can be written in the form (3) by setting f1(x) =
+1
+2 ||y?H x||
+2
+2 and f2(x) = ??(x). Applying ADMM to prob-
+lem (7), yields the so-called SALSA algorithm [25]. Line 3
+of Algorithm 2 becomes a quadratic optimization problem,
+which has a linear solution:
+xk+1 = (HTH + µI)?1(HT y + µ(vk + dk)). (8)
+As shown in some previous work [25], [26], the matrix inver-
+sion in (8) can be efficiently computed in the discrete Fourier
+transform (DFT) domain (using the FFT) in the case of cyclic
+deblurring, which we consider in this paper. Extension to
+other boundary conditions can be obtained via the technique
+proposed in [6].
+5.2. Blur Estimate
+The blur estimation problem (line 4 of the Algorithm 1) can
+be formulated as:
+h? = argmin
+h
+1
+2
+||y? Xh||22 + ?S(h), (9)
+where h ? Rn is the vector containing the lexicographically
+ordered blurring filter elements and X ? Rn×n is the square
+matrix representing the convolution of the image x and the
+filter h. Considering formulation (3) we have f1(h) = 12 ||y?
+X h||22 and f2(h) = ?S(h).
+The resulting instance of line 3 of Algorithm 2 has the
+same form as (8) and, as previously explained, the matrix in-
+version can be efficiently computed in the DFT domain, us-
+ing the FFT. Since the proximity operator of the indicator of
+a convex set is the orthogonal projection on that set [27], line
+4 of the Algorithm 2 becomes
+prox?S(u) = PS(u), (10)
+which simply sets to zero all negative elements and any ele-
+ments outside of the given support.
+6. EXPERIMENTS
+In all the experiments, we use the following setting for the
+two ADMM algorithms described in Section 5: the image
+estimate is computed with 20 iterations of the algorithm in
+Subsection 5.1, initialized with the image estimate from the
+previous iteration, d0 = 0, and µ hand-tuned for the best vi-
+sual results or best ISNR (improvement in SNR [6]) in terms
+of synthetic data. The blur estimate is computed with two iter-
+ation of the algorithm explained in Subsection 5.2, initialized
+with the blur estimate from the previous iteration, d0 = 0,
+and µ = 0.01.
+Furthermore, the experiments were performed on three
+sets of images: (a) a dataset containing 10 text images that
+is available from the author of [28] (one for testing and nine
+for training the mixture), (b) a dataset containing 100 face
+images from the same author as the text dataset, and (c) a
+dataset containing 128 fingerprints from the publicly avail-
+able the UPEK fingerprint database. The GMM-based prior
+is obtained by using patches of size 6 × 6 pixels and a 20-
+component mixture.
+6.1. Results
+For the experiments with text images, we created five test
+images using the same clean image of text and 15 × 15 syn-
+thetic kernels that represent Gaussian, linear motion, out-of-
+focus, uniform, and nonlinear motion blur, respectively, and
+noise level corresponding to BSNR = 30 dB (Table 1). For
+the face images, we created four 11 × 11 synthetic blur ker-
+nels that represent Gaussian, linear motion, out-of-focus, and
+uniform blurs, respectively, and for the fifth experiment, we
+used blur kernel number 5 from [2], with noise level corre-
+sponding to BSNR = 40 dB (Table 2). Experiments on the
+image containg fingerprints are performed with the 15 × 15
+linear motion blur kernel and noise level corresponding to
+BSNR = 40 dB (Fig. 2). Results of all experiments are com-
+pared with two state-of-the-art BID algorithms constructed
+for natural images ([6] and [5]), and additionally with the al-
+gorithm explained in Subsection 5.1 with the BM3D denoiser
+plugged into it (PlugBM3D), instead of the GMM-based de-
+noiser (PlugGMM). Note that the generic algorithm [6] is de-
+signed for a wide variety of blur filters, while [5], like the
+majority of blind deblurring algorithms, is designed mostly
+for motion blur.
+Moreover, we tested our method on text images blurred
+with the blurring filter number 2 from [2], followed by a
+(a) Clean image (b) Blurred image (c) Pan et al. [11] (d) PlugBM3D (e) PlugGMM
+Fig. 1: Text image blurred with nonlinear motion blur number 2 from [2] and high noise level (BSNR = 20 dB): (a) Original
+image and ground truth kernel; (b) Blurred image; (c) Results of [11], ISNR = -2.72; (d) PlugBM3D, ISNR = 9.97; (e)
+PlugGMM, ISNR = 11.16.
+(a) Clean image (b) Blurred image (c) Almeida et al. [6] (d) Krishnan et al. [5] (e) PlugBM3D (f) PlugGMM
+Fig. 2: Fingerprint image blurred with 9× 9 linear motion blur and noise level (BSNR = 40 dB): (a) Original image and ground
+truth kernel; (b) Blurred image; (c) Results of [6], ISNR = 0.36; (d) Results of [5], ISNR = -0.64; (e) PlugBM3D, ISNR = 0.56;
+(f) PlugGMM, ISNR = 1.19.
+Table 1: Results in terms of ISNR of the generic methods
+[6] and [5], our method using the BM3D denoiser, and our
+method with the class-adapted GMM prior, tested for text im-
+ages (BSNR = 30 dB).
+Experiment 1 2 3 4 5
+Almeida et al. [6] 0.78 0.86 0.46 0.79 0.59
+Krishnan et al. [5] 1.62 0.12 - - 0.94
+PlugBM3D 7.23 8.68 8.19 8.94 13.08
+PlugGMM 8.88 8.99 9.40 11.48 16.44
+higher noise level (BSNR = 20 dB) (Fig. 1). Results are
+compared, as previously explained, with the BM3D denoiser
+plugged into the ADMM loop and the method from Pan et
+al. [11], which was designed for BID of text images. As
+the BM3D denoiser is based on exploiting non-local patch
+similarities, which is highly present in the images we tested,
+visual results of using PlugBM3D are very good, but in terms
+of ISNR, PlugGMM clearly outperforms it.
+7. CONCLUSION
+In this paper, we have proposed a class-adapted blind image
+deblurring method, built upon the so-called plug-and-play ap-
+proach. The method uses Gaussian mixture model (GMM)
+based denoisers, adapted to specific image classes, plugged
+into the ADMM optimization algorithm, and a weak prior
+Table 2: Results in terms of ISNR of the generic methods
+[6] and [5], our method using the BM3D denoiser, and our
+method with the class-adapted GMM prior, tested for face
+images (BSNR = 40 dB).
+Experiment 1 2 3 4 5
+Almeida et al. [6] 4.31 1.81 2.86 0.85 4.43
+Krishnan et al. [5] 0.55 0.12 - - 0.37
+PlugBM3D 6.64 4.86 6.78 8.50 5.94
+PlugGMM 7.10 5.30 8.95 7.07 7.33
+(positivity and limited support) on the blurring filter. Ex-
+periments show that the proposed method yields state-of-the-
+art results, when applied to images that belong to a specific
+class (e.g., text, face, and fingerprints), outperforming sev-
+eral generic techniques for blind image deblurring [5], [6].
+In addition, experiments show that the proposed method can
+be used for a variety of blurring filters and is able to handle
+strong noise in the case of images known to contain text, out-
+performing the state-of-the-art method for BID of text images
+[11]. The proposed method suffers from some potential lim-
+itations, such as setting of the regularization parameter and
+stopping criteria for the inner ADMM algorithms, as well as
+for the outer iterations, that we aim to improve in future work.
+8. REFERENCES
+[1] R. Fergus, B. Singh, A. Hertzmann, S. T. Roweis, and W.T.
+Freeman, “Removing camera shake from a single photograph,”
+ACM Transactions on Graphics, vol. 25, no. 3, pp. 787–794,
+2006.
+[2] A. Levin, Y. Weiss, F. Durand, and W. T. Freeman, “Un-
+derstanding and evaluating blind deconvolution algorithms,”
+in 2009 IEEE Conference on Computer Vision and Pattern
+Recognition, 2009.
+[3] Q. Shan, J. Jia, and A. Agarwala, “High-quality motion deblur-
+ring from a single image,” ACM Trans. Graph., vol. 27, no. 3,
+pp. 73:1–73:10, 2008.
+[4] S. Cho and S. Lee, “Fast motion deblurring,” ACM Transac-
+tions on Graphics (SIGGRAPH ASIA 2009), vol. 28, no. 5, pp.
+article no. 145, 2009.
+[5] D. Krishnan, T. Tay, and R. Fergus, “Blind deconvolution using
+a normalized sparsity measure,” in 2011 IEEE Conference on
+Computer Vision and Pattern Recognition, 2011.
+[6] M. S. C. Almeida and M. A. T. Figueiredo, “Blind image de-
+blurring with unknown boundaries using the alternating direc-
+tion method of multipliers,” in 2013 IEEE International Con-
+ference on Image Processing, 2013.
+[7] Li Xu and Jiaya Jia, “Two-phase kernel estimation for robust
+motion deblurring,” in Proceedings of the 11th European Con-
+ference on Computer Vision: Part I, 2010.
+[8] A. Levin, Y. Weiss, F. Durand, and W. T. Freeman, “Effi-
+cient marginal likelihood optimization in blind deconvolution,”
+in 2011 IEEE Conference on Computer Vision and Pattern
+Recognition, 2011.
+[9] L. Xu, S. Zheng, and J. Jia, “Unnatural l0 sparse representation
+for natural image deblurring,” in 2013 IEEE Conference on
+Computer Vision and Pattern Recognition, 2013.
+[10] H. Cho, J. Wang, and S. Lee, “Text image deblurring using
+text-specific properties,” in Proceedings of the 12th European
+Conference on Computer Vision (ECCV 2012), 2012.
+[11] J. Pan, Z. Hu, Z. Su, and M.-H. Yang, “Deblurring text images
+via l0-regularized intensity and gradient prior,” in IEEE Con-
+ference on Computer Vision and Pattern Recognition (CVPR),
+2014.
+[12] T.-H. Li and K.-S. Lii, “A joint estimation approach for two-
+tone image deblurring by blind deconvolution,” IEEE Transac-
+tions on Image Processing, vol. 11, no. 8, pp. 847–858, 2002.
+[13] J. Pan, Z. Hu, Z. Su, and M.-H. Yang, “Deblurring face images
+with exemplars,” in European Conference on Computer Vision
+(ECCV), 2014.
+[14] O. Yamaguchi, M. Nishiyama, H. Takeshima, J. Shotton,
+A. Hadid, and T. Kozakaya, “Facial deblur inference using sub-
+space analysis for recognition of blurred faces,” IEEE Trans-
+actions on Pattern Analysis & Machine Intelligence, vol. 33,
+pp. 838–845, 2010.
+[15] T. S. Huang, N. M. Nasrabadi, Yanning Zhang, Haichao Zhang,
+and Jianchao Yang, “Close the loop: Joint blind image restora-
+tion and recognition with sparse representation prior,” 2011
+IEEE International Conference on Computer Vision (ICCV
+2011), pp. 770–777, 2011.
+[16] S. V. Venkatakrishnan, C. A. Bouman, and B. Wohlberg,
+“Plug-and-play priors for model based reconstruction,” in 2013
+IEEE Global Conference on Signal and Information Process-
+ing, 2013.
+[17] A. M. Teodoro, J. M. Bioucas-Dias, and M. A. T. Figueiredo,
+“Image restoration and reconstruction using variable splitting
+and class-adapted image priors,” in 2016 IEEE International
+Conference on Image Processing (ICIP), 2016.
+[18] J. F. Cai, H. Ji, C. Liu, and Z. Shen, “Framelet-based blind
+motion deblurring from a single image,” IEEE Transactions
+on Image Processing, vol. 21, no. 2, pp. 562–572, 2012.
+[19] C. Wang, LF. Sun, ZY.Chen, JW. Zhang, and SQ. Yang,
+“Multi-scale blind motion deblurring using local minimum,”
+Inverse Problems, vol. 26, no. 1, pp. 015003, 2010.
+[20] M.S.C. Almeida and L.B. Almeida, “Blind and semi-blind de-
+blurring of natural images,” IEEE Transactions on Image Pro-
+cessing, vol. 19, no. 1, pp. 36 – 52, 2010.
+[21] K. Dabov, A. Foi, V. Katkovnik, and K. Egiazarian, “Image
+denoising by sparse 3-d transform-domain collaborative filter-
+ing,” IEEE Transactions on Image Processing, vol. 16, no. 8,
+pp. 2080–2095, 2007.
+[22] M. Aharon, M. Elad, and A. Bruckstein, “K-svd: An algorithm
+for designing overcomplete dictionaries for sparse representa-
+tion,” Trans. Sig. Proc., vol. 54, no. 11, pp. 4311–4322, 2006.
+[23] D. Zoran and Y. Weiss, “From learning models of natural im-
+age patches to whole image restoration,” in 2011 International
+Conference on Computer Vision, 2011.
+[24] A. M. Teodoro, M. Almeida, and M. A. T. Figueiredo, “Single-
+frame image denoising and inpainting using gaussian mix-
+tures,” in International Conf. on Pattern Recognition Appli-
+cations and Methods - ICPRAM, 2015.
+[25] M. V. Afonso, J. M. Bioucas-Dias, and M. A. T. Figueiredo,
+“Fast image recovery using variable splitting and constrained
+optimization,” IEEE Transactions on Image Processing, vol.
+19, no. 9, pp. 2345–2356, 2010.
+[26] M. V. Afonso, J. M. Bioucas-Dias, and M. A. T. Figueiredo,
+“An augmented lagrangian approach to the constrained opti-
+mization formulation of imaging inverse problems,” IEEE
+Transactions on Image Processing, vol. 20, no. 3, pp. 681–695,
+2011.
+[27] P. L. Combettes and J.-C. Pesquet, Proximal Splitting Methods
+in Signal Processing, pp. 185–212, Springer New York, 2011.
+[28] E. Luo, S. H. Chan, and T. Q. Nguyen, “Adaptive image de-
+noising by targeted databases,” IEEE Transactions on Image
+Processing, vol. 24, no. 7, pp. 2167–2181, 2015.

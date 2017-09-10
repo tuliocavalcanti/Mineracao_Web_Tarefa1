@@ -1,0 +1,1317 @@
+Learning Invariant Riemannian Geometric Representations Using Deep Nets
+Suhas Lohit
+Arizona State University
+slohit@asu.edu
+Pavan Turaga
+Arizona State University
+pturaga@asu.edu
+Abstract
+Non-Euclidean constraints are inherent in many kinds
+of data in computer vision and machine learning, typically
+as a result of specific invariance requirements that need to
+be respected during high-level inference. Often, these geo-
+metric constraints can be expressed in the language of Rie-
+mannian geometry, where conventional vector space ma-
+chine learning does not apply directly. The central ques-
+tion this paper deals with is: How does one train deep neu-
+ral nets whose final outputs are elements on a Riemannian
+manifold? To answer this, we propose a general frame-
+work for manifold-aware training of deep neural networks
+– we utilize tangent spaces and exponential maps in or-
+der to convert the proposed problem into a form that al-
+lows us to bring current advances in deep learning to bear
+upon this problem. We describe two specific applications
+to demonstrate this approach: prediction of probability dis-
+tributions for multi-class image classification, and predic-
+tion of illumination-invariant subspaces from a single face-
+image via regression on the Grassmannian. These applica-
+tions show the generality of the proposed framework, and
+result in improved performance over baselines that ignore
+the geometry of the output space. In addition to solving this
+specific problem, we believe this paper opens new lines of
+enquiry centered on the implications of Riemannian geom-
+etry on deep architectures.
+1. Introduction
+Many applications in computer vision employ data that
+are naturally represented on manifolds [33]. Shapes that are
+invariant to affine transforms [5] and linear dynamical sys-
+tems [43] can be represented as points on the Grassmannian.
+In diffusion tensor imaging, each ”pixel” of the ”image” is
+a symmetric positive definite (SPD) matrix and the space
+of SPD matrices forms a manifold [37]. Lie groups like
+SO(3) and SE(3) are used to represent human skeletons
+[44, 45]. Predicting probability density functions is another
+area of interest, applicable to multi-class classification and
+bag-of-words models [31], and saliency prediction [26].
+Several years of research has presented us with vari-
+ous tools for statistics, and thereby machine learning ap-
+proaches to be deployed when the objects of interest have
+manifold-valued domains (c.f. [41]). In deep learning, it is
+usually the case that data samples are viewed as elements
+of vector spaces. Any additional structure that the data
+may possess is left to be learned through the training exam-
+ples. However, recently, there has been interest in employ-
+ing deep learning techniques for non-Euclidean inputs as
+well: [7] including graph-structured data [8, 21, 35] and 3D
+shapes viewed as Riemannian manifolds [34]. Also, deep
+networks that preserve the input geometry at each layer have
+been studied for inference problems, e.g., for symmetric
+positive definite matrices [23], Lie groups [24] and points
+on the Stiefel manifold [25]. Another recent work consid-
+ers weight matrices which are constrained to be orthogonal,
+i.e., points of the Stiefel manifold, and propose a general-
+ized version of backpropagation [20]. These works do not
+consider output variables with geometric constraints.
+In contrast to the above, instead of enforcing geometry
+at the inputs, our goal is to design a general framework to
+extend neural network architectures where output variables
+(or deeper feature maps) lie on manifolds of known geom-
+etry, typically due to certain invariance requirements. We
+do not assume the inputs themselves have known geometric
+structure and employ standard back-propagation for train-
+ing. Equivalently, one may consider this approach as trying
+to estimate a mapping from an input x ? RN to a manifold-
+valued point m ? M i.e., f : RN ? M, using a neural
+network, where m is the desired output.
+That is, this paper provides a framework for regression
+that is applicable to predicting manifold-valued data and at
+the same time is able to leverage the power of neural nets
+for feature learning, using standard backpropagation for un-
+constrained optimization. In this paper, we focus on two
+manifolds that are of wide interest in computer vision – the
+hypersphere and the Grassmannian. We describe the appli-
+cations next.
+Face ? Illumination Subspace as regression on the
+Grassmannian: The illumination subspace of a human
+face is a popular example from computer vision where for
+1
+ar
+X
+iv
+:1
+70
+8.
+09
+48
+5v
+1 
+ [
+cs
+.C
+V
+] 
+ 3
+0 
+A
+ug
+ 2
+01
+7
+a particular subject, the set of all face images of that sub-
+ject under all illumination conditions can be shown to lie
+close to a low dimensional subspace [18]. These illumi-
+nation subspaces are represented as points on the Grass-
+mannian (or Stiefel, depending on application) manifold.
+Several applications such as robust face recognition have
+been proposed using this approach. In this work, in order to
+demonstrate how deep networks can be employed to map to
+Grassmannian-valued data, we consider the problem of esti-
+mating the illumination subspace from a single input image
+of a subject under unknown illumination. We refer to this
+application as Face?Illumination Subspace (F2IS).
+Multi-class classification as regression on the unit hy-
+persphere: Classification problems in deep learning use
+the softmax layer to map arbitrary vectors to the space of
+probability distributions. However, more formally, proba-
+bility distributions can be easily mapped to the unit hyper-
+sphere, under a square-root parametrization [39] inspired by
+the Fisher-Rao metric used in information geometry. Thus,
+multi-class classfication can be posed as regression to a hy-
+persphere. Indeed, there has been work recently that con-
+sider spherical-loss functions which use the Euclidean loss
+on unit-norm output vectors of a network [46, 11]. In this
+work, we propose loss-functions for the classification prob-
+lem based on the geometry of the sphere.
+Main contributions: In this paper, we address the train-
+ing of neural networks using standard backpropagation to
+output elements that lie on Riemannian manifolds. To this
+end, we propose two frameworks in this paper:
+(1) We discuss how to map to simpler manifolds like the
+hypersphere directly using a combination of geodesic
+loss functions as well as differentiable constraint sat-
+isfaction layers such as the normalization layer in the
+case of the hypersphere.
+(2) We also propose a more general framework that is ap-
+plicable to Riemannian manifolds that may not have
+closed-form expressions for the geodesic distance or
+when the constraints are hard to encode as a layer in
+the neural network. In this framework, the network
+maps to the tangent space of the manifold and then the
+exponential map is employed to find the desired point
+on the manifold.
+We carry out experiments for the applications described
+above in order to evaluate the proposed frameworks and
+show that geometry-aware frameworks result in improved
+performance compared to baselines that do not take output
+geometry into account.
+2. Related work
+We will now point to some related work that also exam-
+ine the problem of predicting outputs with geometric struc-
+ture using neural networks. Byravan and Fox [9] and Clark
+et al. [10] design deep networks to output SE(3) trans-
+formations. The set of transformations SE(3) is a group
+which also possesses manifold structure, i.e., a Lie group.
+It is not straightforward to predict elements on SE(3) since
+it involves predicting a matrix constrained to be orthogonal.
+Instead, the authors map to the Lie algebra se(3) which is
+a linear space. We note that the Lie algebra is nothing but
+the tangent space of SE(3) at the identity transformation
+and can be considered a particular case of the general for-
+mulation presented in this paper. Huang et al. [24] use the
+logarithm map to map feature maps on SE(3) to se(3) be-
+fore using regular layers for action recognition. However,
+the logarithm map is implemented within the network, since
+for SE(3), this function is simple and differentiable. In
+contrast, in this work, we require the network output to be
+manifold-valued and thus do not impose any geometry re-
+quirements at the input or for the feature maps. This also
+means that a suitable loss function needs to be defined, tak-
+ing into account, the structure of the manifold of interest.
+In a more traditional learning setting, there has been
+work using geodesic regression, a generalization of linear
+regression, on Riemannian manifolds [15, 14, 38, 22, 27],
+where a geodesic curve is computed such that the aver-
+age distance (on the manifold) from the data points to the
+curve is minimized. This involves computing gradients on
+the manifold. Recent work has also included non-linear re-
+gression on Riemannian manifolds [4, 3]. Here, the non-
+linearity is provided by a pre-defined kernel function and
+the mapping algorithm solves an optimization problem it-
+eratively. Our work is a non-iterative deep-learning based
+approach to the problem described in Banerjee et al. [4]
+as regression with the independent variable in RN and the
+dependent variable lying on a manifold M. That is, un-
+like these works, the mapping f : RN ? M in our case
+is a hierarchical non-linear function, learned directly from
+data without any hand-crafted feature extraction, and the re-
+quired mapping is achieved by a simple feed forward pass
+through the trained network.
+All neural nets in the paper are trained and tested using
+Tensorflow [1], making use of its automatic differentiation
+capability. Before we discuss the contributions of this work,
+if required, please refer supplementary material for defini-
+tions of some important terms from differential geometry.
+3. Two approaches for deep manifold-aware
+prediction
+We propose two ways of predicting manifold-valued data
+using neural networks with standard backpropagation. See
+Method 1: 
+Map to manifold 
+directly
+Method 2: 
+Map via the 
+tangent space
+Neural Network
+M
+TpM
+p
+v
+q
+Expp
+-1
+Expp
+Input Input
+Neural Network
+Figure 1: This figure illustrates the two approaches presented in
+this paper for training neural networks to predict manifold-valued
+data. It also explains some basic concepts from differential ge-
+ometry visually. M is a manifold, TPM is the tangent space at
+p ? M. p is called the pole of the tangent space. The curve con-
+nected p and q ?M is the geodesic curve ?. v is a point on TpM
+such that the exponential map expp(v) = ?(1) and the logarithm
+map exp?1p (q) = v.
+Figure 1 for visual illustration and important notation.
+Mapping to the manifold via geodesic-loss functions:
+In this case, the network directly maps input vectors to ele-
+ments on the manifoldM and is required to learn the man-
+ifold constraints from the data. If we represent the neu-
+ral network as a mapping NN, we have NN: RN ? M.
+Firstly, unlike simple manifolds like the sphere, manifolds
+in general do not have a differentiable closed-form expres-
+sion, that are also efficiently computable, for the geodesic
+distance function that can be used as a loss function for the
+neural network. Although one can still resort to using a dif-
+ferentiable loss function such as the Euclidean distance, this
+approach is not mathematically correct and does not yield
+the right estimate for distance on the manifold. Secondly,
+the network output has to satisfy the manifold constraints.
+In the case of the sphere, it is simple to enforce the unit-
+norm constraint at the output layer of the neural network
+using a differentiable normalization layer. It is however
+less clear how to map to more complicated manifolds such
+as the Stiefel and Grassmann manifolds where the points
+are usually represented by tall-thin orthonormal matrices.
+That is, in addition to the unit-norm constraints, orthogo-
+nality constraints between all pairs of columns in the matrix
+need to be enforced. The Grassmann manifold, presents a
+more difficult challenge, since each point in this space is an
+equivalence class of points on the Stiefel manifold that are
+orthogonal transforms of each other. As we will see later,
+the data representation that respects this equivalence (pro-
+jection matrix) does not admit a feasible way for a neural
+network to map to this manifold directly.
+Mapping via the tangent space – toward a general
+framework: This is a more general formulation that is
+applicable to all the manifolds of interest. Here, the net-
+work first maps to a vector on the tangent space constructed
+at a suitable pole p ? M, which forms the intermediate
+output. Once the network outputs the required tangent, the
+exponential map (expp) is employed to find the correspond-
+ing point on the manifold. Mathematically, we decompose
+the desired function f : RN ?M as f = expp ? NN and
+NN: RN ? TpM. Intuitively, since the tangent space is a
+vector space that encodes geometric constraints implicitly,
+it is attractive here, as neural networks have been shown to
+be effective for estimating vector-valued data. We note that
+an assumption is implicit in this framework: all the data
+points of interest on the manifold are much closer to p than
+the cut-locus of the manifold and in this case, the distance
+on the tangent space serves as a good approximation to the
+geodesic distance. This is the same assumption that goes
+into currently successful approaches for statistical comput-
+ing methods on manifolds [37]. In practice, we find this
+assumption is respected in our applications as well.
+4. Deep regression on the Grassmannian for
+F2IS
+Face ? Illumination Subspace: We will now describe
+an ill-posed inverse problem from computer vision that
+serves as our canonical application to illustrate prediction
+on the Grassmann manifold using a neural network. It is
+well known that the set of images of a human face in frontal
+pose under all illuminations lies close to a low-dimensional
+subspace, known as the illumination subspace [18, 13]. If
+we compute the eigenvectors of this set of images for dif-
+ferent subjects using PCA, we observe that the top 5 princi-
+pal components (PCs) capture nearly 90% of the variance.
+More importantly, for this paper, an obvious pattern can be
+observed between the subject under consideration and the
+PCs of the illumination subspace. Firstly, the identity of the
+subject can be easily determined from the PCs. Secondly,
+as noted by Hallinan [18], we observe that the illumination
+patterns of top 5 principal components are the same across
+subjects only up to certain permutations and sign flips. 1
+Using the terminology in [18], we can interpret the visual-
+izations of the top 5 PC’s as a face under the following re-
+spective illuminations: frontal lighting, side lighting, light-
+ing from above/below, extreme side lighting and lighting
+from a corner. The 1st and 2nd PC’s have eigenvalues in
+a similar range and sometimes exchange places depending
+on the subject. The 3rd PC, corresponding to eigenvalue is
+always at the same place. The 4th and 5th PCs have eigen-
+values in a similar range and can interchange places for a
+few subjects.
+The illumination subspace refers to the linear span of
+these eigenvectors, and is a point on the Grassmannian.
+When we represent the subspace by its projection ma-
+trix representation, the representation becomes invari-
+ant to both sign flips and permutations (in fact, invariant
+to the full set of right orthogonal transforms).
+In this paper, as an example of predicting points on
+Grassmann manifold, we define the following ill-posed in-
+verse problem: given a human face in frontal pose under an
+unknown illumination, output the corresponding illumina-
+tion subspace. We will refer to this problem as the ”Face
+? Illumination Subspace” problem or F2IS. In our exper-
+iments, we consider the illumination subspace to be of di-
+mension d = 3, 4,or 5.
+Geometry of the Grassmannian: The Grassmann mani-
+fold, denoted by Gn,d, is a matrix manifold and is the set
+of d-dimensional subspaces in Rn. To represent a point
+on Gn,d, we can use an orthonormal matrix, U ? Rn×d
+(UTU = In), to represent the equivalence class of points in
+Rn×d, such that, two points are equivalent if their columns
+span the same d-dimensional subspace. That is, Gn,d =
+{[U]}, where [U] = {UQ|UTU = I,Q is orthogonal}.
+In order to uniquely represent the equivalence class [U] ?
+Gn,d, we use its projection matrix representation P =
+UUT ? Rn×n, where U is some point in the equiva-
+lence class. UUT contains n(n+1)2 unique entries as it is
+a symmetric matrix. Clearly, for any other point in the
+same equivalence class UQ, its projection matrix represen-
+tation is (UQ)(UQ)T = UUT , as required. Thus, the
+space of all rank d projection matrices of size n × n,
+Pn is diffeomorphic to Gn,d. The identity element of
+Pn is given by IPn = diag(Id,0n?d), where 0n?d is
+the matrix of zeros of size (n ? d) × (n ? d). In order
+to find the exponential and logarithm maps for Gn,d, we
+will view Gn,d as a quotient space of the orthogonal group,
+Gn,d = On/(On?d × Od). The Riemannian metric in this
+case is the standard inner product [12] and thus, the dis-
+tance function induced on the tangent space is the Euclidean
+distance function. Using this formulation, given any point
+1It is clear that for an eigenvector e, ?e is also an eigenvector.
+P = UUT ? Pn, a geodesic of Pn at IPn passing through
+P at t = 0, is a particular geodesic ?(t) of O(n) com-
+pletely specified by a skew-symmetric X ? Rn×n: ?(t) =
+expm(tX)IP expm(?tX), where expm(.) is the matrix ex-
+ponential and P = ?(1), such that X belongs to the set M
+given by M =
+{[
+0d A
+?AT 0n?d
+]
+| A ? Rd×(n?d)
+}
+. X
+serves as the tangent vector to Gn,d at the identity and is
+completely determined by A. The geodesic between two
+points P1,P2 ? Pn, is computed by rotating P1 and P2
+to IPn and some P ? Pn respectively. The exponential
+map, takes as inputs, the pole and the tangent vector and
+returns the subspace span(U), represented by some point
+UQ. Refer Srivastava and Klassen [40] and Taheri et al.
+[42] for algorithms to compute exponential and log maps
+for the Grassmannian.
+Synthetic dataset for F2IS: We use the Basel Face
+Model dataset [36] in order to generate 250 random 3D
+models of human faces {Si}, i = 1 . . . 250 (200 for train-
+ing and 50 for testing chosen randomly).2 We then gen-
+erate a set of 64 faces for each subject where each face is
+obtained by varying the direction of the point source illu-
+mination for the frontal pose i.e., Si = {Fji}, j = 1 . . . 64.
+The directions of illumination are the same as the ones used
+in the Extended Yale Face Database B [16]. Each face im-
+age is converted to grayscale and resized to 28 × 28. Once
+we have the 250 sets of faces under the 64 illumination
+conditions, we calculate the illumination subspace for each
+subject as follows. For each subject, we first subtract the
+mean face image of that subject under all illumination con-
+ditions and then calculate the principal components (PCs).
+For a subject i and an illumination condition j, we will
+denote the input face image by Fji and the desired d top
+PCs by E1i ,E
+2
+i , . . . ,E
+d
+i (note that the PCs do not depend
+on the input illumination condition). It is clear that every
+Eki , k = 1, 2, . . . , d is of size 28× 28 and ?Eki ,Eli? = 1, if
+k = l and 0 otherwise.
+If we lexicographically order each Eki to form a
+vector vec(Eki ) of size 784 × 1 and for each sub-
+ject, arrange the Eki ’s to form a matrix Ui =
+[vec(E1i ) vec(E
+2
+i ) . . . vec(E
+d
+i )], then the orthonormality
+constraint can be rewritten as UTi Ui = Id, where Id is
+the identity matrix of size d× d. As we argued earlier, due
+to the nature of the problem, Ui should be represented as a
+point on the Grassmann G784,d using the projection matrix
+representation. With this notation, the desired mapping is
+f : R28×28 ? G784,d such that f(Fji ) = UiQ ? [Ui], the
+required equivalence class or equivalently, UiUTi .
+For the inputs Fji during training and testing, we do not
+2We use a synthetic dataset because we were unable to find any large
+publicly available real database that would enable training of neural net-
+works without overfitting.
+use all the illumination directions (j?s). We only use illu-
+mination directions that light at least half of the face. This
+is because for extreme illumination directions, most of the
+image is unlit and does not contain information about the
+identity of the subject, which is an important factor for de-
+termining the output subspaces. We select the same 33 il-
+lumination directions for all subjects to form the inputs for
+the network. We randomly split the dataset into 200 subjects
+for training and 50 subjects for testing. Therefore there are
+33×200 = 6600 and 33×50 = 1650 different input-output
+pairs for training and testing respectively. The 33 illumina-
+tion directions used for creating inputs for both the training
+and test sets are given in the supplementary and are a sub-
+set of the illumination directions used in the Extended Yale
+Face Database B [16].
+4.1. Proposed frameworks for solving F2IS
+We propose two frameworks which employ networks
+with nearly the same architecture: The network consists of
+3 conv layers and two fc layers. ReLU non-linearity is
+employed. Each conv layer produces 16 feature maps. All
+the filters in the conv layers are of size 11 × 11. The first
+fc layer produces a vector of size 512. Size of the sec-
+ond fc layer depends on the framework. Both networks are
+trained using the Adam optimizer [28] using a learning rate
+of 10?3 for 50000 iterations with a mini-batch size of 30.
+Euclidean loss between the desired output and ground truth
+is employed in both cases. We show that the choice of rep-
+resentation of the desired output is crucial in this applica-
+tion. We carry out three sets of experiments using subspace
+dimension d = 3, 4 and 5.
+Baseline: The first framework is a baseline that attempts
+to directly map to the desired PCs represented as a matrix
+Ui, given F
+j
+i , i.e., NN(F
+j
+i ) = Ui. We use the Euclidean loss
+function between the ground-truth Ui and the network out-
+put U?i for training: Lb = ||Ui ? U?i||2F That is, instead of
+regressing to the desired subspace, the network attempts to
+map to its basis vectors (PCs). However, the mapping from
+Fji to Ui is consistent across subjects only up to certain
+permutations and sign flips in the PCs. Hence, without
+correcting these inconsistencies ad hoc, the problem is ren-
+dered too complicated, since during the training phase, the
+network receives conflicting ground-truth vectors depend-
+ing on the subject. Thus, this framework performs poorly as
+expected. It is important to note that mapping to the correct
+representation UUT (which respects Grassmann geometry
+and is invariant to these inconsistencies) directly is not fea-
+sible because the size of UUT is too large ( 784×7852 ) and
+has rank constraints. This necessitates mapping via the tan-
+gent space, discussed next.
+Mapping via the Grassmann tangent space –
+GrassmannNet-TS: The second framework repre-
+sents the output subspaces as points on the Grassmann
+manifold and first maps to the Grassmann tangent space and
+then computes the required subspace using the Grassmann
+exponential map. This circumvents the problem of very
+large dimensionality encountered in the first approach since
+the tangent vector has a much smaller intrinsic dimension-
+ality. This representation has a one-to-one mapping with
+the projection matrix representation and thus, is naturally
+invariant to the permutations of the PCs and all combina-
+tions of sign flips present in the data. And the mapping
+we intend to learn becomes feasible in a data-driven
+framework. Mathematically, NN: R784×d ? TpG784,d.
+As shown in Section 4, a tangent at some pole p is given
+by the matrix X, which in turn is completely specified by
+the matrix A ? R(784?d)×d, a much smaller matrix. There-
+fore, we design a network to map an input face Fji to the
+desired matrix Ai. An training pair can be represented as
+(Fji ,Ai) and the let the output of the network be the vec-
+torized version of a matrix A?i ? R(784?d)×d. The Ai’s are
+computed using the Grassmann logarithm map in [40]. We
+also note that A does not possess any additional structure to
+be enforced and thus a neural network can be easily trained
+to map to this space using just the Euclidean loss between
+Ai and the network output A?i: LG = ||Ai ? A?i||2F .
+Pole of tangent space: This is a design choice and we
+conduct experiments with two different poles: (1) We com-
+pute the the illumination subspace of the entire training set.
+We will denote these PCs by EkTr, k = 1, 2, . . . , d and the
+corresponding matrix representation by UdTr, which forms
+the pole of the Grassmann tangent space. (2) It is com-
+mon practice to use the Fre?chet (also known as geometric
+or Karcher) mean as the pole of the tangent space. We com-
+pute the Fre?chet mean of the ground-truth subspaces of the
+training set using the iterative algorithm given by Turaga et
+al. [43]. We denote this pole as UdFr.
+During the testing phase, using the output A? matrix,
+we employ the exponential map for a given pole to find
+the corresponding point on the Grassmann manifold. This
+framework of first mapping to the Grassmann tangent space
+using a network and then to the corresponding subspace
+using the Grassmann exponential map is referred to as
+GrassmannNet-TS. See supplementary material for details
+on visualizing the output Grassmann point.
+4.2. Experimental results on F2IS
+For the frameworks described in Sections 4.1, we de-
+scribe the results on the test set of F2IS here. We com-
+pute the distance between predicted and ground-truth sub-
+space as the measure to quantify the efficacy of the proposed
+frameworks. Various measures exist that quantify this no-
+tion based on principal angles between subspaces [19]. We
+use the Grassmann geodesic distance. For two subspaces
+represented by U1 and U2 ? Gn,d, the geodesic distance
+Input Ground-truth PCs Output of baseline n/w Output of GrassmannNet-TS
+DG = 1.6694 DG = 0.7006
+DG = 1.2998 DG = 0.7238
+DG = 0.7797 DG = 0.5966
+DG = 1.5355 DG = 0.6170
+DG = 1.6760 DG = 0.4420
+DG = 1.6703 DG = 0.4939
+Table 1: Test results for two input images using d = 5. We can clearly observe that the GrassmannNet-TS (with pole
+UdFr) framework performs much better than the baseline that attempts to regress directly to the PCs. The numbers below
+the output images indicate the subspace distance from the ground truth (lower the better). Note that the outputs need not be
+exactly the same as the groundtruth PCs since the quantity of interest is the subspace spanned by the groundtruth PCs. See
+Supplementary Material for more results.
+is given by DG(U1,U2) =
+(?d
+i=1 ?
+2
+i
+)1/2
+, where ?i’s
+are the principal angles obtained by the SVD of UT1 U2 =
+W(cos ?)VT, where cos ? = diag(cos ?1, . . . , cos ?d).
+We use the implementation in [29] for computing the prin-
+cipal angles. We report the arithmetic mean of this distance
+measure for the entire test set. Note that the maximum value
+of DG(.) is ?
+?
+d
+2 .
+The results based on the mean subspace distance on the
+test set for the proposed frameworks for different values of
+the subspace dimension d are presented in Table 4. The
+baseline, as expected, performs poorly. This is because
+during the training phase, the network received conflicting
+ground-truth information because of the permutation and
+sign flips inherently present in the data. On the other hand,
+GrassmannNet-TS yields excellent performance as it is in-
+variant to these transformations by design. We reiterate that
+this is possible only in the case of regression directly on the
+Grassmann tangent space since mapping to the Grassmann
+manifold is infeasible because of the very large number of
+variables required to represent the projection matrix. The
+outputs of the baseline as well as GrassmannNet-TS using
+the Fre?chet mean as the pole are also presented visually in
+Tables 1 and 2 for two test images for d = 4, 5 respectively,
+and show similar trends. The choice of the pole does not
+seem to affect the results significantly except in the case of
+d = 5 where the Fre?chet mean performs better. Additional
+results are shown in the Supplementary Material.
+5. Deep regression on the unit hypersphere for
+multi-class classification
+Reformulating classification as mapping to the unit hy-
+persphere: For multi-class classification problems, deep
+networks usually output a probability distribution, where
+one uses the mode of the distribution to predict the class la-
+bel. What ensures that the output elements form a probabil-
+Input Ground-truth PCs Output of baseline n/w Output of GrassmannNet-TS
+DG = 1.9400 DG = 0.5489
+DG = 1.2735 DG = 0.6245
+DG = 0.6750 DG = 1.1580
+DG = 1.2047 DG = 0.6674
+DG = 0.6225 DG = 0.3653
+DG = 1.5900 DG = 0.9339
+Table 2: Test results for two input images using d = 4. As in the case of d = 5, GrassmannNet-TS (with pole UdFr)
+framework performs much better than the baseline that attempts to regress directly to the PCs. See Supplementary Material
+for more results.
+ity distribution is the ”softmax layer”. However, by using a
+square-root parametrization – replacing each element in the
+distribution by its square-root – we can map a probability
+distribution to a point on the non-negative orthant of a unit
+hypersphere SC , where C is now the number of classes.
+The square-root parameterization reduces the complicated
+Riemannian metric on the space of probability density func-
+tions, the Fisher-Rao metric, to the simpler Euclidean inner
+product on the tangent space of the unit hypersphere with
+closed form expressions for the geodesic distance, exponen-
+tial and logarithm maps [39]. In this work, equipped with
+the knowledge of differential geometry of the sphere, we
+propose different loss functions for the tackling the classifi-
+cation problem. We consider two main variants – learning
+a network to map to the sphere directly or map to its tan-
+gent space. We note that the constraint for a point to be
+on a sphere or to be a probability distribution is simple and
+can be easily satisfied by using an appropriate normaliza-
+tion (dividing by its 2-norm or using softmax). However,
+mapping to the tangent space of the sphere provides a novel
+perspective to the same problem and is more general since
+as we showed earlier, it is necessary for the Grassmannian.
+Consider a classification problem with C classes. For a
+given input vector x, let the ground-truth probability distri-
+bution over the class labels be cpd. The corresponding point
+on SC is given by cS , such that cS(i) =
+?
+cpd(i), i =
+1 . . . C. The pole uS for constructing the tangent space
+TuSSC is chosen to be the point on SC corresponding to
+the uniform distribution upd,upd(i) = 1C , i = 1 . . . C. Let
+? be the desired point on TuSSC for the input x and is given
+by output of the log map ? = exp?1uS (cS). Let the output
+of the last fully connected layer be denoted by o?.
+Geometry of the unit hypersphere [2]: The the n-
+dimensional unit sphere denoted as Sn and is defined as
+Sn = {(x1, x2, . . . , xn+1) ? Rn+1|
+?n+1
+i=1 x
+2
+i = 1}.
+Given any two points x,y ? Sn, the geodesic distance be-
+tween x and y is calculated using d(x,y) = cos?1?x,y?.
+For a given point x ? Sn, the tangent space of Sn at x
+is given by TxSn = {? ? Rn| xT ? = 0}. Since the
+Table 3: Test results for six input images using d = 3. From the figures, we can clearly observe that the GrassmannNet-TS
+(with the Fre?chet mean of the training set as the pole) framework performs much better than the baseline that attempts to
+regress directly to the PC’s. The numbers below the output images indicate the subspace distance from the ground truth
+(lower the better).
+.
+Input Ground truth PC’s Output of baseline n/w Output of GrassmannNet-TS
+DG = 0.5766 DG = 0.4854
+DG = 0.7095 DG = 0.4787
+DG = 0.4429 DG = 0.4009
+DG = 1.0904 DG = 0.3042
+DG = 0.9012 DG = 0.3118
+DG = 0.9244 DG = 0.3294
+Subspace
+Dim d Baseline
+GrassmannNet-TS
+Pole = UdTr Pole = U
+d
+Fr
+3 0.6613 0.3991 0.3953
+4 1.0997 0.5489 0.5913
+5 1.4558 0.8694 0.6174
+Table 4: Mean geodesic distance between predictions and
+ground-truth on the test set using the proposed frame-
+works. GrassmannNet-TS expectedly provides excellent re-
+sults compared to the baseline framework for all subspace
+dimensions. Note that the max DG(.) possible for d = 3, 4
+and 5 are 2.72, 3.14 and 3.51 respectively
+Riemannian metric (the inner product on the tangent space)
+is the usual Euclidean inner product, the distance function
+on the tangent space induced by this inner product is the
+Euclidean distance. The exponential map exp : TxSn ?
+Sn is computed using the following formula: expx ? =
+cos(||?||)x + sin(||?||) ?||?|| , where ? ? TxS
+n. For x,y ?
+Sn, the inverse exponential map exp?1 : Sn ? TxSn is
+given by exp?1x (y) =
+d(x,y)
+||Px(y?x)||Px(y ? x). Px(v) is
+the projection of a vector v ? Rn onto TxSn, given by
+Px(v) = (In ? xxT )v, In is the n× n identity matrix.
+5.1. Mapping to the hypersphere directly: SNet-M
+In this case, the network directly outputs points on the
+sphere and a training pair is represented as (x, cS). We call
+this framework Snet-M. At test time, the network outputs a
+point on the sphere and the corresponding probability dis-
+tribution is computed by squaring the elements of the out-
+put. We propose the following loss functions on the sphere.
+While training, the loss is averaged over the entire batch.
+In this case, we also employ a normalizing layer as the last
+layer of the network which guarantees that o? lies on SC .
+(1) Euclidean loss on SC : This simply measures the Eu-
+clidean distance between two points on a sphere and
+does not take into account the non-linear nature of the
+manifold: LSeuc = ||cS ? o?||o?||2 ||
+2
+2.
+(2) Geodesic loss on SC : The “true” distance be-
+tween the two points on the sphere is given by ? =
+cos?1?cS , o?||o?||2 ?. Since minimizing this function di-
+rectly leads to numerical difficulties, we instead mini-
+mize its surrogate, LSgeo = 1? cos ?.
+5.2. Mapping to the hypersphere via its tangent
+space: SNet-TS
+Here, given an input, the algorithm first produces an in-
+termediate output on TuSSC and then the exponential map
+is used to compute the desired point on SC . The corre-
+sponding probability distribution is computed by simply
+squaring each element of the vector. We refer to this frame-
+work as SNet-TS. A training example, then, is of the form
+(x, ?), where ? is the desired tangent vector. We propose
+the following loss functions on TuSSC .
+(1) Euclidean loss on TuSSC : Measures the Euclidean
+distance between two points on the tangent space of
+the sphere : LTeuc = ||? ? o?||22. The output, o?, is
+however not guaranteed to lie on TuSSC since a point
+on TuSS
+C needs to satisfy the constraint xT ? = 0.
+Therefore, we first project o? to the TuSS
+C and then
+use the exponential map.
+(2) Euclidean + Orthogonal loss on TuSSC : In order to
+improve the ”tangentness” of the output vector, we add
+the inner product loss that encourages the orthogonal-
+ity of the output vector relative to the pole, which is
+the tangent space constraint: LTorth = ||? ? o?||22 +
+?(o?TuS)
+2.
+(3) Projection loss on TuSSC : Since a closed form
+expression exists to project an arbitrary vector onto
+TuSSC , we implement the projection layer as the last
+layer that guarantees that the output of the projection
+layer lies on TuSSC . We compute the Euclidean loss
+between the projected vector and the desired tangent:
+LTproj = ||cS ? PuS o?||22.
+5.3. Experiments with image classification
+Image classification problem is a widely studied problem
+in computer vision and will serve as an example to demon-
+strate training a network to map to points on a unit hyper-
+sphere and its tangent space. We now describe the experi-
+ments conducted using MNIST and CIFAR-10 datasets. We
+train 6 networks with different loss functions. The first net-
+work is a baseline using the softmax layer to output a prob-
+ability distribution directly and employs the well-known
+cross-entropy loss. The next two networks use the SNet-M
+framework and LSeuc and LSgeo as the loss functions. The
+desired outputs in this case lie on SC and the network em-
+ploys a normalizing layer at the end in order force the output
+vector to lie on the SC . The ground-truth output vectors are
+obtained by using the square-root parametrization. The fi-
+nal 3 networks employ the SNet-TS framework and LTeuc ,
+LTorth and LTproj as the loss functions. The desired output
+vector, in this case, should lie on TuSSC . The required log-
+arithm and exponential maps are computed using the Man-
+ifold Optimization toolbox [6]. We note that the purpose of
+the experiments is to show that for some chosen network ar-
+chitecture, the proposed loss functions that are inspired by
+the geometry of the hypersphere, perform comparably with
+the cross-entropy loss function.
+MNIST: The MNIST dataset [32] consists a total of
+60000 images of hand-written digits (0-9). Each image is of
+size 28× 28 and is in grayscale. The task is to classify each
+image into one of the 10 classes (0-9). The dataset is split
+into training and testing sets with 50000 and 10000 images
+respectively. We use the LeNet-5 architecture as the neural
+network [32]. The network consists of 2 convolutional and
+max-pooling (conv) layers followed by 2 fully-connected
+(fc) layers. ReLU non-linearity is employed. The filters
+are of size 5× 5. The first and second conv layers produce
+32 and 64 feature maps respectively. The first and second fc
+layers output 1024 and 10 elements respectively. The net-
+works are trained for 50000 iterations with a batch size of
+100 using Adam optimizer [28] with learning rate of 10?3.
+CIFAR-10: The CIFAR-10 dataset [30] consists a total of
+60000 RGB natural images. Each image is of size 32× 32.
+The task is to classify each image into one of the 10 classes
+(Airplane, Automobile, Bird, Cat, Deer, Dog, Frog, Horse,
+Ship, Truck). The dataset is split into training and testing
+sets with 50000 and 10000 images respectively. The net-
+work consists of 2 conv layers with max-pooling and lo-
+cal response normalization followed by 2 fc layers. ReLU
+non-linearity is employed. Each input image is mean sub-
+tracted and divided by its standard deviation. Data augmen-
+tation using 10 24 × 24 random crops per input image is
+employed to reduce overfitting. At test time, the central
+24× 24 region is used as the input to the network, after per-
+forming the same normalization as the training inputs. The
+networks are trained for 500000 iterations with a batch size
+of 100 using Adam optimizer with learning rate of 10?3.
+For each dataset, we fix the network architecture and
+train the 6 versions of the network with different loss func-
+tion as described above. We use ? = 1 for LTorth . The
+image recognition accuracies obtained on the test set (aver-
+aged over 10 runs) are shown in Table 5.
+The results indeed show that some of the proposed loss
+functions tend to perform better than cross entropy. For
+Framework
+Desired Output of
+Network Lies on Loss Function
+Test Accuracy
+on MNIST (%)
+Test Accuracy
+on CIFAR-10 (%)
+Baseline Cross Entropy 99.224 (0.0306) 78.685 (0.3493)
+SNet-M SC LSeuc 99.263 (0.0479) 79.738 (0.4009)
+LSgeo 99.293 (0.0343) 80.024 (0.5131)
+SNet-TS TuSSC
+LTeuc 99.293 (0.0691) 77.548 (0.5620)
+LTorth 99.279 (0.0448) 77.708 (0.3517)
+LTproj 99.332 (0.0600) 76.047 (1.6225)
+Table 5: Avg test accuracy (std. dev.) over 10 runs using different loss functions on SC and TuSS
+C , compared to the cross
+entropy loss.
+both datasets and especially CIFAR-10, SNet-M yields bet-
+ter performance than cross entropy and within this frame-
+work, geodesic loss performs better compared to Euclidean
+loss. SNet-TS shows improvements in accuracy in the case
+of MNIST, albeit with higher variance in the accuracy.
+6. Conclusion
+In this paper, we have studied the problem of learning in-
+variant representations, which are at the heart of many com-
+puter vision problems, where invariance to physical factors
+such as illumination, pose, etc often lead to representations
+with non-Euclidean geometric properties. We have shown
+how deep learning architectures can be effectively extended
+to such non-linear target domains, exploiting the knowledge
+of data geometry. Through two specific examples – pre-
+dicting illumination invariant representations which lie on
+the Grassmannian, and multi-class classification by map-
+ping to a scale-invariant unit hypersphere representation –
+we have demonstrated how the power of deep networks can
+be leveraged and enhanced by making informed choices
+about the loss function while also enforcing the required
+output geometric constraints exactly. Extensions to other
+geometrically constrained representations, such as symmet-
+ric positive-definite matrices are evident. On the theoretical
+side, extending the current framework to applications where
+data points may have wider spread from their centroid, and
+to non-differentiable manifolds which arise in vision remain
+interesting avenues for the future.
+Acknowledgements
+This work was supported in part by ARO grant number
+W911NF-17-1-0293 and NSF CAREER award 1451263.
+We thank Qiao Wang and Rushil Anirudh for helpful dis-
+cussions.
+Appendix 1: Concepts from differential geom-
+etry
+In this section, we will define some terms from differen-
+tial geometry that are necessary for the rest of the paper. For
+a more comprehensive treatment of matrix manifolds con-
+sidered here, refer Absil et al.[2] and Edelman et al.[12].
+Manifold: A manifold is a topological space that is lo-
+cally Euclidean i.e., at every point on the manifold p ? M,
+there exists an open neighborhood H around p, and a map-
+ping ? such that ?(H) is an open subset of Rn where ?
+is a diffeomorphism. A differentiable manifold is a mani-
+fold that has a differentiable structure associated with it. A
+smooth manifold can be defined similarly.
+Tangent and tangent space: At every point on a dif-
+ferentiable manifold, a linear/vector space, called the tan-
+gent space, of the same dimension as the manifold can be
+constructed. Consider a point p ? M. Consider a curve
+?(t) on the manifold passing through p such that ?(0) = p.
+The derivative of this curve at p, ??(0), is the velocity vec-
+tor, also called the tangent. If one considers all possible
+curves through this point {?i(t)}, i = 1, 2, . . . , then the set
+of all velocity vectors {??i(0)} is the tangent space TpM, at
+this point. The point at which the tangents are computed is
+called the pole of the tangent space.
+Riemannian metric: A Riemannian metric is function
+that smoothly associates, to each point p ? M, an inner
+product on the tangent space TpM. A smooth manifold
+equipped with a Riemannian metric is called a Riemannian
+manifold.
+Geodesic: Consider a curve on the manifold ? : [a, b]?
+M such that ?(a) = x and ?(b) = y. The curve that
+minimizes the functional E =
+? b
+a
+||??(t)||2 dt is called the
+geodesic and locally minimizes the path length between two
+points on the manifold. The norm ||.|| is induced by the Rie-
+mannian metric at ?(t).
+Exponential Map: Given that a unique geodesic ?(t)
+exists locally at p ? M and ?(0) = p and ??(0) = v ?
+TpM, the exponential map at p is the function expp :
+TpM ? M given by expp(v) = ?(1). For a neighbor-
+hood, U ? TpM containing 0, it can be shown that expp is
+a diffeomorphism, i.e., it has an inverse which is also con-
+tinuous. The algorithm for computing the exponential map
+depends both on the manifold of interest and the pole of the
+tangent space.
+Logarithm Map: At least in the neighborhood U ?
+TpM containing 0, the exponential map has an inverse
+called the logarithm map exp?1p : M ? TpM. This also
+points to the fact that the pole is an important design choice.
+The algorithm for computing the logarithm map depends
+both on the manifold of interest and the pole of the tangent
+space.
+Appendix 2: Additional information on face?
+illumination subspace
+Illumination directions used for network inputs
+The 33 illumination directions used for creating inputs
+for both the training and test sets are shown in the left col-
+umn of Table 6 and are a subset of the illumination direc-
+tions used in the Extended Yale Face Database B [16].
+Visualizing output of GrassmannNet-TS
+Due to the invariance provided by the Grassmann man-
+ifold, the exponential map of the tangent need not return
+the same point U whose columns are the principal compo-
+nents (PCs) of the illumination subspace, it is only guar-
+anteed to return a point R whose columns spans the same
+subspace as the columns of U. This means that we can-
+not use the columns of R immediately for visual compar-
+ison with the ground-truth PCs of the subspace. There-
+fore we first find an orthogonal matrix Q? such that Q? =
+arg min
+Q
+||Uavg ? RQ||F and then use R? = RQ? as the
+new point that can be used for visualization. Q? has a sim-
+ple closed form expression given by Q? = WYT , where
+RTUavg = W?Y
+T is the singular value decomposition
+(SVD) of RTPavg [17]. See Figure 2 for visual illustration.
+More results on F2IS
+Table 7 shows the histograms of the subspace distances
+obtained on the test set using the two proposed frameworks.
+These results demonstrate that GrassmannNet-TS performs
+much better than the baseline.
+References
+[1] M. Abadi, A. Agarwal, P. Barham, E. Brevdo, Z. Chen,
+C. Citro, G. S. Corrado, A. Davis, J. Dean, M. Devin, S. Ghe-
+mawat, I. Goodfellow, A. Harp, G. Irving, M. Isard, Y. Jia,
+R. Jozefowicz, L. Kaiser, M. Kudlur, J. Levenberg, D. Mane?,
+R. Monga, S. Moore, D. Murray, C. Olah, M. Schuster,
+J. Shlens, B. Steiner, I. Sutskever, K. Talwar, P. Tucker,
+V. Vanhoucke, V. Vasudevan, F. Vie?gas, O. Vinyals, P. War-
+den, M. Wattenberg, M. Wicke, Y. Yu, and X. Zheng. Tensor-
+Flow: Large-scale machine learning on heterogeneous sys-
+tems, 2015. Software available from tensorflow.org.
+[2] P.-A. Absil, R. Mahony, and R. Sepulchre. Optimization al-
+gorithms on matrix manifolds. Princeton University Press,
+2009.
+Azimuth Elevation Azimuth Elevation
+0 0 0 90
+0 -20 -35 65
+0 20 35 65
+0 -35 -50 -40
+0 45 50 -40
+-5 -5 -60 -20
+-5 5 60 -20
+5 -5 -70 -35
+5 5 -70 0
+-10 0 -70 45
+-10 -20 70 -35
+10 0 70 0
+10 20 70 45
+15 20 -85 -20
+-15 20 -85 20
+-20 -10 85 -20
+-20 10 85 20
+-20 -40 -95 0
+20 -10 95 0
+20 10 -110 -20
+20 -40 -110 15
+25 0 -110 40
+-25 0 -110 65
+-35 -20 110 -20
+-35 15 110 15
+-35 40 110 40
+35 -20 110 65
+35 15 -120 0
+35 40 120 0
+-50 0 -130 20
+50 0 130 20
+-60 20
+60 20
+Table 6: Illumination directions (azimuth and elevation in
+degrees) used to generate illumination subspaces. As net-
+work inputs for both training and test sets, we only use the
+33 illuminations shown in the left column of the table.
+[3] M. Banerjee, R. Chakraborty, E. Ofori, M. S. Okun, D. E.
+Viallancourt, and B. C. Vemuri. A nonlinear regression tech-
+nique for manifold valued data with applications to medical
+image analysis. In Proceedings of the IEEE Conference on
+Computer Vision and Pattern Recognition, June 2016.
+[4] M. Banerjee, R. Chakraborty, E. Ofori, D. Vaillancourt, and
+B. C. Vemuri. Nonlinear regression on riemannian manifolds
+and its applications to neuro-image analysis. In International
+Conference on Medical Image Computing and Computer-
+Assisted Intervention, pages 719–727. Springer, 2015.
+[5] E. Begelfor and M. Werman. Affine invariance revisited.
+In Proceedings of the IEEE Conference on Computer Vision
+and Pattern Recognition, volume 2, pages 2087–2094. IEEE,
+2006.
+Subspace
+Dimension Baseline GrassmannNet-TS
+All pairs of training
+and test subspaces
+3
+0 0.5 1 1.5 2
+Subspace distance between ground truth and prediction
+0
+0.01
+0.02
+0.03
+0.04
+0.05
+0.06
+F
+ra
+ct
+io
+n 
+of
+ p
+oi
+nt
+s
+0 0.5 1 1.5 2
+Subspace distance between ground truth and prediction
+0
+0.05
+0.1
+0.15
+F
+ra
+ct
+io
+n 
+of
+ p
+oi
+nt
+s
+0 0.5 1 1.5 2
+Subspace distance
+0
+0.01
+0.02
+0.03
+0.04
+F
+ra
+ct
+io
+n 
+of
+ p
+oi
+nt
+s
+4
+0 0.5 1 1.5 2
+Subspace distance between ground truth and prediction
+0
+0.005
+0.01
+0.015
+0.02
+0.025
+F
+ra
+ct
+io
+n 
+of
+ p
+oi
+nt
+s
+0 0.5 1 1.5 2
+Subspace distance between ground truth and prediction
+0
+0.02
+0.04
+0.06
+0.08
+0.1
+F
+ra
+ct
+io
+n 
+of
+ p
+oi
+nt
+s
+0 0.5 1 1.5 2
+Subspace distance
+0
+0.005
+0.01
+0.015
+0.02
+0.025
+0.03
+F
+ra
+ct
+io
+n 
+of
+ p
+oi
+nt
+s
+5
+0 0.5 1 1.5 2
+Subspace distance between ground truth and prediction
+0
+0.005
+0.01
+0.015
+0.02
+0.025
+F
+ra
+ct
+io
+n 
+of
+ p
+oi
+nt
+s
+0 0.5 1 1.5 2
+Subspace distance between ground truth and prediction
+0
+0.02
+0.04
+0.06
+0.08
+0.1
+0.12
+F
+ra
+ct
+io
+n 
+of
+ p
+oi
+nt
+s
+0 0.5 1 1.5 2
+Subspace distance
+0
+0.005
+0.01
+0.015
+0.02
+0.025
+0.03
+F
+ra
+ct
+io
+n 
+of
+ p
+oi
+nt
+s
+Table 7: Histograms of test results. From the plots, we can clearly observe that the GrassmannNet-TS (with the Fre?chet mean
+of the training set as the pole) framework performs much better than the baseline that attempts to regress directly to the PC’s.
+The last column shows the histograms of subspace distances between training and test subspaces.
+(a)
+(b)
+(c)Figure 2: Images illustrating F2IS for d = 4 (a) Top 4 PCs
+of the training set i.e., U4Tr. (b) Output of exponential map
+for GrassmannNet-TS. (c) Output of GrassmannNet-TS af-
+ter rotation by Q?.
+[6] N. Boumal, B. Mishra, P.-A. Absil, R. Sepulchre, et al.
+Manopt, a matlab toolbox for optimization on manifolds.
+Journal of Machine Learning Research, 15(1):1455–1459,
+2014.
+[7] M. M. Bronstein, J. Bruna, Y. LeCun, A. Szlam, and P. Van-
+dergheynst. Geometric deep learning: going beyond eu-
+clidean data. IEEE Signal Processing Magazine, 2017.
+[8] J. Bruna, W. Zaremba, A. Szlam, and Y. LeCun. Spectral
+networks and locally connected networks on graphs. Inter-
+national Conference on Learning Representations, 2014.
+[9] A. Byravan and D. Fox. Se3-nets: Learning rigid body mo-
+tion using deep neural networks. IEEE International Confer-
+ence on Robotics and Automation, 2016.
+[10] R. Clark, S. Wang, H. Wen, A. Markham, and N. Trigoni.
+Vinet: Visual-inertial odometry as a sequence-to-sequence
+learning problem. AAAI Conference on Artificial Intelli-
+gence, 2017.
+[11] A. de Bre?bisson and P. Vincent. An exploration of softmax
+alternatives belonging to the spherical loss family. Interna-
+tional Conference on Learning Representations, 2016.
+[12] A. Edelman, T. A. Arias, and S. T. Smith. The geometry of
+algorithms with orthogonality constraints. SIAM journal on
+Matrix Analysis and Applications, 20(2):303–353, 1998.
+[13] R. Epstein, P. W. Hallinan, and A. L. Yuille. 5±2 eigenim-
+ages suffice: an empirical investigation of low-dimensional
+lighting models. In Proceedings of the Workshop on Physics-
+Based Modeling in Computer Vision, page 108. IEEE, 1995.
+[14] P. T. Fletcher. Geodesic regression and the theory of least
+squares on Riemannian manifolds. International Journal of
+Computer Vision, 105(2):171–185, 2013.
+[15] T. Fletcher. Geodesic regression on Riemannian mani-
+folds. In Proceedings of the Third International Workshop
+on Mathematical Foundations of Computational Anatomy-
+Geometrical and Statistical Methods for Modelling Biologi-
+cal Shape Variability, pages 75–86, 2011.
+[16] A. S. Georghiades, P. N. Belhumeur, and D. J. Kriegman.
+From few to many: Illumination cone models for face recog-
+nition under variable lighting and pose. IEEE Transactions
+on Pattern Analysis and Machine Intelligence, 23(6):643–
+660, 2001.
+[17] G. H. Golub and C. F. Van Loan. Matrix computations, vol-
+ume 3. JHU Press, 2012.
+[18] P. W. Hallinan. A low-dimensional representation of human
+faces for arbitrary lighting conditions. In Proceedings of the
+IEEE Conference on Computer Vision and Pattern Recogni-
+tion, 1994.
+[19] J. Hamm and D. D. Lee. Grassmann discriminant analysis:
+a unifying view on subspace-based learning. In Proceedings
+of the International Conference on Machine Learning, pages
+376–383. ACM, 2008.
+[20] M. Harandi and B. Fernando. Generalized
+backpropagation,\’{E} tude de cas: Orthogonality. arXiv
+preprint arXiv:1611.05927, 2016.
+[21] M. Henaff, J. Bruna, and Y. LeCun. Deep convolu-
+tional networks on graph-structured data. arXiv preprint
+arXiv:1506.05163, 2015.
+[22] Y. Hong, R. Kwitt, N. Singh, B. Davis, N. Vasconcelos, and
+M. Niethammer. Geodesic regression on the Grassmannian.
+In European Conference on Computer Vision, pages 632–
+646. Springer, 2014.
+[23] Z. Huang and L. Van Gool. A Riemannian network for SPD
+matrix learning. AAAI Conference on Artificial Intelligence,
+2017.
+[24] Z. Huang, C. Wan, T. Probst, and L. Van Gool. Deep learning
+on Lie groups for skeleton-based action recognition. Pro-
+ceedings of the IEEE Conference on Computer Vision and
+Pattern Recognition, 2016.
+[25] Z. Huang, J. Wu, and L. Van Gool. Building deep networks
+on Grassmann manifolds. arXiv preprint arXiv:1611.05742,
+2016.
+[26] S. Jetley, N. Murray, and E. Vig. End-to-end saliency map-
+ping via probability distribution prediction. In 2016 IEEE
+Conference on Computer Vision and Pattern Recognition,
+pages 5753–5761, 2016.
+[27] H. J. Kim, N. Adluru, M. D. Collins, M. K. Chung, B. B.
+Bendlin, S. C. Johnson, R. J. Davidson, and V. Singh. Multi-
+variate general linear models (mglm) on Riemannian man-
+ifolds with applications to statistical analysis of diffusion
+weighted images. In Proceedings of the IEEE Conference
+on Computer Vision and Pattern Recognition, pages 2705–
+2712, 2014.
+[28] D. Kingma and J. Ba. Adam: A method for stochastic opti-
+mization. International Conference on Learning Represen-
+tations, 2015.
+[29] A. V. Knyazev and M. E. Argentati. Principal angles between
+subspaces in an a-based scalar product: algorithms and per-
+turbation estimates. SIAM Journal on Scientific Computing,
+23(6):2008–2040, 2002.
+[30] A. Krizhevsky. Learning multiple layers of features from
+tiny images. Technical Report, 2009.
+[31] J. D. Lafferty and G. Lebanon. Diffusion kernels on sta-
+tistical manifolds. Journal of Machine Learning Research,
+6:129–163, 2005.
+[32] Y. LeCun, L. Bottou, Y. Bengio, and P. Haffner. Gradient-
+based learning applied to document recognition. Proceed-
+ings of the IEEE, 86(11):2278–2324, 1998.
+[33] Y. M. Lui. Advances in matrix manifolds for computer vi-
+sion. Image and Vision Computing, 30(6):380–388, 2012.
+[34] J. Masci, D. Boscaini, M. Bronstein, and P. Vandergheynst.
+Geodesic convolutional neural networks on Riemannian
+manifolds. In Proceedings of the IEEE International Con-
+ference on Computer Vision workshops, pages 37–45, 2015.
+[35] M. Niepert, M. Ahmed, and K. Kutzkov. Learning convo-
+lutional neural networks for graphs. In Proceedings of the
+International Conference on Machine Learning, 2016.
+[36] P. Paysan, R. Knothe, B. Amberg, S. Romdhani, and T. Vet-
+ter. A 3d face model for pose and illumination invariant face
+recognition. In Sixth IEEE International Conference on Ad-
+vanced video and signal based surveillance, pages 296–301.
+IEEE, 2009.
+[37] X. Pennec, P. Fillard, and N. Ayache. A Riemannian frame-
+work for tensor computing. International Journal of Com-
+puter Vision, 66(1):41–66, 2006.
+[38] X. Shi, M. Styner, J. Lieberman, J. G. Ibrahim, W. Lin,
+and H. Zhu. Intrinsic regression models for manifold-valued
+data. In International Conference on Medical Image Com-
+puting and Computer-Assisted Intervention, pages 192–199.
+Springer, 2009.
+[39] A. Srivastava, I. Jermyn, and S. Joshi. Riemannian analysis
+of probability density functions with applications in vision.
+In Proceedings of the IEEE Conference on Computer Vision
+and Pattern Recognition, pages 1–8. IEEE, 2007.
+[40] A. Srivastava and E. Klassen. Bayesian and geometric sub-
+space tracking. Advances in Applied Probability, 36(01):43–
+56, 2004.
+[41] A. Srivastava and P. Turaga. Riemannian computing in com-
+puter vision. Springer International Publishing, 1 2015.
+[42] S. Taheri, P. Turaga, and R. Chellappa. Towards view-
+invariant expression analysis using analytic shape manifolds.
+In IEEE International Conference on Automatic Face &
+Gesture Recognition and Workshops, pages 306–313. IEEE,
+2011.
+[43] P. Turaga, A. Veeraraghavan, A. Srivastava, and R. Chel-
+lappa. Statistical computations on Grassmann and Stiefel
+manifolds for image and video-based recognition. IEEE
+Transactions on Pattern Analysis and Machine Intelligence,
+33(11):2273–2286, 2011.
+[44] R. Vemulapalli, F. Arrate, and R. Chellappa. Human action
+recognition by representing 3D skeletons as points in a Lie
+group. In Proceedings of the IEEE Conference on Computer
+Vision and Pattern Recognition, pages 588–595, 2014.
+[45] R. Vemulapalli and R. Chellapa. Rolling rotations for rec-
+ognizing human actions from 3D skeletal data. In Proceed-
+ings of the IEEE Conference on Computer Vision and Pattern
+Recognition, pages 4471–4479, 2016.
+[46] P. Vincent, A. de Bre?bisson, and X. Bouthillier. Efficient
+exact gradient update for training deep networks with very
+large sparse targets. In Advances in Neural Information Pro-
+cessing Systems, pages 1108–1116, 2015.

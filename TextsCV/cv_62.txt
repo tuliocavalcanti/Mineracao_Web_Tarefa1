@@ -1,0 +1,1163 @@
+Inferring Human Activities Using Robust Privileged Probabilistic Learning
+Michalis Vrigkas1 Evangelos Kazakos2 Christophoros Nikou2 Ioannis A. Kakadiaris1
+1Computational Biomedicine Lab, University of Houston, Houston, TX, USA
+2Dept. Computer Science & Engineering, University of Ioannina, Ioannina, Greece
+Abstract
+Classification models may often suffer from “structure
+imbalance” between training and testing data that may oc-
+cur due to the deficient data collection process. This im-
+balance can be represented by the learning using privileged
+information (LUPI) paradigm. In this paper, we present a
+supervised probabilistic classification approach that inte-
+grates LUPI into a hidden conditional random field (HCRF)
+model. The proposed model is called LUPI-HCRF and is
+able to cope with additional information that is only avail-
+able during training. Moreover, the proposed method em-
+ployes Student’s t-distribution to provide robustness to out-
+liers by modeling the conditional distribution of the priv-
+ileged information. Experimental results in three publicly
+available datasets demonstrate the effectiveness of the pro-
+posed approach and improve the state-of-the-art in the
+LUPI framework for recognizing human activities.
+1. Introduction
+The rapid development of human activity recognition
+systems for applications such as surveillance and human-
+machine interactions [5, 31] brings forth the need for devel-
+oping new learning techniques. Learning using privileged
+information (LUPI) [18, 28, 34] has recently generated con-
+siderable research interest. The insight of LUPI is that one
+may have access to additional information about the train-
+ing samples, which is not available during testing.
+Despite the impressive progress that has been made in
+recognizing human activities, the problem still remains
+challenging. First, constructing a visual model for learn-
+ing and analyzing human movements is difficult. The large
+intra-class variabilities or changes in appearance make the
+recognition problem difficult to address. Finally, the lack of
+informative data or the presence of misleading information
+may lead to ineffective approaches.
+We address these issues by presenting a probabilistic ap-
+proach, which is able to learn human activities by exploiting
+additional information about the input data, that may reflect
+on auxiliary properties about classes and members of the
+Figure 1. Robust learning using privileged information. Given a
+set of training examples and a set of additional information about
+the training samples (left) our system can successfully recognize
+the class label of the underlying activity without having access
+to the additional information during testing (right). We explore
+three different forms of privileged information (e.g., audio signals,
+human poses, and attributes) by modeling them with a Student’s
+t-distribution and incorporating them into the LUPI-HCRF model.
+classes of the training data (Fig. 1). In this context, we em-
+ploy a new learning method based on hidden conditional
+random fields (HCRFs) [24], called LUPI-HCRF, which
+can efficiently manage dissimilarities in input data, such as
+noise, or missing data, using a Student’s t-distribution. The
+use of Student’s t-distribution is justified by the property
+that it has heavier tails than a standard Gaussian distribu-
+tion, thus providing robustness to outliers [23].
+The main contributions of our work can be summarized
+in the following points. First, we developed a probabilis-
+tic human activity recognition method that exploits privi-
+leged information based on HCRFs to deal with missing or
+incomplete data during testing. Second, contrary to previ-
+ous methods, which may be sensitive to outlying data mea-
+surements, we propose a robust framework by employing a
+Student’s t-distribution to attain robustness against outliers.
+Finally, we emphasize the generic nature of our approach to
+cope with samples from different modalities.
+ar
+X
+iv
+:1
+70
+8.
+09
+82
+5v
+1 
+ [
+cs
+.C
+V
+] 
+ 3
+1 
+A
+ug
+ 2
+01
+7
+2. Related work
+A major family of methods relies on learning human
+activities by building visual models and assigning activity
+roles to people associated with an event [27, 36]. Earlier
+approaches use different kinds of modalities, such as au-
+dio information, as additional information to construct bet-
+ter classification models for activity recognition [32].
+A shared representation of human poses and visual infor-
+mation has also been explored [40]. Several kinematic con-
+straints for decomposing human poses into separate limbs
+have been explored to localize the human body [4]. How-
+ever, identifying which body parts are most significant for
+recognizing complex human activities still remains a chal-
+lenging task [16]. Much focus has also been given in rec-
+ognizing human activities from movies or TV shows by ex-
+ploiting scene contexts to localize and understand human
+interactions [10, 22]. The recognition accuracy of such
+complex videos can also be improved by relating textual
+descriptions and visual context to a unified framework [26].
+Recently, intermediate semantic features representation
+for recognizing unseen actions during training has been pro-
+posed [17, 38]. These features are learned during training
+and enable parameter sharing between classes by capturing
+the correlations between frequently occurring low-level fea-
+tures [1]. Instead of learning one classifier per attribute, a
+two-step classification method has been proposed by Lam-
+pert et al. [14]. Specific attributes are predicted from pre-
+trained classifiers and mapped into a class-level score.
+Recent methods that exploited deep neural networks
+have demonstrated remarkable results in large-scale
+datasets. Donahue et al. [6] proposed a recurrent con-
+volutional architecture, where recurrent long-term models
+are connected to convolutional neural networks (CNNs)
+that can be jointly trained to simultaneously learn spatio-
+temporal dynamics. Wang et al. [37] proposed a new video
+representation that employs CNNs to learn multi-scale con-
+volutional feature maps. Tran et al. [33] introduced a 3D
+ConvNet architecture that learns spatio-temporal features
+using 3D convolutions. A novel video representation, that
+can summarize a video into a single image by applying rank
+pooling on the raw image pixels, was proposed by Bilen et
+al. [2]. Feichtenhofer et al. [7] introduced a novel architec-
+ture for two stream ConvNets and studied different ways for
+spatio-temporal fusion of the ConvNet towers. Zhu et al.
+[41] argued that videos contain one or more key volumes
+that are discriminative and most volumes are irrelevant to
+the recognition process.
+The LUPI paradigm was first introduced by Vapnik and
+Vashist [34] as a new classification setting to model based
+on a max-margin framework, called SVM+. The choice of
+different types of privileged information in the context of
+an object classification task implemented in a max-margin
+scheme was also discussed by Sharmanska et al. [30]. Wand
+x1 x2 xTx?1 x
+?
+2 x
+?
+T· · ·
+h1 h2 hT· · ·
+y
+Figure 2. Graphical representation of the chain structure model.
+The grey nodes are the observed features (xi), the privileged infor-
+mation (x?i ), and the unknown labels (y), respectively. The white
+nodes are the unobserved hidden variables (h).
+and Ji [39] proposed two different loss functions that exploit
+privileged information and can be used with any classifier.
+Recently, a combination of the LUPI framework and active
+learning has been explored by Vrigkas et al. [35] to classify
+human activities in a semi-supervised scheme.
+3. Robust privileged probabilistic learning
+Our method uses HCRFs, which are defined by a chained
+structured undirected graph G = (V, E) (see Fig. 2), as the
+probabilistic framework for modeling the activity of a sub-
+ject in a video. During training, a classifier and the mapping
+from observations to the label set are learned. In testing, a
+probe sequence is classified into its respective state using
+loopy belief propagation (LBP) [12].
+3.1. LUPI-HCRF model formulation
+We consider a labeled dataset with N video sequences
+consisting of triplets D = {(xi,j ,x?i,j , yi)}Ni=1, where
+xi,j ? RMx×T is an observation sequence of length T with
+j = 1 . . . T . For example, xi,j might correspond to the
+jth frame of the ith video sequence. Furthermore, yi corre-
+sponds to a class label defined in a finite label set Y . Also,
+the additional information about the observations xi is en-
+coded in a feature vector x?i,j ? RMx?×T . Such privileged
+information is provided only at the training step and it is
+not available during testing. Note that we do not make any
+assumption about the form of the privileged data. In what
+follows, we omit indices i and j for simplicity.
+The LUPI-HCRF model is a member of the exponential
+family and the probability of the class label given an obser-
+vation sequence is given by:
+p(y|x,x?;w) =
+?
+h
+p(y,h|x,x?;w)
+=
+?
+h
+exp (E(y,h|x,x?;w)?A(w)) ,
+(1)
+where w = [?,?] is a vector of model parameters, and
+h = {h1, h2, . . . , hT }, with hj ? H being a set of latent
+variables. In particular, the number of latent variables may
+be different from the number of samples, as hj may cor-
+respond to a substructure in an observation. Moreover, the
+features follow the structure of the graph, in which no fea-
+ture may depend on more than two hidden states hj and
+hk [24]. This property not only captures the synchroniza-
+tion points between the different sets of information of the
+same state, but also models the compatibility between pairs
+of consecutive states. We assume that our model follows
+the first-order Markov chain structure (i.e., the current state
+affects the next state). Finally, E(y,h|x;w) is a vector of
+sufficient statistics and A(w) is the log-partition function
+ensuring normalization:
+A(w) = log
+?
+y?
+?
+h
+exp (E(y?,h|x,x?;w)) . (2)
+Different sufficient statistics E(y|x,x?;w) in (1) define
+different distributions. In the general case, sufficient statis-
+tics consist of indicator functions for each possible config-
+uration of unary and pairwise terms:
+E(y,h|x,x?;w) =
+?
+j?V
+?(y, hj ,xj ,x
+?
+j ;?) +
+?
+j,k?E
+?(y, hj , hk;?) ,
+(3)
+where the parameters ? and ? are the unary and the pair-
+wise weights, respectively, that need to be learned. The
+unary potential does not depend on more than two hidden
+variables hj and hk, and the pairwise potential may depend
+on hj and hk, which means that there must be an edge (j, k)
+in the graphical model. The unary potential is expressed by:
+?(y, hj ,xj ,x
+?
+j ;?) =
+?
+`
+?1,`(y, hj ;?1,`)
++ ?2(hj ,xj ;?2) + ?3(hj ,x
+?
+j ;?3) ,
+(4)
+and it can be seen as a state function, which consists of
+three different feature functions. The label feature function,
+which models the relationship between the label y and the
+hidden variables hj , is expressed by:
+?1,`(y, hj ;?1,`) =
+?
+??Y
+?
+a?H
+?1,`1(y = ?)1(hj = a) , (5)
+where 1(·) is the indicator function, which is equal to 1 if its
+argument is true, and 0 otherwise. The observation feature
+function, which models the relationship between the hidden
+variables hj and the observations x, is defined by:
+?2(hj ,xj ;?2) =
+?
+a?H
+?>2 1(hj = a)xj . (6)
+Finally, the privileged feature function, which models the
+relationship between the hidden variables hj is defined by:
+?3(hj ,x
+?
+j ;?3) =
+?
+a?H
+?>3 1(hj = a)x
+?
+j . (7)
+The pairwise potential is a transition function and rep-
+resents the association between a pair of connected hidden
+states hj and hk and the label y. It is expressed by:
+?(y, hj , hk;?) =
+?
+??Y
+a,b?H
+?
+`
+?`1(y = ?)1(hj = a)1(hk = b) .
+(8)
+3.2. Parameter learning and inference
+In the training step the optimal parameters w? are esti-
+mated by maximizing the following loss function:
+L(w) =
+N?
+i=1
+log p(yi|xi,x?i ;w)?
+1
+2?2
+?w?2 . (9)
+The first term is the log-likelihood of the posterior proba-
+bility p(y|x,x?;w) and quantifies how well the distribution
+in Eq. (1) defined by the parameter vector w matches the
+labels y. The second term is a Gaussian prior with variance
+?2 and works as a regularizer. The loss function is opti-
+mized using the limited-memory BFGS (LBFGS) method
+[20] to minimize the negative log-likelihood of the data.
+Our goal is to estimate the optimal label configuration
+over the testing input, where the optimality is expressed in
+terms of a cost function. To this end, we maximize the pos-
+terior probability and marginalize over the latent variables
+h and the privileged information x?:
+y = arg max
+y
+p(y|x;w)
+= arg max
+y
+?
+h
+?
+x?
+p(y,h|x,x?;w)p(x?|x;w) . (10)
+To efficiently cope with outlying measurements about
+the training data, we consider that the training samples x
+and x? jointly follow a Student’s t-distribution. Therefore,
+the conditional distribution p(x?|x;w) is also a Student’s
+t-distribution St(x?|x;µ?,??, ??), where x? forms the first
+Mx? components of (x?,x)
+T , x comprises the remaining
+M ? Mx? components, with mean vector µ?, covariance
+matrix ?? and ?? ? [0,?) corresponds to the degrees of
+freedom of the distribution [13]. If the data contain out-
+liers, the degrees of freedom parameter ?? is weak and the
+mean and covariance of the data are appropriately weighted
+in order not to take into account the outliers. An approxi-
+mate inference is employed for estimation of the marginal
+probability (Eq. (10)) by applying the LBP algorithm [12].
+4. Multimodal Feature Fusion
+One drawback of combining features of different modal-
+ities is the different frame rate that each modality may
+have. Thus, instead of directly combining multimodal fea-
+tures together one may employ canonical correlation analy-
+sis (CCA) [9] to exploit the correlation between the differ-
+ent modalities by projecting them onto a common subspace
+Algorithm 1 Robust privileged probabilistic leaning
+Input: Original data x, privileged data x?, class labels y
+1: Perform feature extraction from both x and x?
+2: Project x and x? onto a common space using Eq. (11)
+3: w? ? arg min
+w
+(?L(w)) /* Train LUPI-HCRF on x
+and x? using Eq. (9) */
+4: y? ? arg max
+y
+p(y|x;w) /* Marginalize over h and x?
+using Eq. (10) */
+Output: Predicted labels y?
+so that the correlation between the input vectors is maxi-
+mized in the projected space. In this paper, we followed
+a different approach. Our model is able to learn the rela-
+tionship between the input data and the privileged features.
+To this end, we jointly calibrate the different modalities by
+learning a multiple output linear regression model [21]. Let
+x ? RM×d be the input raw data and a ? RM×p be the
+set of semantic attributes (privileged features). Our goal is
+to find a set of weights ? ? Rd×p, which relates the priv-
+ileged features to the regular features by minimizing a dis-
+tance function across the input samples and their attributes:
+arg min
+?
+?x? ? a?2 + ????2 , (11)
+where ???2 is a regularization term and ? controls the de-
+gree of the regularization, which was chosen to give the best
+solution by using cross validation with ? ? [10?4, 1]. Fol-
+lowing a constrained least squares (CLS) optimization prob-
+lem and minimizing ???2 subject to x? = a, Eq. (11) has
+a closed form solution ? =
+(
+xTx + ?I
+)?1
+xTa, where I is
+the identity matrix. Note that the minimization of Eq. (11)
+is fast since it needs to be solved only once during training.
+Finally, we obtain the prediction f of the privileged features
+by multiplying the regular features with the learned weights
+f = x · ?. The main steps of the proposed method are
+summarized in Algorithm 1.
+5. Experiments
+Datasets: The TV human interaction (TVHI) [22]
+dataset consists of 300 videos and contains four kinds of in-
+teractions. The SBU Kinect Interaction (SBU) [40] dataset
+is a collection of approximately 300 videos that contain
+eight different interaction classes. Finally, the unstructured
+social activity attribute (USAA) [8] dataset includes eight
+different semantic class videos of social occasions and con-
+tains around 100 videos per class for training and testing.
+5.1. Implementation details
+Feature selection: For the evaluation of our method, we
+used spatio-temporal interest points (STIP) [15] as our base
+Dataset Features (dimension) Regular Privileged
+TVHI [22]
+STIP (162) 3
+Head orientations (2) 3
+MFCC (39) 3
+SBU [40] STIP (162) 3Pose (15) 3
+USAA [8]
+STIP (162) 3
+SIFT (128) 3
+MFCC (39) 3
+Semantic attributes (69) 3
+Table 1. Types of features used for human activity recognition for
+each dataset. The numbers in parentheses indicate the dimension
+of the features. The checkmark corresponds to the usage of the
+specific information as regular or privileged. Privileged features
+are used only during training.
+video representation. These features were selected because
+they can capture salient visual motion patterns in an effi-
+cient and compact way. In addition, for the TVHI dataset,
+we also used the provided annotations, which are related
+to the locations of the persons in each video clip. For this
+dataset, we used audio features as privileged information.
+More specifically, we employed the mel-frequency cepstral
+coefficients (MFCC) [25] features, resulting in a collection
+of 13 MFCC coefficients, and their first and second order
+derivatives forming a 39-dimensional feature vector.
+Furthermore, for the SBU dataset, as privileged informa-
+tion, we used the positions of the locations of the joints for
+each person in each frame, and six more feature types con-
+cerning joint distance, joint motion, plane, normal plane,
+velocity, and normal velocity as described by Yun et al.
+[40]. Finally, for the USAA dataset we used the provided
+attribute annotation as privileged information to character-
+ize each class with a feature vector of semantic attributes.
+As a representation of the video data, we used the provided
+SIFT [19], STIP, and MFCC features. Table 1 summarizes
+all forms of features used either as regular or privileged for
+each dataset during training and testing.
+Model selection: The model in Fig. 2 was trained by
+varying the number of hidden states from 4 to 20, with a
+maximum of 400 iterations for the termination of LBFGS.
+The L2 regularization scale term ? was searched within
+{10?3, . . . , 103} and 5-fold cross validation was used to
+split the datasets into training and test sets, and the average
+results over all the examined configurations are reported.
+5.2. Results and discussion
+Classification with hand-crafted features: We com-
+pare the results of our LUPI-HCRF method with the state-
+of-the-art SVM+ method [34] and other baselines that in-
+corporate the LUPI paradigm. Also, to demonstrate the ef-
+ficacy of robust privileged information to the problem of
+human activity recognition, we compared it with ordinary
+97.82
+18.75
+18.75
+12.50
+2.08
+81.25
+6.25
+0.00
+0.00
+0.00
+72.92
+0.00
+0.00
+0.00
+2.08
+87.50
+hand shake
+high five
+hug
+kiss
+hand shake
+high five
+hug
+kiss
+(a)
+100.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+83.33
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+100.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+16.67
+0.00
+100.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+66.67
+66.67
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+33.33
+33.33
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+100.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+100.00
+approach
+depart
+kick
+push
+shake hands
+hug
+exchange
+punch
+approach
+depart
+kick
+push
+shake hands
+hug
+exchange
+punch
+78.79
+17.17
+4.95
+3.96
+7.69
+32.22
+0.00
+11.54
+5.05
+59.60
+4.95
+3.96
+10.99
+8.70
+0.00
+3.85
+3.03
+3.03
+74.26
+0.99
+0.00
+6.52
+0.00
+1.92
+8.08
+4.04
+7.92
+60.40
+0.00
+4.35
+5.21
+28.46
+0.00
+3.03
+0.00
+1.98
+70.33
+15.22
+0.00
+3.85
+0.00
+6.06
+0.00
+2.97
+0.00
+11.26
+0.00
+7.69
+2.02
+4.04
+5.94
+14.85
+1.10
+9.78
+87.50
+19.23
+3.03
+3.03
+1.98
+10.89
+9.89
+11.96
+7.29
+23.46
+birthday
+graduation
+music
+non music
+parade
+ceremony
+dance
+reception
+birthday
+graduation
+music
+non music
+parade
+ceremony
+dance
+reception
+(b) (c)
+Figure 3. Confusion matrices for the classification results of the
+proposed LUPI-HCRF approach for (a) the TVHI [22], (b) the
+SBU [40], and (c) the USAA [8] datasets.
+SVM and HCRF, as if they could access both the original
+and the privileged information at test time. This means that
+we do not differentiate between regular and privileged infor-
+mation, but use both forms of information as regular to infer
+the underlying class label instead. Also, for the SVM+ and
+SVM, we consider a one-versus-all decomposition of multi-
+class classification scheme and average the results for every
+possible configurations. Finally, the optimal parameters for
+the SVM and SVM+ were selected using cross validation.
+The resulting confusion matrices for all datasets are de-
+picted in Fig. 3. For the TVHI and SBU datasets, the classi-
+fication errors between different classes are relatively small,
+as only a few classes are strongly confused with each other.
+For the USAA dataset, the different classes may be strongly
+confused (e.g., the class wedding ceremony is confused with
+the class graduation party) as the dataset has large intra-
+class variabilities, while the different classes may share the
+same attribute representation as different videos may have
+been captured under similar conditions.
+The benefit of using robust privileged information along
+with conventional data instead of using each modality sep-
+arately or both modalities as regular information is shown
+in Table 2. The combination of regular and privileged fea-
+tures has considerably increased the recognition accuracy to
+much higher levels than using each modality separately. If
+only privileged information is used as regular for classifica-
+tion, the recognition accuracy is notably lower than when
+using visual information for the classification task. Thus,
+we may come to the conclusion that finding proper privi-
+leged information is not always a straightforward problem.
+Table 3 compares the proposed approach with state-of-
+the-art methods on the human activity classification task on
+the same datasets. The results indicate that our approach
+improved the classification accuracy. On TVHI, we sig-
+Dataset Regular Privileged Accuracy (%)
+TVHI [22]
+visual 7 60.9
+audio 7 35.9
+visual+audio 7 81.3
+visual audio 84.9
+SBU [40]
+visual 7 69.8
+pose 7 62.5
+visual+pose 7 81.4
+visual pose 85.4
+USAA [8]
+visual 7 55.5
+sem. attributes 7 37.4
+visual+sem. attributes 7 54.0
+visual sem. attributes 58.1
+Table 2. Comparison of feature combinations for classifying hu-
+man activities and events on TVHI [22], SBU [40] and USAA [8]
+datasets. Robust privileged information seems to work in favor of
+the classification task. The crossmark corresponds to the absence
+of privileged information during training.
+Hand-crafted features
+Method TVHI SBU USAA
+Wang and Schmid [36] 76.1± 0.4 79.6±0.4 55.5± 0.1
+Wang and Ji [39] 74.8± 0.2 62.4± 0.3 48.5± 0.2
+Sharmanska et al. [30] 65.2± 0.1 56.3± 0.2 56.3± 0.2
+SVM [3] 75.9± 0.6 79.4± 0.4 47.4± 0.1
+HCRF [24] 81.3± 0.7 81.4± 0.8 54.0± 0.8
+SVM+ [34] 75.0± 0.2 79.4± 0.3 48.5± 0.1
+LUPI-HCRF 84.9± 0.8 85.4± 0.4 58.1± 1.4
+Table 3. Comparison of the classification accuracies (%) on TVHI,
+SBU and USAA datasets using hand-crafted features.
+nificantly managed to increase the classification accuracy
+by approximately 10% with respect to the SVM+ approach.
+Also, the improvement of our method with respect to SVM+
+was about 6% and 10% for the SBU and USAA datasets, re-
+spectively. This indicates the strength of the LUPI paradigm
+and demonstrates the need for additional information.
+Classification with CNN features: In our experiments,
+we used CNNs for both end-to-end classification and fea-
+ture extraction. In both cases, we employed the pre-trained
+model of Tran et al. [33], which is a 3D ConvNet. We
+selected this model because it was trained on a very large
+dataset, namely Sports 1M dataset [11], which provides
+very good features for the activity recognition task, espe-
+cially in our case where the size of the training data is small.
+For the SBU dataset, which is a fairly small dataset, only
+a few parameters had to be trained to avoid overfitting. We
+replaced the fully-connected layer of the pre-trained model
+with a new fully-connected layer of size 1024 and retrained
+the model by adding a softmax layer on top of it. For the
+TVHI dataset, we fine-tuned the last group of convolutional
+layers, while for USAA, we fine-tuned the last two groups.
+Each group has two convolutional layers, while we added
+a new fully-connected layer of size 256. For the optimiza-
+tion process, we used mini-batch gradient descent (SGD)
+with momentum. The size of the mini-batch was set to 16
+CNN features
+Method TVHI SBU USAA
+CNN (end-to-end) [33] 60.5± 1.1 94.2± 0.8 67.4± 0.6
+SVM [3] 90.0± 0.3 92.8± 0.2 91.9± 0.3
+HCRF [24] 89.6± 0.5 91.1± 0.4 91.6± 0.8
+SVM+ [34] 92.5± 0.4 94.8± 0.3 92.3± 0.3
+LUPI-HCRF 93.2± 0.6 94.9± 0.7 93.9± 0.9
+Table 4. Comparison of the classification accuracies (%) on TVHI,
+SBU and USAA datasets using CNN features.
+with a constant momentum of 0.9. For the SBU dataset, the
+learning rate was initialized to 0.01 and it was decayed by a
+factor of 0.1, while the total number of training epochs was
+1000. For the TVHI and USAA datasets, we used a con-
+stant learning rate of 10?4 and the total number of training
+epochs was 500 and 250, respectively. For all datasets, we
+added a dropout layer after the new fully-connected layer
+with probability 0.5. Also, we performed data augmenta-
+tion on each batch online and 16 consecutive frames were
+randomly selected for each video. These frames were ran-
+domly cropped, resulting in frames of size 112 × 112 and
+then flipped with probability 0.5. For classification, we used
+the centered 112 × 112 crop on the frames of each video
+sequence. Then, for each video, we extracted 10 random
+clips of 16 frames and averaged their predictions. Finally,
+to avoid overfitting, we used early stopping and extracted
+CNN features from the newly added fully-connected layer.
+Table 4 summarizes the comparison of LUPI-HCRF with
+state-of-the-art methods using the features extracted from
+the CNN model, and end-to-end learning of the CNN model
+using softmax loss for the classification. The improvement
+of accuracy, compared to the classification based on the
+traditional features (Table 3), indicates that CNNs may ef-
+ficiently extract informative features without any need to
+hand design them. We may observe that privileged in-
+formation works in favor of the classification task in all
+cases. LUPI-HCRF achieves notably higher recognition ac-
+curacy with respect to the HCRF model and the SVM+ ap-
+proaches. Moreover, for both TVHI and USAA datasets,
+when LUPI-HCRF is compared to the end-to-end CNN
+model, it achieved an improvement of approximately 33%
+and 27%, respectively. This huge improvement can be ex-
+plained by the fact that the CNN model uses a very simple
+classifier in the softmax layer, while LUPI-HCRF is a more
+sophisticated model that can efficiently handle sequential
+data in a more principled way.
+The corresponding confusion matrices using the CNN-
+based features, are depicted in Fig. 4. The combination
+of privileged information with the information learned from
+the CNN model feature representation resulted in very small
+inter- and intra-class classification errors for all datasets.
+Discussion: In general, our method is able to robustly
+use privileged information in a more efficient way than its
+80.00
+0.00
+0.00
+0.00
+10.00
+100.00
+0.00
+0.00
+10.00
+0.00
+92.86
+0.00
+0.00
+0.00
+7.14
+100.00
+hand shake
+high five
+hug
+kiss
+hand shake
+high five
+hug
+kiss
+(a)
+90.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+3.20
+100.00
+0.00
+11.11
+0.00
+0.00
+0.00
+0.00
+6.80
+0.00
+92.50
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+7.50
+88.89
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+87.50
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+12.50
+100.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+100.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+100.00
+approach
+depart
+kick
+push
+shake hands
+hug
+exchange
+punch
+approach
+depart
+kick
+push
+shake hands
+hug
+exchange
+punch
+94.28
+0.00
+0.00
+0.00
+2.94
+3.13
+0.00
+5.26
+2.86
+97.22
+0.00
+2.78
+2.94
+0.00
+0.00
+0.00
+0.00
+0.00
+94.44
+2.78
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+5.56
+83.32
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+5.56
+94.12
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+96.87
+0.00
+0.00
+0.00
+0.00
+0.00
+5.56
+0.00
+0.00
+97.14
+0.00
+2.86
+2.78
+0.00
+0.00
+0.00
+0.00
+2.86
+94.74
+birthday
+graduation
+music
+non music
+parade
+ceremony
+dance
+reception
+birthday
+graduation
+music
+non music
+parade
+ceremony
+dance
+reception
+(b) (c)
+Figure 4. Confusion matrices for the classification results of the
+proposed LUPI-HCRF approach for (a) the TVHI [22], (b) the
+SBU [40], and (c) the USAA [8] datasets using the CNN features.
+SVM+ counterpart by exploiting the hidden dynamics be-
+tween the videos and the privileged information. However,
+selecting which features can act as privileged information is
+not straightforward. The performance of LUPI-based clas-
+sifiers relies on the delicate relationship between the regular
+and the privileged information. Tables 3 and 4 show that
+SVM and HCRF perform worse than LUPI-HCRF. This is
+because at training time privileged information comes as
+ground truth but at test time it is not. Also, privileged in-
+formation is costly or difficult to obtain with respect to pro-
+ducing additional regular training examples [29].
+6. Conclusion
+In this paper, we addressed the problem of human activ-
+ity recognition and proposed a novel probabilistic classifica-
+tion model based on robust learning by incorporating a Stu-
+dent’s t-distribution into the LUPI paradigm, called LUPI-
+HCRF. We evaluated the performance of our method on
+three publicly available datasets and tested various forms of
+data that can be used as privileged. The experimental results
+indicated that robust privileged information ameliorates the
+recognition performance. We demonstrated improved re-
+sults with respect to the state-of-the-art approaches that may
+or may not incorporate privileged information.
+Acknowledgments
+This work was funded in part by the UH Hugh Roy and Lillie
+Cranz Cullen Endowment Fund and by the European Commission
+(H2020-MSCA-IF-2014), under grant agreement No. 656094. All
+statements of fact, opinion or conclusions contained herein are
+those of the authors and should not be construed as representing
+the official views or policies of the sponsors.
+References
+[1] Z. Akata, F. Perronnin, Z. Harchaoui, and C. Schmid. Label-
+embedding for attribute-based classification. In Proc. IEEE
+Computer Society Conference on Computer Vision and Pat-
+tern Recognition, pages 819–826, Portland, OR, June 2013.
+[2] H. Bilen, B. Fernando, E. Gavves, A. Vedaldi, and S. Gould.
+Dynamic image networks for action recognition. In Proc.
+IEEE Computer Society Conference on Computer Vision and
+Pattern Recognition, pages 3034–3042, Las Vegas, NV, June
+2016.
+[3] C. M. Bishop. Pattern Recognition and Machine Learning.
+Springer, 2006.
+[4] A. Cherian, J. Mairal, K. Alahari, and C. Schmid. Mixing
+body-part sequences for human pose estimation. In Proc.
+IEEE Computer Society Conference on Computer Vision and
+Pattern Recognition, pages 2361–2368, Columbus, OH, June
+2014.
+[5] I. Cohen, F. G. Cozman, N. Sebe, M. C. Cirelo, and T. S.
+Huang. Semisupervised learning of classifiers: theory, algo-
+rithms, and their application to human-computer interaction.
+IEEE Transactions on Pattern Analysis and Machine Intelli-
+gence, 26(12):1553–1566, December 2004.
+[6] J. Donahue, L. A. Hendricks, S. Guadarrama, M. Rohrbach,
+S. Venugopalan, K. Saenko, and T. Darrell. Long-term re-
+current convolutional networks for visual recognition and
+description. In Proc. IEEE Computer Society Conference
+on Computer Vision and Pattern Recognition, pages 2625–
+2634, Boston, MA, June 2015.
+[7] C. Feichtenhofer, A. Pinz, and A. Zisserman. Convolutional
+two-stream network fusion for video action recognition. In
+Proc. IEEE Computer Society Conference on Computer Vi-
+sion and Pattern Recognition, pages 1933–1941, Las Vegas,
+NV, June 2016.
+[8] Y. Fu, T. M. Hospedales, T. Xiang, and S. Gong. Attribute
+learning for understanding unstructured social activity. In
+Proc. 12th European Conference on Computer Vision, vol-
+ume 7575 of Lecture Notes in Computer Science, pages 530–
+543, Firenze, Italy, October 2012.
+[9] D. R. Hardoon, S. R. Szedmak, and J. R. Shawe-Taylor.
+Canonical correlation analysis: an overview with applica-
+tion to learning methods. Neural Computation, 16(12):2639–
+2664, Dec. 2004.
+[10] M. Hoai and A. Zisserman. Talking heads: Detecting hu-
+mans and recognizing their interactions. In Proc. IEEE Com-
+puter Society Conference on Computer Vision and Pattern
+Recognition, pages 875–882, Columbus, OH, June 2014.
+[11] A. Karpathy, G. Toderici, S. Shetty, T. Leung, R. Sukthankar,
+and L. Fei-Fei. Large-scale video classification with con-
+volutional neural networks. In Proc. IEEE Computer Soci-
+ety Conference on Computer Vision and Pattern Recognition,
+pages 1725–1732, Columbus, OH, June 2014.
+[12] N. Komodakis and G. Tziritas. Image completion using
+efficient belief propagation via priority scheduling and dy-
+namic pruning. IEEE Transactions on Image Processing,
+16(11):2649–2661, November 2007.
+[13] S. Kotz and S. Nadarajah. Multivariate t-distributions and
+their applications. Cambridge University Press, Cambridge,
+2004.
+[14] C. H. Lampert, H. Nickisch, and S. Harmeling. Learning to
+detect unseen object classes by between-class attribute trans-
+fer. In Proc. IEEE Computer Society Conference on Com-
+puter Vision and Pattern Recognition, pages 951–958, Mi-
+ami Beach, Florida, June 2009.
+[15] I. Laptev. On space-time interest points. International Jour-
+nal of Computer Vision, 64(2-3):107–123, September 2005.
+[16] I. Lillo, A. Soto, and J. C. Niebles. Discriminative hier-
+archical modeling of spatio-temporally composable human
+activities. In Proc. IEEE Computer Society Conference on
+Computer Vision and Pattern Recognition, pages 812–819,
+Columbus, OH, June 2014.
+[17] J. Liu, B. Kuipers, and S. Savarese. Recognizing human ac-
+tions by attributes. In Proc. IEEE Computer Society Con-
+ference on Computer Vision and Pattern Recognition, pages
+3337–3344, Colorado Springs, CO, June 2011.
+[18] D. Lopez-Paz, L. Bottou, B. Scho?lkopf, and V. Vapnik. Uni-
+fying distillation and privileged information. In Proc. Inter-
+national Conference on Learning Representations, San Jose,
+Puerto Rico, May 2016.
+[19] D. G. Lowe. Distinctive image features from scale-invariant
+keypoints. International Journal on Computer Vision,
+60(2):91–110, Nov. 2004.
+[20] J. Nocedal and S. J. Wright. Numerical optimization.
+Springer series in operations research and financial engineer-
+ing. Springer, New York, NY, 2nd edition, 2006.
+[21] M. Palatucci, D. Pomerleau, G. E. Hinton, and T. M.
+Mitchell. Zero-shot learning with semantic output codes. In
+Proc. Advances in Neural Information Processing Systems,
+pages 1410–1418, Vancouver, British Columbia, Canada,
+December 2009.
+[22] A. Patron-Perez, M. Marszalek, I. Reid, and A. Zisser-
+man. Structured learning of human interactions in TV shows.
+IEEE Transactions on Pattern Analysis and Machine Intelli-
+gence, 34(12):2441–2453, Dec. 2012.
+[23] D. Peel and G. J. Mclachlan. Robust mixture modelling us-
+ing the t distribution. Statistics and Computing, 10:339–348,
+2000.
+[24] A. Quattoni, S. Wang, L. P. Morency, M. Collins, and T. Dar-
+rell. Hidden conditional random fields. IEEE Transactions
+on Pattern Analysis and Machine Intelligence, 29(10):1848–
+1852, 2007.
+[25] L. Rabiner and B. H. Juang. Fundamentals of Speech Recog-
+nition. Prentice-Hall, Upper Saddle River, NJ, 1993.
+[26] V. Ramanathan, P. Liang, and L. Fei-Fei. Video event under-
+standing using natural language descriptions. In Proc. IEEE
+International Conference on Computer Vision, pages 905–
+912, Sydney, Australia, December 2013.
+[27] V. Ramanathan, B. Yao, and L. Fei-Fei. Social role discovery
+in human events. In Proc. IEEE Computer Society Confer-
+ence on Computer Vision and Pattern Recognition, Portland,
+OR, June 2013.
+[28] N. Sarafianos, C. Nikou, and I. A. Kakadiaris. Predicting
+privileged information for height estimation. In Proc. Inter-
+national Conference on Pattern Recognition, Cancun, Mex-
+ico, December 2016.
+[29] C. Serra-Toro, V. J. Traver, and F. Pla. Exploring some prac-
+tical issues of svm+: Is really privileged information that
+helps? Pattern Recognition Letters, 42(0):40–46, 2014.
+[30] V. Sharmanska, N. Quadrianto, and C. H. Lampert. Learn-
+ing to rank using privileged information. In Proc. IEEE In-
+ternational Conference on Computer Vision, pages 825–832,
+Sydney, Australia, December 2013.
+[31] A. W. M. Smeulders, D. M. Chu, R. Cucchiara, S. Calderara,
+A. Dehghan, and M. Shah. Visual tracking: an experimental
+survey. IEEE Transactions on Pattern Analysis and Machine
+Intelligence, 36(7):1442–1468, 2014.
+[32] Y. Song, L. P. Morency, and R. Davis. Multi-view latent vari-
+able discriminative models for action recognition. In Proc.
+IEEE Computer Society Conference on Computer Vision and
+Pattern Recognition, Providence, Rhode Island, June 2012.
+[33] D. Tran, L. Bourdev, R. Fergus, L. Torresani, and M. Paluri.
+Learning spatiotemporal features with 3D convolutional net-
+works. In Proc. IEEE International Conference on Computer
+Vision, pages 4489–4497, Santiago, Chile, December 2015.
+[34] V. Vapnik and A. Vashist. A new learning paradigm: Learn-
+ing using privileged information. Neural Networks, 22(5–
+6):544–557, 2009.
+[35] M. Vrigkas, C. Nikou, and I. A. Kakadiaris. Active privi-
+leged learning of human activities from weakly labeled sam-
+ples. In Proc. 23rd IEEE International Conference on Im-
+age Processing, pages 3036–3040, Phoenix, AZ, September
+2016.
+[36] H. Wang and C. Schmid. Action recognition with improved
+trajectories. In Proc. IEEE International Conference on
+Computer Vision, pages 3551–3558, Sydney, Australia, De-
+cember 2013.
+[37] L. Wang, Y. Qiao, and X. Tang. Action recognition with
+trajectory-pooled deep-convolutional descriptors. In Proc.
+IEEE Computer Society Conference on Computer Vision and
+Pattern Recognition, pages 4305–4314, Boston, MA, June
+2015.
+[38] Y. Wang and G. Mori. A discriminative latent model of ob-
+ject classes and attributes. In Proc. 11th European Confer-
+ence on Computer Vision: Part V, pages 155–168, Heraklion,
+Crete, Greece, 2010.
+[39] Z. Wang and Q. Ji. Classifier learning with hidden informa-
+tion. In Proc. IEEE Computer Society Conference on Com-
+puter Vision and Pattern Recognition, pages 4969–4977,
+Boston, MA, June 2015.
+[40] K. Yun, J. Honorio, D. Chattopadhyay, T. L. Berg, and
+D. Samaras. Two-person interaction detection using body-
+pose features and multiple instance learning. In Proc.
+IEEE Computer Society Conference on Computer Vision and
+Pattern Recognition Workshops, pages 28–35, Providence,
+Rhode Island, June 2012.
+[41] W. Zhu, J. Hu, G. Sun, X. Cao, and Y. Qiao. A key vol-
+ume mining deep framework for action recognition. In Proc.
+IEEE Computer Society Conference on Computer Vision and
+Pattern Recognition, pages 1991–1999, Las Vegas, NV, June
+2016.

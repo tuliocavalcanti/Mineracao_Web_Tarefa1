@@ -1,0 +1,1039 @@
+Action Classification and Highlighting in Videos
+Atousa Torabi
+Disney Research Pittsburgh
+atousa.torabi@disneyresearch.com
+Leonid Sigal
+Disney Research Pittsburgh
+lsigal@disneyresearch.com
+Abstract
+Inspired by recent advances in neural machine transla-
+tion, that jointly align and translate using encoder-decoder
+networks equipped with attention, we propose an attention-
+based LSTM model for human activity recognition. Our
+model jointly learns to classify actions and highlight frames
+associated with the action, by attending to salient visual in-
+formation through a jointly learned soft-attention networks.
+We explore attention informed by various forms of visual se-
+mantic features, including those encoding actions, objects
+and scenes. We qualitatively show that soft-attention can
+learn to effectively attend to important objects and scene in-
+formation correlated with specific human actions. Further,
+we show that, quantitatively, our attention-based LSTM out-
+performs the vanilla LSTM and CNN models used by state-
+of-the-art methods. On a large-scale youtube video dataset,
+ActivityNet [4], our model outperforms competing methods
+in action classification.
+1. Introduction
+Activity recognition, classification and understanding
+are important problems in computer vision. The popular-
+ity of these problems, empowered by recent availability of
+large-scale on-line video resources (e.g., YouTube, Google,
+Bing) and datasets (e.g., ActivityNet [4]), stems from the
+vast number of applications that such technology will en-
+able that include surveillance, video understanding, intelli-
+gent search and retrieval, automated metadata tagging and
+human-computer interactions. However, activity recogni-
+tion has also proven to be an immensely challenging vi-
+sual task as granularity, viewpoint, appearance and duration
+of activities can vary greatly and both spatial and temporal
+context appear to be critically important.
+Neural network-based architectures, particularly Convo-
+lutional Neural Network (CNN), and end-to-end learning
+have recently illustrated great success in advancing state-of-
+the-art in variety of problems in computer vision, including
+image classification [17, 39, 34], object detection [8, 11]
+and most recently action recognition [33, 40]. However,
+vt
+a1
+a2
+a3
+aT
++
+wt,1
+wt,2
+wt,3
+wt,T
+St-1
+St
+yt-1
+yt
+S1 y1
+A
+tte
+nd
+ed
+In
+pu
+t
+Video Encoder Alignment Decoder
+C3D
+VGG
+SN yN
+LSTM
+Figure 1. We use an encoder-decoder framework for action
+recognition. Our LSTM decoder is equipped with an at-
+tention/alignment model that allows it focus on salient con-
+text/attended data. Attended-data is encoded using VGG network
+[34] and LSTM input-data is encoded using C3D network [40].
+such CNN models largely ignore the temporal progression
+of the action and typically learn frame-based or short 3-D
+spatio-temporal filters [40] and aggregate information us-
+ing simple maximum or average pooling across fixed-length
+segments [33, 40] or the entire video. Very recently, in less
+than a handful of papers, Recurrent Neural Network (RNN),
+that have long history in speech recognition and language
+translation, have been re-discovered as effective means of
+more explicitly modeling temporal context in action recog-
+nition [37, 26, 47]. One significant limitation of RNN is
+inability to backpropagate error through long-range tempo-
+ral interval (a problem known as vanishing gradient effect).
+A class of models that was specifically developed to be im-
+mune to such effect, through the use of simple memory-cell-
+ar
+X
+iv
+:1
+70
+8.
+09
+52
+2v
+1 
+ [
+cs
+.C
+V
+] 
+ 3
+1 
+A
+ug
+ 2
+01
+7
+like gates, was first introduced by Hochreiter and Schmid-
+huber [10] and termed Long Short-Term Memory (LSTM).
+LSTMs coupled with CNNs have many properties that
+make them appealing and notably appropriate for tempo-
+ral perception tasks (hierarchical representation learning,
+temporal context with memory, possible end-to-end learn-
+ing). However, such models effectively distill each frame
+into static learned representation, using one or more CNNs,
+and aggregate this(these) representation(s) across time us-
+ing LSTM. One seemingly important property of human
+perception that is glaringly missing is attention, i.e., ten-
+dency not to process a whole video at once and rather attend
+selectively to parts of video that are most important for a
+given (e.g., activity) recognition task. We note that such at-
+tention mechanism is particularly important for videos that
+contain visual clutter. By attending, parts of the video that
+are most discriminative can be highlighted and used to bet-
+ter inform recognition model during learning and inference.
+In this paper, we explore the use of end-to-end encoder-
+decoder LSTM framework with the built-in attention mech-
+anism. The most distinguishing feature of the proposed ap-
+proach is that it does not attempt to utilize (encode) the en-
+tire input video for prediction of the action class (decoder).
+Instead it encodes a video into a temporal sequence of visual
+representations and chooses an adaptively wighted subset of
+that sequence for prediction. Each time model generates an
+action class prediction it soft-searches for a set of temporal
+positions within the video where most salient relevant infor-
+mation is concentrated. This is a much more flexible mecha-
+nism, as compared to, for example, earlier structured latent
+variable models [28], that required much more restrictive
+conditional independence constraints, or fixed low-level at-
+tention schemes [25, 43] which failed to significantly im-
+prove the performance or scale in practice.
+Contributions: To the best of our knowledge, we are the
+first to show significant performance improvements that can
+come from temporal attention in action classification task.
+While in [50] attention-based LSTM is also proposed, the
+improvements due to attention network are shown to be
+minimal (< 0.5%). In contrast, we show that by attend-
+ing on i) much longer sequences and on ii) complemen-
+tary semantic contextual features (e.g., objects, actions and
+scenes), much larger improvements in performance can be
+made (of up to 20% or 8 percentage points). Further, we
+show that individual models, trained to attend on these dif-
+ferent features, are themselves complementary and can be
+combined for additional performance gains. Conceptually,
+attention network allows our model to automatically learn
+to highlight salient spatial/spatio-temporal cues while inte-
+grating that information with LSTM model for time-step ac-
+tion classification. Qualitatively, we show that attention net-
+work learns to consistently attend to important semantics of
+the actions, despite the noise present in the input sequences,
+which adds to interpretability of the model. Quantitatively,
+we show improved performance compared to the state-of-
+the-art on the large scale ActivityNet [4] dataset.
+2. Related Work
+Recognition and understanding of human activities is a
+well studied problem in computer vision. As such, complete
+overview is beyond the scope of this paper and we refer
+reader to surveys [1, 27] for a more historical perspective.
+Here we focus on recent and most relevant approaches.
+Traditional action recognition: Traditional action recog-
+nition approaches largely focused on global video represen-
+tations that achieved good results on smaller and simpler
+datasets, e.g., KTH [30], HMDB51 [18] and UCF101 [36].
+Such approaches focused on pach-based local motion and
+appearance information in the form of Histogram of Ori-
+ented Gradients (HOG), Histogram of Optical Flow (HOF)
+[20], Motion Boundary Histogram (MBH) [46] or dense-
+trajectories [44, 45]. Classification was typically achieved
+by further aggregating these local representations across
+videos or using spatio-temporal pyramids [22] with Bag-
+of-Words(BoW) [20] or Fisher vector based encodings [45]
+followed by traditional classifiers (e.g., SVMs).
+CNN-based approaches: Availability of larger datasets
+and recent advances in representation learning for recog-
+nition, in the form of CNN, have led to the use of CNNs
+in action classification and understanding. The benefits of
+CNNs, e.g., over BoW, stem from their ability to learn rel-
+evant and discriminative representations, at a hierarchy of
+spatio-temporal granularities. Among the earliest, [16, 14]
+used 3D CNN to encode few video frames, showing that
+encoding multiple frames using raw pixels is marginally
+better than single-frame CNN models for video classifica-
+tion [16]. Simonyan et al. [33] incorporated stack of 10-15
+optical flow images, instead of raw pixels, in CNN model
+trained to encode motion information. Frame-level spatial
+information was learned using a separate CNN stream, and
+combination the two CNN models was shown to outper-
+form traditional approaches. More recently, Tran et al. [40]
+learned generic video feature, in the form of 3D CNN, and
+applied it to variety of video understanding tasks. To in-
+corporate some longer-term temporal information, Zha et
+al. [51] experimented with different spatial and temporal
+pooling over CNN features, applying the resulting model to
+TRECVID multimedia event detection challenge; similarly,
+Ng et al. [26] study variety of CNN pooling strategies that
+process up to 120 frames and obtain impressive results on
+Sport-1M video classification.
+Temporal models and LSTM: The core idea that tempo-
+ral progression of an activity is important, has a long his-
+tory in the field. A variety of early models have been uti-
+lized for modeling of temporal context, including Hidden
+semi-Markov Models (HSMM) [6], CRFs [35], and finite-
+state-machines [12]. Most recently, RNNs have also been
+explored; LSTM, a form of RNN, has recently become
+particularly popular due to its ability to deal with vanish-
+ing and exploding gradients during training. RNN/LSTM
+have a number of notable benefits with respect to, for ex-
+ample, HMMs or CRFs, including fewer conditional in-
+dependence assumptions and possible end-to-end training
+when combined with CNN. Several recent works incorpo-
+rate spatial/optical-flow CNN features with vanilla LSTM
+models for global temporal modeling of videos [37, 5, 26,
+47, 42]. These works showed improvements with respect
+to action recognition [5, 22, 47] or video description tasks
+[49, 42]. Similar to these methods, we also incorporate
+CNN features with LSTM for action recognition. How-
+ever, we use a new variant of LSTM model equipped with
+an attention network that allows it to focus and highlight
+discriminative frames and use object and scene features as
+context.
+Temporal and spatial attention: There have been previ-
+ous attempts to ask whether information from all frames is
+equally important for video recognition/understanding [29].
+To this end a number of keyframe-based representations
+have been proposed. For example, [52] rank all frames
+based on holistic information theoretic measure; [23] rely
+on spatio-temporal localization and AdaBoost to select
+keyframes; [28] automatically select compact keyframe
+representation using a latent structured SVM formulation.
+In complement, low-level spatial attention models, trained
+from eye-gaze in video, have been studied in [25, 43], with
+relatively limited success. More recently, Shapovalova et
+al. [31] use eye-gaze information as weak-supervision for
+action localization. Our model also has an attention mech-
+anism, but compared with [28] or [31] that suffer from
+complexities imposed by discrete latent variables, avoids
+scalability issues by employing soft-attention coupled with
+LSTM. Our dynamic soft-attention mechanism is also in
+stark contrast with static low-level attention models of [25]
+and [43].
+LSTM models with attention: Models that combine neu-
+ral network architectures with attention are relatively recent
+(perhaps the earliest mention is in the context of Boltz-
+mann Machine [21]). In vision, Xu et al. [48] use spatial
+soft-attention that learns to fix gaze on salient image parts
+while generating description for images. Yao et al. [49] also
+use soft-attention mechanism on video frames for video de-
+scription. Perhaps in the closest work to ours, Yeung et
+al. [50] propose a multiLSTM for action detection, where
+as input-data their model aggregates few frames CNN fea-
+tures using soft-attention and generates multiple outputs at
+each time step corresponding to multiple frames. The re-
+sults show that adding soft-attention for weighted averag-
+ing of few input frames only marginally (< 0.5%) improves
+the performance over uniform average. In contrast, we ap-
+ply soft-attention mechanism on temporally longer contex-
+tual information (e.g., object, scene or complementary ac-
+tion features) rather than LSTM inputs. We show that in
+this way our jointly trained model can better focus on, or
+highlight, important frames, which substantially improves
+action classification performance and gives some semantic
+interpretation for results.
+3. Approach
+In our model, activity recognition is defined as sequen-
+tial problem where inputs are video features, vt, over time
+and goal is to predict a single label from a fixed action vo-
+cabulary ?v1,v2...,vt? ? y. We make use of the encoder-
+decoder framework, where the input video features are en-
+coded using CNN models and the prediction is done using
+LSTM as a decoder. Figure 1 shows the overview.
+In particular, we build on attention-based LSTM [2] for
+machine translation, and propose a model that takes two
+separate sets of input video features: video-level spatio-
+temporal features that we call Input-data and frame-level
+semantic image features (e.g., encoding objects and scenes)
+that we call Attended-data. In our model, Input-data and
+Attended-data are encoded using different CNN models and
+are described in detail in Sections 3.1 and 3.2 respectively.
+We use soft attention mechanism that learns to highlight (or
+weight) frames with relevant visual semantics (i.e., objects
+or scenes important for an action label prediction)1. We de-
+scribe our soft attention model for action recognition task in
+Section 3.3 and the final LSTM decoder in Section 3.4.
+3.1. Input-data: CNN Encoder
+We assume the input-data to our encoder is a fixed
+temporal-length window of F frames. We extract video fea-
+tures from this window using spatio-temporal CNN imple-
+mented in Caffe [15]. As a result, input window is repre-
+sented using a matrix
+V = {v1, ...,vN} ? RN×dv (1)
+of N video feature vectors, where each vector vi ? Rdv is
+a dv-dimensional representation corresponding to a chunk
+of F/N frames. Note, that N will also correspond to the
+length of the LSTM decoder sequence; i.e., for every video
+feature vector we will get an activity label prediction.
+In particular, we make use of C3D network pre-trained
+on Sport-1-million dataset and fine-tuned it on trimmed Ac-
+tivityNet videos for activityNet experiments. C3D network,
+proposed in [40], has 8 convolutional layers and 2 fully con-
+nected layers, followed by a softmax output layer. All 3D
+1In the context of attention-based LSTM models this is often called soft
+alignement, where in this case alignment is between the output action label
+and the input frames.
+convolution kernels are 3 × 3 × 3 with stride 1 in both
+spatial and temporal dimensions. We extract first Fully-
+Connected layer (FC6) as a feature vector representation,
+therefore dv = 4096.
+3.2. Attended-data: CNN Encoder
+For attended-data, we extract video features using spatial
+CNN in Caffe [15]. As a result, attended-data is represented
+using a matrix,
+A = {a1, ...,aT } ,ai ? RT×da , (2)
+of T video feature vectors where each vector ai ? Rda is
+a da-dimensional representation corresponding to a single
+frame. In our model each attended frame is sampled ev-
+ery F/N video frames, therefore T = N . We make use
+of VGG-19 network [34] trained for three task of object,
+action, and scene recognition:
+• V GGobj : VGG trained, on ImageNet, for 1000 class
+object classification [34];
+• V GGact: VGG-19 network fine-tuned on ActivityNet
+data for action recognition of 203 action classes;
+• V GGsce: VGG-19 network fine-tuned on MIT-Scenes
+for scene recognition of 205 scene classes [53].
+VGG-19 proposed in [34], has 16 convolutinal layers and 3
+fully connected layers, followed by a softmax output layer.
+For some experiments we extract first Fully-Connected
+layer (FC6), therefore da = 4096, and for others we extract
+last Fully-Connected layer (FC8) as a frame representation.
+For V GGobj FC8 layer da = 1000, for V GGact FC8 layer
+da = 203, and for V GGsce FC8 layer da = 205.
+In general, size of attended-data T could be different
+from size of input-data N (T 6= N ). For example, one
+may want to attend to objects/scenes/actions at a coarser or
+finer temporal granularity compared to the granularity of la-
+bel predictions. In experiments, we also consider effect of
+finer grained attention, e.g., sampled every F/(2N) such
+that T = 2N . We also evaluated significance of attended-
+data size, comparing T = 12 and T = 24. We only ob-
+served a negligible improvement using bigger attended-data
+size.
+3.3. Action Attention and Highlighting Model
+Attention model is parametrized as a feedforward neu-
+ral network that is jointly trained with LSTM decoder (see
+Section 3.4). In other words, the gradients of LSTM loss
+function are backpropagated not only through LSTM net-
+work but also through soft-attention network that allows
+joint training of both networks. This model has been orig-
+inally proposed by Bahdanau et al. [2] for machine trans-
+lation. We adopted this model for action highlighting with
+attended-data that we described in the previous section. At-
+tention model generates a score for each attended frame ai
+at time step t. This score represents how well a sequentially
+modeled activity video up to time t ? 1 and attended ai
+are semantically matched. In other words, matching score
+mt,i measures the relevance of ai and LSTM decoder hid-
+den state at time t? 1 and is defined as
+mt,i = ?(ht?1,ai), (3)
+where ht?1 is LSTM decoder hidden state at time t ? 1
+that contains all information related to a temporally mod-
+eled video sample up to time step t ? 1. For model ?, ev-
+ery state ht?1 is summed with every attended-data ai to
+obtain a matching-vectors. Then matching-vector is trans-
+formed into a single number named matching-score mt,i.
+Note, the matching-vector dimension is one of the network
+parameters and, in general, could have different value than
+LSTM hidden-state. Finally, attention weights are com-
+puted by normalizing matching-scores in a softmax-like
+function. Attention weight wt,i for attended frame i at time
+t is computed by:
+wt,i =
+exp(mt,i)?T
+j=1 exp(mt,j)
+. (4)
+A higher attention weight reflects more saliency attributed
+to a specific attended frame i with respect to the specific
+task (action classification).
+Action Attention Context: In order to integrate attended-
+data with LSTM decoder, we compute the weighted average
+of the attended-data using the attention weights obtained
+above. We term this procedure - action attention context:
+kt(A) =
+T?
+i=1
+wt,iai. (5)
+3.4. Attention-Based LSTM Decoder
+Long Short-Term Memory (LSTM) is a specific type of a
+recurrent neural network that recently has been widely used
+in various domain for sequential modeling, due to its ca-
+pabilities to cope with ”vanishing gradients” problem and
+its ”internal memory” property. In high-level definition,
+our attention-based LSTM decoder ? sequentially updates
+LSTM state ht and internal memory ct given previous state
+ht?1, current input-data vt, and action attention context
+vector kt(A). Also, simultaneously, it predicts action la-
+bel yt at time t. In abstract, our LSTM decoder is defined
+as following: ??htyt
+ct
+?? = ?(ht?1,vt,kt(A)). (6)
+In order to fuse input-data and attended-data, the infor-
+mation from action attention context are distributed across
+the input-data vt. We used the version of LSTM in [9],
+where ht is updated by the following intermediate func-
+tions:
+it = ?(Wivt + Uiht?1 + bi) (7)
+ft = ?(Wfvt + Ufht?1 + bf ) (8)
+ot = ?(Wovt + Uoht?1 + bo) (9)
+gt = tanh(Wcvt + Ucht?1 + bc) (10)
+ct = ftct?1 + itgt (11)
+ht = ot tanh(ct), (12)
+where it, ft, ot, and ct are respectively input gate, forget
+gate, output gate, and cell gate (i.e., internal memory) at
+time t. In brief it, ft, and ot control influence of current in-
+put gt and previous memory state ct?1 on generating new
+hidden state ht. The termsWi,Wf ,Wo,Wc, Ui, Uf , Uo, Uc
+encode the various weight matrices and bi,bf ,bo,bc cor-
+responding biases. The prediction yt is computed by linear
+transform on hidden state ht followed by a softmax:
+yt = softmax(Wyht + by), (13)
+where yt ? RC is probability distribution over fixed num-
+ber of C classes.
+Action classification: We average the scores of N time-
+steps of LSTM for each video chunk of F frames (more
+details about classification are in Section 4.1).
+4. Experiments
+We use ActivityNet dataset. ActivityNet [4] is a recent
+large-scale fine-graned human activity dataset with diverse
+203 classes organized in an ontology. ActivityNet includes
+190 Youtube video samples per class, on average, and video
+samples average 1382.3 frames (frame rate is not identical
+for all the videos, however, for most videos it is 29 frame
+per second). Samples correspond to trimmed activities from
+longer videos. An action label is assigned to each trimmed
+video clip. The trimmed data and labels are provided as
+part of standard activity classification task defined in [4].
+However, the trimmed videos are very noisy and contain
+various visual concepts which are not directly related to the
+action label. The dataset includes three splits correspond-
+ing to training, validation, and test sets. The test set is not
+available (withheld by the authors). In our experiment we
+use video samples with minimum 192 frames (about 90%
+of videos). To this end, we split the original 25,124 train-
+ing split into 22,624 training samples and 2,500 validations
+samples for training our algorithm. We used ActivityNet
+validation split, defined in [4], consisting of 8,403 videos,
+as our test set.
+4.1. Implementation Details
+We implemented our attention-enabled LSTM decoder
+in Theano-based framework named BLOCKS [3, 41]. Our
+data pipeline has been implemented using FUEL framework
+[41]. Our LSTM models have N = 12 time-steps and we
+set hidden-state dimension to 512. The matching-vector
+dimension is also 512. Each video sample has fixed size
+of F = 192 frames. The input-data is encoded by C3D
+network every F/N frames which here is 16 frames (see
+Section 3.1 for details). The choice of 16 frame inputs for
+C3D network was made in light of experimental findings
+in [40]. Attended-data is encoded by VGG networks ap-
+plied to frames sampled every 16 frames, from the same
+video of length 192 (see Section 3.2 for details). We added
+a mlp fully-connected layer before LSTM. This layer has a
+segmoid non-linearity applied on input-data without chang-
+ing input-data dimension. For ActivityNet classification, we
+use softmax loss function.
+Training: We train with stochastic gradient descent and ap-
+ply dropout with probability 0.5 to all LSTM non-recurrent
+connections and fully-connected layer.
+For ActivityNet, we use a fixed 0.01 learning rate for
+2, 512 iterations on minibatches of size 200. After that, the
+learning rate is decreased every 125 iterations by a fixed
+ratio. We also used a fixed 0.9 momentum and use early
+stopping strategy on validation set loss. We augment the
+dataset by adding horizontally-flipped frames to training
+data. We perform an on-the-fly temporal cropping of train-
+ing videos which means that at each iteration we randomly
+crop a fixed-size video chunk of 192 frames from each video
+sample in the mini-batch.
+Testing: For each test video, we randomly crop 40 video
+chunks of 192 frames and 40 video chunks of 192 horizon-
+tally flipped frames. The class scores for a test video clip are
+then computed by averaging the scores across all 80 chunks.
+Evaluation Metrics: For ActivityNet, we compute the
+average accuracy over all the trimmed validation samples
+(used as test set; see above). We also report mean Average
+Precision (mAP) over all trimmed validation samples and
+over all 203 classes.
+4.2. Qualitative Results
+In order to show how well our attention networks align
+action with contextual data, we present multiple visualiza-
+tions. Figure 2 shows the video frames with the high-
+est (green rectangle) and lowest (red rectangle) attention
+weights for 3 different samples of each class. The top
+row shows examples for class setting the table and play-
+ing guitar respectively. For these examples contextual data
+(attended-data) are extracted from V GGobj . You can see
+that for first example, images containing table, chair, cup,
+Figure 2. Three examples show frames with highest (green) and
+lowest (red) attention weights for each of the classes (left-to-
+right and top-to-bottom): setting the table, playing guitar, sail-
+ing, mountain climbing, curling, and playing violin. For setting
+table and playing guitar examples attention is on objects context
+(aLSTM-V GGobj (fc8)), for sailing and climbing mountain ex-
+amples attention is on scenes context (aLSTM-V GGsce (fc8)),
+and for curling and playing violin examples attention is on action
+context (aLSTM-V GGact (fc8)).
+dish, glass, candle and napkin have maximum attention
+weights and image with big couch, very zoomed image,
+or image of a woman sitting in a bedroom have the min-
+imum attention weights. In next example, the alignment
+model focus on guitar images and occluded images with
+text or an interviewer picture have the minimum attention
+weight for class playing guitar. Middle row shows 3 video
+examples for class sailing and mountain climbing respec-
+tively. For these examples the attended features are ex-
+tracted using V GGsce. In the first example, images related
+to the scene including sea, sky and sailing boat have the
+highest attention weights and images that contain no scene
+salient features, related to sailing, have the minimum at-
+tention weights. Also in the next example, scenes show-
+Table 1. ActivityNet: Our model action recognition results.
+Model: CNN
+Features AC mAP
+C3D (fc8) 40.9% 40.0%
+Model: LSTM
+Features AC mAP
+LSTM-C3D (fc6) 40.3% 40.6%
+aLSTM-C3D (fc8) 42.7% 42.5%
+aLSTM-V GGobj (fc6) 45.7% 46.2%
+aLSTM-V GGobj (fc8) 47.4% 48.0%
+aLSTM-V GGsce (fc6) 44.0% 43.9%
+aLSTM-V GGsce (fc8) 45.3% 44.9%
+aLSTM-V GGact (fc6) 47.0% 47.3%
+aLSTM-V GGact (fc8) 48.1% 48.6%
+ing mountain, climbers, sky, and snow have the highest at-
+tention weights and close-up images or text, with no fea-
+tures related to mountain climbing, have minimum attention
+weights. Finally, last row shows 3 video examples for class
+curling and playing guitar. For these examples the attended
+features are extracted using V GGact. As one can see,
+most images with maximum attention weight mainly con-
+tain curling and playing guitar. Besides showing that atten-
+tion concentrates on relevant objects, actions and scenes, the
+figure also shows that there is reasonable alignment/visual
+consistency across the attended frames for each action.
+Figure 3 shows 2 video samples for 2 action classes. In
+this figure we show 6 sampled frames out of 12 from orig-
+inal video that are passed to aLSTM for context; weighted
+video frames for attention-based model focus on salient ob-
+ject features, salient scene features and salient action fea-
+tures respectively. For each example, we picked 6 frame
+samples that show variety of attention weights. The darker
+images represent lower attention weights, therefore less sig-
+nificant features, and the lighter images have higher atten-
+tion weights, therefore containing more salient aspects re-
+lated to corresponding action class. For all examples atten-
+tion mechanism mainly focus on salient and discriminative
+video frames. However, interestingly, they are some varia-
+tions between what different models attend to. For instance,
+in having massage example, for aLSTM model attending on
+scene, images containing big text box have minimal weight,
+since those images have no salient features related to natural
+scenes. For aLSTM model attending on object, in yatching
+example, last image has relatively high attention weight. In
+fact, if you search for yatching on Google, the first cate-
+gory that comes up is life style and top example photos are
+images of people in swimwear on boats.
+4.3. Comparative Study of Our Model Variants
+Table 4 shows average accuracy (acc) and mean aver-
+age precision over all classes (mAP) for the ActivityNet.
+Sc
+en
+e
+O
+bj
+ec
+t
+Vi
+de
+o
+Frames: 1463 1495 1527 1543 1607 1639
+0.021 0.002 0.280 0.253 0.067 0.140
+0.034 0.008 0.187 0.250 0.025 0.216
+Ac
+8o
+n
+0.008 0.005 0.307 0.380 0.024 0.027
+(a) Action: Yatching
+Sc
+en
+e
+O
+bj
+ec
+t
+Vi
+de
+o
+Frames: 1308 1324 1388 1420 1452 1468
+0.156 0.212 0.018 0.018 0.016 0.139
+0.148 0.199 0.047 0.048 0.047 0.080
+Ac
+9o
+n
+0.164 0.162 0.045 0.046 0.045 0.100
+(b) Action: Having Massage
+Figure 3. Visualization of our aLSTM-V GG (fc8) models attention weights, attending on object, scene, and action for ActivityNet dataset.
+The lighter video frames have higher attention weight and darker frames represent lower attention weight.
+S2 S3S1 SN
+y1
+average
+y2 y3 yN
+Attended
+v1 v2 v3 vN
+S2 S3S1 SN
+Attended
+v1 v2 v3 vN
+y
+y
+(a) (b)
+Figure 4. Two variations of our attention-enabled LSTM architectures.
+C3D(fc8) shows results for 3D CNN model softmax clas-
+sification directly. LSTM-C3D (FC6) is vanilla LSTM
+model using C3D model fc6 layer representation as input-
+data. aLSTM stands for our attention-based LSTM model.
+We have evaluated our model for all different possible
+variations of attended-data using VGG model (note that
+for all three variations input-data is C3D(fc8) features):
+1) aLSTM ? V GGobj , attends on objects (V GGobj), 2)
+aLSTM ? V GGsce, attends on scenes (V GGsce), and 3)
+aLSTM? V GGact attends on actions (V GGact). For each
+of these three models we tried both fc6 and fc8 layer repre-
+sentations. A few observations can be made based on Table
+ObjectScene Ac*on
+Sor*ng.laundry
+Playing.piano
+Snatch
+Sor*ng.books
+Preparing.pasta
+Sor*ng.books
+Pumping.gas
+Installing.car.stereo
+Kni=ng.sweaters
+Cleaning.microwave
+Playing.piano
+Installing.car.stereo
+Playing.flauta
+Pain*ng.furniture
+Brewing.beer
+0.3 0.33 0.36 0.39 0.35 0.358 0.385 0.4010.28 0.308 0.336 0.364
+Figure 5. For each of the scene, action, object attended models the top 5 classes of ActivityNet on which improvement is achieved with
+respect to vanilla LSTM are shown. Note that on some classes improvement is as much as 40% in classification.
+4. First, LSTM on top of C3D features has minor improve-
+ment over C3D CNN for ActivityNet. All aLSTM models
+outperform vanilla LSTM and CNN models. Specifically,
+aLSTM on C3D improves the performance by approxi-
+mately 2 percentage points for ActivityNet. Further for Ac-
+tivityNet, attending on (contextual) complementary trained
+VGG19 models for scene, object, and action improves the
+performance by a large margin, between 4 ? 5 percentage
+points for the same fc6 features; using fc8 features is uni-
+formly better, even further improving performance.
+Among individual models, the best performance is
+achieved by aLSTM-V GGact (fc8) model for ActivityNet
+(likely because V GGact has been fine-tuned for Activi-
+tyNet), which is consistent with recent results that show im-
+portance of objects [13].
+Figure 4 shows two possible variants of integrating atten-
+tion with LSTM for action classification. In the first variant,
+Figure 4 (a), attention scores are computed at every time
+step t and attended data is distributed into LSTM state St?1
+to compute state St. Also, class scores yt are computed at
+every time step and final score y is the average of all yts.
+This is the model we focused on in the approach section.
+The second variant, Figure 4 (b), has a somewhat different
+architecture. In particular, attention score is only computed
+and integrated into the last LSTM state SN . The classifica-
+tion score y is then computed directly (once) at the end. We
+compare both architectures, using identical setup, and we
+observed architecture (a) that we used for our experiment
+has better performance.
+4.4. Comparison With Competitive Models
+Table 5 shows comparison of our model to state-of-the-
+art on both AcivityNet. In [4], DF stand for Deep features,
+MF stands for motion features, and SF stands for spatial
+features (see [4] for more details). SVM ? DF (fc8) is
+one-vs-all SVM model over DF fc8 layer representation
+described in [4].
+For comparison, we have combined different variations
+of our models described above. Model combination has
+been implemented by averaging the softmax output scores
+over multiple aLSTM models. For example, aLSTM-
+V GGact+obj stands for combining aLSTM-V GGact and
+aLSTM-V GGobj and so on. Also SVMMF+DF stands for
+SVM model over MF and DF feature concatenation de-
+scribed in [4]. Table 5 shows that for ActivityNet our com-
+Table 2. ActivityNet: Comparative results.
+Model: CNN
+Features AC mAP
+CNN-C3D (fc8) 40.9% 40.0%
+SVM-DF [4] (fc8) - 38.1%
+Model: Combined
+Features AC mAP
+SVMMF+DF [4] - 49.5%
+SVMMF+SF [4] - 48.9%
+SVMMF+DF+SF [4] - 50.5%
+aLSTM-V GGact+obj (fc6) 50.0% 51.0%
+aLSTM-V GGact+obj (fc8) 50.7% 51.4%
+aLSTM-V GGact+sce (fc6) 50.4% 50.7%
+aLSTM-V GGact+sce (fc8) 50.7% 51.2%
+aLSTM-V GGact+obj+sce (fc6) 51.4% 52.4%
+aLSTM-V GGact+obj+sce (fc8) 51.5% 52.8%
+aLSTM-V GGact+obj+sce (all) 52.8% 54.2%
+bined models improve both AC and mAPs up to ? 11.5%
+(5.6 percentage points) compared to our best individual
+model aLSTM-V GGact (fc8). This reveals that variations
+of aLSTM that attend on object, scene, and action contex-
+tual data to some extends have complementary information,
+where the combined model aLSTM-V GGact+obj+sce (all)
+has the best performance.
+Figure 5 shows, the top 5 classes of ActivityNet with
+highest accuracy improvement with respect to vanilla
+LSTM-C3D for aLSTM-V GGsce (fc8), aLSTM-V GGobj
+(fc8), and aLSTM-V GGact (fc8) models respectively. For
+object a number of classes (e.g., pumping gas and installing
+car stereo) that contain easily detectable objects, like a car,
+are most significantly improved (by over 30%).
+4.5. Conclusions
+We have presented aLSTM model for action recogni-
+tion. With this model, we are able to attent on and highlight
+most relevant frames and perform fine-grained action clas-
+sification simultaneously. We have shown that by attending
+on features extracted from complementary trained VGG19
+models for scene, object, and action (contextual data), we
+get a significant gain compared to aLSTM on C3D. Fur-
+thermore, our model variations that attend on object, scene,
+and action are complementary which allows their combina-
+tion to have the best performance.
+References
+[1] J. Aggarwal and M. Ryoo. Human activities analysis: A
+review. ACM Computing Surveys, 2011.
+[2] D. Bahdanau, K. Cho, and Y. Bengio. Neural machine
+translation by jointly learning to align and translate. CoRR,
+abs/1409.0473, 2014.
+[3] F. Bastien, P. Lamblin, R. Pascanu, J. Bergstra, I. J. Good-
+fellow, A. Bergeron, N. Bouchard, and Y. Bengio. Theano:
+new features and speed improvements. In NIPS, 2012.
+[4] F. Caba Heilbron, V. Escorcia, B. Ghanem, and J. Car-
+los Niebles. Activitynet: A large-scale video benchmark for
+human activity understanding. In CVPR, 2015.
+[5] J. Donahue, L. A. Hendricks, S. Guadarrama, M. Rohrbach,
+S. Venugopalan, K. Saenko, and T. Darrell. Long-term recur-
+rent convolutional networks for visual recognition and de-
+scription. In CVPR, 2015.
+[6] T. Duong, H. Bui, D. Phung, and S. Venkatesh. Activ-
+ity recognition and abnormality detection with the switching
+hidden semi-markov model. In CVPR, 2005.
+[7] B. Fernando, E. Gavves, J. M. Oramas, A. Ghodrati, and
+T. Tuytelaars. Modeling video evolution for action recogni-
+tion. In CVPR, 2015.
+[8] R. Girshick, J. Donahue, T. Darrell, and J. Malik. Rich fea-
+ture hierarchies for accurate object detection and semantic
+segmentation. In CVPR, 2014.
+[9] A. Graves. Generating sequences with recurrent neural net-
+works. CoRR, abs/1308.0850, 2013.
+[10] S. Hochreiter and J. Schmidhuber. Long short-term memory.
+Neural Computing, 1997.
+[11] J. Hoffman, S. Guadarrama, E. Tzeng, J. Donahue, R. B. Gir-
+shick, T. Darrell, and K. Saenko. LSDA: large scale detection
+through adaptation. In NIPS, 2014.
+[12] N. Ikizler and D. Forsyth. Searching video for complex ac-
+tivities with finite state models. In CVPR, 2007.
+[13] M. Jain, J. C. van Gemert, and C. G. M. Snoek. What do
+15,000 object categories tell us about classifying and local-
+izing actions? In CVPR, 2015.
+[14] S. Ji, W. Xu, M. Yang, and K. Yu. 3d convolutional neural
+networks for human action recognition. IEEE PAMI, 2013.
+[15] Y. Jia, E. Shelhamer, J. Donahue, S. Karayev, J. Long, R. Gir-
+shick, S. Guadarrama, and T. Darrell. Caffe: Convolu-
+tional architecture for fast feature embedding. arXiv preprint
+arXiv:1408.5093, 2014.
+[16] A. Karpathy, G. Toderici, S. Shetty, T. Leung, R. Sukthankar,
+and L. Fei-Fei. Large-scale video classification with convo-
+lutional neural networks. In CVPR, 2014.
+[17] A. Krizhevsky, I. Sutskever, and G. E. Hinton. Imagenet
+classification with deep convolutional neural networks. In
+NIPS, 2012.
+[18] H. Kuehne, H. Jhuang, E. Garrote, T. Poggio, and T. Serre.
+Hmdb: a large video database for human motion recognition.
+In ICCV, 2011.
+[19] Z.-Z. Lan, M. Lin, X. Li, A. G. Hauptmann, and B. Raj.
+Beyond gaussian pyramid: Multi-skip feature stacking for
+action recognition. In CVPR, 2015.
+[20] I. Laptev, M. Marszalek, C. Schmid, and B. Rozenfeld.
+Learning realistic human actions from movies. In CVPR,
+2008.
+[21] H. Larochelle and G. E. Hinton. Learning to combine foveal
+glimpses with a third-order boltzmann machine. In NIPS,
+2010.
+[22] S. Lazebnik, C. Schmid, and J. Ponce. Beyond bags of
+features: Spatial pyramid matching for recognizing natural
+scene categories. In CVPR, 2006.
+[23] L. Liu, L. Shao, and P. Rockett. Boosted key-frame selection
+and correlated pyramidal motion-feature representation for
+human action recognition. Pattern Recognition, 2012.
+[24] M. Marsza?ek, I. Laptev, and C. Schmid. Actions in context.
+In IEEE Conference on Computer Vision & Pattern Recogni-
+tion, 2009.
+[25] S. Mathe and C. Sminchisescu. Dynamic eye movement
+datasets and learnt saliency models for visual action recog-
+nition. In ECCV, 2012.
+[26] J. Y. Ng, M. J. Hausknecht, S. Vijayanarasimhan, O. Vinyals,
+R. Monga, and G. Toderici. Beyond short snippets: Deep
+networks for video classification. In CVPR, 2015.
+[27] R. Poppe. A survey on vision-based human action recogni-
+tion. IVC, 28(6), June 2010.
+[28] M. Raptis and L. Sigal. Poselet key-framing: A model for
+human activity recognition. In CVPR, 2013.
+[29] K. Schindler and L. V. Gool. Action snippets: How many
+frames does human action recognition require? In CVPR,
+2008.
+[30] C. Schldt, I. Laptev, and B. Caputo. Recognizing human
+actions: A local svm approach. In ICPR, 2004.
+[31] N. Shapovalova, M. Raptis, L. Sigal, and G. Mori. Action is
+in the eye of the beholder: Eye-gaze driven model for spatio-
+temporal action localization. In NIPS, 2013.
+[32] S. Sharma, R. Kiros, and R. Salakhutdinov. Action recogni-
+tion using visual attention. arXiv preprint arXiv:1511.04119,
+2015.
+[33] K. Simonyan and A. Zisserman. Two-stream convolutional
+networks for action recognition in videos. In NIPS, 2014.
+[34] K. Simonyan and A. Zisserman. Very deep convolutional
+networks for large-scale image recognition. In ICLR, 2015.
+[35] C. Sminchisescu, A. Kanaujia, Z. Li, and D. Metaxas. Con-
+ditional models for contextual human motion recognition. In
+ICCV, 2005.
+[36] k. Soomro, A. Roshan Zamir, and M. Shah. UCF101: A
+dataset of 101 human actions classes from videos in the wild.
+In CRCV-TR-12-01, 2012.
+[37] N. Srivastava, E. Mansimov, and R. Salakhutdinov. Unsu-
+pervised learning of video representations using lstms. In
+ICML, 2015.
+[38] L. Sun, K. Jia, T. H. Chan, Y. Fang, G. Wang, and S. Yan. Dl-
+sfa: Deeply-learned slow feature analysis for action recogni-
+tion. In CVPR, 2014.
+[39] C. Szegedy, W. Liu, Y. Jia, P. Sermanet, S. Reed,
+D. Anguelov, D. Erhan, V. Vanhoucke, and A. Rabinovich.
+Going deeper with convolutions. In CVPR, 2015.
+[40] D. Tran, L. D. Bourdev, R. Fergus, L. Torresani, and
+M. Paluri. Learning spatiotemporal features with 3d con-
+volutional networks. In ICCV, 2015.
+[41] B. van Merrie?nboer, D. Bahdanau, V. Dumoulin, D. Serdyuk,
+D. Warde-Farley, J. Chorowski, and Y. Bengio. Blocks and
+fuel: Frameworks for deep learning. CoRR, abs/1506.00619,
+2015.
+[42] S. Venugopalan, M. Rohrbach, J. Donahue, R. J. Mooney,
+T. Darrell, and K. Saenko. Sequence to sequence - video to
+text. In ICCV, 2015.
+[43] E. Vig, M. Dorr, and D. Cox. Space-variant descriptor sam-
+pling for action recognition based on saliency and eye move-
+ments. In ECCV, 2012.
+[44] H. Wang, A. Kla?ser, C. Schmid, and L. Cheng-Lin. Action
+recognition by dense trajectories. In CVPR, 2011.
+[45] H. Wang and C. Schmid. Action recognition with improved
+trajectories. In ICCV, 2013.
+[46] Y. Wang and G. Mori. Hidden part models for human ac-
+tion recognition: Probabilistic vs. max-margin. IEEE PAMI,
+2010.
+[47] Z. Wu, X. Wang, Y. Jiang, H. Ye, and X. Xue. Modeling
+spatial-temporal clues in a hybrid deep learning framework
+for video classification. In ACM Multimedia, 2015.
+[48] K. Xu, J. Ba, R. Kiros, K. Cho, A. C. Courville, R. Salakhut-
+dinov, R. S. Zemel, and Y. Bengio. Show, attend and tell:
+Neural image caption generation with visual attention. In
+ICML, 2015.
+[49] L. Yao, A. Torabi, K. Cho, N. Ballas, C. Pal, H. Larochelle,
+and A. Courville. Describing videos by exploiting temporal
+structure. In ICCV, 2015.
+[50] S. Yeung, O. Russakovsky, N. Jin, M. Andriluka, G. Mori,
+and L. Fei-Fei. Every moment counts: Dense detailed label-
+ing of actions in complex videos, 2015.
+[51] S. Zha, F. Luisier, W. Andrews, N. Srivastava, and
+R. Salakhutdinov. Exploiting image-trained CNN architec-
+tures for unconstrained video classification. In BMVC, 2015.
+[52] Z. Zhao and A. M. Elgammal. Information theoretic key
+frame selection for action recognition. In BMVC, 2008.
+[53] B. Zhou, A. Lapedriza, J. Xiao, A. Torralba, and A. Oliva.
+Learning deep features for scene recognition using places
+database. In NIPS, 2014.
+A. Supplementary Results
+Table 3 shows average accuracy (AC), mean average pre-
+cision (mAP) for Activitynet test data. In table 3, one could
+observe that our aLSTM models attending on V GGobj ,
+V GGsce, and V GGact features perform better than vanilla
+LSTM models for the corresponding V GG features; com-
+parison to LSTM model with C3D features is in the main
+paper.
+We also use Hollywood2 dataset in our experiments.
+Hollywood2 (HOHA2) [24] is a human action dataset with
+12 classes. HOHA2 includes 1707 video clips from Hol-
+lywood movies. Dataset is trimmed, but number of sam-
+ples per class is not fixed and varies between 24 and 135.
+HOHA2 consists of 823 training samples and 884 test sam-
+ples, and each clip can have multiple labels. The much
+smaller training set makes training LSTM-based models
+that much more challenging, as is also witnessed in [32].
+For HOHA2, we use multilabel classification loss (simi-
+lar to [50]). We initialize LSTM parameters with the pre-
+trained LSTM model trained for ActivityNet. We then fine-
+tune the model for 2, 500 iterations on minibatches of size
+100. For first 1, 000 iterations, we use fixed learning rate
+of 0.001 and momentum of 0.6; after that, learning rate is
+decreased every iterations by a fixed ratio. Similar to Activ-
+ityNet model training, we also perform an on-the-fly tem-
+poral cropping of training videos. For evaluation, we report
+mean Average Precision (mAP) over all 12 classes.
+Figure 4 shows two possible variants of integrating attention
+with LSTM for action classification. In the first variant, Fig-
+ure 4 (a), attention scores are computed at every time step
+t and attended data is distributed into LSTM state St?1 to
+compute state St. Also, class scores yt are computed at ev-
+ery time step and final score y is the average of all yts. This
+is the model we focused on in the approach section. The
+second variant, Figure 4 (b), has a somewhat different ar-
+chitecture. In particular, attention score is only computed
+and integrated into the last LSTM state SN . The classifi-
+cation score y is then computed directly (once) at the end.
+We compare both architectures, using identical setup, on
+HOHA2. As can be seen from Table 4 (aLSTM-V GGobj
+(fc8) vs. aLSTM-V GGobj (fc8)(b)), variant (b) has 2.2
+percentage points lower mAP compared to model (a). We
+also evaluated significance of attended-data size, comparing
+T = 12 and T = 24. We only observed a slight improve-
+ment of 0.2 mAP for HOHA2 using T = 24. Based on
+these observations, we use architecture (a) with T = 12
+from now on.
+Table 4 shows mean average precision over all classes
+(mAP) for Hollywood2 (HOHA2) test data. C3D(fc8)
+shows results for 3D CNN model softmax classification di-
+rectly. LSTM-C3D (FC6) is vanilla LSTM model using
+C3D model fc6 layer representation as input-data. aLSTM
+stands for our attention-based LSTM model. We have eval-
+Table 3. ActivityNet: Comparitive results of vanilla LSTM and our
+attention-based LSTM.
+Model: LSTM
+Features AC mAP
+LSTM-V GGobj (fc6) 42.2% 47.6%
+aLSTM-V GGobj (fc6) 45.6% 51.2%
+LSTM-V GGsce (fc6) 39.0% 44.4%
+aLSTM-V GGsce (fc6) 44.0% 49.5%
+LSTM-V GGact (fc6) 45.9% 51.1%
+aLSTM-V GGact (fc6) 47.0% 52.4%
+Table 4. HOHA2: Our model action recognition results.
+Model: CNN
+Features mAP
+C3D (fc8) 41.4%
+Model: LSTM
+Features mAP
+LSTM-C3D (fc6) 39.9%
+aLSTM-C3D (fc8) 44.4%
+aLSTM-V GGobj (fc6) 43.6%
+aLSTM-V GGobj (fc8) 46.3%
+aLSTM-V GGobj (fc8)(b) 44.1%
+aLSTM-V GGsce (fc6) 43.6%
+aLSTM-V GGsce (fc8) 41.6%
+aLSTM-V GGact (fc6) 44.8%
+aLSTM-V GGact (fc8) 45.3%
+uated our model for different variations of attended-data:
+1) aLSTM ? V GGobj , attends on objects (V GGobj), 2)
+aLSTM ? V GGsce, attends on scenes (V GGsce), and 3)
+aLSTM? V GGact attends on actions (V GGact). For each
+of these three models we tried both fc6 and fc8 layer repre-
+sentations.
+A few observations can be made based on Table 4. First,
+LSTM on top of C3D features has slightly lower perfor-
+mance for HOHA2 (according to mAP). All aLSTM mod-
+els outperform vanilla LSTM and CNN models. Specifi-
+cally, aLSTM on C3D improves the performance by ap-
+proximately 4 percentage points for over vanilla LSTM.
+Further attending on (contextual) complementary trained
+VGG19 models for object and action improve the perfor-
+mance. However, attending on trained VGG19 scene model
+has lower performance compared to attending on C3D di-
+rectly. Among individual models, the best performance
+is achieved by aLSTM-V GGobj (fc8) which is consistent
+with recent results that show importance of objects [13].
+Table 5 shows comparison of our model to state-of-the-
+art on HOHA2. For comparison, we have combined differ-
+ent variations of our models described above. Model com-
+bination has been implemented by averaging the softmax
+output scores over multiple aLSTM models. For exam-
+Table 5. ActivityNet: Comparative results.
+Model: CNN
+Features mAP
+CNN-C3D (fc8) 41.4%
+Model: RGB data and/or Hand-Crafted Features
+Features mAP
+Soft attention model [32] 43.9%
+DL-SFA[38] [4] 48.1%
+aLSTM-V GGact+obj (fc6) 46.2%
+aLSTM-V GGact+obj (fc8) 48.5%
+aLSTM-V GGact+obj (all) 48.7%
+aLSTM-V GGact+sce (fc6) 46.1%
+aLSTM-V GGact+sce (fc8) 45.2%
+aLSTM-V GGact+obj+sce (fc6) 46.6%
+aLSTM-V GGact+obj+sce (fc8) 47.9%
+aLSTM-V GGact+obj+sce (all) 48.1%
+Model: Hand-Crafted Features
+Features HOHA2 (mAP)
+Multi-skIp Feature [19] 68%
+VideoDarwin [7] 73.7%
+ple, aLSTM-V GGact+obj stands for combining aLSTM-
+V GGact and aLSTM-V GGobj and so on. Table 5 shows
+that our combined model for action and object improves
+the performance, however, adding scene model does not
+improve compared to our best individual model aLSTM-
+V GGact (fc8). Further, we compare our results to DL ?
+SFA [38] and, more importantly, to ArXiv results of soft-
+attention model of [32], which proposes a spatial 3-layer
+attention-based LSTM. Our best combined model aLSTM-
+V GGact+obj (all), outperforms [32] by 11% (or 5 percent-
+age points) and has highest performance compared to meth-
+ods that use RGB data directly; as opposed to working with
+combination of optical flow and RGB data [19, 7].

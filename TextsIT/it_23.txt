@@ -1,0 +1,1909 @@
+Distributed second order methods with variable
+number of working nodes
+Dragana Bajovic? ?† Dus?an Jakovetic? ‡ Natas?a Krejic? ‡
+Natas?a Krklec Jerinkic? ‡
+September 6, 2017
+Abstract
+Recently, an idling mechanism has been introduced in the context of
+distributed first order methods for minimization of a sum of nodes’ local
+convex costs over a generic, connected network. With the idling mech-
+anism, each node i, at each iteration k, is active – updates its solution
+estimate and exchanges messages with its network neighborhood – with
+probability pk (pk increasing to one as k grows large), and it stays idle
+with probability 1?pk, while the activations are independent both across
+nodes and across iterations. The idling mechanism involves an increasing
+number of nodes in the algorithm (on average) as the iteration counter k
+grows, thus avoiding unnecessarily expensive exact updates at the initial
+iterations while performing beneficial close-to-exact updates near the so-
+lution. In this paper, we demonstrate that the idling mechanism can be
+successfully incorporated in distributed second order methods also. Specif-
+ically, we apply the idling mechanism to the recently proposed Distributed
+Quasi Newton method (DQN). We first show theoretically that DQN with
+idling exhibits very similar theoretical convergence and convergence rates
+properties as the standard DQN method, thus achieving the same order
+of convergence rate (R-linear) as the standard DQN, but with signifi-
+cantly cheaper updates. Further, we demonstrate by simulation examples
+significant communication and computational savings gained through in-
+corporation of the idling mechanism.
+Keywords: Distributed optimization, Variable sample schemes, Second
+order methods, Newton-like methods, Linear convergence, Stochastic con-
+vergence.
+AMS subject classification.
+?Department of Power, Electronics and Communication Engineering, Faculty of Technical
+Sciences, University of Novi Sad, Trg Dositeja Obradovic?a 6, 21000 Novi Sad, Serbia. email:
+dbajovic@uns.ac.rs.
+†Biosense Institute, University of Novi Sad, Ul. Zorana Djindjic?a 3, 21000 Novi Sad,
+Serbia.
+‡Department of Mathematics and Informatics, Faculty of Sciences, University of Novi
+Sad, Trg Dositeja Obradovic?a 4, 21000 Novi Sad, Serbia. e-mail: {djakovet@uns.ac.rs,
+natasak@uns.ac.rs, natasa.krklec@dmi.uns.ac.rs}. Research supported by the Serbian Min-
+istry of Education, Science, and Technological Development, Grant no. 174030
+1
+ar
+X
+iv
+:1
+70
+9.
+01
+30
+7v
+1 
+ [
+cs
+.I
+T
+] 
+ 5
+ S
+ep
+ 2
+01
+7
+1 Introduction
+Context and motivation. The problem of distributed minimization of a sum
+of nodes’ local costs across a (connected) network has received a significant and
+growing interest in the past decade, e.g., [17, 10, 20, 14]. Such problem arises in
+various application domains, including wireless sensor networks, e.g., [23], smart
+grid, e.g., [1], distributed control applications, e.g., [2], etc.
+In the recent paper [4], a class of novel distributed first order methods has
+been proposed, motivated by the so-termed “hybrid” methods in [6] for (cen-
+tralized) minimization of a sum
+?n
+i=1 fi(x) of convex component functions. The
+main idea underlying a hybrid method in [6] is that it is designed as a combi-
+nation of 1) an incremental or stochastic gradient method (or, more generally,
+an incremental or stochastic Newton-like method) and 2) a full (standard) gra-
+dient method (or a standard Newton-like method); it behaves as the stochastic
+method at the initial algorithm stage, and as the standard method at a later
+stage. An advantage of the hybrid method is that it potentially inherits some fa-
+vorable properties of both incremental/stochastic and standard methods, while
+eliminating their important drawbacks. For example, the hybrid exhibits fast
+convergence at initial iterations k while having inexpensive updates, just like
+incremental/stochastic methods. On the other hand, it eliminates the oscilla-
+tory behavior of incremental methods around the solution for large k’s (because
+for large k’s it behaves as a full/standard method). Hybrid methods calculate a
+search direction at iteration k based on a subset (sample) of the fi’s, where the
+sample size is small at the initial iterations (mimicking a stochastic/incremental
+method), while it approaches the full sample n for large k’s (essentially matching
+a full, standard method).
+With distributed first order methods in [4], the sample size at iteration k
+translates into the number of nodes that participate in the distributed algorithm
+at k. More precisely, therein we introduce an idling mechanism where each node
+in the network at iteration k is active with probability pk and stays idle with
+probability 1?pk, where pk is increasing to one with k, while the activations are
+independent both across nodes and through iterations. Reference [4] analyzes
+convergence rates for a distributed gradient method with the idling mechanism
+and demonstrates by simulation that idling brings significant communication
+and computational savings.
+Contributions. The purpose of this paper is to demonstrate that the idling
+mechanism can be incorporated in distributed second order, i.e., Newton-like
+methods also, by both 1) establishing the corresponding convergence rate an-
+alytical results, and 2) showing through simulation examples that idling con-
+tinues to bring significant efficiency improvements. Specifically, we incorporate
+here the idling mechanism in the Distributed Quasi Newton method (DQN) [3].
+(The DQN method has been proposed and analyzed in [3], only for the scenario
+when all nodes are active at all times.) DQN and its extension PMM-DQN
+are representative distributed second order methods that exhibit competitive
+performance with respect to the current distributed second order alternatives,
+e.g., [14, 22, 15].
+2
+Our main results are as follows. Assuming that the fi’s are twice contin-
+uously differentiable with bounded Hessians, we show that, as long as pk con-
+verges to one at least as fast as 1? 1/k1+? (? > 0 arbitrarily small), the DQN
+method with idling converges in the mean square sense and almost surely to the
+same point as the standard DQN method that activates all nodes at all times.
+Furthermore, when pk converges to one at a geometric rate, then the DQN al-
+gorithm with idling converges to its limit at a R-linear rate in the mean square
+sense. Finally, simulation examples demonstrate that idling can bring to DQN
+significant improvements in computational and communication efficiencies.
+From the technical side, extending the analysis of either distributed gradient
+methods with idling [4] or DQN without idling [3] to the scenario considered here
+is highly nontrivial. With respect to the standard DQN (without idling), here
+we need to cope with inexact variants of the DQN-type second order search di-
+rections. With respect to gradient methods with idling, showing boundedness of
+the sequence of iterates and consequently bounding the “inexactness amounts”
+of the search directions are considerably more challenging and require a different
+approach.
+Brief literature review. There has been a significant progress in the de-
+velopment of distributed second order methods in past few years. Reference [14]
+proposes a method based on a penalty-like interpretation [11] of the problem of
+interest, by applying Taylor expansions of the Hessian of the involved penalty
+function. In [22], the authors develop a distributed version of the Newton-
+Raphson algorithm based on consensus and time-scale separation principles.
+References [15] and [16] propose distributed second order methods based on
+the alternating direction method of multipliers and the proximal method of
+multipliers, respectively. References [24, 21] develop distributed second order
+methods for the problem formulations that are related but different than what
+we consider in this paper, namely they study network utility maximization type
+problems. All the above works [14, 22, 3, 15, 16, 24, 21] assume that all nodes
+are active across all iterations, i.e., they are not concerned with designing nor
+analyzing stochastic nor asynchronous variants of the methods therein.
+Related with our work are also papers that study distributed first and second
+order methods with either 1) asynchronous updates or 2) random/time varying
+networks. The former thread of works, e.g., [9, 8, 7], considers asynchronous
+distributed schemes where, like with the idling-based methods here, a subset of
+nodes is active at each iteration. However, in contrast with this paper, the sub-
+sets with their methods do not eventually increase towards the full set of network
+nodes. The latter thread of works on distributed consensus and optimization
+under time varying or random networks, e.g., [17, 19, 13], considers “sparsified”
+inter-neighbor communications across the network, as we do here. However,
+differently from [17, 19, 13], our model also allows that the nodes’ computation
+is “sparsified,” in the sense that a subset of nodes stays completely idle at an
+iteration.
+Finally, in a companion paper [5], we presented a brief preliminary version
+of the current paper, wherein a subset of the results here are presented without
+proofs. Specifically, [5] considers convergence of DQN with idling only when
+3
+the activation probabilities geometrically converge to one, while here we also
+consider the scenarios where the activation probability converges to one sub-
+linearly; we also include here extensions where this parameter stays bounded
+away from one.
+A feature of the standard DQN method (and hence also of DQN with idling)
+and of related methods [14] is that their convergence point is not the exact global
+solution x? of the problem of interest, but it is a point in a neighborhood of x?.
+This drawback has been recently successfully eliminated in [16] to make the
+algorithm convergent exactly to x?, and the methodology of [16] is subsequently
+applied in [3] to derive an exactly-converging extension of DQN. It is certainly
+of interest to incorporate and analyze idling in the context of such exact second
+order distributed methods, and this is an interesting future research direction.
+Nonetheless, the analysis of idling with DQN – carried out in this paper – is a
+highly nontrivial and relevant first phase towards this goal.
+Paper organization. Section 2 describes the model that we assume and
+gives the necessary preliminaries. Section 3 presents the DQN algorithm with
+idling, while Section 4 analyzes its convergence and convergence rate. Section 5
+considers DQN with idling in the presence of persisting idling, i.e., it considers
+the extension when pk does not necessarily converge to one. Section 6 provides
+numerical examples. Finally, we conclude in Section 7.
+2 Model and preliminaries
+Subsection 2.1 gives preliminaries and explains the network and optimization
+models that we assume. Subsection 2.2 briefly reviews the DQN algorithm
+proposed in [3].
+2.1 Optimization–network model
+We consider distributed optimization where n nodes in a connected network
+solve the following unconstrained problem:
+minx?Rp f(x) =
+n?
+i=1
+fi(x). (1)
+Here, fi : Rp ? R is a convex function known only by node i. We impose the
+following assumptions on the fi’s.
+Assumption A1. Each function fi : Rp ? R, i = 1, . . . , n is twice contin-
+uously differentiable, and there exist constants 0 < µ ? L < ? such that for
+every x ? Rp
+µI  ?2fi(x)  LI.
+Here, I denotes the p × p identity matrix, and P  Q (where P and Q are
+symmetric matrices) means that Q?P is positive semidefinite. Assumption A1
+implies that each fi is strongly convex with strong convexity parameter µ, and
+4
+it also has Lipschitz continuous gradient with Lipschitz constant L, i.e., for all
+i = 1, ..., n, there holds:
+fi(y) ? fi(x) +?fi(x)T (y ? x) +
+µ
+2
+?x? y?2, x, y ? Rp
+??fi(x)??fi(y)? ? L ?x? y?, x, y ? Rp.
+Here, notation ? · ? stands for the Euclidean norm of its vector argument and
+the spectral norm of its matrix argument. Under Assumption A1, problem (1)
+is solvable and has the unique solution x? ? Rp.
+Nodes i = 1, ..., n constitute an undirected network G = (V, E), where V is
+the set of nodes and E is the set of edges. Denote by m the total number of
+(undirected) edges (the cardinality of E). The presence of edge {i, j} ? E means
+that the nodes i and j can directly exchange messages through a communication
+link. Further, let Oi be the set of all neighbors of a node i (excluding i), and
+define also O?i = Oi
+?
+{i}.
+Assumption A2. The network G = (V, E) is connected, undirected and simple
+(no self-loops nor multiple links).
+We associate with network G a n × n weight matrix that has the following
+properties.
+Assumption A3. Matrix W = WT ? Rn×n is stochastic, with elements wij
+such that
+wij > 0 if {i, j} ? E, wij = 0 if {i, j} /? E, i 6= j, and wii = 1?
+?
+j?Oi
+wij ;
+further, there exist constants wmin and wmax such that for i = 1, . . . , n, there
+holds:
+0 < wmin ? wii ? wmax < 1.
+Denote by ?1 ? . . . ? ?n the eigenvalues of W. Then, we have that ?1 = 1,
+all the remaining eigenvalues of W are strictly less than one in modulus, and
+the eigenvector that corresponds to the unit eigenvalue is e := 1?
+n
+(1, . . . , 1)T .
+Let x = (xT1 , . . . , x
+T
+n )
+T ? Rnp, with xi ? Rp, and denote by Z ? Rnp×np the
+Kronecker product of W and the identity I ? Rp×p,Z = W ? I.1 We will make
+use of the following penalty reformulation of (1) [11]:
+minx?Rnp?(x) := ?
+n?
+i=1
+fi(xi) +
+1
+2
+xT (I? Z)x. (2)
+Here, ? > 0 is a constant that, as we will see ahead, plays the role of a step
+size with the distributed algorithms that we consider. The rationale behind
+introducing problem (2) and function ? is that they enable one to interpret
+the distributed first order method in [17] to solve (1) as the (ordinary) gradient
+method applied on ?, which in turn facilitates the development of second order
+1Throughout, we shall use “blackboard bold” upper-case letters for matrices of size (np)×
+(np) (e.g., Z), and standard upper-case letters for matrices of size n× n or p× p (e.g., W ).
+5
+methods; see, e.g., [14], for details. Denote by x? =
+(
+(x?1)
+T , ..., (x?n)
+T
+)T ? Rnp
+the solution to (2), where x?i ? Rp, for all i = 1, ..., n. It can be shown that, for
+all i = 1, ..., n, ?x?i ? x?? = O(?), i.e., the distance from the desired solution x?
+of (1) and x?i is of the order of step size ?, e.g., [14]. Define also F : Rnp ? R,
+F (x) =
+?n
+i=1 fi(xi).
+We study distributed second order algorithms to minimize function ? (and
+hence, find a near optimal solution of (1)). Therein, the Hessian of function ?
+and its splitting into a diagonal and an off-diagonal part will play an important
+role. Specifically, first consider the splitting:
+Wd = diag(W ), Wu = W ?Wd (3)
+Z = Z(W ) = Zd + Zu, where
+Zd = Wd ? I = diag(Z), and Zu = Wu ? I.
+(Here, diag(P ) is the diagonal matrix with the diagonal elements equal to those
+of matrix P .)
+Further, decompose the Hessian of ? as:
+?2?(x) = A(x)?G, (4)
+with A : Rnp ? R(np)×(np) given by:
+A(x) = ??2F (x) + (1 + ?)(I? Zd), (5)
+and
+G = G(Z, ?) = Zu + ?(I? Zd), (6)
+for some ? ? 0.
+We close this subsection with the following result that will be needed in
+subsequent analysis. For claim (a), see Lemma 3.1 in [18]; for claim (b), see,
+e.g., Lemma 4.2 in [12].
+Lemma 2.1. Consider a deterministic sequence {ak} converging to zero, with
+ak > 0, k = 0, 1, ..., and let ? ? (0, 1).
+(a) Then, there holds:
+k?
+t=1
+?k?tat?1 ? 0 as k ??. (7)
+(b) If, moreover, {ak} converges to zero R-linearly, then the sum in (7) also
+converges to zero R-linearly.
+2.2 Algorithm DQN
+We will incorporate the idling mechanism in the algorithm DQN proposed in [3].
+The main idea behind DQN is to approximate the Newton direction with respect
+6
+to function ? in (2) in such a way that distributed implementation is possible,
+while the error in approximating the Newton direction is not large. For com-
+pleteness, we now briefly review DQN. All nodes are assumed to be synchronized
+according to a global clock and perform in parallel iterations k = 0, 1, ... The
+algorithm maintains iterates xk = ( (xk1)
+T , ..., (xkn)
+T )T ? Rnp, over iterations
+k = 0, 1, ..., where xki ? Rp plays the role of the solution estimate of node i,
+i = 1, ..., n. DQN is presented in Algorithm 1 below. Therein, Ak := A(xk),
+where A(x) is given in (5); also, notation ? · ? stands for the Euclidean norm of
+its vector argument and spectral norm for its matrix argument.
+Algorithm 1: DQN in vector format
+Given x0 ? Rnp, ?, ?, ?, ? > 0. Set k = 0.
+(1) Chose a diagonal matrix Lk ? Rnp×np such that
+?Lk? ? ?. (8)
+(2) Set
+sk = ?(I? LkG)A?1k ??(x
+k). (9)
+(3) Set
+xk+1 = xk + ?sk, k = k + 1. (10)
+We now briefly comment on the algorithm and the involved parameters. DQN
+takes the step in the direction sk scaled with a positive step size ? > 0; direc-
+tion sk in (9) is an approximation of the Newton direction
+skN = ?
+[
+?2?(xk)
+]?1??(xk).
+Unlike Newton direction skN, direction s
+k admits an efficient distributed imple-
+mentation. Inequality (8) corresponds to a safeguarding step that is needed to
+ensure that sk is a descent direction with respect to function ?; the nonnegative
+parameter ? controls the safeguarding (see [3] for details on how to set ? for a
+given problem). The diagonal matrix Lk controls the off-diagonal part of the
+Hessian inverse approximation [3]. Various choices for Lk that are easy to im-
+plement and do not induce large extra computational and communication costs
+have been introduced in [3]. Possible and easy-to-implement choices are Lk = 0
+and Lk = ?? I.
+As it is usually the case with second order methods, step size ? should be
+in general strictly smaller than one to ensure global convergence. However,
+extensive numerical simulations on quadratic and logistic losses demonstrate
+that both DQN and DQN with idling converge globally with the full step size
+? = 1 and choices Lk = 0, and Lk = ?I.
+The remaining algorithm parameters are as follows. Quantity ? ? 0 controls
+the splitting (5); reference [3] shows by simulation that it is usually beneficial
+to adopt a small positive value of ? or ? = 0. Finally, ? > 0 defines the penalty
+function ? in (2) and results in the following tradeoff in the performance of DQN:
+7
+a smaller value of ? leads to a better asymptotic accuracy of the algorithm, while
+it also slows down the algorithm’s convergence rate. By asymptotic accuracy, we
+assume here the distance between the point of convergence of DQN x? (which
+is actually equal to the solution of (2) – see [3]) and the solution x? of (1). (As
+noted before, the corresponding distance is O(?) [14].)
+In Algorithm 2, we present DQN from the perspective of distributed imple-
+mentation. Therein, we denote by ?ki and A
+k
+i , respectively, the p × p block on
+the (i, i)-th position of matrices Lk and Ak. Similarly, Gij is the p× p block at
+the (i, j)-th position of G.
+Algorithm 2: DQN – distributed implementation
+At each node i, require x0i ? Rp, ?, ?, ?, ? > 0.
+(1) Initialization: Each node i sets k = 0 and x0i ? Rp.
+(2) Each node i transmits xki to all its neighbors j ? Oi and receives xkj from
+all j ? Oi.
+(3) Each node i calculates
+dki =
+(
+Aki
+)?1 ????fi(xki ) + ?
+j?Oi
+wij
+(
+xki ? xkj
+)?? .
+(4) Each node i transmits dki to all its neighbors j ? Oi and receives dkj from
+all j ? Oi.
+(5) Each node i chooses a diagonal p× p matrix ?ki , such that ??ki ? ? ?.
+(6) Each node i calculates:
+ski = ?dki + ?ki
+?
+j?O?i
+Gij d
+k
+j .
+(7) Each node i updates its solution estimate as:
+xk+1i = x
+k
+i + ? s
+k
+i .
+(8) Set k = k + 1 and go to step 2.
+Note that, when ?ki ? 0, for all i, k, steps 4-6 are skipped, and the algorithm
+involves a single communication round per iteration, i.e., a single transmission
+of a p-dimensional vector (step 2) by each node; when ?ki ? ??k I, ?k 6= 0, then
+two communication rounds (steps 2 and 4) per k are involved.
+3 Algorithm DQN with idling
+Subsection 3.1 explains the idling mechanism, while Subsection 3.2 incorporates
+this mechanism in the DQN method.
+8
+3.1 Idling mechanism
+We incorporate in DQN the following idling mechanism. Each node i, at each it-
+eration k, is active with probability pk, and it is inactive with probability 1?pk.2
+Active nodes perform updates of their solution estimates (xki )’s and partici-
+pate in each communication round of an iteration, while inactive nodes do not
+perform any computations nor communications, i.e., their solution estimates
+(xki )’s remain unchanged. Denote by ?
+k
+i the Bernoulli random variable that
+governs the activity of node i at iteration k. Then, we have that probability
+P
+(
+?ki = 1
+)
+= 1?P
+(
+?ki = 0
+)
+= pk, for all i. We furthermore assume that ?
+k
+i and
+?`j are mutually independent over all i 6= j and k 6= `. Throughout the paper,
+we impose the following Assumption on sequence {pk}.
+Assumption A4. Consider the sequence of activation probabilities {pk}. We
+assume that pk ? pmin, for all k, for some pmin > 0. Further, {pk} is a non-
+decreasing sequence with limk?? pk = 1. Moreover, we assume that
+0 ? uk ?
+Cu
+(k + 1)1+?
+, (11)
+where uk = 1? pk, Cu is a positive constant and ? > 0 is arbitrarily small.
+Assumption A4 means that, on average, an increasing number of nodes be-
+comes involved in the optimization process; that is, intuitively, in a sense the
+precision of the optimization process increases with the increase of the iteration
+counter k. (Extensions to the scenarios when pk does not necessarily converge
+to one is provided in Section 5.) We also assume that pk converges to one
+sufficiently fast, where sublinear convergence 1? 1/k1+? is sufficient.
+For future reference, we also define the diagonal (np)×(np) (random) matrix
+Yk = diag(?k1 , . . . , ?kn) ? I, where I is the p × p identity matrix. Also, we
+define the p × p random matrix W k = [wkij ] by wkij = wij?ki ?kj for i 6= j, and
+wkii = 1?
+?
+i 6=j w
+k
+ij . Further, we let Zk := W k ? I, and, analogously to (3) and
+(6), we let:
+W kd = diag(W
+k), W ku = W
+k ?W kd (12)
+Zk = Z(W k) = Zkd + Zku, where
+Zkd = W kd ? I = diag(Zk), and Zku = W ku ? I.
+Gk = G(Zk, ?) = Zku + ?(I? Zkd). (13)
+Notice that wkii = 1?
+?
+i 6=j wij?
+k
+i ?
+k
+j ? 1?
+?
+i6=j wij = wii ? wmin. Further,
+recall A : Rnp ? R(np)×(np) in (5). Using results from [3], we obtain the
+2We continue to assume that all nodes are synchronized according to a global iteration
+counter k = 0, 1, ...
+9
+following important bounds:3
+?A?1(x)? ? (?µ+ (1 + ?)(1? wmax))?1 := CA, x ? Rnp (14)
+?Gk? ? (1 + ?)(1? wmin) := CG, k = 0, 1, ... (15)??GkA?1(x)?? ? (1 + ?)(1? wmin)
+?µ+ (1 + ?)(1? wmin)
+, x ? Rnp, k = 0, 1, ... (16)
+More generally, for A(x) there holds:
+(?µ+ (1 + ?)(1?wmax))I  A(x)  (?L+ (1 + ?)(1?wmin))I, x ? Rnp. (17)
+Also, notice that ?Yk? ? 1, and Zk  I, for every k.
+3.2 DQN with idling
+We now incorporate the idling mechanism in the DQN method. To avoid nota-
+tional clutter, we continue to denote by xk =
+(
+(xk1)
+T , ..., (xkn)
+T
+)T
+the algorithm
+iterates, k = 0, 1, ..., where xki is node i’s estimate of the solution to (1) at iter-
+ation k. DQN with idling operates as follows. If the activation variable ?ki = 1,
+node i performs an update; else, if ?ki = 0, node i stays idle and lets x
+k+1
+i = x
+k
+i .
+The algorithm is presented in Algorithm 3 below. Therein, Ak := A(xk), and
+Aki is the p× p block at the (i, i)-th position in Ak, while Gkij is the p× p block
+of Gk at the (i, j)-th position.
+Algorithm 3: DQN with idling – distributed implementation
+At each node i, require x0i ? Rp, ?, ?, ?, ? > 0, {pk}.
+(1) Initialization: Node i sets k = 0 and x0i ? Rp.
+(2) Each node i generates ?ki ; if ?
+k
+i = 0, node i is idle, and goes to step 9; else,
+if ?ki = 1, node i is active and goes to step 3; all active nodes do steps 3-8
+below in parallel.
+(3) (Active) node i transmits xki to all its active neighbors j ? Oi and receives
+xkj from all active j ? Oi.
+(4) Node i calculates
+dki =
+(
+Aki
+)?1 ?? ?
+pk
+?fi(xki ) +
+?
+j?Oi
+wkij
+(
+xki ? xkj
+)?? .
+3Throughout subsequent analysis, we shall state several relations (equalities and inequali-
+ties) that involve random variables. These relations hold either surely (for every outcome), or
+in expectation. E.g., relation (15) holds surely. It is clear from notation which of the two cases
+is in force. Also, auxiliary constants that arise from the analysis will be frequently denoted
+by the capital calligraphic letter C with a subscript that indicates a quantity related with the
+constant in question; e.g., see CA in (14).
+10
+(5) Node i transmits dki to all its active neighbors j ? Oi and receives dkj from
+all the active j ? Oi.
+(6) Node i chooses a diagonal p× p matrix ?ki , such that ??ki ? ? ?.
+(7) Node i calculates:
+ski = ?dki + ?ki
+?
+j?O?i
+Gkij d
+k
+j .
+(8) Node i updates its solution estimate as:
+xk+1i = x
+k
+i + ? s
+k
+i .
+(9) Set k = k + 1 and go to step 2.
+We make a few remarks on Algorithm 3. First, note that, unlike Algorithm 2,
+the iterates xki with Algorithm 3 are random variables. (The initial iterates x
+0
+i ,
+i = 1, ..., n, in Algorithm 3 are assumed deterministic.) Next, note that we
+implicitly assume that all nodes have agreed beforehand on scalar parameters
+?, ?, ?, ?; this can actually be achieved in a distributed way with a low communi-
+cation and computational overhead (see Subsection 4.2 in [3]). Nodes also agree
+beforehand on the sequence of activation probabilities {pk}. In other words, se-
+quence {pk} is assumed to be available at all nodes. For example, as discussed
+in more detail in Sections 4 and 6, we can let pk = 1? ?k+1, k = 0, 1, ..., where
+? ? (0, 1) is a scalar parameter known by all nodes. As each node is aware of
+the global iteration counter k, each node is then able to implement the latter
+formula for pk. The nodes’ beforehand agreement on ? can be achieved similarly
+to the agreement on other parameters ?, ?, ?, ? [3]. Tuning of parameter ? is
+discussed in Remark 3 further ahead.
+Parameters , ?, and ?, and the diagonal matrices ?ki play the same role
+as in DQN. An important difference with respect to standard DQN appears in
+step 4, where the local active node i’s gradient contribution is ?pk?fi(x
+k
+i ) =
+?
+pk
+?ki ?fi(xki ), while with standard DQN this contribution equals ??fi(xki ).
+Note that the division by pk for DQN with idling makes the terms of the two
+algorithms balanced on average, because E[?ki ] = pk.
+Using notation (12), we represent DQN with idling in Algorithm 4 in a vector
+format. (Therein, Lk = diag
+(
+?k1 , ...,?
+k
+n
+)
+.)
+Algorithm 4: DQN with idling in vector format
+Given x0 ? Rnp, ?, ?, ?, ? > 0, {pk}. Set k = 0.
+(1) Chose a diagonal matrix Lk ? Rnp×np such that
+?Lk? ? ?.
+(2) Set
+sk = ?(I? LkGk)A?1k
+(
+?
+pk
+Yk?F (xk) + (I? Zk)xk
+)
+.
+11
+(3) Set
+xk+1 = xk + ?sk, k = k + 1.
+4 Convergence analysis
+In this Section, we carry out convergence and convergence rate analysis of DQN
+with idling. We have two main results, Theorems 4.4 and 4.5. The former re-
+sult states that, under Assumptions A1-A4, DQN with idling converges to the
+solution x? of (2) in the mean square sense and almost surely. We then show
+that, when activation probability pk converges to one at a geometric rate, the
+mean square convergence towards x? occurs at a R-linear rate. Therefore, the
+order of convergence (R-linear rate) of the DQN method is preserved despite
+the idling. We note that the above result does not explicitly establish computa-
+tional and communication savings with respect to standard DQN. An explicit
+quantification of these savings is very challenging even for distributed first or-
+der methods [4], and even more so here. However, the theoretical results in the
+current section are complemented in Section 6 with numerical examples; they
+demonstrate that communication and computational savings usually occur in
+practice.
+The analysis is organized as follows. In Subsection 4.1, we relate the search
+direction of DQN with idling and the search direction of DQN, where the former
+is viewed as an inexact version of the latter. Subsection 4.2 establishes the mean
+square boundedness of the iterates of DQN with idling and its implications on
+the “inexactness” of search directions. Finally, Subsection 4.3 makes use of the
+results in Subsections 4.1 and 4.2 to prove the main results on the convergence
+and convergence rate of DQN with idling.
+4.1 Quantifying inexactness of search directions
+We now analyze how “inexact” is the search direction of the DQN with idling
+with respect to the search direction of the standard DQN. For xk the iterate of
+DQN with idling, denote by s?k the search direction as with the standard DQN
+evaluated at xk, i.e.:
+s?k = ?(I? LkG)A?1k (??F (x
+k) + (I? Z)xk). (18)
+Then, the search direction sk of DQN with idling can be viewed as an ap-
+proximation, i.e., an inexact version, of s?k. We will show ahead that the error
+of this approximation is controlled by the activation probability pk. In order to
+simplify notation in the analysis, we introduce the following quantities:
+Hk = I? LkGk
+H?k = I? LkG
+gk = A?1k (
+?
+pk
+Yk?F (xk) + (I? Zk)xk)
+g?k = A?1k (??F (x
+k) + (I? Z)xk).
+12
+Therefore, s?k = ?H?kg?k and sk = ?Hkgk. Notice that ?Hk? ? 1 + ?CG := CH
+and that the same is true for H?k. We have the following result on the error in
+approximating s?k with sk. In the following, we denote by either ai or [a]i the
+i-th p× 1 block of a (np)-dimensional vector a; for example, we write gki for the
+i-th p-dimensional block of gk.
+In the following Theorem, claims (20) and (21) are from Theorem 3.2 in [3];
+claim (19) is a straightforward generalization of (20), mimicking the proof steps
+of Theorem 3.2 in [3]; hence, proof details are omitted.
+Theorem 4.1. [3] Let assumptions A1-A3 hold. Further, let, ? ? [0, ?DQN ]
+where
+?DQN =
+?µ+ (1 + ?)(1? wmax)
+(1? wmin)(1 + ?)
+(
+1
+?L+ (1 + ?)(1? wmin)
+? ?
+)
+,
+for some constant ? ? (0, 1/(?L+(1+?)(1?wmin))). Consider random matrices
+Rk := HkA?1k and R?k := H?kA
+?1
+k . Then, there holds:
+?min
+(
+Rk + RTk
+2
+)
+? ? (19)
+?min
+(
+R?k + R?Tk
+2
+)
+? ?, (20)
+where ?min(·) denotes the minimal eigenvalue. Moreover, quantity s?k in (18)
+satisfies the following bounds:
+?T?(xk)s?k ? ?????(xk)?2 and ?s?k? ? ????(xk)?, (21)
+where constant ? = 1+?(1+?)(1?wmin)?µ+(1+?)(1?wmax) .
+Moreover, it was shown in [3] that ? < ?, which we use in the proof of the
+subsequent result. Furthermore, using the Mean value theorem and Lipschitz
+continuity of ?? we obtain (see the proof of Theorem 3.3 in [3] for instance):
+?
+(
+xk + ? sk
+)
+? ?(x?) ? ?(xk)? ?(x?) + 1
+2
+?2L??sk?2 + ??T?(xk)sk, (22)
+where we recall that x? is the (unique) solution of (2) and L? is a Lipschitz
+gradient continuity parameter of ?, which equals L? = ?L + 2(1 ? wmin).
+Next, we prove that DQN with idling exhibits a kind of nonmonotone behavior
+where the “nonmonotonicity” term depends on the difference between the search
+directions sk and s?k.
+Theorem 4.2. Let assumptions A1-A3 hold, ? ? [0, ?DQN ] and ? ? ?DQN ,
+where
+?DQN =
+? ? q
+2L?(?2 + q2)
+, q ? (0, ?). (23)
+Then
+?(xk+1)? ?(x?) ? (?(xk)? ?(x?))?(?) + ek,
+where ?(?) ? (0, 1) is a constant, and ek = (?2L? + ?/q)?sk ? s?k?2.
+13
+Proof. We start by considering sk in (22) and using the bounds from Theo-
+rem 4.1, i.e.:
+?(xk+1)? ?(x?) ? ?(xk)? ?(x?) + 1
+2
+?2L??sk ± s?k?2 + ??T?(xk)(sk ± s?k)
+? ?(xk)? ?(x?) + ?2L??sk ? s?k?2 + ?2L??s?k?2 +
++ ??T?(xk)(sk ? s?k) + ??T?(xk)s?k
+? ?(xk)? ?(x?) + ?2L??sk ? s?k?2 + ?2L??2???(xk)?2 +
++ ????(xk)??(sk ? s?k)? ? ?????(xk)?2 (24)
+We distinguish two cases. First, assume that ?sk ? s?k? ? q???(xk)?. In this
+case, (24) implies that
+?(xk+1)? ?(x?) ? ?(xk)? ?(x?) + ?(?)???(xk)?2
+where ?(?) = ?2L?(?
+2 + q2) ? ?(? ? q). Notice that ? is convex, ?(0) = 0
+and it attains its minimum at ?DQN given in (23) with ?(?DQN ) = ?((? ?
+q)2)/(4L?(?
+2+q2)). This also implies that ?(?) is negative for all ? ? (0, ?DQN ].
+Moreover, ? is strongly convex and there holds ?(xk)??(x?) ? 1µ? ???(x
+k)?2
+where µ? = ?µ is the strong convexity parameter. Putting all together we
+obtain
+?(xk+1)? ?(x?) ? (?(xk)? ?(x?))?(?) (25)
+where ?(?) = 1 + µ??(?). Notice that ?(?) < 1 for all ? ? (0, ?DQN ]. Moreover,
+?(?) ? 1 + µ??(?DQN ) = 1?
+µ?(? ? q)2
+4L?(?2 + q2)
+.
+As µ? = ?µ < ?L < L? and (? ? q)2 < ?2 < ?2 < ?2 + q2 we conclude that
+?(?) is positive. Therefore, for all ? ? (0, ?DQN ], (25) holds with ?(?) ? (0, 1).
+Now, assume that ?sk ? s?k? > q???(xk)?, i.e. ???(xk)? < ?sk ? s?k?/q.
+Together with (24), this implies
+?(xk+1)? ?(x?) ? ?(xk)? ?(x?) + ??(?)???(xk)?2 + ek (26)
+where ??(?) = ?2L??
+2??? and ek = (?2L? +?/q)?sk? s?k?2. The function ?? has
+similar characteristics as ? and it retains its minimum at ?? = ?/(2L??
+2) with
+??(??) = ??2/(4L??2). Since ?DQN ? ??, ??(?) < 0 holds for all ? ? (0, ?DQN ].
+Again, strong convexity of ? and (26) imply that for all ? ? (0, ?DQN ]
+?(xk+1)??(x?) ? (?(xk)??(x?))(1+µ???(?))+ek ? (?(xk)??(x?))?(?)+ek
+where we recall µ? = ?µ, and where the last inequality comes from the fact
+that ??(?) ? ?(?) for every ? > 0.
+Finally, taking into account both cases and the fact that ek is nonnegative,
+we conclude that the following inequality holds with ?(?) ? (0, 1) for all ? ?
+(0, ?DQN ]
+?(xk+1)? ?(x?) ? (?(xk)? ?(x?))?(?) + ek.
+2
+14
+4.2 Mean square boundedness of the iterates and search
+directions
+We next show that the iterates xk of DQN with idling are uniformly bounded
+in the mean square sense. Below, E(·) denotes the expectation operator.
+Lemma 4.1. Let the sequence of random variables {xk} be generated by Algo-
+rithm 4, and let assumptions A1-A4 hold. Then, there exist positive constants ?
+and ? depending on ?, µ, L, ?, wmin, wmax and pmin, such that, for all ? ? [0, ?]
+and ? ? (0, ?], there holds: E
+(
+?xk?2
+)
+? Cx, k = 0, 1, ..., for some positive
+constant Cx.
+Proof. It suffices to prove that E
+(
+?(xk)
+)
+is uniformly bounded for all k =
+0, 1, ..., since ? is strongly convex and therefore it holds that ?(x) ? ?(x?) +
+µ?
+2 ?x ? x
+??2, x ? Rnp. Further, for the sake of proving boundedness, without
+loss of generality we can assume that fi(x) ? 0, for all x ? Rp, for every
+i = 1, ..., n.4 For k = 0, 1, ..., define function ?k : Rnp ? R, by
+?k(x) =
+?
+pk
+F (x) +
+1
+2
+xT (I? Z)x = ?
+pk
+n?
+i=1
+fi(xi) +
+1
+2
+?
+{i,j}?E,i<j
+wij?xi ? xj?2.
+Notice that ?k(x) = ?(x), x ? Rnp, if pk = 1. Also note that, for every
+k = 0, 1, ..., we have:
+?(x) ? ?k+1(x) ? ?k(x) ? ?0(x),
+since pk is assumed to be non-decreasing. The core of the proof is to upper
+bound ?k+1
+(
+xk+1
+)
+with a quantity involving ?k
+(
+xk
+)
+(see ahead (34)), and
+after that to “unwind” the resulting recursion.
+To start, notice that ?k is strongly convex and has Lipschitz continuous
+gradient for every k. More precisely, for every k = 0, 1, ..., and for every x ? Rnp,
+we have that
+µ?I  ?2?k(x)  L?I,
+where µ? = ?µ and L? = ?L/pmin + 1. Denote by
+yk = ??k(xk) =
+?
+pk
+?F (xk) + (I? Z)xk.
+Further, let us define two more auxiliary maps, as follows. Let ??k : Rnp ×
+4Otherwise, since each of the fi’s is lower bounded, we can re-define each fi as f?i(x) =
+fi(x) + c, where c is a constant larger than or equal maxi=1,...,n |infx?Rp fi(x)|, and work
+with the f?i’s throughout the proof.
+15
+{0, 1}m ? R, and ??k : Rnp × {0, 1}m ? R, be given by:
+??k(x; ?) =
+?
+pk
+n?
+i=1
+?ifi(xi) +
+1
+2
+?
+{i,j}?E,i<j
+wij?i?j?xi ? xj?2
+??k(x; ?) = ?k(x)? ??k(x) =
+?
+pk
+n?
+i=1
+(1? ?i)fi(xi)
++
+1
+2
+?
+{i,j}?E,i<j
+wij(1? ?i?j)?xi ? xj?2,
+where {0, 1}m denotes the set of all m-dimensional vectors with the entries from
+set {0, 1}. Introduce also the short-hand notation
+??k(x) = ??k(x; ?
+k) =
+?
+pk
+n?
+i=1
+?ki fi(xi) +
+1
+2
+?
+{i,j}?E,i<j
+wij?
+k
+i ?
+k
+j ?xi ? xj?2
+??k(x) = ??k(x; ?
+k) = ?k(x)? ??k(x) =
+?
+pk
+n?
+i=1
+(1? ?ki )fi(xi)
++
+1
+2
+?
+{i,j}?E,i<j
+wij(1? ?ki ?kj )?xi ? xj?2,
+where we recall that ?k = (?k1 , ..., ?
+k
+n)
+T is the node activation vector at iteration k.
+Hence, note that, for any fixed x ? Rnp, ??k(x) is a random variable, measurable
+with respect to the ?-algebra generated by ?k. On the other hand, for any
+fixed value that variable ?k takes, x 7? ??k(x) is a (deterministic) function,
+mapping Rnp to R; analogous observations hold for ??k as well. We will be
+interested in quantities ??k(x
+k), ??k(x
+k) ??k(x
+k+1), and ??k(x
+k+1). Note that they
+are all random variables, measurable with respect to the ?-algebra generated by
+{?s}s=0,1,...,k. We will also work with the gradients of ??k and ??k with respect
+to x, evaluated at xk, that we denote by
+y?k = ???k(xk) =
+?
+pk
+Yk?F (xk) + (I? Zk)xk
+and
+y?k = yk ? y?k = ???k(xk).
+These quantities are also valid random variables, measurable with respect to
+the ?-algebra generated by {?s}s=0,1,...,k.
+Now, recall that, for each fixed i, ?ki , k = 0, 1, ..., are independent identi-
+cally distributed (i.i.d.) Bernoulli random variables. The same is true for the
+minimum and the maximum
+?kmin = min
+i=1,...,n
+?ki , ?
+k
+max = max
+i=1,...,n
+?ki .
+Also, notice that E(?kmin) = p
+n
+k and?
+1? ?kmin = 1? ?
+k
+min, 1? ?ki ? 1? ?kmin 1? ?ki ?kj ? 1? ?kmin.
+16
+Consider now ??k and y?k, regarded as functions of x ? Rnp. If ?kmax = 1 then
+??k is strongly convex (with respect to x) with the same parameters as ?k, i.e.,
+µ?I  ?2??k(x)  L?I.
+Now, denote by x??k = x?
+?
+k(?
+k) the minimizer of ??k with respect to x; using the
+fact that ??k is nonnegative, and that it has a Lipschitz continuous gradient and
+is strongly convex, we obtain
+?y?k?2 ? L?2?xk ? x??k?2 ?
+2L?2
+µ?
+(??k(x
+k)? ??k(x??k)) ?
+2L?2
+µ?
+??k(x
+k).
+Using the fact that ??k(x) ? ?k(x), for all x, the previous inequality yields
+?y?k? ? L?
+?
+2/µ?
+?
+?k(xk). (27)
+On the other hand, if ?kmax = 0 then Yk = 0 and Zk = I which implies y?k = 0
+and the previous inequality obviously holds.
+We perform a similar analysis considering ??k and y?k. First, notice that ??k
+is also non-negative. Furthermore, if ?kmin = 0 then ??k is strongly convex with
+the same parameters as ??k and the following holds
+?y?k? ? L?
+?
+2/µ?
+?
+??k(xk).
+Moreover, notice that
+??k(x
+k) ? (1? ?kmin)?k(xk)
+and thus
+?y?k? ? L?
+?
+2/µ?
+?
+(1? ?kmin)?k(xk) = (1? ?
+k
+min)L?
+?
+2/µ?
+?
+?k(xk). (28)
+Let us return to ?k. This function also satisfies (22), i.e.,
+?k
+(
+xk + ? sk
+)
+? ?k(xk) +
+1
+2
+?2L??sk?2 + ?yTk sk. (29)
+For the search direction sk in step 2 of Algorithm 4, and recalling Rk = (I ?
+LkGk)A?1k from Theorem 4.1, we obtain that
+sk = ?Rky?k.
+Using the bounds (14) and (15) we conclude that ?Rk? ? (1 + ?CG)CA := CR
+and therefore
+?sk? ? CR?y?k?. (30)
+Also, by Theorem 4.1, the following holds for ? ? ?DQN , and ? ? ?DQN (where
+?DQN and ?DQN are given in Theorems 4.1 and 4.2, respectively):
+y?Tk Rky?k = y?Tk
+(
+Rk + RTk
+2
+)
+y?k ? ??y?k?2. (31)
+17
+From now on, we assume that ? ? ?DQN , and ? ? ?DQN . Substituting (30)
+and (31) into (29) we obtain
+?k(x
+k+1) ? ?k(xk) +
+1
+2
+?2L?R2?y?k?2 ? ?(y?k + y?k)TRky?k
+? ?k(xk) +
+1
+2
+?2L?R2?y?k?2 ? ???y?k?2 + ?CR?y?k??y?k?
+= ?k(x
+k) + (
+1
+2
+?2L?C2R ? ??)?y?k?2 + ?CR?y?k??y?k? (32)
+Since ( 12?
+2L?C2R ? ??) ? 0 for ? ? 2?L?C2R , we conclude that
+?k(x
+k+1) ? ?k(xk) + ?CR?y?k??y?k? ? ?k(xk) +
+2?L?C2R
+µ?
+(1? ?kmin)?k(xk),
+for
+? ? min
+{
+2?
+L?C2R
+, ?DQN
+}
+, ? ? ?DQN , (33)
+where ?DQN and ?DQN are given in Theorems 4.1 and 4.2. Denoting B =
+2?L?C2R
+µ? ,
+and using the fact that ?k+1(x) ? ?k(x), for all x ? Rnp, we obtain
+?k+1(x
+k+1) ? (1 +B(1? ?kmin))?k(xk). (34)
+Applying expectation we obtain
+E(?k+1(x
+k+1)) ? (1 +B(1? pnk ))E(?k(xk)),
+where we use independence between ?kmin and x
+k. Furthermore, recall that
+uk = 1 ? pk and notice that 1 ? pnk ? nuk. Moreover, 1 + t ? et for t > 0 and
+thus
+E(?k+1(x
+k+1)) ? enBukE(?k(xk)).
+Next, by unwinding the recursion, we obtain
+E(?k(x
+k)) ? enB
+?k?1
+j=0 uj?0(x
+0) := C?,2.
+By assumption, {uk} is summable, and since ?(x) ? ?k(x), for all x, we con-
+clude that
+E(?(xk)) ? C?,2.
+Finally, since ? is strongly convex, the desired result holds. 2
+Notice that an immediate consequence of Lemma 4.1 is that the gradients
+are uniformly bounded in the mean square sense. Indeed,
+E
+(
+??F (xk)?2
+)
+= E
+(
+??F (xk)??F (x??)?2
+)
+? E
+(
+L2?xk ? x???2
+)
+? 2L2(E
+(
+?xk?2
+)
++ ?x???2)
+? 2L2(Cx + ?x???2) := CF, (35)
+18
+where we recall Cx in Lemma 4.1.
+Next, we show that the “inexactness” of the search directions of DQN with
+idling are “controlled” by the activation probabilities pk’s.
+Theorem 4.3. Let assumptions A1-A4 hold, and consider ? and ? as in Lemma 4.1.
+Then, for all ? ? [0, ?] and ? ? (0, ?], the following inequality holds for every k
+and some positive constant Cs:
+E(?sk ? s?k?2) ? (1? pk)Cs. (36)
+Proof. We first split the error as follows:
+E
+(
+?sk ? s?k?2
+)
+= E
+(
+?Hkgk ? H?kg?k + H?kgk ? H?kgk?2
+)
+? 2
+(
+E
+(
+?H?k?2?(gk ? g?k)?2
+)
++ E
+(
+?(Hk ? H?k)gk?2
+))
+? 2
+(
+(CH)2E
+(
+?(g?k ? gk)?2
+)
++ E
+(
+?(Hk ? H?k)gk?2
+))
+.(37)
+We will estimate the expectations above separately. Start by observing that:
+g?ki ? gki = ?(Aki )?1
+????fi(xki ) + ?
+j?Oi
+wij(x
+k
+i ? xkj )
+??+
++ ?ki (A
+k
+i )
+?1
+?? ?
+pk
+?fi(xki ) +
+?
+j?Oi
+wij?
+k
+j (x
+k
+i ? xkj )
+??
+= (
+?ki
+pk
+? 1)?(Aki )?1?fi(xki ) + (Aki )?1
+?
+j?Oi
+wij(?
+k
+i ?
+k
+j ? 1)(xki ? xkj ).
+Notice that (14) implies ?( ?
+k
+i
+pk
+?1)?(Aki )?1?fi(xki )?2 ? 2(
+?ki
+pk
+?1)2?2(CA)2??fi(xki )?2,
+with CA defined in (14). Also, the assumptions on the wij ’s (Assumption A3)
+and convexity of the scalar quadratic function V(µ) = µ2 yield:
+?
+?
+j?Oi
+wij(?
+k
+i ?
+k
+j ? 1)(xki ? xkj )?2 ?
+???
+j?Oi
+wij(1? ?ki ?kj )?xki ? xkj ?
+??2
+?
+?
+j?Oi
+wij(1? ?ki ?kj )2?xki ? xkj ?2.
+Therefore,
+?g?ki ?gki ?2 ? 2(
+?ki
+pk
+?1)2?2(CA)2??fi(xki )?2+2(CA)2
+?
+j?Oi
+wij(1??ki ?kj )2?xki?xkj ?2.
+Applying the expectation and using the fact that ?ki ’s are independent, identi-
+cally distributed (i.i.d.) across i and across iterations, the fact that
+E((
+?ki
+pk
+? 1)2) = (1? pk)/pk ? (1? pk)/pmin,
+19
+and
+E((1? ?ki ?kj )2) = 1? p2k = (1? pk)(1 + pk) ? 2(1? pk)
+we obtain the following inequality
+E(?g?ki ?gki ?2) ? 2(CA)2(1?pk)(
+?2
+pmin
+E(??fi(xki )?2)+2
+?
+j?Oi
+wijE(?xki ?xkj ?2)).
+Further, note that E(?g?k ? gk?2) =
+?n
+i=1E(?g?ki ? gki ?2). Moreover, as a con-
+sequence of Lemma 4.1 we have
+?n
+i=1E(??fi(xki )?2) = E(??F (xk)?2) ? CF,
+and
+n?
+i=1
+?
+j?Oi
+wijE(?xki ? xkj ?2) ?
+n?
+i=1
+?
+j?Oi
+wij 2E(?xki ?2 + ?xkj ?2)
+= 2(E(
+n?
+i=1
+?xki ?2
+?
+j?Oi
+wij) + E(
+?
+j?Oi
+?xkj ?2
+n?
+i=1
+wij))
+? 2(E(?xk?2 + E(?xk?2))
+? 4Cx, (38)
+where Cx is given in Lemma 4.1. Combining the bounds above, we conclude
+E(?g?k ? gk?2) ? (1? pk)2(CA)2(
+?2
+pmin
+CF + 8Cx) := (1? pk)Cg. (39)
+Now, we will estimate the second expectation term in (37). Again, consider an
+arbitrary block i of the vector under expectation. We obtain the following.
+[(Hk ? H?k)gk]i = [Lk(G?Gk)gk]i = [Lk(Zu ? Zku + ?(Zkd ? Zd))gk]i
+= ?ki
+?
+j?Oi
+(wij ? wkij)gkj + ?ki ?(wkii ? wii)gki
+= ?ki
+?
+j?Oi
+wij(1? ?ki ?kj )gkj + ?ki ?
+?
+j?Oi
+(wij ? wkij)gki
+= ?ki
+?
+j?Oi
+wij(1? ?ki ?kj )(gkj + ?gki ).
+Moreover, applying the norm and the convexity argument like above we get
+?[(Hk ? H?k)gk]i?2 ? ??ki ?2?
+?
+j?Oi
+wij(1? ?ki ?kj )(gkj + ?gki )?2
+? ?2
+?
+j?Oi
+wij(1? ?ki ?kj )2?gkj + ?gki ?2 (40)
+Therefore, E(?[(Hk ? H?k)gk]i?2) ? ?2
+?
+j?Oi wij2(1 ? pk)E?g
+k
+j + ?g
+k
+i ?2) and
+using the steps similar to the ones in (38) we obtain the inequality
+E(?(Hk ? H?k)gk?2) ? (1? pk)?24(1 + ?2)E(?gk?2).
+20
+Moreover,
+E(?gk?2) = E(?A?1k (
+?
+pk
+Yk?F (xk) + (I? Zk)xk)?2)
+? (CA)22
+(
+?2
+p2min
+E(?Yk?2)E(??F (xk)?2) + E(?I? Zk?2)E(?xk?2))
+)
+? (CA)22(
+?2
+p2min
+CF + Cx) := Cg,2 (41)
+and thus
+E(?(Hk ? H?k)gk?2) ? (1? pk)?24(1 + ?2)Cg,2.
+Finally, returning to (37), the previous inequality and (39) imply
+E
+(
+?sk ? s?k?2
+)
+? (1? pk)2((CH)2Cg + ?2Cg,2) := (1? pk)Cs.
+2
+4.3 Main results
+The next result – first main result – follows from the theorems stated above.
+Let us define constants ?idl = min{?, ?DQN} and ?idl = min{?, ?DQN} where ?
+and ? are as in Theorem 4.3 and ?DQN and ?DQN are as in Theorem 4.2.
+Theorem 4.4. Let {xk} be the sequence of random variables generated by Al-
+gorithm 4. Further, let assumptions A1-A4 hold. In addition, let ? ? [0, ?idl]
+and ? ? (0, ?idl]. Then:
+E
+(
+?(xk+1)? ?(x?)
+)
+? E
+(
+?(xk)? ?(x?)
+)
+? + C?(1? pk), (42)
+where ? ? (0, 1) is a constant, and C? is a positive constant. Moreover, the
+iterate sequence {xk} converges to the solution x? of (2) in the mean square
+sense and almost surely.
+Proof. Claim (42) follows by taking expectation in Theorem 4.3. The re-
+maining two claims follow similarly to the proof of Theorem 2 in [4]. We briefly
+demonstrate the main arguments for completeness. Namely, unwinding the re-
+cursion (42), we obtain for k = 1, 2, ...:
+E
+(
+?(xk)? ?(x?)
+)
+?
+(
+?(x0)? ?(x?)
+)
+?k + C?
+k?
+t=1
+?k?t(1? pt?1). (43)
+Now, we apply Lemma 2.1. From this result and (43), it follows directly that
+E
+(
+?(xk)? ?(x?)
+)
+? 0 as k ? ?, because it is assumed that pk ? 1. Fur-
+thermore, using inequality ?(xk) ? ?(x?) ? µ?2 ?x
+k ? x??2, the mean square
+convergence of xk towards x? follows. It remains to show that xk ? x? almost
+surely, as well. Using condition (11), inequality (43) implies that:
+E
+(
+?(xk)? ?(x?)
+)
+?
+(
+?(x0)? ?(x?)
+)
+?k + C? Cu
+k?
+t=1
+?k?t
+t1+?
+. (44)
+21
+It can be shown that (44) implies (see, e.g., [4]): E
+(
+?(xk)? ?(x?)
+)
+= O
+(
+1/k1+?
+)
+,
+which further implies:
+E
+(
+?xk ? x??2
+)
+= O
+(
+1/k1+?
+)
+. (45)
+Applying the Markov inequality for the random variable ?xk?x??2, we obtain,
+for any ? > 0:
+P
+(
+?xk ? x??2 > ?
+)
+? 1
+?
+E
+(
+?xk ? x??2
+)
+= O
+(
+1/k1+?
+)
+. (46)
+Inequality (46) implies that:
+??
+k=0
+P
+(
+?xk ? x??2 > ?
+)
+<?,
+and so, by the first Borel-Cantelli lemma, we get P
+(
+?xk ? x??2 > ?, infinitely often
+)
+=
+0, which implies that xk ? x?, almost surely. 2
+Next, we state and prove our second main result.
+Theorem 4.5. Let {xk} be the sequence of random variables generated by Al-
+gorithm 4. Further, let assumptions of Theorem 4.4 hold, and let pk = 1??k+1,
+with ? ? (0, 1). Then, {xk} converges to the solution x? of problem (2) in the
+mean square sense at an R-linear rate.
+Proof. Denote zk = C?(1? pk). For the specific choice of pk we obtain zk =
+C??k+1 which obviously converges to zero R-linearly. Furthermore, repeatedly
+applying the relation (42) we obtain
+E
+(
+?(xk)? ?(x?)
+)
+? (?(x0)? ?(x?))?k + ak
+where ak =
+?k
+j=1 ?
+j?1zk?j . Moreover, it can be shown (see Lemma 2.1) that
+ak also converges to zero R-linearly which implies the R-linear convergence of
+E
+(
+?(xk)? ?(x?)
+)
+. Now, using the strong convexity of ? (with strong convexity
+constant µ? = ?µ), we get: ?xk ? x??2 ? (?(xk)? ?(x?))2/µ?, which in turn
+implies:
+E
+(
+?xk ? x??2
+)
+? E
+(
+?(xk)? ?(x?)
+)
+2/µ?.
+The last inequality means that E
+(
+?xk ? x??2
+)
+also converges to zero R-linearly.
+2
+Theorem 4.5 shows that the DQN method with idling converges at an R-
+linear rate when pk = 1 ? ?k+1. Parameter ? plays an important role in the
+practical performance of the method. We recommend the tuning ? = 1? c ?µ,
+with c ? [30, 80], for ? < 1/(80L). 5 The rationale for the tuning above
+comes from distributed first order methods with idling [4], where we showed
+analytically that it is optimal (in an appropriate sense) to set ?• = (1??µ)2 ?
+5Condition ? < 1/(80L) is not restrictive, as we observed experimentally that usually one
+needs to take an ? smaller than 1/(80L) in order to achieve a satisfactory limiting accuracy.
+22
+1? 2?µ. The value ?• is set to balance 1) the linear convergence factor of the
+method without idling and 2) the convergence factor of the convergence of pk
+to one. As DQN has a better (smaller) convergence factor than the distributed
+first order method (due to incorporation of the second order information), one
+has to adjust the rule 1?2?µ, replacing 2 with a larger constant c; experimental
+studies suggest values for c on the order 30-80. In addition, for very small values
+of ?µ, in order to prevent very small pk’s at initial iterations on the one hand
+and the ?’s very close to one on the other hand, we can utilize a “safeguarding”
+and modify pk to pk = max
+{
+p, 1? (min{?, ?})k+1
+}
+, where p can be taken, e.g.,
+as 0.2, and ? as 0.9999.
+5 Extensions: DQN under persisting idling
+This section investigates DQN with idling when activation probability pk does
+not converge to one asymptotically, i.e., the algorithm is subject to persisting
+idling. This scenario is of interest when activation probability pk is not in full
+control of the algorithm designer (and the networked nodes during execution).
+For example, in applications like wireless sensor networks, inter-node messages
+may be lost, due to, e.g., random packet dropouts. In addition, an active node
+may fail to perform its solution estimate update at a certain iteration, because
+the actual calculation may take longer than the time slot allocated for one
+iteration, or simply due to unavailability of sufficient computational resources.
+Henceforth, consider the scenario when pk may not converge to one. In
+other words, regarding Assumption A4, we only keep the requirement that the
+sequence {pk} is uniformly bounded from below. We make here an additional as-
+sumption that the iterates are bounded in the mean square sense, i.e., E
+(
+?xk?2
+)
+is uniformly bounded from above by a positive constant.6 Now, consider rela-
+tion (42); it continues to hold under the assumptions of the Theorem 4.4, i.e.,
+we have
+E
+(
+?(xk)? ?(x?)
+)
+? (?(x0)? ?(x?))?k +
+k?
+j=1
+?j?1C?(1? pk?j).
+Therefore, using the previous inequality we obtain
+E
+(
+?(xk)? ?(x?)
+)
+? (?(x0)? ?(x?))?k + C?(1? pmin)
+1? ?
+.
+Using strong convexity of ? (with strong convexity constant µ?) and letting k
+go to infinity we obtain
+lim sup
+k??
+E
+(
+?xk ? x??2
+)
+? 2C?(1? pmin)
+µ?(1? ?)
+:= E .
+6The boundedness proof of Lemma 4.1 in Section 4 does not generalize to the setting
+considered here. Henceforth, the mean square boundedness of the iterates is here stated
+formally as an assumption. Our conjecture is that the mean square boundedness of the
+iterates holds under the setting in Section 5 as well.
+23
+Therefore, the proposed algorithm converges (in the mean square sense) to a
+neighborhood of the solution x? of (2). Hence, an additional limiting error (in
+addition to the error due to the difference between the solutions of (1) and (2))
+is introduced with respect to the case pk ? 1. In order to analyze further
+quantity E , we unfold C? to get
+E = (1? pmin)h(?)l(?),
+where
+h(?) =
+?2L? + ?/q
+1? ?(?)
+and l(?) =
+4
+µ?
+((1 + ?CG)2Cg + ?2Cg,2);
+and ?(?) is as in the proof of Theorem 4.2. (Recall CG, Cg, and Cg,2 in (15),
+(39), and (41), respectively.) It can be shown that h(?) is an increasing function
+of ? so taking smaller step size ? brings us closer to the solution. However,
+the convergence factor ?(?) is also increasing with ?; thus, there is a tradeoff
+between the precision and the convergence rate. Furthermore, considering l(?),
+we can see that it is also an increasing function. However, as it is expected,
+l(0) is strictly positive. In other words, the error remains positive when the
+safeguarding parameter ? = 0. Finally, the size of the error is proportional to
+(1?pmin) – the closer pmin to one, the smaller the error. Simulation examples in
+Section 6 demonstrate that the error is only moderately increased (with respect
+to the case pk ? 1), even in the presence of very strong persisting idling.
+6 Numerical results
+This section demonstrates by simulation significant computational and commu-
+nication savings incurred through the idling mechanism within DQN. It also
+shows that persisting idling (pk not converging to one) induces only a moderate
+additional limiting error, i.e., the method continues to converge to a solution
+neighborhood even under persisting idling.
+We consider the problem with strongly convex local quadratic costs; that
+is, for each i = 1, ..., n, we let fi : Rp ? R, fi(x) = 12 (x ? bi)
+TAi(x ? bi),
+p = 10, where bi ? Rp and Ai ? Rp×p is a symmetric positive definite matrix.
+The data pairs Ai, bi are generated at random, independently across nodes, as
+follows. Each bi’s entry is generated mutually independently from the uniform
+distribution on [1, 31]. Each Bi is generated as Bi = QiDiQ
+T
+i ; here, Qi is the
+matrix of orthonormal eigenvectors of 12 (B?i + B?
+T
+i ), and B?i is a matrix with
+independent, identically distributed (i.i.d.) standard Gaussian entries; and Di
+is a diagonal matrix with the diagonal entries drawn in an i.i.d. fashion from
+the uniform distribution on [1, 31].
+The network is a n = 100-node instance of the random geometric graph
+model with the communication radius r =
+?
+ln(n)
+n , and it is connected. The
+weight matrix W is set as follows: for {i, j} ? E, i 6= j, wij = 12(1+max{di,dj}) ,
+24
+where di is the node i’s degree; for {i, j} /? E, i 6= j, wij = 0; and wii =
+1?
+?
+j 6=i wij , for all i = 1, ..., n.
+We compare the standard DQN method and the DQN method with incorpo-
+rated idling mechanism. Specifically, we study how the relative error (averaged
+across nodes):
+1
+n
+n?
+i=1
+?xi ? x??
+?x??
+, x? 6= 0,
+evolves with the elapsed total number of activations per node. Note that the
+number of activations relates directly to both the communication and compu-
+tational costs of the algorithm.
+The parameters for both algorithms are set in the same way, and the only
+difference is in the activation schedule. For the method with idling, we set
+pk = 1 ? ?k+1, k = 0, 1, ... We set ? = 1 ? c ?µ, with c = 40. (Clearly, for the
+method without idling, pk ? 1, for all k.) The remaining algorithm parameters
+are as follows. We set ? = 1/(100L), where L is the Lipschitz constant of the
+gradients of the fi’s that we take as maxi=1,...,n ?Ai?. Further, we let ? = 0, and
+ = 1 (full step size). We consider two choices for ?ki in step 6 of Algorithm 3:
+?ki = 0, for all i, k; and ?
+k
+i = ?I, for all i, k. (We apply no safeguarding on the
+above choices of ?ki , i.e., we let ? = 1.) Note that the former choice corresponds
+to the algorithms with a single communication round per iteration k, while the
+latter corresponds to the algorithms with two communication rounds per k.
+Figure 1 (a) plots the relative error versus total cost (equal to total number of
+activations per node up to the current iteration) for one sample path realization,
+for ?ki = 0. We can see that incorporating the idling mechanism significantly
+improves the efficiency of the algorithm: for the method to achieve the limiting
+accuracy of approximately 0.025, the method without idling takes about 410
+activations per node, while the method with idling takes about 310 activations.
+Hence, the idling mechanism reduces total cost by approximately 24%. Figure 1
+(b) repeats the plots for ?ki = ?I, still showing clear gains of idling, though
+smaller than with ?ki = 0.
+To account for randomness of the DQN method with idling that arises due
+to the random nodes’ activation schedule, we include histograms of the total
+cost needed to achieve a fixed level of relative error. Specifically, in Figure 2
+we plot histograms of the total cost (corresponding to 50 generated sample
+paths – 50 different realizations of the ?ki ’s along iterations) needed to reach the
+relative error equal 0.04; Figure 2 (a) corresponds to ?ki = 0, while Figure 2 (b)
+corresponds to ?ki = ?I. The Figures also indicate with arrows the total cost
+needed by standard DQN to achieve the same accuracy. The results confirm the
+gains of idling. Also, the variability of total cost across different sample paths
+is small relative to the gain with respect to standard DQN.
+Figures 3 and 4 investigate the scenarios when the activation probability pk
+may not asymptotically converge to one. The network is a (connected) random
+geometric graph instance with n = 40 and r =
+?
+ln(n)
+n ; step size ? = 1/(200L);
+the remaining system and algorithmic parameters are the same as with the pre-
+25
+vious simulation example. We consider the following choices for pk: 1) pk ? 1
+(standard DQN); 2) pk = 1? ?k+1; 3) pk = pmax
+(
+1? ?k+1
+)
+; and 4) pk = pmax,
+for all k. With the third and fourth choices, the presence of pmax models ex-
+ternal effects on the pk (out of control of the networked nodes), e.g., due to
+link failures and unavailability of computing resources at certain iterations; it
+is varied within the set {0.5, 0.7, 0.9}. Figure 3 (a) compares the methods for
+one sample path realization with the four choices of pk above, with pmax = 0.7,
+for ?ki = 0. Figure 3 (b) compares for the same experiment the standard DQN
+(pk ? 1), pk = 1? ?k+1, and pk = pmax
+(
+1? ?k+1
+)
+, with pmax ? {0.5, 0.7, 0.9}.
+Several important observations stand out from the experiments. First, we can
+see that the limiting error increases when pk does not converge to one with
+respect to the case when it converges to one. However, this increase (deteriora-
+tion) is moderate, and the algorithm still manages to converge to a good solution
+neighborhood despite the persisting idling. In particular, from Figure 3 (b), we
+can see that the limiting relative error increases from about 10?2 (with pk ? 1)
+to about 3.5 · 10?2 with pmax = 0.5–a case with a strong persisting idling. This
+corroborates that DQN with idling is an effective method even when activation
+probability pk is not in full control of the algorithm designer. Second, the limit-
+ing error decreases when pmax increases, as it is expected – see Figure 3 (b). Fi-
+nally, from Figure 3 (a), we can see that the method with pk = pmax
+(
+1? ?k+1
+)
+performs significantly better than the method with pk = pmax, for all k. In par-
+ticular, the methods have the same limiting error (approximately 2·10?2), while
+the former approaches this error much faster. This confirms that the proposed
+judicious design of increasing pk’s, as opposed to just keeping them constant,
+significantly improves the algorithm performance. Figure 4 repeats the same
+experiment for ?ki = ?I. We can see that the analogous conclusions can be
+drawn.
+7 Conclusion
+We incorporated an idling mechanism, recently proposed in the context of dis-
+tributed first order methods [4], into distributed second order methods. Specif-
+ically, we study the DQN algorithm [3] with idling. The idling mechanism
+involves an increasing number of nodes in the optimization process as the iter-
+ation counter k grows, so that, on average, n pk nodes (out of n nodes in total)
+participate at iteration k, where pk is the per-node activation probability. We
+showed that, as long as pk converges to one at least as fast as 1/k
+1+? , ? > 0
+arbitrarily small, the DQN algorithm with idling converges in the mean square
+sense and almost surely to the same point as the standard DQN method that
+activates all nodes at all iterations. Furthermore, when pk grows to one at a
+geometric rate, DQN with idling converges at a R-linear rate in the mean square
+sense. Therefore, DQN with idling achieves the same order of convergence (R-
+linear) as standard DQN, but with significantly cheaper iterations. Simulation
+examples corroborate communication and computational savings incurred by
+incorporating the idling mechanism.
+26
+0 100 200 300 400
+10
+-1
+10
+0
+total cost (# activations per node)
+re
+l.
+ e
+rr
+o
+r
+ 
+ 
+ all nodes working at all iter. 
+ variable num. of working nodes
+(a)
+0 50 100 150 200 250 300
+10
+-1
+10
+0
+total cost (# activations per node)
+re
+l.
+ e
+rr
+o
+r
+ 
+ 
+variable num. of working nodes
+all nodes working at all iter.
+(b)
+Figure 1: Relative error versus total cost (number of activations per node) for
+quadratic costs and n = 100-node network; Figure (a): ?ki = 0; Figure (b):
+?ki = ?I. The solid lines correspond to all nodes working at all iterations;
+the dashed lines correspond to the method with idling (increasing number of
+working nodes).
+27
+180 200 220 240 260 280
+0
+2
+4
+6
+8
+10
+12
+14
+total cost to reach rel. error 0.04
+variable num. of working nodes
+all nodes working at all iter.
+(a)
+140 160 180 200
+0
+2
+4
+6
+8
+10
+12
+14
+total cost to reach rel. error 0.04
+variable num. of working nodes
+all nodes working all iter.
+(b)
+Figure 2: Total cost (number of activations per node) to reach relative error 0.04
+for quadratic costs and n = 100-node network; Figure (a): ?ki = 0; Figure (b):
+?ki = ?I. The histograms corresponds to the DQN algorithm with idling; the
+arrow indicates the total cost needed by standard DQN.
+28
+0 200 400 600 800 1000
+10-2
+10-1
+100
+total cost (# activations per node)
+re
+l. 
+er
+ro
+r
+ 
+ 
+ pk = 1-?
+k+1
+ all nodes working at all iterations
+ pk = 0.7 ( 1-?
+k+1 )
+ pk = 0.7 = const
+(a)
+0 200 400 600 800 1000
+10-2
+10-1
+100
+total cost (# activations per node)
+re
+l. 
+er
+ro
+r
+ 
+ 
+ pk = 1 - ?
+k+1
+ pk = 1 = const
+pk = 0.7 ( 1 - ?
+k+1 )
+pk = 0.5 ( 1 - ?
+k+1 )
+pk = 0.9 ( 1 - ?
+k+1 )
+(b)
+Figure 3: Relative error versus total cost (number of activations per node) for
+strongly convex quadratic costs, n = 40-node network, and ?ki = 0. The Figures
+compare the following scenarios: 1) pk ? 1 (standard DQN); 2) pk = 1? ?k+1;
+3) pk = pmax
+(
+1? ?k+1
+)
+; and 4) pk = pmax, for all k.
+29
+0 200 400 600
+10-2
+10-1
+100
+total cost (# activations per node)
+re
+l. 
+er
+ro
+r
+ 
+ 
+ pk = 1-?
+k+1
+ pk = 1 = const
+ pk = 0.7 ( 1-?
+k+1 )
+ pk = 0.7 = const
+(a)
+0 200 400 600
+10-2
+10-1
+100
+total cost (# activations per node)
+re
+l. 
+er
+ro
+r
+ 
+ 
+ pk = 1 - ?
+k+1 
+ pk = 1= const
+ pk = 0.9 ( 1 - ?
+k+1 )
+ pk = 0.7 ( 1 - ?
+k+1 )
+ pk = 0.5 ( 1 - ?
+k+1 )
+(b)
+Figure 4: Relative error versus total cost (number of activations per node) for
+strongly convex quadratic costs, n = 40-node network, and ?ki = ?I. The
+Figures compare the following scenarios: 1) pk ? 1 (standard DQN); 2) pk =
+1? ?k+1; 3) pk = pmax
+(
+1? ?k+1
+)
+; and 4) pk = pmax, for all k.
+30
+References
+[1] Hug, G., Kar, S., Wu, C., Consensus + Innovations Approach for Dis-
+tributed Multiagent Coordination in a Microgrid, IEEE Trans. Smart Grid,
+vol. 6(4), pp. 1893-1903, 2015.
+[2] Bullo, F., Cortes, J., Martnez, S., Distributed Control of Robotic Networks:
+A Mathematical Approach to Motion Coordination Algorithms, Princeton
+University Press, 2009.
+[3] Bajovic?, D. Jakovetic?, D., Krejic?, N., Krklec Jerinkic?, N., Newton-like
+method with diagonal correction for distributed optimization, to appear
+in SIAM J. Opt., 2017, available at http://arxiv.org/abs/1509.01703
+[4] Bajovic?, D. Jakovetic?, D., Krejic?, N., Krklec Jerinkic?, N., Distributed Gra-
+dient Methods with Variable Number of Working Nodes, IEEE Trans. Sig-
+nal Processing, vol. 64, no. 15, pp. 4080-4095, 2016
+[5] Bajovic?, D. Jakovetic?, D., Krejic?, N., Krklec Jerinkic?, N., Distributed first
+and second order methods with variable number of working nodes, to ap-
+pear in proc. IEEE Global Conference on Signal and Information Process-
+ing, Greater Washington DC, VA, USA, Dec. 2016
+[6] Friedlander, M. P. , Schmidt, M., Hybrid deterministic-stochastic methods
+for data fitting, SIAM Journal on Scientific Computing 34 (2012), 1380-
+1405.
+[7] Eisen, M., Mokhtari, A., Ribeiro, A., Decentralized quasi-newton methods,
+2016, preprint arXiv:1605.00933.
+[8] Liu, J., Wright, S., Asynchronous stochastic coordinate descent: Par-
+allelism and convergence properties, SIAM J. Opt., vol. 25, no. 1, pp.
+35117376, 2015.
+[9] Chang, T-H., Wei-Cheng, L., Hong, M., Wang, X., Distributed ADMM for
+large-scale optimization part II: Linear convergence analysis and numerical
+performance, IEEE Trans. Sig. Proc., vol. 64, no. 12, pp. 3131173144, 2016.
+[10] Cattivelli, F., Sayed, A. H., Diffusion LMS strategies for distributed esti-
+mation, IEEE Transactions on Signal Processing, vol. 58, no. 3, (2010) pp.
+1035–1048.
+[11] Jakovetic?, D., Moura, J. M. F., Xavier, J., Distributed Nesterov-like gradi-
+ent algorithms, in CDC’12, 51st IEEE Conference on Decision and Control,
+Maui, Hawaii, December 2012, pp. 5459–5464.
+[12] Krejic?, N., Krklec Jerinkic?, N., Nonmonotone line search methods with
+variable sample size, Numerical Algorithms 68 (2015), pp. 711-739.
+31
+[13] Lobel, I., Ozdaglar, A., Feijer, D., Distributed Multi-agent Optimization
+with State-Dependent Communication, Mathematical Programming, vol.
+129, no. 2, (2014) pp. 255-284.
+[14] Mokhtari, A., Ling, Q., Ribeiro, A., Network Newton Distributed Opti-
+mization Methods, IEEE Trans. Signal Processing, vol. 65, no. 1, pp. 146-
+161, 2017
+[15] Mokhtari, A., Shi, W., Ling, Q., Ribeiro, A., DQM: Decentralized Quadrat-
+ically Approximated Alternating Direction Method of Multipliers, IEEE
+Trans. Signal Processing, vol. 64, no. 19, pp. 5158-5173, 2016
+[16] Mokhtari, A., Shi, W., Ling, Q., Ribeiro, A., A Decentralized Second Order
+Method with Exact Linear Convergence Rate for Consensus Optimization,
+IEEE Trans. Signal and Information Processing over Networks, vol. 2, no.
+4. pp. 507-522, 2016
+[17] Nedic?, A., Ozdaglar, A., Distributed subgradient methods for multi-agent
+optimization, IEEE Transactions on Automatic Control, vol. 54, no. 1,
+(2009) pp. 48–61.
+[18] Ram, S., Nedic, A., Veeravalli, V., Distributed stochastic subgradient pro-
+jection algorithms for convex optimization, J. Optim. Theory Appl., vol.
+147, no. 3, pp. 516545, 2011.
+[19] Ram, S. S. , Nedic?, A., Veeravalli, V., Asynchronous gossip algorithms for
+stochastic optimization, in CDC ’09, 48th IEEE International Conference
+on Decision and Control, Shanghai, China, December 2009, pp. 3581 –
+3586.
+[20] Shi, W., Ling, Q., Wu, G., Yin, W., EXTRA: an Exact First-Order Algo-
+rithm for Decentralized Consensus Optimization, SIAM Journal on Opti-
+mization No. 25 vol. 2, (2015) pp. 944-966.
+[21] Wei, E., Ozdaglar, A., Jadbabaie, A., A distributed Newton method for
+network utility maximizationI: algorithm, IEEE Transactions on Auto-
+matic Control, vol. 58, no. 9, (2013) pp. 2162- 2175.
+[22] D. Varagnolo, F. Zanella, A. Cenedese, G. Pillonetto, and L. Schenato,
+Newton-Raphson Consensus for Distributed Convex Optimization, IEEE
+Trans. Aut. Contr., vol. 61, no. 4, 2016.
+[23] Xiao, L., Boyd, S., Lall, S., A scheme for robust distributed sensor fusion
+based on average consensus, in IPSN ’05, Information Processing in Sensor
+Networks, Los Angeles, California, 2005, pp. 63–70.
+[24] Zargham, M., Ribeiro, A., Jadbabaie, A., Accelerated dual descent for con-
+strained convex network flow optimization, Decision and Control (CDC),
+2013 IEEE 52nd Annual Conference on, pp. 1037-1042, 2013.
+32

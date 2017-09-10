@@ -1,0 +1,1409 @@
+1
+A second order primal-dual method for
+nonsmooth convex composite optimization
+Neil K. Dhingra, Sei Zhen Khong, and Mihailo R. Jovanovic?
+Abstract
+We develop a second order primal-dual method for optimization problems in which the objective function is
+given by the sum of a strongly convex twice differentiable term and a possibly nondifferentiable convex regularizer.
+After introducing an auxiliary variable, we utilize the proximal operator of the nonsmooth regularizer to transform the
+associated augmented Lagrangian into a function that is once, but not twice, continuously differentiable. The saddle
+point of this function corresponds to the solution of the original optimization problem. We employ a generalization of
+the Hessian to define second order updates on this function and prove global exponential stability of the corresponding
+differential inclusion. Furthermore, we develop a globally convergent customized algorithm that utilizes the primal-
+dual augmented Lagrangian as a merit function. We show that the search direction can be computed efficiently and
+prove quadratic/superlinear asymptotic convergence. We use the `1-regularized least squares problem and the problem
+of designing a distributed controller for a spatially-invariant system to demonstrate the merits and the effectiveness
+of our method.
+I. INTRODUCTION
+We study a class of composite optimization problems in which the objective function is given by the sum
+of a differentiable strongly convex component and a nondifferentiable convex component. Problems of this form
+are encountered in diverse fields including compressive sensing, machine learning, statistics, image processing,
+and control [1]–[5]. They often arise in structured feedback synthesis where it is desired to balance controller
+performance (e.g., the closed-loop H2 or H? norm) with structural complexity [5], [6].
+The lack of differentiability in the regularization term precludes the use of standard descent methods for smooth
+objective functions. Proximal gradient methods [7]–[9] and their accelerated variants [10] generalize gradient descent,
+but typically require the nonsmooth term to be separable.
+An alternative approach introduces an auxiliary variable to split the smooth and nonsmooth components of
+the objective function. The reformulated problem facilitates the use of splitting methods such as the alternating
+direction method of multipliers (ADMM) [11]. This augmented-Lagrangian-based method divides the optimization
+problem into simpler subproblems, allows for a broader class of regularizers than proximal gradient, and it is
+convenient for distributed implementation. In [12], we exploited the structure of proximal operators associated
+with nonsmooth regularizers and introduced the proximal augmented Lagrangian. This continuously differentiable
+Financial support from the National Science Foundation under Awards ECCS-1739210 and CNS-1544887, the Air Force Office of Scientific
+Research under Award FA9550-16-1-0009, and the Institute for Mathematics and its Applications Postdoctoral Fellowship Program is gratefully
+acknowledged.
+N. K. Dhingra is with the Department of Electrical and Computer Engineering, University of Minnesota, Minneapolis, MN 55455. M. R.
+Jovanovic? is with the Department of Electrical Engineering, University of Southern California, Los Angeles, CA 90089. S. Z. Khong is with the
+Institute for Mathematics and its Applications, Minneapolis, MN 55455. E-mails: dhin0008@umn.edu, mihailo@usc.edu, szkhong@ima.umn.edu.
+September 7, 2017 DRAFT
+ar
+X
+iv
+:1
+70
+9.
+01
+61
+0v
+1 
+ [
+m
+at
+h.
+O
+C
+] 
+ 5
+ S
+ep
+ 2
+01
+7
+2
+function enables the use of the standard method of multipliers (MM) for nonsmooth optimization and it is convenient
+for distributed implementation via the Arrow-Hurwicz-Uzawa gradient flow dynamics. Recent work has extended
+MM to incorporate second order updates of the primal and dual variables [13]–[15] for nonconvex problems with
+twice continuously differentiable objective functions.
+Since first order approaches tend to converge slowly to high-accuracy solutions, much work has focused on
+developing second order methods for nonsmooth composite optimization. A generalization of Newton’s method
+was developed in [16]–[19] and it requires solving a regularized quadratic subproblem to determine a search
+direction. Related ideas have been utilized for sparse inverse covariance estimation in graphical models [20], [21]
+and topology design in consensus networks [22].
+Generalized Newton updates for identifying stationary points of (strongly) semismooth gradient mappings were
+first considered in [23]–[25]. In [26]–[28], the authors introduce the once-continuously differentiable Forward-
+Backward Envelope (FBE) and solve composite problems by minimizing the FBE using line search, quasi-Newton
+methods, or second order updates based on an approximation of the generalized Hessian.
+We develop a second order primal-dual algorithm for nonsmooth composite optimization by leveraging these
+advances. Second order updates for the once continuously differentiable proximal augmented Lagrangian are formed
+using a generalized Hessian. We employ the merit function introduced in [13] to assess progress towards the optimal
+solution and develop a globally convergent customized algorithm with fast asymptotic convergence rate. When the
+proximal operator associated with a nonsmooth regularizer is (strongly) semismooth, our algorithm exhibits local
+(quadratic) superlinear convergence.
+Our presentation is organized as follows. In Section II, we formulate the problem and provide necessary back-
+ground material. In Section III, we define second order updates to find the saddle points of the proximal augmented
+Lagrangian. In Section IV, we prove global exponential stability of a continuous-time differential inclusion. In
+Section V, we develop a customized algorithm that converges globally to the saddle point and exhibits superlinear
+or quadratic asymptotic convergence rates. In Section VI, we provide examples to illustrate the utility of our method.
+We discuss interpretations of our approach and connections to the alternative algorithms in Section VII and conclude
+the paper in Section VIII.
+II. PROBLEM FORMULATION AND BACKGROUND
+We consider the problem of minimizing the sum of two convex functions over an optimization variable x ? Rn,
+minimize
+x
+f(x) + g(Tx) (1)
+where T ? Rm×n. Problem (1) was originally formulated in the context of compressive sensing to incorporate
+structural considerations into traditional sensing or regression [1]–[3]. As specified in Assumption 1, the differen-
+tiable part of the objective function f , which quantifies loss or performance, is strictly convex with a Lipschitz
+continuous gradient. In contrast, the regularization function g may be nondifferentiable and is used to incorporate
+structural requirements on the optimization variable. In structured feedback synthesis [5], [6], f typically quantifies
+the closed-loop performance, e.g., the H2 norm, and g imposes structural requirements on the controller, e.g., by
+penalizing the amount of network traffic [29]–[32]. Although our strongest results require strong convexity of f ,
+our theory and techniques are applicable as long as the Hessian of f is positive definite.
+September 7, 2017 DRAFT
+3
+Assumption 1: The function f is twice continuously differentiable, has an Lf Lipschitz continuous gradient ?f ,
+and is strictly convex with ?2f  0; the function g is proper, lower semicontinuous, and convex; and the matrix
+T has full row rank.
+The matrix T is important when the desired structure has a simple representation in the co-domain of T , but it
+makes the problem more challenging. One approach is to reformulate (1) by introducing an auxiliary optimization
+variable z ? Rm,
+minimize
+x, z
+f(x) + g(z)
+subject to Tx ? z = 0.
+(2)
+Problem (2) is convenient for constrained optimization algorithms based on the augmented Lagrangian,
+Lµ(x, z; y) := f(x) + g(z) + yT (Tx? z) + 12µ ?Tx ? z?
+2,
+where y ? Rm is the Lagrange multiplier and µ is a positive parameter. Relative to the standard Lagrangian, Lµ
+contains an additional quadratic penalty on the linear constraint in (2).
+In the remainder of this section, we provide background on proximal operators and describe generalizations of
+the gradient for nondifferentiable functions. We also briefly overview existing approaches for solving (1).
+A. Background
+1) Proximal operators: The proximal operator of the function g is the minimizer of the sum of g and a proximal
+term,
+proxµg(v) := argmin
+z
+g(z) + 12µ ?z ? v?
+2 (3a)
+where µ is a positive parameter and v is a given vector. When g is convex, its proximal operator is Lipschitz
+continuous with parameter 1, differentiable almost everywhere, and firmly non-expansive [9]. The value function
+associated with (3a) specifies the Moreau envelope of g,
+Mµg(v) := inf
+z
+g(z) + 12µ ?z ? v?
+2
+= g(proxµg(v)) +
+1
+2µ ?proxµg(v)? v?
+2.
+(3b)
+The Moreau envelope is continuously differentiable, even when g is not, and its gradient
+?Mµg(v) = 1µ
+(
+v ? proxµg(v)
+)
+(3c)
+is Lipschitz continuous with parameter 1/µ.
+For example, the proximal operator associated with the `1 norm, g(z) =
+?
+|zi|, is determined by soft-thresholding,
+Sµ(vi) := sign(vi) max{|vi| ? µ, 0},
+the associated Moreau envelope is the Huber function,
+Mµg(vi) =
+???
+1
+2µv
+2
+i , |vi| ? µ
+|vi| ? µ2 , |vi| ? µ
+September 7, 2017 DRAFT
+4
+and its gradient is the saturation function,
+?Mµg(vi) = sign(vi) min{|vi|/µ, 1}.
+Other regularizers with efficiently computable proximal operators include indicator functions of simple convex sets
+as well as the nuclear and Frobenius norms of matricial variables. Such regularizers can enforce bounds on x,
+promote low rank solutions, and enhance group sparsity, respectively.
+2) Generalization of the gradient and Jacobian: Although proxµg is typically not differentiable, it is Lipschitz
+continuous and therefore differentiable almost everywhere [33]. One generalization of the gradient for such functions
+is given by the B-subdifferential set [34], which applies to locally Lipschitz continuous functions h: Rm ? R.
+Let Ch be a set at which h is differentiable. Each element in the set ?Bh(z?) is the limit point of a sequence of
+gradients {?h(zk)} evaluated at a sequence of points {zk} ? Ch whose limit is z?,
+?Bh(z?) := {J | ?{zk} ? Ch, zk ? z?, ?h(zk)? J} . (4)
+If h is continuously differentiable in the neighborhood of a point z, the B-subdifferential set becomes single valued
+and it is given by the gradient, ?Bh(z) = ?h(z). In general, ?Bh(z?) is not a convex set; e.g., if h(z) = |z|,
+?Bh(0) = {?1, 1}.
+The Clarke subdifferential set of h: Rm ? R at z? is the convex hull of the B-subdifferential set [35],
+?Ch(z?) := conv (?Bh(z?)).
+When h is a convex function, the Clarke subdifferential set is equal to the subdifferential set ?h(z?) which defines
+the supporting hyperplanes of h at z? [36, Chapter VI]. For a function G: Rm ? Rn, the B-generalization of the
+Jacobian at a point z? is given by
+?BG(z?) :=
+[
+JT1 . . . J
+T
+n
+]T
+where each Ji ? ?BGi(z?) is a member of the B-subdifferential set of the ith component of G evaluated at z?. The
+Clarke generalization of the Jacobian at a point z?, ?CG(z?), has the same structure where each Ji ? ?CGi(z?) is a
+member of the Clarke subdifferential of Gi(z?).
+3) Semismoothness: The mapping G: Rm ? Rn is semismooth at z? if for any sequence zk ? z?, the sequence
+of Clarke generalized Jacobians JGk ? ?CG(zk) provides a first order approximation of G,
+?G(zk) ? G(z?) + JGk(z? ? zk)? = o(?zk ? z??). (5)
+where ?(k) = o(?(k)) denotes that ?(k)/?(k) ? 0 as k tends to infinity [37]. The function G is strongly
+semismooth if this approximation satisfies the stronger condition,
+?G(zk) ? G(z?) + JGk(z? ? zk)? = O(?zk ? z??2),
+where ?(k) = O(?(k)) signifies that |?(k)| ? L?(k) for some positive constant L and positive ?(k) [37].
+Remark 1: (Strong) semismoothness of the proximal operator leads to fast asymptotic convergence of the
+differential inclusion (see Section IV) and the efficient algorithm (see Section V). Proximal operators associated
+September 7, 2017 DRAFT
+5
+with many typical regularization functions (e.g., the `1 and nuclear norms [38], piecewise quadratic functions [39],
+and indicator functions of affine convex sets [39]) are strongly semismooth. In general, semismoothness of proxµg
+follows from semismoothness of the projection onto the epigraph of g [39]. However, there are convex sets onto
+which projection is not directionally differentiable [40]. The indicator functions associated with such sets or functions
+whose epigraph is described by such sets may induce proximal operators which are not semismooth.
+B. Existing methods
+Problem (1) is encountered in a host of applications and it has been the subject of extensive study. Herein, we
+provide a brief overview of existing approaches to solving it.
+1) First order methods: When T is identity or a diagonal matrix, the proximal gradient method, which generalizes
+gradient descent to certain classes of nonsmooth composite optimization problems [9], [10], can be used to solve (1),
+xk+1 = prox?kg
+(
+xk ? ?k?f(xk)
+)
+where xk is the current iterate and ?k is the step size. When g = 0, we recover gradient descent, when g is the
+indicator function IC(x) of the convex set C, it simplifies to projected gradient descent, and when g is the `1 norm,
+it corresponds to the Iterative Soft-Thresholding Algorithm (ISTA). Nesterov-style techniques can also be employed
+for acceleration [10].
+When the matrix T is not diagonal, the alternating direction method of multipliers (ADMM) provides an appealing
+option for solving (1) via (2) by alternating between minimization of Lµ(x, z; y) over x (a continuously differentiable
+problem), minimization of Lµ(x, z; y) over z (amounts to evaluating proxµg), and a gradient ascent step in y [11],
+xk+1 = argmin
+x
+Lµ(x, zk; yk)
+zk+1 = proxµg(Tx
+k+1 + µyk)
+yk+1 = yk + 1µ (Tx
+k+1 ? zk+1).
+(6)
+Although each step in ADMM is conveniently computable, its convergence rate is strongly influenced by the
+parameter µ.
+2) Second order methods: The slow convergence of first order methods to high-accuracy solutions motivates
+the development of second order methods for solving (1). A generalization of Newton’s method for nonsmooth
+problems (1) with T = I was developed in [16]–[19]. A sequential quadratic approximation of the smooth part
+of the objective function is utilized and a search direction x? is obtained as the solution of a regularized quadratic
+subproblem,
+minimize
+x?
+1
+2 x?
+THx? + ?f(xk)T x? + g(xk + x?) (7)
+where xk is the current iterate and H is the Hessian of f . This method generalizes the projected Newton method [41]
+to a broader class of regularizers. For example, when g is the `1 norm, this amounts to solving a LASSO
+problem [42], which can be a challenging task. Coordinate descent is often used to solve this subproblem [19]
+and it has been observed to perform well in practice [20]–[22].
+September 7, 2017 DRAFT
+6
+The Forward-Backward Envelope (FBE) was introduced in [26]–[28]. FBE is once-continuously differentiable
+nonconvex function of x and its minimum corresponds to the solution of (1) with T = I . As demonstrated in
+Section VII, FBE can be obtained from the proximal augmented Lagrangian (that we introduce in Section III).
+Since the generalized Hessian of FBE involves third-order derivatives of f (which may be expensive to compute),
+references [26]–[28] employ either truncated- or quasi-Newton methods to obtain a second order update to x.
+III. THE PROXIMAL AUGMENTED LAGRANGIAN AND SECOND ORDER UPDATES
+In this section, we transform Lµ(x, z; y) into a form that is once but not twice continuously differentiable. For
+the resulting function, which we call the proximal augmented Lagrangian, we define second order updates to find its
+saddle points, show that they are always well defined, and prove that they are locally (quadratically) superlinearly
+convergent when proxµg is (strongly) semismooth.
+A. Proximal augmented Lagrangian
+The continuously differentiable proximal augmented Lagrangian was recently introduced in [12]. This was done
+by rewriting Lµ(x, z; y) via completion of squares,
+Lµ(x, z; y) = f(x) + g(z) + 12µ ?z ? (Tx+ µy)?
+2 ? µ2 ?y?
+2
+and restricting it to the manifold that corresponds to explicit minimization over the auxiliary variable z,
+Lµ(x; y) := Lµ(x, z?µ(x, y); y)
+where the minimizer of Lµ(x, z; y) over z is determined by the proximal operator of the function g,
+z?µ(x, y) = argmin
+z
+Lµ(x, z; y) = proxµg(Tx + µy)
+and it defines the aforementioned manifold.
+Theorem 1 (Theorem 1 in [12]): Let Assumption 1 hold. Then, minimization of the augmented Lagrangian
+Lµ(x, z; y) associated with problem (2) over (x, z) is equivalent to minimization of the proximal augmented
+Lagrangian
+Lµ(x; y) = f(x) + Mµg(Tx + µy) ? µ2 ?y?
+2 (8)
+over x. Moreover, Lµ(x; y) is continuously differentiable over x and y and its gradient ?Lµ(x; y),
+?Lµ(x; y) =
+?? ?xLµ(x; y)
+?yLµ(x; y)
+?? =
+?? ?f(x) + TT?Mµg(Tx+ µy)
+µ?Mµg(Tx+ µy) ? µy
+?? (9)
+is Lipschitz continuous.
+The proximal augmented Lagrangian Lµ(x; y) contains the Moreau envelope of g and its introduction allows the
+use of the method of multipliers (MM) to solve problem (2). MM requires joint minimization of Lµ(x, z; y) over x
+September 7, 2017 DRAFT
+7
+and z which is, in general, challenging because the (x, z)-minimization subproblem is nondifferentiable. However,
+Theorem 1 enables an equivalent implementation of MM
+xk+1 = argmin
+x
+Lµ(x; yk)
+yk+1 = yk + 1µ (Tx
+k+1 ? z?µ(xk+1, yk))
+(10)
+which improves performance relative to ADMM and has guaranteed convergence to a local minimum even when
+f is nonconvex [12].
+Continuous differentiability of Lµ(x; y) also enables a joint update of x and y via the primal-dual Arrow-Hurwicz-
+Uzawa gradient flow dynamics,
+x? = ??xLµ(x; y)
+y? = ?yLµ(x; y)
+where ?xLµ and ?yLµ are given by (9). When ?f and T are sparse mappings, this method is convenient
+for distributed implementation and it is guaranteed to converge at an exponential rate for strongly convex f and
+sufficiently large µ [12].
+In what follows, we extend the primal-dual algorithm to incorporate second order information of Lµ(x; y) and
+thereby achieve fast convergence to high-accuracy solutions.
+B. Second order updates
+Even though Newton’s method is primarily used for solving minimization problems in modern optimization, it was
+originally formulated as a root-finding technique and it has long been employed for finding stationary points [43].
+In [23], a generalized Jacobian was used to extend Newton’s method to semismooth problems. We employ this
+generalization of Newton’s method to ?Lµ(x; y) in order to compute the saddle point of the proximal augmented
+Lagrangian. The unique saddle point of Lµ(x; y) is given by the optimal primal-dual pair (x?, y?) and it thus
+provides the solution to (1).
+1) Generalized Newton updates: Let H := ?2f(x). We use the B-generalized Jacobian of the proximal operator
+proxµg , PB := ?B proxµg(Tx + µy), to define the set of B-generalized Hessians of the proximal augmented
+Lagrangian,
+?2BLµ :=
+???
+??H + 1µ TT (I ? P )T TT (I ? P )
+(I ? P )T ?µP
+?? , P ? PB
+??? (11a)
+and the Clarke generalized Jacobian PC := ?C proxµg(Tx+ µy) to define the set of Clarke generalized Hessians
+of the proximal augmented Lagrangian,
+?2CLµ :=
+???
+??H + 1µ TT (I ? P )T TT (I ? P )
+(I ? P )T ?µP
+?? , P ? PC
+??? . (11b)
+Note that ?2BLµ(x; y) ? ?2CLµ(x; y) because PB ? PC .
+In the rest of the paper, we introduce the composite variable, w := [xT yT ]T , use Lµ(w) interchangeably
+with Lµ(x; y), and suppress the dependance of H and P on w to reduce notational clutter. For simplicity of
+exposition, we assume that proxµg is semismooth and state the results for the Clarke generalized Hessian (11b),
+September 7, 2017 DRAFT
+8
+i.e., ?2Lµ(w) = ?2CLµ(w). As described in Remark 4 in Section IV, analogous convergence results for non-
+semismooth proxµg can be obtained for the B-generalized Hessian (11a), i.e., ?
+2Lµ(w) = ?2BLµ(w).
+We use the Clarke generalized Hessian (11b) to obtain a second order update w? by linearizing the stationarity
+condition ?Lµ(w) = 0 around the current iterate wk,
+?2CLµ(wk) w?k = ??Lµ(wk). (12)
+Since proxµg is firmly nonexpansive, 0  P  I . In Lemma 2 we use this fact to prove that the second order
+update w? is well-defined for any generalized Hessian (11) of the proximal augmented Lagrangian Lµ(x; y) as long
+as f is strictly convex with ?2f(x)  0 for all x ? Rn.
+Lemma 2: Let H ? Rn×n be symmetric positive definite, H  0, let P ? Rm×m be symmetric positive
+semidefinite with eigenvalues less than one, 0  P  I , let T ? Rm×n be full row rank, and let µ > 0. Then, the
+matrix ?? H + 1µ TT (I ? P )T TT (I ? P )
+(I ? P )T ?µP
+??
+is invertible and it has n positive and m negative eigenvalues.
+Proof: The Haynsworth inertia additivity formula [44] implies that the inertia of matrix (11) is determined by
+the sum of the inertias of matrices,
+H + 1µ T
+T (I ? P )T (13a)
+and
+? µP ? (I ? P )T
+(
+H + 1µ T
+T (I ? P )T
+)?1
+TT (I ? P ). (13b)
+Matrix (13a) is positive definite because H  0 and both P and I ? P are positive semidefinite. Matrix (13b) is
+negative definite because the kernels of P and I ? P have no nontrivial intersection and T has full row rank.
+2) Fast local convergence: The use of generalized Newton updates for solving the nonlinear equation G(x) = 0
+for nondifferentiable G was studied in [23]. We apply this framework to the stationarity condition?Lµ(w) = 0 when
+proxµg is (strongly) semismooth and show that second order updates (12) converge (quadratically) superlinearly
+within a neighborhood of the optimal primal-dual pair.
+Proposition 3: Let proxµg be (strongly) semismooth, and let w?
+k be defined by (12). Then, there is a neigh-
+borhood of the optimal solution w? in which the second order iterates wk+1 = wk + w?k converge (quadratically)
+superlinearly to w?.
+Proof: Lemma 2 establishes that ?2C Lµ(w) is nonsingular for any P ? PC . Since the gradient ?Lµ(w) of the
+proximal augmented Lagrangian is Lipschitz continuous by Theorem 1, nonsingularity of ?2CLµ(w) and (strong)
+semismoothness of the proximal operator guarantee (quadratic) superlinear convergence of the iterates by [23,
+Theorem 3.2].
+IV. A GLOBALLY CONVERGENT DIFFERENTIAL INCLUSION
+Since we apply a generalization of Newton’s method to a saddle point problem and the second order updates
+are set valued, convergence to the optimal point is not immediate. Although we showed local convergence rates in
+September 7, 2017 DRAFT
+9
+Proposition 3 by leveraging the results of [23], proof of the global convergence is more subtle and it is established
+next.
+To justify the development of a discrete-time algorithm based on the search direction resulting from (12), we
+first examine the corresponding differential inclusion,
+w? ? ?(?2CLµ(w))?1?Lµ(w) (14)
+where ?2CLµ is the Clarke generalized Hessian (11b) of Lµ. We assume existence of a solution and prove asymptotic
+stability of (14) under Assumption 1 and global exponential stability under an additional assumption that f is strongly
+convex.
+Assumption 2: Differential inclusion (14) has a solution.
+A. Asymptotic stability
+We first establish asymptotic stability of differential inclusion (14).
+Theorem 4: Let Assumptions 1 and 2 hold and let proxµg be semismooth. Then, differential inclusion (14) is
+asymptotically stable. Moreover,
+V (w) := 12 ??Lµ(w)?
+2 (15)
+provides a Lyapunov function and
+V? (t) = ? 2V (t). (16)
+Proof: Lyapunov function candidate (15) is a positive function of w everywhere apart from the optimal primal-
+dual pair w? where it is zero. It remains to show that V is decreasing along the solutions w(t) of (14), i.e., that V?
+is strictly negative for all w(t) 6= w?,
+V? (t) := ddtV (w(t)) = ? 2V (w(t))
+For Lyapunov function candidates V? (w) which are differentiable with respect to w, ??V = w?T?V? . Although (15)
+is not differentiable with respect to w, we show that V (w(t)) is differentiable along the solutions of (14). Instead
+of employing the chain rule, we use the limit that defines the derivative,
+V? (t) := ddtV (w(t)) = lims? 0
+V (w(t) + sw?(t)) ? V (w(t))
+s
+to show that V? exists and is negative along the solutions of (14). Here, w? ? ?(?2CLµ(w))?1?Lµ(w) is determined
+by the dynamics (14). We first introduce
+hs(t) :=
+V (w(t) + sw?(t)) ? V (w(t))
+s
+which gives V? in the limit s? 0. We then rewrite hs(t) as the limit point of a sequence of functions {hs,k(t)} so
+that
+V? (t) = lim
+s? 0
+hs(t) = lim
+s? 0
+lim
+k??
+hs,k(t) (17)
+September 7, 2017 DRAFT
+10
+and use the Moore-Osgood theorem [45, Theorem 7.11] to exchange the order of the limits and establish that
+V? = ?2V .
+Let Cg denote a subset of Rn+m over which proxµg(Tx+µy) is differentiable (and therefore V is differentiable
+with respect to w) and let {wk} be a sequence of points in Cg that converges to w. We define the sequence of
+functions {hs,k(t)},
+hs,k(t) :=
+V (wk(t) + sw?k(t)) ? V (wk(t))
+s
+where w?k(t) ? ?(?2CLµ(w(t)))?1?Lµ(wk(t)), as we establish below, converges to w?. To employ the Moore-
+Osgood theorem, it remains to show that hs,k(t) converges pointwise (for any k) as s ? 0 and that hs,k(t)
+converges uniformly on some interval s ? [0, s?] as k ??.
+Since {wk} ? Cg , V (wk) is differentiable for every k ? Z+ and ?V (wk) = ?2Lµ(wk) = ?2CLµ(wk). It thus
+follows that
+lim
+s? 0
+hs,k(t) = w?
+T
+k (t) ?
+2
+CLµ(wk(t))?Lµ(wk(t)) (18)
+pointwise (for any k).
+We now show that the sequence {hs,k(t)} converges uniformly to hs(t) as k ?? implying that we can exchange
+the order of the limits in (17). Since proxµg is semismooth, ?Lµ is semismooth. By (5), ?Lµ(wk) can be written
+as,
+?Lµ(wk) = ?Lµ(w) ? ?2CLµ(wk)(w ? wk) + Rk
+for sufficiently large k, where ?Rk? = o(?wk ? w?). Lemma 2 and [23, Proposition 3.1] imply that ?2CLµ(wk)
+is bounded within some neighborhood of w and thus that w?k can be written as w?k = w? + R?k where ?R?k? =
+O(?wk ? w?). This implies convergence of w?k to w? and, combined with local Lipschitz continuity of V with
+respect to wk, uniform convergence of hs,k(t) to hs(t) on s ? (0, s? ] where s? > 0.
+Therefore, the Moore-Osgood theorem on exchanging limits [45, Theorem 7.11] in conjunction with (18) imply
+V? (t) = lim
+s? 0
+hs(t)
+= lim
+s? 0
+lim
+k??
+hs,k(t) = lim
+k??
+lim
+s? 0
+hs,k(t)
+= lim
+k??
+w?Tk (t) ?
+2
+CLµ(wk(t))?Lµ(wk(t))
+= ???Lµ(w(t))?2 = ?2V (t)
+which establishes (16) and thereby completes the proof.
+B. Global exponential stability
+To establish global asymptotic stability, we show that the Lyapunov function (15) is radially unbounded, and to
+prove exponential stability we bound it with quadratic functions. We first provide two lemmas that characterize
+the mappings proxµg and ?f in terms of the spectral properties of matrices that describe the corresponding
+input-output relations at given points.
+Lemma 5 (Lemma 2 in [12]): Let g be a proper, lower semicontinuous, convex function and let proxµg: Rm ?
+Rm be the corresponding proximal operator. Then, for any a, b ? Rm, there exists a symmetric matrix Da,b satisfying
+September 7, 2017 DRAFT
+11
+0  Da,b  I such that
+proxµg(a) ? proxµg(b) = Da,b (a ? b).
+Lemma 6: Let f be strongly convex with parameter mf and let its gradient ?f be Lipschitz continuous with
+parameter Lf . Then, for any a, b ? Rn there exists a symmetric matrix Ga,b satisfying mfI  Ga,b  LfI such
+that
+?f(a) ? ?f(b) = Ga,b (a ? b).
+Proof: Let c := a? b, d := ?f(a)??f(b), e := d?mfc, and
+G?a,b := {eeT /(eT c), e 6= 0; 0, otherwise} (19a)
+Ga,b := G?a,b + mfI. (19b)
+Clearly, by construction, G?a,b = G?Ta,b  0. It is also readily verified that Ga,b c = d when eT c 6= 0. It thus remains
+to show that (i) Ga,b c = d when eT c = 0; and (ii) G?a,b  (Lf ?mf )I .
+(i) Since f is mf strongly convex and ?f is Lf Lipschitz continuous, h(x) := f(x)? mf2 ?x?
+2 is convex and
+?h(x) = ?f(x) ?mfx is Lf ?mf Lipschitz continuous. Furthermore, we have e = ?h(a) ? ?h(b), and [46,
+Proposition 5] implies
+eT c ? 1Lf ?mf ?e?
+2, for all c ? Rn. (20)
+This shows that eT c = 0 only if e := d?mfc = 0 and, thus, d = mfc = Ga,b c when eT c = 0. Therefore, there
+always exist a symmetric matrix Ga,b such that Ga,b c = d.
+(ii) When eT c 6= 0, G?a,b is a rank one matrix and its only nonzero eigenvalue is ?e?2/(eT c); this follows
+from G?a,b e = (?e?2/(eT c)) e. In this case, inequality (20) implies eT c > 0 and (20) is equivalent to 1/(eT c) ?
+(Lf ?mf )/?e?2. Thus, ?e?2/(eT c) ? Lf ?mf and G?a,b  (Lf ?mf )I when eT c 6= 0. Since G?a,b = 0 when
+eT c = 0, G?a,b  (Lf ?mf )I for all a and b. Finally, G?a,b  0 and (19b) imply mfI  Ga,b  LfI .
+Remark 2: Although matrices Da,b and Ga,b in Lemmas 5 and 6 depend on the operating point, their spectral
+properties, 0  Da,b  I and mfI  Ga,b  LfI , hold for all a and b. These lemmas can be interpreted as a
+combination between a generalization of the mean value theorem [45, Theorem 5.9] to vector-valued functions and
+spectral bounds on the operators proxµg: Rm ? Rm and ?f : Rn ? Rn arising from firm nonexpansiveness of
+proxµg , strong convexity of f , and Lipschitz continuity of ?f .
+We now combine Lemmas 5 and 6 to establish quadratic upper and lower bounds for Lyapunov function (15)
+and thereby prove global exponential stability of differential inclusion (14) for strongly convex f .
+Theorem 7: Let Assumptions 1 and 2 hold, let proxµg be semismooth, and let f be mf strongly convex.
+Then, differential inclusion (14) is globally exponentially stable, i.e., there exists ? > 0 such that ?w(t)? w?? ?
+? e?t ?w(0)? w??.
+Proof: Given the assumptions, Theorem 4 establishes asymptotic stability of (14) with the dissipation rate
+V? (w) = ? 2V (w). It remains to show the existence of positive constants ?1 and ?2 such that Lyapunov
+September 7, 2017 DRAFT
+12
+function (15) satisfies
+?1
+2 ?w??
+2 ? V (w) ? ?22 ?w??
+2 (21)
+where w? := w ? w? and w? := (x?, y?) is the optimal primal-dual pair. The upper bound in (21) follows from
+Lipschitz continuity of ?Lµ(w) (see Theorem 1), with ?2 determined by the Lipschitz constant of ?Lµ(w).
+To show the lower bound in (21), and thus establish radial unboundedness of V (w), we construct matrices that
+relate V (w) to w?. Lemmas 5 and 6 imply the existence of symmetric matrices Dw? and Gw? such that 0  Dw?  I ,
+mfI  Gw?  LfI , and
+proxµg(Tx+ µy)? proxµg(Tx? + µy?) = Dw? (T x?+ µy?)
+f(x)? f(x?) = Gw? x?.
+As noted in Remark 2, although Dw? and Gw? depend on the operating point, their spectral properties hold for all
+w?.
+Since ?Lµ(w?) = 0, we can write
+?Lµ(w) = ?Lµ(w) ? ?Lµ(w?) = Qw? w?
+and express Lyapunov function (15) as
+V (w) = 12 w?
+TQTw?Qw? w?
+where
+Qw? :=
+?? Gw? + 1µ TT (I ?Dw?)T TT (I ?Dw?)
+(I ?Dw?)T ?µDw?
+??
+for some (Dw?, Gw?) ? ?w?,
+?w? := {(Dw?, Gw?) | 0  Dw?  I, mfI  Gw?  LfI} .
+The set ?w? is closed and bounded and the minimum eigenvalue of QTw?Qw? is a continuous function of Gw? and
+Dw?. Thus, the extreme value theorem [45, Theorem 4.14] implies that its infimum over ?w?,
+?1 = inf
+(Dw?,Gw?)??w?
+?min
+(
+QTw?Qw?
+)
+is achieved. By Lemma 2, Qw? is a full rank matrix, which implies that QTw?Qw?  0 for all w? and therefore that ?1
+is positive. Thus, V (w) ? ?12 ?w??
+2, establishing condition (21).
+Condition (16) and [47, Lemma 3.4] imply V (w(t)) = e?2tV (w(0)). It then follows from (21) that
+?w(t)? w??2 ? (?2/?1) e?2t ?w(0)? w??2.
+Taking the square root completes the proof and provides an upper bound for the constant ?, ? ?
+?
+?2/?1.
+Remark 3: The rate of exponential convergence established by Theorem 7 is independent of mf , Lf , and µ.
+This is a consequence of insensitivity of Newton-like methods to poor conditioning. In contrast, the first order
+primal-dual method considered in [12] requires a sufficiently large µ for exponential convergence. In our second
+September 7, 2017 DRAFT
+13
+order primal-dual method, problem conditioning and parameter selection affect the multiplicative constant ? but
+not the rate of convergence.
+Remark 4: When differential inclusion (14) is defined with the B-generalized Hessian (11a), Theorems 4
+and 7 hold even for proximal operators which are not semismooth. This follows from defining w?k = w? ?
+?(?2BLµ(w))?1?Lµ(w) and choosing {wk} ? Cg such that ?2BLµ(w) = limk???2Lµ(wk) in the proof of
+Theorem 4. Such a choice of {wk} is possible by the definition of the B-subdifferential (4); since the Clarke
+subgradient is the convex hull of the B-subdifferential, it contains points outside of ?2BLµ(w) and thus such a
+sequence {wk} ? Cg is not guaranteed to exist for any ?2CLµ(w). When defined in this manner, w?k is constant
+with respect to wk and thus uniform convergence of hk(t, s) to h(t, s) is immediate.
+V. A SECOND ORDER PRIMAL-DUAL ALGORITHM
+An algorithm based on the second order updates (12) requires step size selection to ensure global convergence.
+This is challenging for saddle point problems because standard notions, such as sufficient descent, cannot be applied
+to assess the progress of the iterates. Instead, it is necessary to identify a merit function whose minimum lies at
+the stationary point and whose sufficient descent can be used to evaluate progress towards the saddle point.
+An approach based on discretization of differential inclusion (14) and Lyapunov function (15) as a merit function
+leads to Algorithm 2 in Appendix A. However, such a merit function is nonconvex and nondifferentiable in general
+which makes the utility of backtracking (e.g., the Armijo rule) unclear. Moreover, Algorithm 2 employs a fixed
+penalty parameter µ. A priori selection of this parameter is difficult and it has a large effect on the convergence speed.
+Instead, we employ the primal-dual augmented Lagrangian introduced in [13] as a merit function and incorporate
+an adaptive µ update. This merit function is convex in both x and y and it facilitates an implementation with
+outstanding practical performance. Drawing upon recent advancements for constrained optimization of twice dif-
+ferentiable functions [14], [15], we show that our algorithm converges to the solution of (2). Finally, our algorithm
+exhibits local (quadratic) superlinear convergence for (strongly) semismooth proxµg .
+A. Merit function
+The primal-dual augmented Lagrangian,
+Vµ(x, z; y, ?) := Lµ(x, z;?) + 12µ ?Tx? z + µ (?? y)?
+2
+was introduced in [13], where ? is an estimate of the optimal Lagrange multiplier y?. Following [13, Theorem 3.1],
+it can be shown that the optimal primal-dual pair (x?, z?; y?) of optimization problem (2) is a stationary point of
+Vµ(x, z; y, y?). Furthermore, for any fixed ?, Vµ is a convex function of x, z, and y and it has a unique global
+minimizer.
+In contrast to [13], we study problems in which a component of the objective function is not differentiable. As
+in Theorem 1, the Moreau envelope associated with the nondifferentiable component g allows us to eliminate the
+dependence of the primal-dual augmented Lagrangian Vµ on z,
+z??µ(x; y, ?) = argmin
+z
+Vµ(x, z; y, ?)
+= proxµ
+2 g
+(Tx + µ2 (2? ? y))
+September 7, 2017 DRAFT
+14
+and to express Vµ as a continuously differentiable function,
+Vµ(x; y, ?) := Vµ(x, z??µ(x; y, ?); y, ?) = f(x) + Mµ2 g
+(
+Tx + µ2 (2? ? y)
+)
++ µ4 ?y?
+2 ? µ2 ???
+2.
+For notational compactness, we suppress the dependence on ? and write Vµ(w) when ? is fixed.
+Remark 5: The primal-dual augmented Lagrangian is not a Lyapunov function unless ? = y?. We establish
+convergence by minimizing Vµ(x; y, ?) over (x; y) – a convex problem – while adaptively updating the Lagrange
+multiplier estimate ?.
+In [13], [15], the authors obtain a search direction using the Hessian of the merit function, ?2Vµ. Instead of
+implementing an analogous update using generalized Hessian ?2Vµ, we take advantage of the efficient inversion of
+?2Lµ (see Section V-B3) to define the update
+?2Lµ(wk) w? = ? blkdiag(I,?I)?V2µ(wk) (22)
+where the identity matrices are sized conformably with the dimensions of x and y, and
+?V2µ(w) =
+?? ?f(x) + TT?Mµg(Tx+ µ(2?? y))
+µ(y ??Mµg(Tx+ µ(2?? y)))
+?? . (23)
+Multiplication by blkdiag(I,?I) is used to ensure descent in the dual direction and V2µ is employed because
+z??µ(x; y, ?) is determined by the proximal operator associated with (µ/2)g. When ? = y,?xV2µ = ?xLµ,?yV2µ =
+??yLµ, and (22) becomes equivalent to the second order update (12).
+Lemma 8: Let w? solve (22). Then, for the fixed value of the Lagrange multiplier estimate ? and any ? ? (0, 1],
+d := (1 ? ?) w? ? ??V2µ(w, ?) (24)
+is a descent direction of the merit function V2µ(w, ?).
+Proof: By multiplying (22) with the nonsingular matrix
+? :=
+?? I ? 1µ TT
+0 I
+?? (25)
+we can express it as ?? H TT
+(I ? P )T ?µP
+???? x?
+y?
+?? =
+?? ?(?f(x) + TT y)
+?yV2µ(x; y, ?)
+?? (26)
+where H := ?2f(x)  0. Using (23) and (26), ?V2µ(w) can be expressed as,
+?V2µ(w) =
+?? ?(H + 1µTT (I ? P )T )x? ? TT (I ? P )y?
+(I ? P )T x? ? µP y?
+?? .
+Thus,
+w?T?V2µ(w) = ?x?T (H + 1µT
+T (I ? P )T )x? ? µy?TP y?
+September 7, 2017 DRAFT
+15
+is negative semidefinite, and the inner product
+dT?V2µ(w) = (1? ?) w?T?V2µ(w) ? ???V2µ(w)?2
+is negative definite when ?V2µ is nonzero.
+B. Second order primal-dual algorithm
+We now develop a customized algorithm that alternates between minimizing the merit function Vµ(x; y, ?) over
+(x; y) and updating ?. Near the optimal solution, the algorithm approaches second order updates (12) with unit
+step size, leading to local (quadratic) superlinear convergence for (strongly) semismooth proxµg .
+Our approach builds on the sequential quadratic programming method described in [13]–[15] and it uses the
+primal-dual augmented Lagrangian as a merit function to assess progress of iterates to the optimal solution. Inspired
+by [48], we ensure sufficient progress with damped second order updates.
+The following two quantities
+r := Tx ? proxµg(Tx + µy)
+s := Tx ? proxµg(Tx + µ (2? ? y))
+appear in the proof of global convergence. Note that r is the primal residual of optimization problem (2) and that
+?V2µ can be equivalently expressed as
+?V2µ(w) =
+?? ?f(x) + 1µ TT (s+ µ(2?? y))
+?(s + 2µ(?? y))
+?? . (27)
+1) Global convergence: We now establish global convergence of Algorithm 1 under an assumption that the
+sequence of gradients generated by the algorithm, ?f(xk), is bounded. This assumption is standard for augmented
+Lagrangian based methods [15], [49] and it does not lead to a loss of generality when f is strongly convex.
+Theorem 9: Let Assumption 1 hold and let the sequence {?f(xk)} resulting from Algorithm 1 be bounded.
+Then, the sequence of iterates
+{
+wk
+}
+converges to the optimal primal-dual point of problem (2) and the Lagrange
+multiplier estimates {?k} converge to the optimal Lagrange multiplier.
+Proof: Since V2µ(w, ?) is convex in w for any fixed ?, condition (30) in Algorithm 1 will be satisfied after
+finite number of iterations. Combining (30) and (27) shows that sk+2µk(?k?yk)? 0 and ?f(xk)+ 1
+µk
+TT (sk+
+µ(2?k ? yk)) ? 0. Together, these statements imply that the dual residual ?f(xk) + TT yk of (2) converges to
+zero.
+To show that the primal residual rk converges to zero, we first show that sk ? 0. If Step 2a in Algorithm 1
+is executed infinitely often, sk ? 0 since it satisfies (29) at every iteration and ? ? (0, 1). If Step 2a is executed
+finitely often, there is k0 after which ?k = ?k0 . By adding and subtracting 2µk?f(xk)+TT sk+4µkTT (?k0?yk)
+and rearranging terms, we can write
+TT sk = 2µk(?f(xk) + 1
+µk
+TT (sk + µk(2?k0 ? yk))) ? 2µk?f(xk) ? TT (sk + 2µk(?k0 ? yk)) ? 2µkTT?k0 .
+September 7, 2017 DRAFT
+16
+Taking the norm of each side and applying the triangle inequality, (30) and (27) yields
+?TT sk? ? 2µkk + 2µk??f(xk)?+ ?TT ?k + 2µk?TT?k0?. (28)
+This inequality implies that TT sk ? 0 because ?f(xk) is bounded, k ? 0, and µk ? 0. Since T has full row
+rank, TT has full column rank and it follows that sk ? 0.
+Substituting sk ? 0 and ?f(xk) + TT yk ? 0 into the first row of (27) and applying (30) implies ?k ? yk.
+Thus, sk ? rk, implying that the iterates asymptotically drive the primal residual rk to zero, thereby completing
+the proof.
+Remark 6: Despite the assumption that {?f(xk)} is bounded, Theorem 9 can be used to ensure global convergence
+whenever f is strongly convex. We show in Lemma 12 in Appendix B that a bounded set Cf containing the optimal
+point can be identified a priori. One can thus artificially bound ?f(x) for all x 6? Cf to satisfy the conditions of
+Theorem 9 and guarantee global convergence to the solution of (1).
+Algorithm 1 Second order primal-dual algorithm for nonsmooth composite optimization.
+input: Initial point w0 = (x0, y0), and parameters ? ? (0, 1), ? ? (0, 1), ?a, ?b ? (0, 1), k ? 0 such that k ? 0.
+initialize: Set ?0 = y0.
+Step 1: If
+?sk? ? ??sk?1? (29)
+go to Step 2a. If not, go to Step 2b.
+Step 2a: Set
+µk+1 = ?aµ
+k, ?k+1 = yk
+Step 2b: Set
+µk+1 = ?bµ
+k, ?k+1 = ?k
+Step 3: Using a backtracking line search, perform a sequence of inner iterations to choose wk+1 until
+??V2µk+1(wk+1, ?k+1)? ? k (30)
+where the search direction d is obtained using (24)–(26) with
+? = 0,
+(w?k)T?V2µk+1(wk)
+??V2µk+1(wk)?2
+? ??, (31a)
+? ? (0, 1], otherwise. (31b)
+2) Asymptotic convergence rate: The invertibility of the generalized Hessian ?2Lµ(w) allows us to establish
+local convergence rates for the second order updates (12) when proxµg is (strongly) semismooth.
+We now show that the updates in Algorithm 1 are equivalent to the second order updates (12) as k ??. Thus,
+if proxµg is (strongly) semismooth, the sequence of iterates generated by Algorithm 1 converges (quadratically)
+superlinearly to the optimal point in some neighborhood of it.
+Theorem 10: Let the conditions of Theorem 9 hold, let proxµg be (strongly) semismooth, and let 
+k be such that
+?wk ? w?? = O(k). Then, in a neighborhood of the optimal point w?, the iterates wk converge (quadratically)
+superlinearly to w?.
+September 7, 2017 DRAFT
+17
+Proof: From Theorem 9, ?k ? yk and thus ?V2µ(wk) ? ?Lµ(wk). Descent of the Lyapunov function in
+Theorem 4 therefore implies that the update in Step 3 of Algorithm 1 is given by (31a), which is equivalent to (12)
+because ? = y. The assumption on {k} in conjunction with Proposition 3, and [50, Theorem 3.2] imply that
+this update asymptotically satisfies (30) in one iteration with a unit step size. Therefore, Step 3 reduces to (12)
+in some neighborhood of the optimal solution and Proposition 3 implies that wk converges to w? (quadratically)
+superlinearly.
+3) Efficient computation of the Newton direction: When g is (block) separable, the matrix P in (11) is (block)
+diagonal. We next demonstrate that the solution to (26) can be efficiently computed when T = I and P is a sparse
+diagonal matrix whose entries are either 0 or 1. The extensions to a low rank P , to a P with entries between 0
+and 1, or to a general diagonal T follow from similar arguments.
+These conditions occur, for example, when g(z) = ??z?1. The matrix P is sparse when proxµg(x + µy) =
+S?µ(x + µy) is sparse. Larger values of ? are more likely to produce a sequence of iterates wk for which P is
+sparse and thus the second order search directions (26) are cheaper to compute.
+We can write (26) as ?? H I
+I ? P ?µP
+???? x?
+y?
+?? =
+?? ?
+?
+?? , (32a)
+permute it according to the entries of P which are 1 and 0, respectively, and partition the matrices H , P , and I?P
+conformably such that
+H =
+?? H11 H12
+HT12 H22
+?? , P =
+?? I
+0
+?? .
+Let v denote either the primal variable x or the dual variable y. We use v1 to denote the subvector of v corresponding
+to the entries of P which are equal to 1 and v2 to denote the subvector corresponding to the zero diagonal entries
+of P .
+Note that (I ?P )v = 0 when v2 = 0 and Pv = 0 when v1 = 0. As a result, x?2 and y?1 are explicitly determined
+by the bottom row of the system of equations (32a),?? 0 ?µI
+I 0
+???? x?2
+y?1
+?? =
+?? ?1
+?2
+?? (32b)
+Substitution of the subvectors x?2 and y?1 into (32a) yields,
+H11x?1 = ?1 + H12x?2 + y?1 (32c)
+which must be solved for x?1. Finally, the computation of y?2 requires only matrix-vector products,
+y?2 = ? (?2 + H21x?1 + H22x?2) . (32d)
+Thus, the major computational burden in solving (26) lies in performing a Cholesky factorization to solve (32c),
+where H11 is a matrix of a much smaller size than H .
+September 7, 2017 DRAFT
+18
+? = 0.15?max ? = 0.85?max
+?x
+?
+x
+?
+?
+iteration iteration
+?x
+?
+x
+?
+?
+time (s) time (s)
+Fig. 1: Distance from optimal solution as a function of the iteration number and solve time when solving LASSO
+for two values of ? using ISTA, FISTA, and our algorithm (2ndMM).
+VI. COMPUTATIONAL EXPERIMENTS
+In this section, we illustrate the merits and the effectiveness of our approach. We first apply our algorithm to the
+`1-regularized least squares problem and then study a system theoretic problem of controlling a spatially-invariant
+system.
+A. `1-regularized least squares
+The LASSO problem (33) regularizes a least squares objective with a ?-weighted `1 penalty,
+minimize
+x
+1
+2 ?Ax ? b?
+2 + ? ?x?1. (33)
+As described in Section II-A1, the associated proximal operator is given by soft-thresholding S?µ, the Moreau
+envelope is the Huber function, and its gradient is the saturation function. Thus, P ? P is diagonal and Pii is
+0 when |xi + µyi| < ?µ, 1 outside this interval, and between 0 and 1 on the boundary. Larger values of the
+regularization parameter ? induce sparser solutions for which one can expect a sparser sequence of iterates. Note
+that we require strong convexity of the least squares penalty; i.e., that ATA is positive definite.
+September 7, 2017 DRAFT
+19
+co
+m
+pu
+ta
+tio
+n
+tim
+e
+(s
+)
+Percent of ?max
+Fig. 2: Solve times for LASSO with n = 1000 obtained using ISTA, FISTA, and our algorithm (2ndMM) as a
+function of the sparsity-promoting parameter ?.
+? = 0.15?max ? = 0.85?max
+co
+m
+pu
+ta
+tio
+n
+tim
+e
+(s
+)
+n n
+Fig. 3: Comparison of our algorithm (2ndMM) with state-of-the-art methods for LASSO with problem dimension
+varying from n = 100 to 2000.
+In Fig. 1, we show the distance of the iterates from the optimal for the standard proximal gradient algorithm
+ISTA, its accelerated version FISTA, and our customized second order primal-dual algorithm for a problem where
+ATA has condition number 3.26 × 104. We plot distance from the optimal point as a function of both iteration
+number and solve time. Although our method always requires much fewer iterations, it is most effective when ? is
+large. In this case the most computationally demanding step (32c) required to determine the second order search
+direction (26) involves a smaller matrix inversion; see Section V-B3 for details. In Fig. 2, we show the solve times
+for n = 1000 as the sparsity-promoting parameter ? ranges from 0 to ?max = ?AT b?, where ?max yields a zero
+solution. All numerical experiments consist of 20 averaged trials.
+In Fig. 3, we compare the performance of our algorithm with the LASSO function in Matlab (a coordinate descent
+method [51]), SpaRSA [52], an interior point method [53], and YALL1 [54]. Problem instances were randomly
+generated with A ? Rm×n, n ranging from 100 to 2000, m = 3n, and ? = 0.15?max or 0.85?max. The solve times
+September 7, 2017 DRAFT
+20
+and scaling of our algorithm is competitive with these state-of-the-art methods. For larger values of ?, the second
+order search direction (26) is cheaper to compute and our algorithm is the fastest.
+B. Distributed control of a spatially-invariant system
+We now apply our algorithm to a structured control design problem aimed at balancing closed-loop H2 perfor-
+mance with spatial support of a state-feedback controller. Following the problem formulation of [5], ADMM was
+used in [32], [55] to design sparse feedback gains for spatially-invariant systems. Herein, we demonstrate that our
+algorithm provides significant computational advantage over both the ADMM algorithm and a proximal Newton
+scheme.
+1) Spatially-invariant systems: Let us consider
+?? = A? + u + d
+? =
+?? Q1/2 ?
+R1/2 u
+?? (34)
+where ?, u, d, and ? are the system state, control input, white stochastic disturbance, and performance output and
+A, Q  0, and R  0 are n× n circulant matrices. Such systems evolve over a discrete spatially-periodic domain;
+they can be used to model spatially-invariant vehicular platoons [56] and can result from a spatial discretization of
+fluid flows [57].
+Any circulant matrix can be diagonalized via the discrete Fourier transform (DFT). Thus, the coordinate trans-
+formation ? := T ??, u := T u?, d := T d?, where T?1 is the DFT matrix, brings the state equation in (34) into,
+??
+? = A? ?? + u? + d?. (35)
+Here, A? := T?1AT is a diagonal matrix whose main diagonal a? is determined by the DFT of the first row a
+of the matrix A,
+a?k :=
+n?1?
+i= 0
+ai e
+?j 2?ikn , k ? {0, . . . , n? 1}.
+We are interested in designing a structured state-feedback controller, u = ?Z?, that minimizes the closed-
+loop H2 norm, i.e., the variance amplification from the disturbance d to the regulated output ?. Since the optimal
+unstructured Z for spatially-invariant system (34) is a circulant matrix [58], we restrict our attention to circulant
+feedback gains Z. Thus, Z can also be diagonalized via a DFT and we equivalently take x := z? as our optimization
+variable where T?1ZT = diag (z?).
+For simplicity, we assume that A and Z are symmetric. In this case, a? and z? are real vectors and the closed-loop
+H2 norm of system (34) takes separable form f(x) =
+?n?1
+k= 0 fk(xk),
+fk(xk) =
+?????
+q?k + r?kx
+2
+k
+2 (xk ? a?k)
+, xk > a?k
+?, otherwise
+where xk > a?k guarantees closed-loop stability. To promote sparsity of Z, we consider a regularized optimization
+September 7, 2017 DRAFT
+21
+problem (2),
+minimize
+x, z
+f(x) + ? ?z?1
+subject to Tx ? z = 0
+(36)
+where ? is a positive regularization parameter, T is the inverse DFT matrix, and z ? Rn denotes the first row of
+the symmetric circulant matrix Z. Formulation (36) signifies that while it is convenient to quantify the H2 norm
+in the spatial frequency domain, sparsity has to be promoted in the physical space.
+By solving (36) over a range of ?, we identify distributed controller structures which are specified by the sparsity
+pattern of the solutions z?? to (36) at different values of ?. After selecting a controller structure associated with a
+particular value of ?, we solve a ‘polishing’ or ‘debiasing’ problem,
+minimize
+x,z
+f(x) + Isp(z??)(z)
+subject to Tx ? z = 0
+(37)
+where Isp(z??)(z) is the indicator function associated with the sparsity pattern of z
+?
+? . The solution to this problem
+is the optimal controller for system (34) with the desired structure, i.e., the same sparsity pattern as z?? . This
+step is necessary because the `1 norm in (36) imposes an additional penalty on z that compromises closed-loop
+performance.
+2) Implementation: The elements of the gradient of f are
+dfk(xk)
+dxk
+=
+r?kx
+2
+k ? 2a?kr?kxk ? q?k
+2 (xk ? a?k)2
+the Hessian is a diagonal matrix with non-zero entries,
+d2fk(xk)
+dx2k
+=
+q?k + r?ka?
+2
+k
+(xk ? a?k)3
+and the proximal operator associated with the nonsmooth regularizer in (36) is given by soft-thresholding S?µ.
+While the optimal unstructured controller can be obtained by solving n uncoupled scalar quadratic equations for
+xk, sparsity-promoting problem (36) is not in a separable form (because of the linear constraint) and computing
+the second order update (12) requires solving a system of equations?? H T ?
+(I ? P )T ?µP
+???? x?
+y?
+?? =
+?? ?
+?
+?? (38)
+Pre-multiplying by the nonsingular matrix blkdiag(T, I) and changing variables to solve for z? := T x? brings (12)
+into ?? T H T?1 (1/n) I
+I ? P ?µP
+???? z?
+y?
+?? =
+?? T?
+?
+??
+which is of the same form as (32a). This equation can be solved efficiently when P is sparse (i.e., ?µ is large;
+cf. Section V-B3) and x? can be recovered from z? via FFT.
+Since the Hessian H of a separable function f is a diagonal matrix, the search direction can also be efficiently
+computed when I ? P is sparse (i.e., ?µ is small). As in Section V-B3, the component of y? in the support of P
+is determined from the bottom row of (38). The top row of (38) implies x? = H?1(?? T ?y?) and substitution into
+September 7, 2017 DRAFT
+22
+the bottom row yields
+(I ? P )T H?1 T ? (I ? P ) y? = ??
+where ?? := (I ?P )(TH?1(?? T ?P y?)? ?) is a known vector. Thus, the component of y? in the support of I ?P
+can be determined by inverting a matrix whose size is determined by the support of I?P and x? is readily obtained
+from y? and ?. The operations involving T and T ? can be performed via FFT; since H is diagonal, multiplication by
+these matrices is cheap and the computational burden in solving (12) again arises from a limited matrix inversion.
+In contrast to Section V-B3, the computation of the search direction using this approach is efficient when I ?P is
+sparse, i.e., ?µ is small.
+3) Swift-Hohenberg equation: We consider the linearized Swift-Hohenberg equation [59],
+?t?(t, ?) = (cI ? (I + ???)2)?(t, ?) + u(t, ?) + d(t, ?)
+with periodic boundary conditions on a spatial domain ? ? [??, ?]. Finite-dimensional approximation and diag-
+onalization via the DFT (with an even number of Fourier modes n) yields (35) with a?k = c ? (1 ? k2)2 where
+k = {?n/2 + 1, . . . , n/2} is a spatial wavenumber.
+Figure 4a shows the optimal centralized controller and solutions to (36) for c = ?0.01, n = 64, Q = R = I ,
+and ? = 4 × 10?4, 4 × 10?3, and 4. As further illustrated in Fig. 4b, the optimal solutions to (36) become
+sparser as ? is increased.
+In Fig. 5, we demonstrate the utility of using regularized problems to navigate the tradeoff between controller
+performance and structure, an approach pioneered by [5]. The polished optimal structured controllers (—?—) were
+designed by first solving (36) to identify an optimal structure and then solving (37) to further improve the closed-
+loop performance. To illustrate the importance of polishing step (37), we also show the closed-loop performance of
+unpolished optimal structured controllers (- -×- -) resulting from (36). Finally, to evaluate the controller structures
+identified by (36), we show the closed-loop performance of polished ‘reference’ structured controllers (· · ·+ · · · ).
+Instead of solving (36), the reference structures are a priori specified as nearest neighbor symmetric controllers of
+the same cardinality as controllers resulting from (36). Among controllers with the same number of nonzero entries,
+the polished optimal structured controller consistently achieves the best closed-loop performance.
+We compare the computational efficiency of our approach with the proximal Newton method [19] and ADMM [32],
+[55]. The proximal Newton method requires solving a LASSO subproblem (7), for which we employ SpaRSA [52].
+Since A is circulant, the x-minimization step in ADMM (6) requires solving n uncoupled cubic scalar equations.
+In general, when A is block circulant, the DFT only block diagonalizes the dynamics and thus the x-minimization
+step has to be solved via an iterative procedure [32], [55].
+Figure 6 shows the time to solve (36) with ? = 0.004 using our method, proximal Newton, and ADMM. Our
+algorithm and ADMM were stopped when the primal and dual residuals were below 1×10?8. The proximal Newton
+method was stopped when the norm of the difference between two consecutive iterates was smaller than 1× 10?8.
+In Fig. 7, we show the per iteration cost and the total number of iterations required to find the optimal solution
+using each method. Our algorithm clearly outperforms proximal Newton and ADMM.
+Although proximal Newton requires a similar number of iterations, the LASSO subproblem (7) that determines its
+September 7, 2017 DRAFT
+23
+m
+id
+dl
+e
+ro
+w
+of
+Z
+(a)
+sp
+ar
+si
+ty
+le
+ve
+l
+of
+z
+? ?
+?
+(b)
+Fig. 4: (a) The middle row of the circulant feedback gain matrix Z; and (b) the sparsity level of z?? (relative to
+the sparsity level of the optimal centralized controller z?0 ) resulting from the solutions to (36) for the linearized
+Swift-Hohenberg equation with n = 64 Fourier modes and c = ?0.01.
+pe
+rf
+or
+m
+an
+ce
+de
+gr
+ad
+at
+io
+n
+(i
+n
+pe
+rc
+en
+ts
+)
+sparsity level of z (in percents)
+Fig. 5: Performance degradation (in percents) of structured controllers relative to the optimal centralized controller:
+polished optimal structured controller obtained by solving (36) and (37) (—?—); unpolished optimal structured
+controller obtained by solving only (36) (- -×- -); and optimal structured controller obtained by solving (37) for
+an a priori specified nearest neighbor reference structure (· · ·+ · · · ).
+search direction is much more expensive; this increases the computation cost of each iteration and slows the overall
+algorithm. Moreover, for larger problem sizes, the proximal Newton method struggles with finding a stabilizing
+search direction because ?2f seems to bring it away from the set of stabilizing feedback gains. It appears that our
+method circumvents this issue because its iterates lie in a larger lifted space in which stability is easier to enforce
+via backtracking.
+On the other hand, while the x- and z- minimization steps in ADMM are quite efficient, as a first order method
+ADMM requires a large number of iterations to reach high-accuracy solutions. Our algorithm achieves better
+performance because its use of second order information leads to relatively few iterations and the structured matrix
+inversion leads to efficient computation of the search direction.
+September 7, 2017 DRAFT
+24
+tim
+e
+n
+Fig. 6: Total time to compute the solution to (36) with ? = 0.004 using our algorithm (2ndMM), proximal Newton,
+and ADMM.
+av
+g
+ite
+ra
+tio
+n
+tim
+e
+n
+(a)
+nu
+m
+be
+r
+of
+ite
+ra
+tio
+ns
+n
+(b)
+Fig. 7: Comparison of (a) times to compute an iteration (averaged over all iterations); and (b) numbers of iterations
+required to solve (36) with ? = 0.004.
+VII. CONNECTIONS AND DISCUSSION
+The proximal augmented Lagrangian Lµ(x; y) is obtained by constraining Lµ(x, z; y) to the manifold
+Z := {(x, z?µ; y) | z?µ = argmin
+z
+Lµ(x, z; y)}
+= {(x, z?µ; y) | Tx + µy ? z?µ + µ?Cg(z?µ)}
+which results from the explicit minimization over the auxiliary variable z. Herein, we interpret the second or-
+der search direction as a linearized update to the KKT conditions for problem (2) and discuss connections to
+the alternative algorithms.
+September 7, 2017 DRAFT
+25
+A. Second order updates as linearized KKT corrections
+The second order update (12) can be viewed as a first order correction to the KKT conditions for optimization
+problem (2),
+0 = ?f(x) + TT y
+0 = Tx ? z
+0 ? ?Cg(z) ? y.
+(39)
+Substitution of z?µ into (39) makes the last two conditions redundant; when combined with the definition of the
+manifold Z , Tx = z implies y ? ?Cg(z) and y ? ?Cg(z) implies Tx = z.
+Multiplying equation (12) for the second order update with the nonsingular matrix (25) recovers the equivalent
+expression ?? H TT
+(I ? P )T ?µP
+???? x?k
+y?k
+?? = ?
+?? ?f(xk) + TT yk
+rk
+?? (40)
+where rk := Txk ? z?µ(xk; yk) = Txk ? proxµg(Txk + µyk) is the primal residual of (2). Thus, (40) describes a
+first order correction to the first and second KKT conditions in (39).
+B. Connections with other methods
+We now discuss broader implications of our framework and draw connections to the existing methods for solving
+versions of (1). Many techniques for solving composite minimization problems of the form (1) can be expressed
+in terms of functions embedded in the augmented Lagrangian; see Table I. Trivially, the objective function in (1)
+corresponds to Lµ(x, z; y) over the manifold z = Tx. The Lagrange dual of a problem equivalent to (2),
+minimize
+x, z
+f(x) + g(z) + 12µ ?Tx ? z?
+2
+subject to Tx ? z = 0
+(41)
+is recovered by collapsing Lµ(x, z; y) onto the intersection of the z-minimization manifold Z and the x-minimization
+manifold,
+X := {(x?, z; y) | x? = argmin
+x
+Lµ(x, z; y)}
+= {(x?, z; y) | µ (?f(x?) + TT y) = TT (z ? Tx?)}.
+The Lagrange dual of (2) is recovered from the Lagrange dual of (41) in the limit µ??.
+1) MM and ADMM: MM implements gradient ascent on the dual of (41) by collapsing Lµ(x, z; y) computa-
+tionally onto X ? Z . The joint (x, z)-minimization step in (10) evaluates the Lagrange dual at discrete iterates yk
+by finding the corresponding (x, z)-pair on X ? Z; i.e., the iterate (xk+1, zk+1; yk) generated by (10) lies on the
+manifold X ? Z . Note that, in this form, joint (x, z)-minimization is a challenging nondifferentiable optimization
+problem.
+ADMM avoids this challenge by collapsing Lµ(x, z; y) onto X and Z separately. While the underlying x- and
+z-minimization subproblems in ADMM are relatively simple, the iterate (xk+1, zk+1; yk) generated by (6) does not
+typically lie on the X ?Z manifold. Thus ADMM does not represent gradient ascent on the dual of (41), causing
+looser theoretical guarantees and often worse practical performance.
+September 7, 2017 DRAFT
+26
+x z y function methods
+z = Tx - objective function of (1) subgradient iteration [60]
+- - - augmented Lagrangian ADMM [5], [11]
+X Z - Lagrange dual of (41) Dual ascent (if explicit expression available)
+- Z - proximal augmented Lagrangian MM [12], Arrow-Hurwicz-Uzawa [12], 2nd order primal-dual
+- Z Y Forward-Backward Envelope FB Truncated Newton [26], related to prox. gradient [26]
+TABLE I: Summary of different functions embedded in the augmented Lagrangian of (2) and methods for solving (1)
+based on these functions.
+By collapsing the augmented Lagrangian onto Z , the proximal augmented Lagrangian (8) allows us to express
+the (x, z)-minimization step in MM as a tractable continuously differentiable problem (cf. Theorem 1). This avoids
+challenges associated with ADMM and it does not increase computational complexity in the x-minimization step
+in (10) relative to ADMM when using first order methods. We finally note that unlike the Rockafellar’s proximal
+method of multipliers [61] which applies the proximal point algorithm to the primal-dual optimality conditions, our
+framework reformulates the standard method of multipliers and develops second order algorithm to solve nonsmooth
+composite optimization problems.
+2) Second order methods: We identify the saddle point of Lµ(x, z; y) by forming second order updates to x
+and y along the Z manifold. Just as Newton’s method approximates an objective function with a convex quadratic
+function, we approximate Lµ(x; y) with a quadratic saddle function.
+Constraining the dual variable itself yields connections with other methods. When T = I , (39) implies that the
+optimal dual variable is given by y? = ??f(x?), so it is natural to collapse the augmented Lagrangian onto the
+manifold
+Y := {(x, z; y?) | y? = ??f(x)}.
+The augmented Lagrangian over the manifold Z ? Y corresponds to the Forward-Backward Envelope (FBE)
+introduced in [26]. The proximal gradient algorithm with step size µ can be recovered from a variable metric
+gradient iteration on the FBE [26]. In [26]–[28], the approximate line search and quasi-Newton methods based on
+the FBE were developed to solve (1) with T = I . Since the Hessian of the FBE involves third order derivatives of
+f , these techniques employ either truncated- or quasi-Newton methods.
+The approach advanced in the current paper applies a second order method to the augmented Lagrangian that
+is constrained over the larger manifold Z . Relative to alternatives, our framework offers several advantages. First,
+while the FBE is in general nonconvex function of x, Lµ(x; y) is always convex in x and concave in y. Furthermore,
+we can compute the Hessian exactly using only second order derivatives of f and its structure allows for efficient
+computation of the search direction. Finally, our formulation allows us to leverage recent advances in second order
+methods for augmented Lagrangian methods, e.g., [13]–[15].
+VIII. CONCLUDING REMARKS
+We have developed a second order primal-dual method for nonsmooth convex composite optimization. We
+establish global exponential convergence of the corresponding differential inclusion in continuous-time and use the
+September 7, 2017 DRAFT
+27
+primal-dual augmented Lagrangian as a merit function in a discrete-time implementation. Our globally convergent
+customized algorithm exhibits asymptotic (quadratic) superlinear convergence rate when the proximal operator
+associated with nonsmooth regularizer is (strongly) semismooth. We use the `1-regularized least squares and
+spatially-invariant control problems to demonstrate competitive performance of our algorithm relative to the available
+state-of-the-art alternatives.
+Future research will focus on nonconvex problems, the development of inexact second order methods, and
+application of our framework to problems in which the codomain of the regularizer has a larger dimensions than
+the domain of the optimization variable. In particular, inexact but structured approximations of the Hessian can lead
+to efficient methods that may even be convenient for distributed implementation.
+APPENDIX
+A. Algorithm based on V (w) as a merit function
+Since Theorem 7 establishes global convergence of the differential inclusion, one algorithmic approach is to
+implement a Forward Euler discretization of differential inclusion (14). A natural choice of merit function is the
+Lyapunov function V defined in (15). A simple corollary of Theorem 4 shows that the second order update (12) is
+a descent direction for V .
+Corollary 11: The second order update (12) is a descent direction for the merit function V defined in (15).
+Proof: Follows from (16) in Theorem 4.
+Corollary 11 enables the use of a backtracking Armijo rule for step size selection. A natural choice of stopping
+criterion for such an algorithm is a condition on the size of the primal and dual residuals. Moreover, proposition 3
+suggests fast asymptotic convergence when proxµg is semismooth. The LASSO example in Fig. 8 verifies this
+intuition when solving LASSO to a threshold of 1× 10?8 for the primal and dual residuals.
+Algorithm 2 Second order primal-dual algorithm for nonsmooth composite optimization based on discretizing (14).
+input: Initial point x0, y0, backtracking constant ? ? (0, 1), Armijo parameter ? ? (0, 1), and stopping tolerances
+?1, ?2.While: ?Txk ? proxµg(Txk + µyk)? > ?1 or
+??f(xk) ? TT yk? > ?2
+Step 1: Compute w?k as defined in (12)
+Step 2: Choose the smallest j ? Z+ such that
+V (wk + ?jw?k) ? V (wk) ? ? ?j ??Lµ(wk)?2
+Step 3: Update the primal and dual variables
+wk+1 = wk + ?jw?k
+However, such an implementation would require a fixed penalty parameter µ, which typically has a large effect
+on the convergence speed of augmented Lagrangian algorithms and is difficult to select a priori. Moreover, stability
+of the solution to a differential equation does not always imply stability of its discretization.
+An example: We implement Algorithm 2 to solve the LASSO problem (33) studied in Section VI. The LASSO
+problem was randomly generated with n = 500, m = 1000, and ? = 0.85?max. Figure 8 illustrates the quadratic
+asymptotic convergence of Algorithm 2 and a strong influence of µ.
+September 7, 2017 DRAFT
+28
+?x
+?
+x
+?
+?
+Iteration
+Fig. 8: Distance from the optimal solution as a function of iteration number when solving LASSO using Algorithm 2
+for different values of µ.
+B. Bounding ?f(x) for Algorithm 1
+A bounded set Cf containing the solution to (1) can always be identified from any point x?, ?f(x?), any element
+of the subgradient ?g(x?), and a lower bound on the parameter of strong convexity.
+Lemma 12: Let Assumption 1 hold and let f be mf -strongly convex. Then, for any x?, the optimal solution to (1)
+lies within the ball of radius 2mf ??f(x?) + T
+T?g(T x?)? centered at x?.
+Proof: Given any point x?, strong convexity of f and convexity of g imply that,
+f(x) + g(Tx) ? f(x?) ? g(T x?) ?
+?
+?f(x?) + TT?g(T x?), x ? x?
+?
++
+mf
+2 ?x ? x??
+2 (42)
+for all x where ?g(T x?) is any member of the subgradient of g(T x?). For any x with ?x ? x?? ? 2mf ??f(x?) +
+TT?g(T x?)?, the right-hand side of (42) must be nonnegative which implies that f(x) + g(Tx) ? f(x?) + g(T x?)
+and thus that x cannot solve (1).
+For any strongly convex function f and convex function g, a function f? can be selected such that
+argmin f(x) + g(Tx) = argmin f?(x) + g(Tx).
+Here, f? is identical to f in some closed set Cf containing x?,
+f?(x) :=
+??? f(x), x ? Cff?(x), x 6? Cf
+and f?(x) is chosen such that f?(x) is convex and twice differentiable, ?f?(x) is uniformly bounded, and ?2f?(x)  0.
+Lemma 12 implies that a set Cf that contains the optimal solution x? of (1) can be identified a priori from any
+given point x?. Since f?(x) satisfies all the conditions of Theorem 9, Algorithm 1 can be used to solve (1) and, since
+Cf contains x?, its optimal solution will also solve (1).
+September 7, 2017 DRAFT
+29
+An example: When x ? R, f(x) = 12x
+2, and Cf = [?1, 1], a potential choice of f?(x) is given by,
+f?(x) =
+??? ?2x + ex+1 ? 2.5, x ? ?12x + e?x+1 ? 2.5, x ? 1.
+For this choice of f? , the gradient of f? is continuous and bounded,
+?f?(x) =
+?????????
+?2 + ex+1, x ? ?1
+x, x ? [?1, 1]
+2? e?x+1, x ? 1
+and the Hessian of f? is determined by
+?2f?(x) =
+?????????
+ex+1, x ? ?1
+1, x ? [?1, 1]
+e?x+1, x ? 1.
+September 7, 2017 DRAFT
+30
+REFERENCES
+[1] D. L. Donoho, “Compressed sensing,” IEEE Trans. Inf. Theory, vol. 52, no. 4, pp. 1289–1306, 2006.
+[2] T. Goldstein and S. Osher, “The split Bregman method for `1-regularized problems,” SIAM J. Imaging Sci., vol. 2, no. 2, pp. 323–343,
+2009.
+[3] V. Chandrasekaran, B. Recht, P. A. Parrilo, and A. S. Willsky, “The convex geometry of linear inverse problems,” Found. Comput. Math.,
+vol. 12, no. 6, pp. 805–849, 2012.
+[4] P. J. Bickel and E. Levina, “Regularized estimation of large covariance matrices,” Ann. Stat., pp. 199–227, 2008.
+[5] F. Lin, M. Fardad, and M. R. Jovanovic?, “Design of optimal sparse feedback gains via the alternating direction method of multipliers,”
+IEEE Trans. Automat. Control, vol. 58, no. 9, pp. 2426–2431, September 2013.
+[6] M. R. Jovanovic? and N. K. Dhingra, “Controller architectures: tradeoffs between performance and structure,” Eur. J. Control, vol. 30, pp.
+76–91, July 2016.
+[7] P.-L. Lions and B. Mercier, “Splitting algorithms for the sum of two nonlinear operators,” SIAM J. Numer. Anal., vol. 16, no. 6, pp.
+964–979, 1979.
+[8] P. L. Combettes and J.-C. Pesquet, “Proximal splitting methods in signal processing,” in Fixed-point algorithms for inverse problems in
+science and engineering, 2011, pp. 185–212.
+[9] N. Parikh and S. Boyd, “Proximal algorithms,” Found. Trends Optim., vol. 1, no. 3, pp. 123–231, 2013.
+[10] A. Beck and M. Teboulle, “A fast iterative shrinkage-thresholding algorithm for linear inverse problems,” SIAM J. Imaging Sci., vol. 2,
+no. 1, pp. 183–202, 2009.
+[11] S. Boyd, N. Parikh, E. Chu, B. Peleato, and J. Eckstein, “Distributed optimization and statistical learning via the alternating direction
+method of multipliers,” Found. Trends Mach. Learning, vol. 3, no. 1, pp. 1–124, 2011.
+[12] N. K. Dhingra, S. Z. Khong, and M. R. Jovanovic?, “The proximal augmented Lagrangian method for nonsmooth composite optimization,”
+IEEE Trans. Automat. Control, 2016, submitted; also arXiv:1610.04514.
+[13] P. E. Gill and D. P. Robinson, “A primal-dual augmented Lagrangian,” Comput. Optim. Appl., vol. 51, no. 1, pp. 1–25, 2012.
+[14] P. Armand, J. Benoist, R. Omheni, and V. Pateloup, “Study of a primal-dual algorithm for equality constrained minimization,” Comput.
+Optim. Appl., vol. 59, no. 3, pp. 405–433, 2014.
+[15] P. Armand and R. Omheni, “A globally and quadratically convergent primal-dual augmented Lagrangian algorithm for equality constrained
+optimization,” Optim. Method. Softw., pp. 1–21, 2015.
+[16] S. Becker and J. Fadili, “A quasi-Newton proximal splitting method,” in Adv. Neural Inf. Process. Syst., F. Pereira, C. Burges, L. Bottou,
+and K. Weinberger, Eds., 2012, pp. 2618–2626.
+[17] P. Tseng and S. Yun, “A coordinate gradient descent method for nonsmooth separable minimization,” Math. Program., vol. 117, no. 1-2,
+pp. 387–423, 2009.
+[18] R. H. Byrd, J. Nocedal, and F. Oztoprak, “An inexact successive quadratic approximation method for `1 regularized optimization,” Math.
+Program., pp. 1–22, 2015.
+[19] J. D. Lee, Y. Sun, and M. A. Saunders, “Proximal Newton-type methods for minimizing composite functions,” SIAM J. Optimiz., vol. 24,
+no. 3, pp. 1420–1443, 2014.
+[20] C.-J. Hsieh, I. S. Dhillon, P. K. Ravikumar, and M. A. Sustik, “Sparse inverse covariance matrix estimation using quadratic approximation,”
+in Adv. Neural Inf. Process. Syst., 2011, pp. 2330–2338.
+[21] C.-J. Hsieh, M. A. Sustik, I. S. Dhillon, and P. Ravikumar, “QUIC: Quadratic approximation for sparse inverse covariance estimation,” J.
+Mach. Learn. Res., vol. 15, pp. 2911–2947, 2014.
+[22] S. Hassan-Moghaddam and M. R. Jovanovic?, “Topology design for stochastically-forced consensus networks,” IEEE Trans. Control Netw.
+Syst., 2017, doi:10.1109/TCNS.2017.2674962.
+[23] L. Qi and J. Sun, “A nonsmooth version of Newton’s method,” Math. Program., vol. 58, no. 1, pp. 353–367, 1993.
+[24] L. Qi and D. Sun, “A survey of some nonsmooth equations and smoothing Newton methods,” in Progress in Optimization. Springer,
+1999, pp. 121–146.
+[25] R. Mifflin, “Semismooth and semiconvex functions in constrained optimization,” SIAM J. Control Opt., vol. 15, no. 6, pp. 959–972, 1977.
+[26] P. Patrinos, L. Stella, and A. Bemporad, “Forward-backward truncated Newton methods for large-scale convex composite optimization,”
+2014, arXiv:1402.6655.
+[27] L. Stella, A. Themelis, and P. Patrinos, “Forward-backward quasi-Newton methods for nonsmooth optimization problems,” 2016,
+arXiv:1604.08096.
+September 7, 2017 DRAFT
+31
+[28] A. Themelis, L. Stella, and P. Patrinos, “Forward-backward envelope for the sum of two nonconvex functions: Further properties and
+nonmonotone line-search algorithms,” 2016, arXiv:1606.06256.
+[29] F. Do?rfler, M. R. Jovanovic?, M. Chertkov, and F. Bullo, “Sparse and optimal wide-area damping control in power networks,” in Proceedings
+of the 2013 American Control Conference, 2013, pp. 4295–4300.
+[30] F. Do?rfler, M. R. Jovanovic?, M. Chertkov, and F. Bullo, “Sparsity-promoting optimal wide-area control of power networks,” IEEE Trans.
+Power Syst., vol. 29, no. 5, pp. 2281–2291, September 2014.
+[31] X. Wu, F. Do?rfler, and M. R. Jovanovic?, “Input-output analysis and decentralized optimal control of inter-area oscillations in power
+systems,” IEEE Trans. Power Syst., vol. 31, no. 3, pp. 2434–2444, May 2016.
+[32] X. Wu and M. R. Jovanovic?, “Sparsity-promoting optimal control of systems with symmetries, consensus and synchronization networks,”
+Syst. Control Lett., vol. 103, pp. 1–8, May 2017.
+[33] R. T. Rockafellar and R. J.-B. Wets, Variational analysis. Springer Science & Business Media, 2009, vol. 317.
+[34] S. M. Robinson, “Local structure of feasible sets in nonlinear programming, Part III: Stability and sensitivity,” in Nonlinear Analysis and
+Optimization. Springer, 1987, pp. 45–66.
+[35] F. H. Clarke, Optimization and nonsmooth analysis. SIAM, 1990, vol. 5.
+[36] J.-B. Hiriart-Urruty and C. Lemare?chal, Convex analysis and minimization algorithms I: Fundamentals. Springer Science & Business
+Media, 2013, vol. 305.
+[37] G. H. Hardy and E. M. Wright, An introduction to the theory of numbers. Oxford University Press, 1979, vol. 5.
+[38] K. Jiang, D. Sun, and K.-C. Toh, “A partial proximal point algorithm for nuclear norm regularized matrix least squares problems,” Math.
+Program. Comp., vol. 6, no. 3, pp. 281–325, 2014.
+[39] F. Meng, D. Sun, and G. Zhao, “Semismoothness of solutions to generalized equations and the Moreau-Yosida regularization,” Math.
+Programming, vol. 104, no. 2, pp. 561–581, 2005.
+[40] J. Kruskal, “Two convex counterexamples: A discontinuous envelope function and a nondifferentiable nearest-point mapping,” Proceedings
+of the American Mathematical Society, vol. 23, no. 3, pp. 697–703, 1969.
+[41] D. P. Bertsekas, “Projected Newton methods for optimization problems with simple constraints,” SIAM J. Control Opt., vol. 20, no. 2, pp.
+221–246, 1982.
+[42] R. Tibshirani, “Regression shrinkage and selection via the LASSO,” J. Royal. Statist. Soc B., vol. 58, no. 1, pp. 267–288, 1996.
+[43] J. M. Ortega and W. C. Rheinboldt, Iterative solution of nonlinear equations in several variables. SIAM, 2000.
+[44] R. A. Horn and C. R. Johnson, Matrix Analysis. Cambridge University Press, 1990.
+[45] W. Rudin, Principles of mathematical analysis. McGraw-Hill, Inc., 1964, vol. 3.
+[46] L. Lessard, B. Recht, and A. Packard, “Analysis and design of optimization algorithms via integral quadratic constraints,” SIAM J. Optimiz.,
+vol. 26, no. 1, pp. 57–95, 2016.
+[47] H. Khalil, Nonlinear Systems. Prentice Hall, New Jersey, 2002.
+[48] T. De Luca, F. Facchinei, and C. Kanzow, “A semismooth equation approach to the solution of nonlinear complementarity problems,”
+Math. Program., vol. 75, no. 3, pp. 407–439, 1996.
+[49] A. R. Conn, N. I. Gould, and P. Toint, “A globally convergent augmented Lagrangian algorithm for optimization with general constraints
+and simple bounds,” SIAM J. Numer. Anal., vol. 28, no. 2, pp. 545–572, 1991.
+[50] F. Facchinei, “Minimization of SC1 functions and the Maratos effect,” Oper. Res. Lett., vol. 17, no. 3, pp. 131–137, 1995.
+[51] J. Friedman, T. Hastie, and R. Tibshirani, “Regularization paths for generalized linear models via coordinate descent,” J. Stat. Softw.,
+vol. 33, no. 1, p. 1, 2010.
+[52] S. J. Wright, R. D. Nowak, and M. A. Figueiredo, “Sparse reconstruction by separable approximation,” IEEE Trans. Signal Process.,
+vol. 57, no. 7, pp. 2479–2493, 2009.
+[53] S.-J. Kim, K. Koh, M. Lustig, S. Boyd, and D. Gorinevsky, “An interior-point method for large-scale `1-regularized least squares,” IEEE
+J. Sel. Topics Signal Process., vol. 1, no. 4, pp. 606–617, 2007.
+[54] J. Yang and Y. Zhang, “Alternating direction algorithms for `1-problems in compressive sensing,” SIAM J. Sci. Comput., vol. 33, no. 1,
+pp. 250–278, 2011.
+[55] D. M. Zoltowski, N. K. Dhingra, F. Lin, and M. R. Jovanovic?, “Sparsity-promoting optimal control of spatially-invariant systems,” in
+Proceedings of the 2014 American Control Conference, 2014, pp. 1261–1266.
+[56] B. Bamieh, M. R. Jovanovic?, P. Mitra, and S. Patterson, “Coherence in large-scale networks: dimension dependent limitations of local
+feedback,” IEEE Trans. Automat. Control, vol. 57, no. 9, pp. 2235–2249, September 2012.
+September 7, 2017 DRAFT
+32
+[57] M. R. Jovanovic? and B. Bamieh, “Componentwise energy amplification in channel flows,” J. Fluid Mech., vol. 534, pp. 145–183, July
+2005.
+[58] B. Bamieh, F. Paganini, and M. A. Dahleh, “Distributed control of spatially-invariant systems,” IEEE Trans. Automat. Control, vol. 47,
+no. 7, pp. 1091–1107, 2002.
+[59] J. Swift and P. C. Hohenberg, “Hydrodynamic fluctuations at the convective instability,” Phys. Rev. A, vol. 15, no. 1, p. 319, 1977.
+[60] D. P. Bertsekas, Nonlinear programming. Athena Scientific, 1999.
+[61] R. T. Rockafellar, “Monotone operators and the proximal point algorithm,” SIAM J. Control Optim., vol. 14, no. 5, pp. 877–898, 1976.
+September 7, 2017 DRAFT

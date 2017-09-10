@@ -1,0 +1,1353 @@
+Multi-View Spectral Clustering via Structured Low-Rank Matrix Factorization
+Yang Wang† and Lin Wu‡
+†The University of New South Wales, Kensington, Sydney, Australia
+‡ The University of Queensland, Brisbane, Australia
+wangy@cse.unsw.edu.au, lin.wu@uq.edu.au
+Abstract
+Multi-view data clustering attracts more attention
+than their single view counterparts due to the
+fact that leveraging multiple independent and com-
+plementary information from multi-view feature
+spaces outperforms the single one. Multi-view
+Spectral Clustering aims at yielding the data parti-
+tion agreement over their local manifold structures
+by seeking eigenvalue-eigenvector decompositions.
+Among all the methods, Low-Rank Representa-
+tion (LRR) is effective, by exploring the multi-
+view consensus structures beyond the low-rankness
+to boost the clustering performance. However, as
+we observed, such classical paradigm still suffers
+from the following stand-out limitations for multi-
+view spectral clustering of (1) overlooking the flex-
+ible local manifold structure, caused by (2) ag-
+gressively enforcing the low-rank data correlation
+agreement among all views, such strategy therefore
+cannot achieve the satisfied between-views agree-
+ment; worse still, (3) LRR is not intuitively flexible
+to capture the latent data clustering structures. In
+this paper, we present the structured LRR by factor-
+izing into the latent low-dimensional data-cluster
+representations, which characterize the data clus-
+tering structure for each view. Upon such repre-
+sentation, (b) the laplacian regularizer is imposed
+to be capable of preserving the flexible local mani-
+fold structure for each view. (c) We present an iter-
+ative multi-view agreement strategy by minimizing
+the divergence objective among all factorized latent
+data-cluster representations during each iteration of
+optimization process, where such latent representa-
+tion from each view serves to regulate those from
+other views, such intuitive process iteratively coor-
+dinates all views to be agreeable. (d) We remark
+that such data-cluster representation can flexibly
+encode the data clustering structure from any view
+with adaptive input cluster number. To this end, (e)
+a novel non-convex objective function is proposed
+via the efficient alternating minimization strategy.
+The complexity analysis are also presented. The
+extensive experiments conducted against the real-
+world multi-view datasets demonstrate the superi-
+ority over state-of-the-arts.
+1 Introduction
+Spectral clustering [Ng et al., 2001; Zelnik-Manor and Per-
+ona, 2004; Cai and Chen, 2015; Nie et al., 2011] aims at ex-
+ploring the local nonlinear manifold (spectral graph)1 struc-
+ture [Hou et al., 2015; Tao et al., 2016], attracting great at-
+tention within recent years. With the development of infor-
+mation technology, multi-view spectral clustering, due to the
+fact of outperforming the single view counterparts by leverag-
+ing the complementary information from multi-view spaces.
+As implied by multi-view research [Xu et al., 2015; Xu et
+al., 2013; Wang et al., 2016a], an individual view is not capa-
+ble of being faithful for effective multi-view learning. There-
+fore, exploring multi-view information is necessary, and has
+been demonstrated by a wide spectrum of applications e.g.,
+similarity search [Liu et al., 2015; Wang et al., 2015b;
+Wu et al., 2013b; Wu et al., 2015; Wu et al., 2013a; Wang et
+al., 2014a; Wang et al., 2015a; Wang et al., 2017a; Wang et
+al., 2013b], human action recognition [Jones and Shao, 2014;
+Shao et al., 2016; Wu et al., 2017b; Wang et al., 2016b;
+Wang et al., 2014b; Wu et al., 2017a; Wu and Wang, 2017;
+Wang et al., 2012] etc..
+Essentially, given the complementary information from
+multi-views, the critical issue of multi-view clustering is to
+achieve the multi-view clustering agreement/consensus [Xu
+et al., 2013; Gui et al., 2014; Gao et al., 2015] to yield
+a substantial superior clustering performance over the sin-
+gle view paradigm. Numerous multi-view based methods
+are proposed for spectral clustering. [Huang et al., 2012;
+Bickel and Scheffer., 2004; Wang et al., 2013a] performs
+multi-view information incorporation into the clustering pro-
+cess by optimizing certain objective loss function. Early
+fusion strategy can also be developed by concatenating the
+multi-view features into a uniform one [Huang et al., 2010],
+upon which the similarity matrix is calculated for further
+multi-view spectral clustering. As mentioned by [Wang et
+al., 2015c; Wang et al., 2017b], such strategy will be more
+likely to destroy the inherent property of original feature rep-
+resentations within each view, hence resulting into a worse
+1In the rest of this paper, we will alternatively use nonlinear man-
+ifold structure or spectral graph structure
+ar
+X
+iv
+:1
+70
+9.
+01
+21
+2v
+1 
+ [
+cs
+.C
+V
+] 
+ 5
+ S
+ep
+ 2
+01
+7
+performance; worse still, sometimes, as indicated by the ex-
+perimental reports from our previous research [Wang et al.,
+2015c], it may even be inferior to the clustering performance
+with a single view. In contrast, Late fusion strategy [Greene
+and Cunningham, 2009] conducts spectral clustering perfor-
+mance for each view, and then combining multiple them after-
+wards, which, however, cannot achieve the multi-view agree-
+ment, without collaborating with each other.
+Canonical Correlation Analysis (CCA) based methods
+[Blaschko and Lampert., 2008; Chaudhuri et al., 2009] for
+multi-view spectral clustering project the data from multi-
+view feature spaces onto one common lower dimensional
+subspace, where the spectral clustering is subsequently con-
+ducted. One limitation of such method lies in the fact
+that such common lower-dimensional subspace cannot flex-
+ibly characterize the local manifold structures from hetero-
+geneous views, resulting into an inferior performance. Ku-
+mar et al. [Kumar et al., 2011] proposed a state-of-the-art
+co-regularized spectral clustering for multi-view data. Sim-
+ilarly, a co-training [Blum and Mitchell, 1998; Wang and
+Zhou, 2010] model is proposed for this problem [Kumar and
+Daume, 2011].
+One assumption for above work [Kumar et al., 2011;
+Kumar and Daume, 2011] is the scenario with noise corrup-
+tion free for each view. However, it is not easily met. To
+this end, Low-Rank Representation (LRR) [Xia et al., 2014;
+Liu et al., 2010; Wang et al., 2015c; Liu and Yan, 2011;
+Liu et al., 2013] is proposed. As summarized in [Wang et
+al., 2016a], where the basic idea is to decompose data repre-
+sentation into a view-dependent noise corruption term and a
+common low rank based representation shared by all views,
+leading to common data affinity matrix for clustering; The
+effectiveness of low-rank model also leads to numerous re-
+search on multi-view subspace learning [Ding and Fu, 2016;
+Dingg and Fu, 2014] applied to the pattern recognition field.
+LRR tries a common multi-view low-rank representation,
+but overlooks the distinct manifold structures. To remedy
+the limitations, inspired by the latest development of graph
+regularized LRR [Yin et al., 2016; Yin et al., 2015], we re-
+cently proposed another iterative views agreement strategy
+[Wang et al., 2016a] with graph regularized Low-rank Rep-
+resentation for multi-view spectral clustering, named LR-
+RGL for short, to characterize the non-linear manifold struc-
+ture from each view, LRRGL couples LRR with multi-graph
+regularization, where each one can characterize the view-
+dependent non-linear local data manifold structure [Zhuang
+et al., 2016]. A novel iterative view agreement process is
+proposed of optimizing the proposed, where, during each it-
+eration, the low-rank representation yielded from each view
+serves as the constraint to regulate the representation learn-
+ing from other views, to achieve the consensus, implemented
+by applying Linearized Alternating Direction Method with
+Adaptive Penalty [Lin et al., 2011].
+Despite the effectiveness of LRRGL, we still identify the
+following non-trivial observations that are not addressed by
+LRRGL to obtain the further improvement
+• It is less flexible for Zi yielded by low-rank constraint to
+capture the flexible latent data similarity that can encode
+the more rich similarity information than Zi over Xi;
+(a) (b)
+Figure 1: The visualization results of the multi-view (please
+refer to section 4 for specific multi-view features) affinity
+matrix between ours and LRRGL over NUS data; The more
+whiter for diagonal blocks, the more ideally the cluster is
+to characterize the data objects within the larger similarity,
+meanwhile, the more blacker for non-diagonal blocks, the
+more reasonable the non-similarity data objects are unlikely
+to cluster together. For such result, we can see the diago-
+nal blocks from 3rd to the 8th of our method are more whiter
+than those of LRRGL, leading to the result that the surround-
+ing black non-diagonal blocks of our method are more salient
+than those of LRRGL, which demonstrate the advantages of
+our method via a latent factorized data-cluster representation
+over LRRGL
+that can be better solved by matrix factorization.
+• LRRGL mainly focused on yielding the low-rank pri-
+mal data similarity matrixZi derived fromXi. However,
+such primal Zi is less intuitive to understand and less ef-
+fective to reveal the ideal data clustering structure for the
+ith view, as well as multi-views. Hence, it will prevent
+that achieving the better multi-view spectral clustering
+performance. The structured consensus loss term im-
+posed over Zi(i ? V ) may not effectively achieve the
+consensus regarding the multi-view spectral clustering.
+1.1 Our Contributions
+This paper is the extension of our recent work [Wang et al.,
+2016a], upon that, we deliver the following novel contri-
+butions to achieve the further improvement over multi-view
+spectral clustering
+• Instead of focusing on primal low-rank data similarity
+matrixZi such that i = 1, . . . , V , we perform a symmet-
+ric matrix factorization over Zi into the data-cluster in-
+dicator matrix, so that such latent factorization provides
+the better chance to preserve the ideal cluster structure
+besides flexible manifold structure for each view.
+• We impose the laplacian regularizer over factorized
+data-clustered representation to further characterize the
+nonlinear local manifold structure for each view. We
+remark that the factorized data-cluster matrix can effec-
+tively encode the clustering structure, we provide an ex-
+ample to illustrate this in Fig.1. To reach the multi-view
+clustering agreement, we set the same clustering number
+Table 1: The Notations Summarization
+Notations Explanation
+Xi ? Rdi×n Feature Representation Matrix for the ith view.
+Ei ? Rdi×n Feature noise matrix for the ith view.
+Zi ? Rn×n Self-expressive similarity matrix for the ith view.
+Ui ? Rn×d Data-cluster matrix for the ith view.
+Wi ? Rn×n Data similarity matrix over Xi for the ith view.
+rank(A) The rank of the matrix A.
+A[k] Updated matrix A at the kth iteration.
+AB Matrix Multiplication between A and B.
+n The number of data objects.
+di The dimension of the feature space for the i
+th view.
+|| · ||T The matrix transpose.
+|| · ||F Frobenius norm.
+|| · ||? Nuclear norm.
+|| · ||1 `1 norm of matrix seen as a long vector.
+(·)?1 The matrix inverse computation.
+Id Identity matrix with the size of d× d.
+|| · ||2 `2 norm of a vector.
+Tr(·) Trace operator over the square matrix.
+?·, ·? inner product.
+V The set of all views.
+Ck The k
+th data cluster.
+|Ck| The cardinality of Ck .
+|V | Cardinality of the set V.
+A(l, ·) The lth row of the matrix A.
+A(·,m) The mth column of the matrix A.
+A(l,m) The (l,m)th entry of the matrix A.
+for all views to the data-clustering representation for all
+views.
+• We impose the consensus loss term to minimize the di-
+vergence among all the latent data-cluster matrix instead
+ofZi to achieve the multi-view spectral clustering agree-
+ment.
+• To implement all the above insights, we propose a novel
+objective function, and an efficient alternating optimiza-
+tion strategy together with the complexity analysis to
+solve the objective function; moreover, we deliver the
+intuitions of iterative multi-view agreement over the fac-
+torized latent data-cluster representation during each it-
+eration of our optimization strategy, that will eventually
+lead to the multi-view clustering agreement.
+• Extensive experiments over real-world multi-view data
+sets demonstrate the advantages of our technique over
+the state-of-the-arts including our recently proposed
+LRRGL [Wang et al., 2016a].
+Recently another elegant graph based PCA method [Tang et
+al., 2017] is proposed spectral clustering with out-of-sample
+case. Unlike this effective technique, we study the multi-view
+case to address the effective consensus for spectral clustering.
+We summarize the main notations in Table 1.
+2 Structured Low-Rank Matrix Factorization
+to Spectral Clustering
+We get started from each single view e.g., the ith view as
+min
+Zi,Ei
+?
+2
+||Xi ?XiZi ? Ei||2F + ||Zi||? + ?||Ei||1, (1)
+where ? and ? are the trade-off parameters, as aforemen-
+tioned, we always adopt Di to be Xi, so that Xi can be de-
+composed as clean component XiZi and another corrupted
+component Ei for the ith view. One can easily verify that
+rank(XiZi)? rank(Zi), hence minimizing rank(Zi) is equiv-
+alent to bounding the low-rank structure of clean component
+XiZi.
+Now we are ready to deeply investigate ||Zi||? for the ith
+view. Following [Recht et al., 2010], we reformulate the nu-
+clear norm ||Zi||? as
+||Zi||? = min
+Ui,Vi,Zi=UiV Ti
+1
+2
+(||Ui||2F + ||Vi||2F ), (2)
+where Ui ? Rn×d and Vi ? Rn×d; d is always less than di
+since high-dimensional data objects always characterize the
+low-rank structure.
+2.1 Notes regarding Ui and Vi for multi-view
+spectral clustering
+Before further discussing the low-rank matrix factorization,
+one may consider the following notes that the factorized Ui
+and Vi may need to satisfy in the context of both the within-
+view data structure preserving and multi-view spectral clus-
+tering agreement:
+1. The low-rank data structure should be characterized by
+the factorized Ui or Vi for the ith view, especially to
+characterize the underlying data clustering structure.
+2. The factorized latent factors should well encode the
+manifold structure for the ith view, which, as previously
+mentioned, is critical to the spectral clustering perfor-
+mance.
+3. Either the row based matrix Ui or column based ma-
+trix Vi is considered to meet the above two notes? if
+so, which one? One may claim both to be considered,
+which, however, may inevitably raise more parameters
+to be tuned.
+4. Not only the factorized latent low-dimensional factors
+e.g., Ui or Vi, should meet the above notes within each
+view e.g., the ith view, but also need the same scale to
+unify all views to reach possible agreement.
+To address all the above notes, in what follows, we will
+present our technique of data-cluster based structured low-
+rank matrix factorization.
+2.2 Data-cluster (landmark) based Structured
+Low-Rank Matrix factorization
+We aim at factorizing Zi as an approximate symmetric low-
+rank data-cluster matrix to minimize the reconstruction error
+min
+Zi
+||Xi ?XiZi||2F , (3)
+where we assume the rank ofZi is ki, such that ki is related to
+the data cluster number for the ith view. As indicated by [Liu
+et al., 2013], minimizing the Eq.(3) is equivalent to finding
+the optimal rank ki approximation relying on skinny singular
+value decomposition of Xi = V ?UT to yield the following
+optimal solution
+Z?i = UiU
+T
+i , (4)
+where Ui ? Rn×ki , such that ki denotes the top ki princi-
+ple basis of Xi. Here we follow the assumption in [Kuang
+et al., 2012] to see ki as the cluster number of data objects
+within the ith view, and the data-cluster symmetric matrix
+factorization has been widely adopted by the numerous exist-
+ing research including semi-supervised learning [Wang et al.,
+2014c; Wu et al., 2016], metric fusion [Wang et al., 2017b]
+and clustering [Cai and Chen, 2015]. We aim at solving the
+following equivalent low-rank minimization over Zi via the
+clustered symmetric matrix factorization below
+||Zi||? = min
+Ui,Zi=UiUTi
+||Ui||2F , (5)
+where we often minimize the following for derivative conve-
+nience with respect to Ui
+||Zi||? = min
+Ui,Zi=UiUTi
+1
+2
+||Ui||2F (6)
+Remark. Following Eqs. (3) and (4), we initialize the
+Ui ? Rn×ki via a k means clustering over Xi and normal-
+ize Ui(j, k) = 1|Ck| provided Xi(·, j) i.e., the j
+th data object
+is assigned to Ck. By such normalization, all the columns of
+Ui are orthonormal; moreover, they are within the same mag-
+nitude so as to perform the agreement minimization. Further-
+more, such factorization can well address the aforementioned
+challenges, it is worthwhile to summarize them below
+• The data cluster structure can be well encoded by such
+low-rank data-cluster representation within each view.
+The setting Ui = Vi can avoid the more parameters and
+importance weight discussion provided Ui 6= Vi.
+• More importantly, inspired by the reasonable assump-
+tion hold by all the multi-view clustering research [Ku-
+mar et al., 2011; Kumar and Daume, 2011; Bickel and
+Scheffer., 2004; Wang et al., 2015c]. As indicated by
+[Wang et al., 2015c], the ideal multi-view clustering per-
+formance is that the common underlying data clustering
+structure is shared by all the views; we naturally set all
+the Ui with the same size by adopting the same value
+for ki = d(i = 1, . . . , V ) i.e., the clustering number,
+upon the same data objects number n for all views, so
+that the feasible loss functions can be developed to seek
+the multi-view clustering agreement with the same clus-
+tering number for all views.
+For spectral clustering from each view, we preserve the
+nonlinear local manifold structure of Xi via such low-rank
+data-cluster representation Ui for the ith view, which can be
+formulated as
+1
+2
+n?
+j,k
+||uij ? uik||22Wi(j, k)
+=
+N?
+j=1
+(uij)
+TuijHi(j, j)?
+N?
+j,k
+(uik)
+TuijWi(j, k)
+= Tr(UTi HiUi)? Tr(UTi WiUi) = Tr(UTi LiUi),
+(7)
+where uik ? Rd is the kth row vector of Ui ? Rn×d repre-
+senting the linear correlation between xk and xj(j 6= k) in
+the ith view; Wi(j, k) encodes the similarity between xj and
+xk for the ith view; Hi is a diagonal matrix with its kth di-
+agonal entry to be the summation of the kth row of Wi, and
+Li = Hi ?Wi is the graph laplacian matrix for the ith view.
+Following [Wang et al., 2016a], we choose Gaussian kernel
+to define W ijk
+Wi(j, k) = e
+?
+||xij?x
+i
+k||
+2
+2
+2?2 . (8)
+We aim to minimize the difference of low-rank based data-
+cluster representations for all views via a mutual consensus
+loss function term to coordinate all views to reach clustering
+agreement, while structuring such representation with lapla-
+cian regularizer to encode the local manifold structure for
+each view.
+Unlike the traditional LRR to achieve the common data
+similarity by all views, we propose to learn a variety of factor-
+ized low-rank data-cluster representations for different views
+to preserve the flexible local manifold structure while achiev-
+ing the data cluster structure for each view, upon which, the
+consensus loss term is imposed to achieve the multi-view con-
+sensus, leading to our iterative views agreement in the next
+section.
+2.3 The Objective Function with structured
+low-rank Matrix factorized representation
+We propose the objective function with structured low-rank
+representation Ui for each view e.g., the ith view with fac-
+torized low-rank via Eq. (6) data-clustered representation via
+Eq.(3). Then we have the following
+min
+Ui,Ei(i?V )
+?
+i?V
+(
+1
+2
+||Ui||2F? ?? ?
+minimize ||Zi||? via Eq.(6)
++ ?1||Ei||1? ?? ?
+noise and corruption robustness
++ ?2Tr(UTi LiUi)? ?? ?
+Graph Structured Regularization
++
+?
+2
+?
+j?V,j 6=i
+||Ui ? Uj ||2F )? ?? ?
+Views-agreement
+s.t. i = 1, . . . , V, Xi = XiUiUTi + Ei, Ui ? 0,
+(9)
+where
+• Ui ? Rn×d denotes the factorized low-rank data-cluster
+representation of Xi for the ith view. Tr(UTi LiUi)
+makes Ui to be structured with local manifold structure
+for the ith view. ||Ei||1 is responsible for possible noise
+with Xi. ?1, ?2, ? are all trade-off parameters.
+• One reasonable assumption hold by a lot of multi-view
+clustering research [Gao et al., 2013; Kumar et al., 2011;
+Bickel and Scheffer., 2004; Kumar and Daume, 2011]
+is that all the views should share the similar underly-
+ing clustering structure.
+?
+i,j?V ||Ui ? Uj ||2F aims to
+achieve the views-agreement regarding the factorized
+low-rank representations Ui from all |V | views; unlike
+the traditional LRR method to enforce an identical rep-
+resentation, we construct different Ui for each view, then
+further minimize their divergence to generate a view-
+agreement.
+• Ui ? 0 is a non-negative constraint, through Xi =
+XiZi + Ei = XiUiU
+T
+i + Ei for the i
+th view.
+Eq.(9) is non-convex, we hence alternately optimize each
+variable while fixing the others; that is, updating all the Ui
+and Ei(i ? {1, . . . , V }) in an alternative way until the con-
+vergence is reached. As solving all the {Ui, Ei}(i ? V ) pairs
+shares the similar optimization strategy, only the ith view is
+presented. To this end, we introduce two auxiliary variables
+Di and Gi, then solving the Eq.(9) with respect to Ui, Ei, Di
+and Gi that can be written as follows
+min
+Ui,Ei,Di,Gi
+1
+2
+||Ui||2F + ?1||Ei||1
++ ?2Tr(UiLiUTi ) +
+?
+2
+?
+j?V,j 6=i
+||Ui ? Uj ||2F
+s.t. Xi = DiUTi + Ei, Di = XiUi, Gi = Ui, Gi ? 0,
+(10)
+where Di ? Rdi×d, we will show the intuition for the aux-
+iliary variable relationship Di = XiUi by introducing the
+augmented lagrangian function based on Eq.(10) below
+L(Ui, Ei, Di, Gi,Ki1,Ki2,Ki3)
+=
+1
+2
+||Ui||2F + ?1||Ei||1 + ?2Tr(UTi LiUi)
++
+?
+2
+?
+j?V,j 6=i
+||Ui ? Uj ||2F + ?Ki1, Xi ?DiUTi ? Ei?
++ ?Ki2, Ui ?Gi?+ ?Ki3, Di ?XiUi?
++
+µ
+2
+(||Xi ?DiUTi ? Ei||2F + ||Ui ?Gi||2F + ||Di ?XiUi||2F ),
+(11)
+where Ki1 ? Rdi×n, Ki2 ? Rn×d and Ki3 ? Rdi×d are La-
+grange multipliers, µ > 0 is a penalty parameter.
+From Eq.(11), we can easily show the intuition on Di =
+XiUi, that is,
+• minimizing ||Xi ? DiUTi ? Ei||2F w.r.t. Di is similar
+as dictionary learning, while pop out the UTi as corre-
+sponding representations learning, both of them recon-
+struct the Xi for the ith view. Besides the above intu-
+ition, it is quite simple to optimize only single UTi by
+merging the other into Di.
+3 Optimization Strategy
+We minimize Eq.(11) by updating each variable while fixing
+the others.
+3.1 Solve Ui
+Minimizing Ui is to resolve Eq.(12)
+L1 =
+1
+2
+||Ui||2F + ?2Tr(UTi LiUi)
++
+?
+2
+?
+j?V,j 6=i
+||Ui ? Uj ||2F + ?Ki1, Xi ?DiUTi ? Ei?
++ ?Ki2, Ui ?Gi?+ ?Ki3, Di ?XiUi?
++
+µ
+2
+(||Xi ?DiUTi ? Ei||2F + ||Ui ?Gi||2F + ||Di ?XiUi||2F ),
+(12)
+We set the derivative of Eq.(12) w.r.t. Ui to be the zero
+matrix, which yields the Eq.(13) below
+?L1
+?Ui
+= Ui + 2?2LiUi + ?
+?
+j?V,j 6=i
+(Ui ? Uj)
+? (Ki1)TDi +Ki2 ?XTi Ki3
++ µUiD
+T
+i Di + µE
+T
+i Di + µ(Ui ?Gi)
+? µXTi XiUi = 0,
+(13)
+where 0 ? Rn×d shares the same size as Ui. Rearranging the
+other terms further yields the following
+Ui = (2?2Li + (1 + ?(|V | ? 1) + µ)In ? µXTi Xi)?1? ?? ?
+with computational complexityO(n3)
+S,
+(14)
+S =
+?
+j?V,j 6=i
+Uj + ((K
+i
+1)
+T ? µUiDTi ? µETi )Di
++XTi K
+i
+3 + µX
+T
+i XiUi
+(15)
+The bottleneck of computing Eq.(14) lies in the inverse ma-
+trix computation over the matrix of the size Rn×n causing
+the computational complexity O(n3), which is computation-
+ally prohibitive provided that n is large. Therefore, we turn to
+update each row of Ui; without loss of generality, we present
+the derivative with respect to Ui(l, ·) as
+Ui(l, ·) + Ui(l, ·)
+(
+n?
+k=1
+(2?2Li(k, l)? µ(XTi Xi)(k, l))
+)
++ (Ki1)
+T (l, ·)Di + µUi(l, ·)DTi Di +Ki2(l, ·)?XTi (l, ·)Ki3
++ ?
+?
+j?V,j 6=i
+(Ui(l, ·)? Uj(l, ·))
++ µ
+(
+Ui(l, ·) + ETi (l, ·)Di ?Gi(l, ·)
+)
+= 0,
+(16)
+where 0 ? Rd denotes the vector of the size d with all en-
+tries to be 0, Ui(l, ·) ? Rd represents the lth row of Ui; we
+rearrange the terms to yield the following
+Ui(l, ·)
+=
+??????T li + ?
+?
+j 6=i,j?V
+Uj(l, ·)? ?? ?
+Influences from other views
+??????
+(
+(1 + µ+
+n?
+k=1
+(2?2Li(k, l)? µ(XTi Xi)(k, l)))Id +DTi Di
+)?1
+? ?? ?
+with computational complexityO(d3)
+(17)
+where
+T li = X
+T
+i (l, ·)Ki3 + µ
+(
+Gi(l, ·)? ETi (l, ·)Di
+)
+?Ki2(l, ·)? (Ki1)T (l, ·)Di
+Id ? Rd×d is the identity matrix.
+Complexity discussion for the row updating strategy for
+Ui
+Unlike the closed form regarding Ui, it is apparent that the
+major computational complexity lies in the inverse matrix
+computation over the size of Rd×d, which leads to O(d3) ac-
+cording to Eq.(17), which is much smaller than O(n3). Be-
+sides, as d is set as the cluster number across all views; more-
+over, aforementioned, it should be less than the inherent rank
+of Xi, and hence a small value. Upon the above facts, it is
+tremendously efficient via O(d3) to sequentially update each
+row of Ui.
+Intuitions for views agreement
+The iterative views clustering agreement can be immediately
+captured via the terms underlined in Eq.(17). Specifically,
+during each iteration, the Ui(l, ·) is updated via the influence
+from others view, while served as the constraint to generate
+Uj(l, ·)(j 6= i), the divergence among all Ui(l, ·) is decreased
+gradually towards an agreement for all views, such process
+repeats until the convergence is reached.
+Unlike the existing LRR method by directly imposing the
+common representation, our iterative multi-view agreement
+can better preserve the flexible manifold structure for each
+view meanwhile achieve the multi-view agreement, which
+will be critical to final multi-view spectral clustering.
+Remark. After the whole Ui is updated for the ith view, we
+simply perform a K-means clustering over it to assign each
+data object to one cluster exclusively. Then normalized each
+column of Ui to form an orthonormal matrix.
+3.2 Solve Di
+The optimization process regarding Di is equivalent to the
+following
+min
+Di
+< Kii , Xi ?DiUTi ? Ei > + < Ki3, Di ?XiUi >
++
+µ
+2
+(
+||Xi ?DiUi ? Ei||2F + ||Di ?XiUi||2F
+)
+(18)
+We get the derivative with respect to Di, then it yields the
+following closed form updating rule
+Di =(
+Ki1Ui ?Ki3 + µ(2Xi ? Ei)Ui
+) (Id + UTi Ui)?1
+µ
+,
+(19)
+where the major computational complexity lies in the inverse
+computation over matrix (Id+UTi Ui) ? Rd×d, resulting into
+O(d3), as aforementioned, that is the same as updating each
+row of Ui, and hence quite efficient.
+3.3 Solve Ei
+it is equivalent to solving the following:
+min
+Ei
+?1||Ei||1 +
+µ
+2
+||Ei ? (Xi ?DiUTi +
+1
+µ
+Ki1)||2F , (20)
+where the following closed form solution can be yielded for
+Ei according to [Cai et al., 2008]
+Ei = S?1
+µ
+(Xi ?DiUTi +
+1
+µ
+Ki1) (21)
+3.4 Solve Gi
+It is equivalent for the following:
+< Ki2, Ui ?Gi > +
+µ
+2
+||Gi ? Ui||2F (22)
+where the following closed form solution of Gi can be de-
+rived as
+Gi = Ui +
+Ki2
+µ
+(23)
+Algorithm 1: Alternating optimization strategy for Eq.(9).
+Input: Xi(i = 1, . . . , V ), d, ?1, ?2, ?
+Output: Ui, Di, Ei, Gi(i ? V )
+1 Initialize: Ui[0], Li(i = 1, . . . , V ) computation, set all
+entries of Ki1[0], Gi[0],K
+i
+2[0] to be 0, initialize Ei[0]
+with sparse noise as 20% entries corrupted with
+uniformly distributed noise over [-5,5], µ[0] = 10?3,
+1 = 10
+?3, 2 = 10?1
+2 k = 0
+3 for i ? V do
+4 Solve Ui:
+5 Sequentially update each row of Ui according to
+Eq.(17).
+6 Orthonormalized each column of Ui.
+7 Update Ei:
+8 Ei[k + 1] = S ?1
+µ[k]
+(Xi ?DiUTi [k] + 1µ[k]K
+i
+1[k])
+9 Update Gi:
+10 Gi[k + 1] = Ui[k] +
+Ki2[k]
+µ[k]
+11 Update Ki1, Ki2, Ki3 and µ:
+12 Ki1[k + 1] = K
+i
+1[k] + µ(Xi ?DiUTi [k]? Ei[k])
+13 Ki2[k + 1] = K
+i
+2[k] + µ(Ui[k]?Gi[k])
+14 Ki3[k + 1] = K
+i
+3[k] + µ(Di[k]?XiUi[k])
+15 Update µ according to [Lin et al., 2011]
+16 whether converged
+17 if ||Xi ?DiUTi [k+ 1]?Ei[k+ 1]||/||Xi|| < 1 and
+18 max{?||Ui[k + 1]? Ui[k]||, µ[k]||Gi[k + 1]?
+Gi[k]||, µ[k]||Ei[k + 1]? Ei[k]||} < 2 then
+19 Remove the ith view from the view set as
+V = V ? i
+20 Ui[N ] = Ui[k + 1], s.t. N is any positive integer.
+21 else
+22 k = k + 1
+23 Return Ui[k + 1], Di[k + 1], Ei[k + 1], Gi[k + 1]
+(i = 1, . . . , V )
+3.5 Updating Ki1, Ki2, Ki3 and µ
+We update Lagrange multipliers Ki1, K
+i
+2 and K
+i
+3 via
+Ki1 = K
+i
+1 + µ(Xi ?DiUi ? Ei) (24)
+Ki2 = K
+i
+2 + µ(Ui ?Gi) (25)
+Ki3 = K
+i
+3 + µ(Di ?XiUi) (26)
+Following [Wang et al., 2016a], µ is tuned using the adap-
+tive updating strategy [Lin et al., 2011] to yield a faster con-
+vergence. The optimization strategy alternatively updates
+each variable while fixing others until the convergence, which
+is summarized by Algorithm 1.
+3.6 Notes regarding Algorithm 1
+It is worthwhile to highlight some critical notes regarding the
+Algorithm 1 below
+• We initialize the Ui[0] ? Rn×d for all views, such that
+each entry of Ui[0] represents similarity between each
+data object and one of the d anchors (cluster representa-
+tives), which can be seen as the centers from the clusters
+generated from the k-means or spectral clustering.
+• For our initialization, we adopt the spectral clustering
+outcome with the clustering number to be d, where the
+similarity matrix is calculated via the originalXi feature
+representation within each view, then the Ui[0](i, j) en-
+try i.e., the similarity between the ith data object and the
+jth anchor is yielded via Eq.(8). The laplacian matrix
+Li(i = 1, . . . , V ) are computed once offline also within
+the original Xi feature representation.
+• More importantly, we set the identical value of d(the
+cluster number) to the column size of Ui[0](i =
+1, ··, V ) ? Rn×d for all the views. We remark that the
+above initial setting for Ui[0] with the same d is rea-
+sonable, as stated before all the views should share the
+similar underlying data clustering structure. This fact
+also implies that the initialized Ui[0] is reasonably not
+divergent a lot among all views.
+3.7 Convergence discussion
+Often, the above alternating minimization strategy can be
+seen as the coordinate descent method. According to [Bert-
+sekas, 1999], the sequences (Ui, Di, Ei, Gi) above will even-
+tually converge to a stationary point. However, we are not
+sure whether the converged stationary point is a global opti-
+mum, as it is not jointly convex to all the variables above.
+3.8 Clustering
+Following [Wang et al., 2016a], once the converged Ui(i =
+1, . . . , V ) are ready, all column vectors of Ui(i = 1, . . . , V )
+while set small entries under given threshold ? to be 0. After-
+wards, the similarity matrix for the ith view between the jth
+and kth data objects as
+Wi(j, k) = (UiU
+T
+i )(j, k) (27)
+Following [Wang et al., 2016a], The final data similarity ma-
+trix can be defined as
+W =
+?V
+i Wi
+|V |
+(28)
+The clustering is carried out against W via Eq.(28) to yield
+final outcome of d data groups.
+Table 2: Data sets.
+Features UCI digits AwA NUS VOC
+1 FC (76) CQ (2688) CH(65) Color (1500)
+2 PC (216) LSS (2000) CM(226) HOG (250)
+3 - PHOG (252) CORR(145) -
+4 - SIFT(2000) EDH(74) -
+5 - RGSIFT(2000) WT(129) -
+6 - SURF(2000) - -
+# of data 2000 4000 26315 5600
+# of classes 10 50 31 20
+4 Experiments
+We adopt the data sets mentioned in [Wang et al., 2016a] be-
+low:
+• UCI handwritten Digit set2: consists of features for
+hand-written digits (0-9), with 6 features and contains
+2000 samples with 200 in each category. Analogous to
+[Lin et al., 2011; Wang et al., 2016a], we choose two
+views as 76 Fourier coefficients (FC) of the character
+shapes and the 216 profile correlations.
+• Animal with Attribute (AwA)3: consists of 50 kinds of
+animals described by 6 features (views): Color his-
+togram ( CQ, 2688-dim), local self-similarity (LSS,
+2000-dim), pyramid HOG (PHOG, 252-dim), SIFT
+(2000-dim), Color SIFT (RGSIFT, 2000-dim), and
+SURF (2000-dim). Following [Wang et al., 2016a], 80
+images for each category and get 4000 images in total.
+• NUS-WIDE-Object (NUS) [Chua et al., 2009]: 30000
+images from 31 categories. 5 views are adopted us-
+ing 5 features as provided by the website 4: 65-
+dimensional color histogram (CH), 226-dimensional
+color moments (CM), 145-dimensional color correlation
+(CORR), 74-dimensional edge estimation (EDH), and
+129-dimensional wavelet texture (WT).
+• PASCAL VOC 20125: we select 20 categories with
+11530 images, two views are constructed with Color fea-
+tures (1500-dim) and HOG features (250 dim). Among
+them, 5600 images are selected by removing the images
+with multiple categories.
+We summarize the above throughout Table 2.
+4.1 Baselines
+The following state-of-the-art baselines used in [Wang et al.,
+2016a] are compared:
+• MFMSC: concatenating multi-features to be the multi-
+view representation for similarity matrix, the spectral
+clustering is then conducted [Huang et al., 2010].
+• Multi-feature representation similarity aggregation for
+spectral clustering (MAASC) [Huang et al., 2012].
+• Canonical Correlation Analysis (CCA) model
+(CCAMSC) [Chaudhuri et al., 2009]: Projecting
+multi-view data into a common subspace, then perform
+spectral clustering.
+2http://archive.ics.uci.edu/ml/datasets/Multiple+Features
+3http://attributes.kyb.tuebingen.mpg.de
+4lms.comp.nus.edu.sg/research/NUS-WIDE.html
+5http://host.robots.ox.ac.uk/pascal/VOC/voc2012/
+• Co-regularized multi-view spectral clustering
+(CoMVSC) [Kumar et al., 2011]: It regularizes
+the eigenvectors of view-dependent graph laplacians
+and achieve consensus clusters across views.
+• Co-training [Kumar and Daume, 2011]: Alternately
+modify one view’s Laplacian eigenspace by learning
+from the other views ’s eigenspace, the spectral cluster-
+ing is then conducted.
+• Robust Low-Rank Representation method (RLRR) [Xia
+et al., 2014], after obtaining the data similarity matrix,
+upon which, the spectral clustering is performed to be
+the final multi-view spectral clustering result.
+• Low-rank Representation with Graph laplacian
+(LRRGL) [Wang et al., 2016a] regularizer over the
+non-factorized low-rank representations, with each
+of which corresponds to one view to preserve the
+individual manifold structure, while iteratively boost all
+these low-rank representations to reach agreement. The
+final multi-view spectral clustering is performed upon
+the similarity representations
+4.2 Experimental Settings and Parameters Study
+We implement these competitors under the experimental set-
+ting as mentioned in [Wang et al., 2016a]. Following [Wang
+et al., 2016a], ? in Eq.(8) is learned via [Zelnik-Manor and
+Perona, 2004], and s = 20 to construct s-nearest neighbors
+for Eq.(8). We adopt two standard metrics: clustering accu-
+racy (ACC) and normalized mutual information (NMI) as the
+metric defined as Eq.(29)
+ACC =
+?n
+i=1 ?(map(ri), li)
+n
+, (29)
+where ri denotes the cluster label of xi, and li denotes the
+true class label, n is the total number of images, ?(x, y) is the
+function that equals one if x = y and equals zero otherwise,
+and map(ri) is the permutation mapping function that maps
+each cluster label ri to the equivalent label from the database.
+Meanwhile the NMI is formulated below
+NMI =
+?c
+i=1
+?c
+j=1 ni,j log
+ni,j
+nin?j?
+(
+?c
+i=1 ni log
+ni
+n )(
+?c
+j=1 n?j log
+n?j
+n )
+, (30)
+where ni is the sample number in cluster Ci (1 6 i 6 c), n?j
+is the sample number from class Lj (1 6 j 6 c), and ni,j de-
+notes the sample number in the intersection between Ci and
+Lj .
+Remark. Following [Wang et al., 2016a], we repeated the
+running 10 times, and their averaged mean value for multi-
+view spectral clustering for all methods is reported. For each
+method including ours, we input the clustering number as the
+number of ground-truth classes from all data sets.
+Feature noise modeling for robustness: Following [Siyah-
+jani et al., 2015; Wang et al., 2016a], 20% feature elements
+are corrupted with uniform distribution over the range [5,-
+5], which is consistent to the practical setting while matching
+with LRRGL,RLRR and our method.
+Following [Wang et al., 2016a], We set ?1 = 2 in Eq.(9)
+for sparse noise term. We test ACC and NMI over different
+value of ?2 and ? in Eq.(9) in the next subsection.
+Table 3: ACC results.
+ACC (%) UCI digits AwA NUS VOC
+MFMSC [Huang et al., 2010] 43.81 17.13 22.81 12.98
+MAASC [Huang et al., 2012] 51.74 19.44 25.13 13.64
+CCAMSC[Chaudhuri et al., 2009] 73.24 24.04 27.56 12.05
+CoMVSC[Kumar et al., 2011] 80.27 29.93 33.63 14.03
+Co-training[Kumar and Daume, 2011] 79.22 29.06 34.25 14.92
+RLRR[Xia et al., 2014] 83.67 31.49 35.27 17.13
+LRRGL[Wang et al., 2016a] 86.39 37.22 41.02 18.07
+Ours 89.64 41.76 43.14 18.85
+Table 4: NMI results.
+NMI (%) UCI digits AwA NUS VOC
+MFMSC [Huang et al., 2010] 41.57 11.48 12.21 9.16
+MAASC [Huang et al., 2012] 47.85 12.93 11.86 9.84
+CCAMSC[Chaudhuri et al., 2009] 56.51 15.62 14.56 8.42
+CoMVSC[Kumar et al., 2011] 63.82 17.30 7.07 9.97
+Co-training[Kumar and Daume, 2011] 62.07 18.05 8.10 10.88
+RLRR[Xia et al., 2014] 81.20 25.57 18.29 11.65
+LRRGL[Wang et al., 2016a] 85.45 31.74 20.61 12.03
+Ours 87.81 34.03 23.43 12.97
+4.3 Validation over factorized low-rank latent
+data-cluster representation
+First, we will would like to validate our method regarding the
+multi-graph regularization and iterative views agreement over
+factorized latent data-cluster representation.
+Following [Wang et al., 2016a], we test ?2 and ? within
+the interval [0.001,10], with one parameter while fixing the
+value of the other parameter, the ACC results are shown in
+Fig. 2, where we have
+• Increasing ? will improve the performance, and vice
+versa; that is, increasing ?2 will improve the perfor-
+mance.
+• The clustering metric ACC increases when both ?2 and
+? increase.
+Based on the above, we choose a balance pair values: ?2 =
+0.7 and ? = 0.2 for our method.
+4.4 Results
+According to Table 3 and Table 4, the following identifica-
+tion can be drawn, note that we mainly deliver the analysis
+between our method and LRRGL, as the analysis over other
+competitors have been detailed in [Wang et al., 2016a].
+• First, our method outperforms LRRGL, implying the
+effectiveness of the factorized latent data-cluster repre-
+sentation, as it can better encode the data-cluster repre-
+sentation for each view as well as all views. We provide
+more insights about that in Fig. 3.
+• Second, both our method and LRRGL outperforms the
+model of learning a common low-dimensional subspace
+among multi-view data, as indicated by [Wang et al.,
+2016a] it is incapable of encoding local graph structures
+within a single subspace.
+• Our method and LRRGL are more effective under noise
+corruptions than other methods. More analysis can be
+referred to our conference version [Wang et al., 2016a].
+(a) (b) (c)
+Figure 2: Study over ?2 and ? over latent factorized data-cluster representation on three datasets.
+• Our method achieves the best performance over PAS-
+CAL VOC 2012 under the selected two views via the
+tuned the parameters.
+We present Fig. 3 to show more intuitions on why
+our method with the multi-view affinity matrix yielded from
+factorized data-cluster representation outperforms the primal
+similarity matrix for LRRGL. For example,
+• For UCI dataset, i.e., the multi-view affinity matrix illus-
+trated in Fig. 3(a) and 3(d), we can see the both 4th and
+5th diagonal blocks of our method in Fig. 3(d) are more
+whiter than those of LRRGL illustrated in Fig. 3(a);
+meanwhile the surrounding non-diagonal black blocks
+e.g., (4, 5)th and (5, 4)th are more black than those of
+textbfLRRGL.
+• For AwA dataset, the diagonal blocks of our method
+from the 2nd to the 6th are whiter than those of LRRGL,
+leading to a slight deeper black color over the surround-
+ing non-diagonal blocks than LRRGL.
+• The similar conclusions also hold for NUS dataset, we
+can see the diagonal blocks from 3rd to the 8th of our
+method are more whiter than those of LRRGL, lead-
+ing to the result that the surrounding black non-diagonal
+blocks of our method are more salient than those of LR-
+RGL.
+From the above observations, we can safely infer the advan-
+tages of the affinity matrix representation yielded by our fac-
+torized latent data-cluster representation over the primal affin-
+ity matrix of LRRGL for Multi-view spectral clustering.
+5 Conclusion
+In this paper, we propose to learn a clustered low-rank rep-
+resentation via structured matrix factorization for multi-view
+spectral clustering. Unlike the existing methods, we propose
+an iterative strategy of intuitively achieving the multi-view
+spectral clustering agreement by minimizing the between-
+view divergences in terms of the factorized latent data-
+clustered representation for each view. Upon that, we impose
+the graph Laplacian regularizer over such low-dimensional
+data-cluster representation, so as to adapt to the multi-view
+spectral clustering, as demonstrated by the extensive experi-
+ments.
+The future work includes the following directions: The
+graph regularized low-rank embedding out-of-sample case
+has been researched [Nie et al., 2011], and will be applied for
+multi-view out-of-sample scenario. Unlike the pre-defined
+graph similarity value, inspired by [Nie et al., 2017], we will
+simultaneously learn and achieve the consensus graph cluster-
+ing result and graph structure i.e., graph similarity. Besides,
+the latest non-parametric graph construction model [Nie et
+al., 2016b] will also be incorporated for multi-view spectral
+clustering. The practice of our method can be improved by
+reducing the tuned parameters further. Upon that, we will
+also investigate the problem of learning the weight [Nie et
+al., 2017; Nie et al., 2016a; Cai et al., 2013] for each view.
+References
+[Bertsekas, 1999] D. P. Bertsekas. Nonlinear programming.
+Athena Scientific, 1999.
+[Bickel and Scheffer., 2004] S. Bickel and T. Scheffer.
+Multi-view clustering. In IEEE International Conference
+on Data Mining, pages 19–26, 2004.
+[Blaschko and Lampert., 2008] M. Blaschko and C. Lam-
+pert. Correlational spectral clustering. In IEEE Interna-
+tional Conference on Computer Vision and Pattern Recog-
+nition, 2008.
+[Blum and Mitchell, 1998] Avrim Blum and Tom M.
+Mitchell. Combining labeled and unlabeled sata with
+co-training. In Proceedings of the Eleventh Annual
+Conference on Computational Learning Theory, pages
+92–100, 1998.
+[Cai and Chen, 2015] Deng Cai and Xinlei Chen. Large
+scale spectral clustering via landmark-based sparse repre-
+sentation. IEEE Transactions on Cybernetics, 45(8):1669–
+1680, 2015.
+[Cai et al., 2008] Jian-Feng Cai, Emmanuel J. Candes, and
+Zuowei Shen. A singular value thresholding algorithm
+(a) (b) (c)
+(d) (e) (f)
+Figure 3: Recovered multi-view based consensus affinity matrix over both our proposed method and LRRGL on three multi-
+view data sets with noise corruption. For UCI digit dataset, we plot the affinity matrix over all data sample. For AWA and
+NUS datasets, we randomly select 10 classes, where 80 samples are randomly selected for each of them. The 10 diagonal block
+represents the data samples within the 10 clusters w.r.t ground truth classes, where more white the color is, the ideally larger
+affinity value will be to better reveal the data samples clusters within the same classes. Meanwhile, for non-diagonal blocks,
+the more black the color is, the ideally smaller affinity will be to reveal the data samples within different clusters w.r.t ground
+truth classes.
+for matrix completion. Society for Industrial and Applied
+Mathematics Journal on Optimization., 20(4):1956–1982,
+2008.
+[Cai et al., 2013] X. Cai, F. Nie, and H. Huang. Multi-view
+k-means clustering on big data. In AAAI, 2013.
+[Chaudhuri et al., 2009] K. Chaudhuri, S. Kakade,
+K. Livescu, and K. Sridharan. Multi-view clustering
+via canonical correlation analysis. In Proceedings of
+the 26th International Conference on Machine Learning,
+pages 129–136, 2009.
+[Chua et al., 2009] Tat-Seng Chua, Jinhui Tang, Richang
+Hong, Haojie Li, Zhiping Luo, and Yan-Tao Zheng. Nus-
+wide: A real-world web image database from national uni-
+versity of singapore. In Proceedings of the 8th ACM Inter-
+national Conference on Image and Video Retrieval, 2009.
+[Ding and Fu, 2016] Z Ding and Yun Fu. Robust multi-view
+subspace learning through dual low-rank decompositions.
+In Proceedings of the Thirtieth AAAI Conference on Arti-
+ficial Intelligence, pages 1181–1187, 2016.
+[Dingg and Fu, 2014] Zheng Dingg and Yun Fu. Low-rank
+common subspace for multi-view learning. In 14th IEEE
+International Conference on Data Mining, pages 110–119,
+2014.
+[Gao et al., 2013] Jing Gao, Jiawei Han, Jialu Liu, and Chi
+Wang. Multi-view clustering via joint nonnegative matrix
+factorization. In SDM, pages 252–260, 2013.
+[Gao et al., 2015] Hongchang Gao, Feiping Nie, Xuelong
+Li, and Heng Huang. Multi-view subspace clustering. In
+IEEE International Conference on Computer Vision, pages
+4238–4246, 2015.
+[Greene and Cunningham, 2009] D. Greene and P. Cunning-
+ham. A matrix factorization approach for integrating mul-
+tiple data views. In Machine Learning and Knowledge
+Discovery in Databases, European Conference, ECML
+PKDD, pages 423–438, 2009.
+[Gui et al., 2014] Jie Gui, Dacheng Tao, Zhenan Sun, Yong
+Luo, Xinge You, and Yuan Yan Tang. Group sparse mul-
+tiview patch alignment framework with view consistency
+for image classification. IEEE Transactions on Image Pro-
+cessing, 23(7):3126–3137, 2014.
+[Hou et al., 2015] Chenping Hou, Feiping Nie, Dongyun Yi,
+and Dacheng Tao. Discriminative embedded cluster-
+ing: A framework for grouping high-dimensional data.
+IEEE Trans. Neural Netw. Learning Syst, 26(6):1287–
+1299, 2015.
+[Huang et al., 2010] Y. Huang, Q. Liu, S. Zhang, and D. N.
+Metaxas. Image retrieval via probabilistic hypergraph
+ranking. In IEEE Conf. Comput. Vis. Pattern Recognit,
+pages 3376–3383, 2010.
+[Huang et al., 2012] Hsin-Chien Huang, Yung-Yu Chuang,
+and Chu-Song Chen. Affinity aggregation for spectral
+clustering. In IEEE International Conference on Computer
+Vision and Pattern Recognition, pages 773–780, 2012.
+[Jones and Shao, 2014] Simon Jones and Ling
+Shao. A multigraph representation for improved
+unsupervised/semi-supervised learning of human actions.
+In 2014 IEEE Conference on Computer Vision and Pattern
+Recognition, pages 820–826, 2014.
+[Kuang et al., 2012] Da Kuang, Chris Ding, and Haesun
+Park. Symmetric nonnegative matrix factorization for
+graph clustering. In SDM, 2012.
+[Kumar and Daume, 2011] Abhishek Kumar and Hal
+Daume. A co-training approach for multi-view spectral
+clustering. In Proceedings of the 28th International
+Conference on Machine Learning, pages 393–400, 2011.
+[Kumar et al., 2011] Abhishek Kumar, Piyush Rai, and Hal
+Daume. Co-regularized multi-view spectral clustering. In
+25th Annual Conference on Neural Information Process-
+ing Systems, pages 1413–1421, 2011.
+[Lin et al., 2011] Zhouchen Lin, Risheng Liu, and Zhixun
+Su. Linearized alternating direction method with adaptive
+penalty for low-rank representation. In 25th Annual Con-
+ference on Neural Information Processing Systems, pages
+612–620, 2011.
+[Liu and Yan, 2011] Guangcan Liu and Shuicheng Yan. La-
+tent low-rank representation for subspace segmentation
+and feature extraction. In IEEE International Conference
+on Computer Vision, 2011.
+[Liu et al., 2010] Guangcan Liu, Zhouchen Lin, and Yong
+Yu. Robust subspace segmentation by low-rank represen-
+tation. In Proceedings of the 27th International Confer-
+ence on Machine Learning, pages 663–670, 2010.
+[Liu et al., 2013] Guangcan Liu, Zhuochen Lin, Shuicheng
+Yan, Ju Sun, Yong Yu, and Yi Ma. Robust recovery of sub-
+space structures by low-rank representation. IEEE Trans.
+Pattern Anal. Mach. Intell., 35(1):171–184, 2013.
+[Liu et al., 2015] L. Liu, M. Yu, and L. Shao. Multiview
+alignment hashing for efficient image search. IEEE Trans-
+actions on Image Processing, 24(3):956–966, 2015.
+[Ng et al., 2001] Andrew Y. Ng, Michael I. Jordan, and Yair
+Weiss. On spectral clustering: Analysis and an algorithm.
+In Advances in Neural Information Processing Systems,
+2001.
+[Nie et al., 2011] Feiping Nie, Zinan Zeng, Ivor W. Tsang,
+Dong Xu, and Changshui Zhang. Spectral embed-
+ded clustering: A framework for in-sample and out-of-
+sample spectral clustering. IEEE Trans Neural Networks,
+22(11):1796–1808, 2011.
+[Nie et al., 2016a] F. Nie, J. Li, and X. Li. Parameter-free
+auto-weighted multiple graph learning: A framework for
+multiview clustering and semi-supervised classification. In
+IJCAI, 2016.
+[Nie et al., 2016b] Feiping Nie, Xiaoqian Wang, Micheal I.
+Jordan, and Heng Huang. The constrained laplacian rank
+algorithm for graph-based clustering. In AAAI, pages
+1969–1976, 2016.
+[Nie et al., 2017] Feiping Nie, Guohao Cai, and Xuelong Li.
+Multi-view clustering and semi-supervised classification
+with adaptive neighbours. In AAAI, pages 2408–2414,
+2017.
+[Recht et al., 2010] Benjamin Recht, Maryam Fazel, and
+Pablo A. Parrilo. Guaranteed minimum-rank solutions
+of linear matrix equations via nuclear norm minimization.
+SIAM review, 45(8):1669–1680, 2010.
+[Shao et al., 2016] Ling Shao, Li Liu, and Mengyang Yu.
+Kernelized multiview projection for robust action recog-
+nition. International Journal of Computer Vision,
+118(2):115–129, 2016.
+[Siyahjani et al., 2015] Farzad Siyahjani, Ranya Almohsen,
+Sinan Sabri, and Gianfranco Doretto. A supervised low-
+rank method for learning invariant subspace. In IEEE In-
+ternational Conference on Computer Vision, pages 4220–
+4228, 2015.
+[Tang et al., 2017] Mengfan Tang, Feiping Nie, and Ramesh
+Jain. A graph regularized dimension reduction method for
+out-of-sample data. Neurocomputing, 225:58–63, 2017.
+[Tao et al., 2016] Hong Tao, Chenping Hou, Feiping Nie,
+Yuanyuan Jiao, and Dongyun Yi. Effective discrimina-
+tive feature selection with nontrivial solution. IEEE Trans.
+Neural Netw. Learning Syst, 27(4):796–808, 2016.
+[Wang and Zhou, 2010] Wei Wang and Zhi-Hua Zhou. A
+new analysis of co-training. In Proceedings of the 27th
+International Conference on Machine Learning, pages
+1135–1142, 2010.
+[Wang et al., 2012] Yang Wang, Lin Wu, Xiaodi Huang, and
+Xuemin Lin. Human action recognition from video se-
+quences by enforcing tri-view constraints. The Computer
+Journal, 55(9):1030–1040, 2012.
+[Wang et al., 2013a] Yang Wang, Xiaodi Huang, and Lin
+Wu. Clustering via geometric median shift over rie-
+mannian manifolds. Information Sciences, 220:292–305,
+2013.
+[Wang et al., 2013b] Yang Wang, Xuemin Lin, and Qing
+Zhang. Towards metric fusion on multi-view data: a cross-
+view based graph random walk approach. In ACM CIKM,
+pages 805–810, 2013.
+[Wang et al., 2014a] Yang Wang, Xuemin Lin, Lin Wu,
+Wenjie Zhang, and Qing Zhang. Exploiting correlation
+consensus: Towards subspace clustering for multi-modal
+data. In ACM Multimedia, pages 981–984, 2014.
+[Wang et al., 2014b] Yang Wang, Xuemin Lin, Qing Zhang,
+and Lin Wu. Shifting hypergraphs by probabilistic voting.
+In PAKDD, pages 234–246, 2014.
+[Wang et al., 2014c] Yang Wang, Jian Pei, Xuemin Lin,
+Qing Zhang, and Wenjie Zhang. An iterative fusion ap-
+proach to graph-based semi-supervised learning from mul-
+tiple views. In PAKDD, 2014.
+[Wang et al., 2015a] Yang Wang, Xuemin Lin, Lin Wu, and
+Wenjie Zhang. Effective multi-query expansions:robust
+landmark retrieval. In ACM Multimedia, pages 79–88,
+2015.
+[Wang et al., 2015b] Yang Wang, Xuemin Lin, Lin Wu,
+Wenjie Zhang, and Qing Zhang. Lbmch: Learning bridg-
+ing mapping for cross-modal hashing. In ACM SIGIR,
+pages 999–1002, 2015.
+[Wang et al., 2015c] Yang Wang, Xuemin Lin, Lin Wu,
+Wenjie Zhang, Qing Zhang, and Xiaodi Huang. Robust
+subspace clustering for multi-view data by exploiting cor-
+relation consensus. IEEE Transactions on Image Process-
+ing, 24(11):3939–3949, 2015.
+[Wang et al., 2016a] Y. Wang, W. Zhang, L. Wu, X. Lin,
+M. Fang, and S. Pan. Iterative views agreement: An
+iterative low-rank based structured optimization method
+to multi-view spectral clustering. In The 25th Interna-
+tional Joint Conference on Artificial Intelligence, New
+York, USA, pages 2153–2159, 2016.
+[Wang et al., 2016b] Yang Wang, Xuemin Lin, Lin Wu,
+Qing Zhang, and Wenjie Zhang. Shifting multi-
+hypergraphs via collaborative probabilistic voting. Knowl-
+edge and Information Systems, 46(3):515–536, 2016.
+[Wang et al., 2017a] Yang Wang, Xuemin Lin, Lin Wu,
+and Wenjie Zhang. Effective multi-query expan-
+sions:collaborative deep networks for robust landmark
+retrieval. IEEE Transactions on Image Processing,
+26(3):1393–1404, 2017.
+[Wang et al., 2017b] Yang Wang, Wenjie Zhang, Lin Wu,
+Xuemin Lin, and Xiang Zhao. Unsupervised metric fusion
+over multiview data by graph random walk-based cross-
+view diffusion. IEEE Transactions on Neural Networks
+and Learning Systems, 28(1):57–70, 2017.
+[Wu and Wang, 2017] Lin Wu and Yang Wang. Robust hash-
+ing for multi-view data: Jointly learning low-rank kernel-
+ized similarity consensus and hash functions. Image and
+Vision Computing, 57:58–66, 2017.
+[Wu et al., 2013a] Lin Wu, Yang Wang, and John Shepherd.
+Co-ranking images and tags via random walks on a hetero-
+geneous graph. In MMM, pages 228–238, 2013.
+[Wu et al., 2013b] Lin Wu, Yang Wang, and John Shepherd.
+Efficient image and tag co-ranking: a bregman divergence
+optimization method. In ACM Multimedia, pages 593–
+596, 2013.
+[Wu et al., 2015] Lin Wu, Xiaodi Huang, John Shepherd,
+and Yang Wang. Multi-query augmentation-based web
+landmark photo retrieval. The Computer Journal,
+58(9):2120–2134, 2015.
+[Wu et al., 2016] Lin Wu, Yang Wang, and Shirui Pan. Ex-
+ploiting attribute correlations: A novel trace lasso based
+weakly supervised dictionary learning method. IEEE
+Transactions on Cybernetics, 2016.
+[Wu et al., 2017a] Lin Wu, Yang Wang, Junbin Gao, and
+Xue Li. Deep adaptive feature embedding with local
+sample distributions for person re-identification. Pattern
+Recognition, 2017.
+[Wu et al., 2017b] Lin Wu, Yang Wang, Xue Li, and Junbin
+Gao. What-and-where to match: Deep spatially multi-
+plicative integration networks for person re-identification.
+arXiv:1707.07074, 2017.
+[Xia et al., 2014] Rongkai Xia, Yan Pan, Lei Du, and Jian
+Yin. Robust multi-view spectral clustering via low-rank
+and sparse decomposition. In Proceedings of the Twenty-
+Eighth AAAI Conference on Artificial Intelligence, pages
+2149–2155, 2014.
+[Xu et al., 2013] Chang Xu, Dacheng Tao, and Chao Yu. A
+survey on multi-view learning. arxiv.org 1304.5634, 2013.
+[Xu et al., 2015] Chang Xu, Dacheng Tao, and Chao Xu.
+Multi-view intact space learning. IEEE Trans. Pattern
+Anal. Mach. Intell., (12):2531–2544, 2015.
+[Yin et al., 2015] M. Yin, J. Gao, Z. Lin, Qinfeng Shi, and
+Yi Guo. Dual graph regularized latent low-rank represen-
+tation for subspace clustering. IEEE Trans. Image Pro-
+cessing, 24(12):4918–4933, 2015.
+[Yin et al., 2016] M. Yin, J. Gao, and Z. Lin. Laplacian regu-
+larized low-rank representation and its applications. IEEE
+Trans. Pattern Anal. Mach. Intell, 38(3):504–517, 2016.
+[Zelnik-Manor and Perona, 2004] Lihi Zelnik-Manor and
+Pietro Perona. Self-tuning spectral clustering. In Advances
+in Neural Information Processing Systems, 2004.
+[Zhuang et al., 2016] Liansheng Zhuang, Jingjing Wang,
+Zhouchen Lin, Allen Y. Yang, Yi Ma, and Nenghai
+Yu. Locality-preserving low-rank representation for graph
+construction from nonlinear manifolds. Neurocomputing,
+175:715–722, 2016.

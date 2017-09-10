@@ -1,0 +1,1140 @@
+1
+Hyperspectral Light Field Stereo Matching
+Kang Zhu, Yujia Xue, Qiang Fu, Sing Bing Kang, Xilin Chen, and Jingyi Yu
+Abstract—In this paper, we describe how scene depth can be extracted using a hyperspectral light field capture (H-LF) system. Our
+H-LF system consists of a 5× 6 array of cameras, with each camera sampling a different narrow band in the visible spectrum. There
+are two parts to extracting scene depth. The first part is our novel cross-spectral pairwise matching technique, which involves a new
+spectral-invariant feature descriptor and its companion matching metric we call bidirectional weighted normalized cross correlation
+(BWNCC). The second part, namely, H-LF stereo matching, uses a combination of spectral-dependent correspondence and defocus
+cues that rely on BWNCC. These two new cost terms are integrated into a Markov Random Field (MRF) for disparity estimation.
+Experiments on synthetic and real H-LF data show that our approach can produce high-quality disparity maps. We also show that
+these results can be used to produce the complete plenoptic cube in addition to synthesizing all-focus and defocused color images
+under different sensor spectral responses.
+Index Terms—Hyperspectral Light Fields, Stereo Matching, Spectral-Invariant Feature Descriptor, Spectral-Aware Defocus Cues.
+F
+1 INTRODUCTION
+THE availability of commodity light field (LF) camerassuch as Lytro [1] and Raytrix [2] makes it easy to capture
+light fields. Dense stereo matching solutions have exploited
+unique properties, e.g., spatial and angular coherence [3],
+ray geometric constraints [4], [5], [6], focal symmetry [7],
+and defocus blurs [8]. In addition to 3D reconstruction, LF
+stereo matching can also address traditionally challenging
+problems, e.g., transparent object reconstruction [9], saliency
+detection [10] and scene classification [11].
+Since an LF consists of densely sampled rays within a
+specific range of location and angle, it can be thought of
+as representing geometry and surface reflectance as well.
+However, the original plenoptic function [12] includes an
+additional dimension of spectra, which has been largely
+ignored in most previous LF systems. What is required is
+hyperspectral imaging, which refers to the dense spectral
+sampling of a scene, as opposed to the regular RGB three-
+band sampling for color cameras.
+Holloway et al. [13] acquire a multispectral1 LF us-
+• K. Zhu is with the School of Information Science and Technology,
+ShanghaiTech University, Shanghai, China, and the Key Laboratory of
+Intelligent Information Processing, Institute of Computing Technology,
+Chinese Academy of Sciences, Beijing, China.
+E-mail: zhukang@shanghaitech.edu.cn
+• Y. Xue is with Plex-VR Inc., Shanghai, China.
+E-mail: yujia.xue@plex-vr.com
+• Q. Fu is with the School of Information Science and Technology, Shang-
+haiTech University, Shanghai, China
+E-mail: fuqiangx@outlook.com
+• S.B. Kang is with Microsoft Research, Redmond, WA.
+E-mail: sbkang@microsoft.com
+• X. Chen is with the Key Laboratory of Intelligent Information Processing,
+Institute of Computing Technology, Chinese Academy of Sciences, Beijing,
+China.
+E-mail:xlchen@ict.ac.cn.
+• J. Yu is with the School of Information Science and Technology, Shang-
+haiTech University, Shanghai, China, and the Department of Computer
+and Information Sciences, University of Delaware, Newark, DE.
+E-mail:yu@eecis.udel.edu
+1. In hyperspectral imaging, narrow band-pass filters are used. In the
+Holloway et al. work [13], broadband filters are used instead.
+ing generalized assorted camera arrays. More recently,
+Xiong et al. [14] adopts a hybrid sensing technique that com-
+bines an LF with a hyperspectral camera. These solutions
+assume small camera baselines for reliable image registra-
+tion. In contrast, we present a wide baseline hyperspectral
+light field (H-LF) imaging technique based on novel cross-
+spectral LF stereo matching.
+Direct adoption of existing LF stereo matching solutions
+(e.g., [4], [7], [8], [15], [16], [17]) for H-LF would be ineffec-
+tive, since images at different spectral bands may be very
+visually different. Instead, we introduce a new spectral-
+invariant feature descriptor and its companion matching
+metric (which we call bidirectional weighted normalized
+cross correlation or BWNCC). BWNCC measures gradient
+inconsistencies between cross-spectral images; it signifi-
+cantly outperforms other state-of-the-art metrics (e.g., sum
+of squared differences (SSD) [18], normalized cross correla-
+tion (NCC) [19], histogram of oriented gradient (HOG) [20],
+scale-invariant feature transform (SIFT) [21]), in both robust-
+ness and accuracy.
+Our spectral-dependent H-LF stereo matching technique
+combines correspondence and defocus cues that are based
+on BWNCC. For visual coherency, we calculate the corre-
+spondence cost using local subsets of views, since views
+that are farther away may be less reliable. The entire H-
+LF is used to compute our new spectral-aware defocus
+cost. Previous approaches use color or intensity variance to
+measure focusness. However, for H-LF, the same 3D point
+will map to different intensities; as a result, such variance
+measures would be unreliable. We instead synthesize the
+RGB color from H-LF samples, then use the CIE Color Space
+to map the estimated hue of color to its spectral band.
+Consistency is then measured using the actual captured
+band as the focusness measure. Finally, we integrate the
+new correspondence and defocus costs with occlusion and
+smoothness terms in an energy function, and solve it as a
+Markov Random Field (MRF).
+We validate our approach on both synthetic and real H-
+LFs. To capture real H-LFs, we construct an H-LF camera
+ar
+X
+iv
+:1
+70
+9.
+00
+83
+5v
+1 
+ [
+cs
+.C
+V
+] 
+ 4
+ S
+ep
+ 2
+01
+7
+2
+Fig. 1. System overview. Our hyperspectral light field (H-LF) imager (HLFI, top left) consists of a 5×6 array of cameras, each with a narrow bandpass
+filter centered at a specific wavelength. The HLFI samples the visible spectrum from 410nm to 700nm with an 10nm interval. We propose a new
+spectral-dependent H-LF stereo matching technique (middle), which involves novel correspondence cost (top) and spectral-aware defocus cost
+(bottom). The correspondence cost is based on a new spectral-invariant feature descriptor called BWNCC with local view selection. The generated
+disparity map (top right) can be used for complete plenoptic reconstruction (bottom right).
+array, with each camera equipped with a different narrow
+10nm-wide bandpass filter (Figure 1). The union of all the
+cameras covers the visible spectrum from 410nm to 700nm.
+The baseline is 36mm, which is large enough that parallax
+for the scenes used would be significant. We show our H-LF
+stereo matching technique can produce high-quality dispar-
+ity maps for both synthetic and real datasets. The disparity
+maps can be used to produce the complete plenoptic cube.
+These maps can also be used for image warping, which
+allows color image synthesis, hyperspectral refocusing, and
+emulation of different color sensors.
+The contributions of this paper are:
+• We designed a snapshot hyperspectral light field
+imager (HLFI) that samples only a subset of H-LFs,
+avoiding demosaicking artifacts. In principle, our
+HLFI can be expanded both in the spectral resolu-
+tion (e.g., a 5nm interval or lower) and range (e.g.,
+additional infrared and ultraviolet bands).
+• We propose a new spectral-invariant feature de-
+scriptor to effectively represent the visually-varying
+spectral images. We also propose a matching met-
+ric, BWNCC, to measure the similarity of multi-
+dimensional features. This feature descriptor and
+BWNCC are used in H-LF stereo matching.
+• We propose a novel spectral-dependent H-LF stereo
+matching technique that combines a local view selec-
+tion strategy with spectral-aware defocus. We show
+that our matching technique produces high-quality
+disparity maps.
+• We show three applications using our H-LF results:
+reconstruction of the complete plenoptic cube, gen-
+eration of all-focus H-LF, and synthesis of defocused
+color images under different spectral profiles. We
+expect these applications would be useful for 3D
+reconstruction, object detection and identification,
+and material analysis.
+The rest of this paper is organized as follows. We review
+related work in feature descriptors, LF stereo matching,
+and multi-spectral imaging in Section 2. Our design of
+HLFI is described in Section 3. Section 4 details our feature
+descriptor and matching metric; these are used in our H-LF
+stereo matching technique (Section 5). The task of complete
+plenoptic cube reconstruction is described in Section 6.
+Section 7 presents the experimental results and applications,
+with discussion of limitations in Section 8 and concluding
+remarks in Section 9.
+2 RELATED WORK
+In this section, we review relevant approaches in the areas
+of multispectral imaging, feature descriptors, and light field
+stereo matching.
+2.1 Multispectral Imaging
+Spectral imaging has long been driven by the need of high
+quality remote sensing [22], with applications in agriculture,
+military, astronomy, surveillance, etc. (e.g., [23], [24], [25],
+[26]). The commonly adopted techniques include coupling
+bandpass filters with spatial and temporal multiplexing to
+acquire both the spatial and spectral information. In satellite
+imaging, spectral-coded pushbroom cameras is capable of
+acquiring the full spectra [27]. Tunable filters (e.g., LCTF,
+AOTF [28]) provide an alternative single camera solution.
+Such solutions require the camera be fixed under different
+shots and cannot provide scene parallax. More expensive
+snapshot imaging spectrometry involving diffraction grat-
+ing, dispersing prism, multi-aperture spectral filter, Lyot
+filter or generalized Bayer filter (e.g., [29], [30]), requires
+extremely accurate calibration.
+Alternative approaches mostly rely on hybrid sensing,
+i.e., using sensors with different modalities. For example,
+Xiong et al. [14] combine an LF camera with a hyperspectral
+camera to obtain the angular and spectral dimensions for
+3
+recovery of the hyperspectral LF. Ye and Imai [31] describe
+a plenoptic multispectral camera whose microlens array has
+a spectrally-coded mask. Using a sparse representation, the
+spectral samples are used to reconstruct high resolution
+multispectral images. Closely to related to our work is
+that of generalized assorted cameras [13], where a camera
+array is used for multispectral imaging. This system is a
+custom-built camera array (ProFUSION from PTGrey) that
+is modified by mounting broad band-pass filters. The cam-
+era baseline is rather small, and the filter being broad band-
+pass makes it easier to correspond images using existing
+color features.
+Our system uses a 2D array of monochrome cameras
+with narrow band-pass filters to avoid the demosaicking ar-
+tifacts caused by the de-mulplexing procedure used in [13].
+More importantly, the camera baselines in our system are
+significantly larger relative to scene depth; this allows more
+reliable depth estimation and enables synthetic refocusing.
+Finally, our system is extensible: in principle, more cameras
+can be added to increase the synthetic aperture (with wider
+extents) or spectral sampling resolution (with narrower
+band-pass filters).
+2.2 Feature Descriptors
+Feature descriptors (e.g., [32], [13], [18], [19], [33], [34],
+[35], [36]) play a critical role in stereo matching and image
+registration. SSD (e.g., [32], [18]) is widely used in stereo
+matching as a data cost (e.g., [33]). NCC [19] is a highly
+popular as well for matching contrast-varying images. To
+take into account local radiometric variabilities, adaptive
+normalized cross correlation (ANCC) [34] is introduced
+for matching. Hirschmuller [35] uses mutual information
+(MI) with correlation-based method to resolve radiometric
+inconsistencies in images matching. Other matching fea-
+tures used include robust selective normalized cross cor-
+relation (RSNCC) [36] for multi-modal and multispectral
+image registration, and cross-channel normalized gradient
+(CCNG) [13] for multispectral image registration.
+However, in cross-spectral stereo matching, the crucial
+problem is the spectral difference. Techniques such as [18],
+[19], [33] do not work well because of the intensity con-
+sistency assumption. Although radiometric inconsistencies
+that are handled in [34], [35] are related to spectral dif-
+ference, they have very different properties. Radiometric
+changes (e.g., caused by the varying exposure or lighting)
+mostly preserve the relative ordering of local scene point
+intensities. In contrast, in multispectral imaging, the relative
+ordering of local intensities can change arbitrarily, including
+order reversal. This is because different materials tend to
+have different responses at different wavelengths. Both [13],
+[36] are applied to multispectral imaging. Unfortunately,
+in [36], errors occur in regions with uncorrelated textures.
+Meanwhile, [13] describes a technique that operations on
+broad band-pass RGB color channels; it is not expected to
+handle the single narrow band-pass channel images in our
+H-LF as well using [34].
+2.3 Light Field Stereo Matching
+Many stereo techniques have been proposed [37], including
+local methods [19], semi-global methods [35], and global
+methods [33]. More recently, these techniques have been
+adapted for LFs. For exmaple, Wanner and Goldlucke [15]
+extract the direction field in the Epipolar Image to estimate
+disparity. Yu et al. [4] use geometric structures of 3D lines in
+ray space to improve depth with encoded line constraints.
+Tao et al. [8] introduce the defocus cue combined with cor-
+respondence for depth estimation. Chen et al. [16] propose
+a bilateral consistency metric to handle occluding and non-
+occluding pixels, while Lin et al. [7] make use of the LF focal
+stack to recover depth. Wang et al. [17] handle occlusion
+through edge detection. Again, these solutions cannot be
+directly applied for H-LF stereo matching; under spectral
+variations, regular data consistency measures (such as fo-
+cusness) are no longer effective. Our spectral-dependent H-
+LF stereo matching technique addresses the cross-spectral
+inconsistency problem by using a spectral-invariant feature
+descriptor, applying local selection of views, and using
+spectral-aware defocus cues. We also handle occlusion in
+a manner similar to [17].
+3 HYPERSPECTRAL LIGHT FIELD IMAGER (HLFI)
+To simultaneously acquire spatial, angular, and spectral
+samples of the plenoptic function, we build a hyperspectral
+light field imager (HLFI). The left of Figure 1 shows our
+HLFI setup: we use an array of 5× 6 monochrome cameras,
+each equipped with a narrow band-pass filter centered at a
+different wavelength. The spectral responses of the filters
+are shown in Figure 2. These filters sample the visible
+spectrum, centered from 410nm to 700nm with an 10nm
+interval. The bandwidth of each filter is 10nm (i.e., ±5nm)
+with±2nm uncertainty. Due to the uncertainty, neighboring
+filters have responses that overlap. Fortunately, the response
+drop-off for each narrow band-pass filter is steep. As shown
+in Figure 2, the overlaps occur below 35% quantum effi-
+ciency, where drop-off is rapid. We treat each filter response
+as a Dirac delta function F?i(?) = ?(???i), where ?i is the
+center wavelength.
+To accommodate the extra spectral dimension, we mod-
+ify the two-plane LF representation [1], [38] to L(u, v, s, t, ?)
+for the sampled hyperspectral light field (H-LF). (u, v) and
+(s, t) represent the ray intersection with the aperture and
+sensor planes (respectively) at wavelength ?. The image
+I(s, t, ?i) on (s, t) corresponding to narrow band-pass spec-
+tral profile F?i(?) centered at wavelength ?i is modeled as:
+I(s, t, ?i) =
+???
+L(u, v, s, t, ?)A(u, v)C(?)
+· F?i(?) cos4 ?d?dudv,
+(1)
+where A(u, v) is the aperture function, ? is incident angle of
+the ray, and C(?) is the camera spectral response function.
+We ignore cos4 ? using the paraxial assumption. Equation 1
+simplifies to:
+I(s, t, ?i) = C(?i)
+??
+L(u, v, s, t, ?i)A(u, v)dudv
+= C(?i)S(s, t, ?i),
+(2)
+where S(?i) is the latent radiance image at spectrum ?i
+while C(?i) is the spectral response function.
+4
+Fig. 2. The spectral profile of narrow band-pass filters. In our setup, we
+mount 30 filters on camera array (Figure 1). These filters sample the
+visible spectrum, centered from 410nm to 700nm with an 10nm interval
+as this figure shows. Each bandwidth is 10nm (i.e., ±5nm about the
+central wavelength) with ±2nm uncertainty. The overlaps occur near
+35% quantum efficiency with rapid drop-off.
+4 TWO-VIEW SPECTRAL-AWARE MATCHING
+In this section, we describe our new approach to matching
+two views L and R corresponding to narrow band spectra
+centered at two different wavelengths ?L and ?R (respec-
+tively).
+4.1 Spectral-Invariant Feature Descriptor
+Traditional measures for correspondence assume either
+brightness constancy or preservation of brightness order-
+ing. As mentioned earlier, such measures (including direct
+gradient-based measures) fail because cross-spectral images
+violate these assumptions. Figure 3 shows an example
+from the Middlebury dataset [37]. The red channel of L
+(Figure 3(a)) is markedly different from the blue channel
+of R (Figure 3(b)); for example, edge pixels around the
+lamp exhibit significant inconsistencies across the image
+pair. This demonstrates that we need to devise a new feature
+descriptor for cross-spectral images.
+We first eliminate the effect caused by the camera spec-
+tral response. From Equation 2, for two corresponding pixels
+p and q (p,q ? N2), we have IL(p) = C(?L)Sp(?L) and
+IR(q) = C(?R)Sq(?R). We normalize them to yield:???????
+I?L(p) =
+IL(p)
+I?L
+=
+Sp(?L)
+S?(?L)
+I?R(q) =
+IR(q)
+I?R
+=
+Sq(?R)
+S?(?R)
+, (3)
+where I?L and I?R are the mean intensities, and S?(?L) and
+S?(?R) are the average radiances in the corresponding views.
+For the remainder of the paper, we use I?L(p) and I?R(q)
+as inputs, eliminating the effect of the camera spectral
+response while still depending on the spectrum. We exploit
+the gradient of image as the feature descriptor. M(p) and
+?(p) represent the magnitude and direction of the gradi-
+ent at p, respectively: M(p) =
+?
+?xI?(p)2 +?y I?(p)2 and
+?(p) = atan
+(
+?y I?(p)/?xI?(p)
+)
+. In Figure 3, (c) and (d)
+show the magnitudes of gradient for (a) and (b); (e) and (f)
+Fig. 3. Cross-channel stereo imaging on the Tsukuba image pair.
+(a) and (b): Red channel of L and blue channel of R, respectively. (c)
+and (d): respective gradient magnitudes. (e) and (f): respective gradient
+directions. Section 4.1 describes how we match boundary (e.g., p1-q1)
+and non-boundary (e.g., p2-q2) pixels. The pixels denoted with primes
+(p?1, etc.) are neighboring pixels.
+shows the directions of gradient for (a) and (b) quantized
+within [0, ?].
+We consider two cases, based on proximity to edges.
+Case 1: Suppose corresponding pixels p,q and their respec-
+tive neighbors p?,q? are all part of the same object (e.g.,
+p2,q2 are adjacent to p?2,q
+?
+2, respectively, in Figure 3). Then,
+|I?L(p) ? I?L(p?)| ' |I?R(q) ? I?R(q?)|, implying that the
+gradient magnitude and direction should be approximately
+the same, i.e., ML(p) ' MR(q) and ?L(p) ' ?R(q).
+Case 2: Suppose the pixels lie near an edge (e.g., p1,q1 are
+adjacent to p?1,q
+?
+1, respectively, in Figure 3). The foreground
+and background correspond to objects with different spec-
+tral responses and the magnitude measure is no longer con-
+sistent. However, note that the gradient directions should
+still be similar.
+We design a feature descriptor that measures both edge
+and non-edge points. The non-edge features couple the
+gradient magnitude and direction histograms, whereas the
+edge features are an extension of HOG we call Overlap-
+ping HOG or O-HOG. Unlike traditional histograms, where
+every bin represent a separate range of values, in O-HOG,
+adjacent bins have overlapping values (i.e., they share some
+range of values). This is to more robustly handle view and
+spectral variations that exist in cross-spectral matching. By
+comparison, even a slight change in perspective or spectrum
+may lead to misalignment in regular HOG [20].
+To find correspondence, we first calculate the gradient
+magnitude and direction histograms (with K1 and K2 bins,
+respectively). Given a local window U(p, w) ? Nw2×2
+centered at p with size w × w for a stack of magnitude
+and direction images, we count weighted votes for bins
+in the magnitude histogram h1(p, w,K1) and direction
+histogram h2(p, w,K2). Specifically, the k-th bin b
+(k)
+i (p, w)
+of hi(i = 1, 2; k ? [0,Ki ? 1)) is aggregated as
+b
+(k)
+i (p, w) =
+?
+ut?U(p,w)
+G(p,ut, ?g)f(ut)?
+j?[0,Ki?1]
+b
+(j)
+i
+, (4)
+where G(p,ut, ?g) = exp
+(
+?||p? ut||22/2?g2
+)
+is a spatial
+5
+Fig. 4. Our spectral-invariant feature descriptor H is based on weighted
+histograms for 3-level pyramids of the gradient magnitude and direction
+maps. h1 and h2 are the histograms for gradient magnitude and direc-
+tion, while h3 represents O-HOG.
+weight kernel, and f(ut) is a truncation function defined as
+f(ut) =
+{
+1 if Q(ut) ? [k(1? o)s, k(1? o)s+ s)
+0 otherwise
+. (5)
+Here o is the overlapping portion between the neighboring
+bins and s is the bin width. For h1, Q(ut) = M(ut); for
+h2, Q(ut) = ?(ut). Similarly, for the O-HOG histogram
+h3(p, w,K3), the k-th bin b
+(k)
+3 (p, w) is computed as
+b
+(k)
+3 (p, w) =
+?
+ut?U(p,w)
+G(p,ut, ?g)M(ut)f(ut)?
+j?[0,K3?1]
+b
+(j)
+3
+. (6)
+Note that for h3, Q(ut) = ?(ut) in Equation 5. We set s =
+1/64 and o = 1/16 for both h1, h2 and h3. K1 = K2 = K3,
+all round up to 68.
+We define descriptor Dp =
+[
+?1h
+T
+1 , ?2h
+T
+2 , ?3h
+T
+3
+]T
+, with
+?1, ?2, and ?3 being weights. Recall that h1 and h2 repre-
+sent non-edge points and h3 represents edge points. Since
+M(p) is the edge strength of p, we simply reuse M(p) to
+get ?1 = ?2 = ? exp(?M2(p)/?w) and ?3 = 1 ? ?1 ? ?2.
+In our work, ? = 1/2 and ?w = 0.16.
+For robustness, we build a 3-level pyramid structure
+with different patch widths w = [w1, w2, w3]T to obtain
+the final descriptor Hp =
+[
+DTp (w1),D
+T
+p (w2),D
+T
+p (w3)
+]T
+with K elements, where K = 3(K1 + K2 + K3). In all our
+experiments, w = [3, 5, 9]T . Figure 4 shows the structure of
+our feature descriptor.
+4.2 Spectral-Invariant Similarity Metric
+A popular similarity metric for stereo matching is the nor-
+malized cross correlation (NCC) [19]:
+?(I) =
+?
+ui ? UL
+uj ? UR
+(IL(ui)? I?L)(IR(uj)? I?R)
+? ?
+ui?UL
+(IL(ui)? I?L)2
+?
+uj?UR
+(IR(uj)? I?R)2
+, (7)
+where I?L and I?R are the mean values of UL(p, w) and
+UR(q, w), respectively, in domain I (e.g., intensity).
+Unfortunately, NCC cannot be directly used to match
+multi-dimensional features. Note that each element h(i) in
+H is independent of any other element h(j) (j 6= i), and
+represents a unique attribute of H (as shown in Figure 4).
+We define our similarity metric as ?(H) =
+K?1?
+i=0
+?i?(h
+(i)),
+where ?i is a similarity weight of h(i). In principle, we can
+simply use h(i) as wi. In practice, for robustness to noise, we
+use the mean h?(i) instead of h(i) as weights.
+Since h(i)p and h
+(i)
+q play equally important roles in com-
+puting ?(H), the final metric we use incorporates both,
+leading to the Bidirectional Weighted Normalized Cross
+Correlation (BWNCC). The forward component weighted
+by h?(i)p represents the similarity between p and q, while
+the backward component weighted by h?(i)q represents the
+similarity between q and p. BWNCC is thus defined as
+?bwncc(H) =
+????K?1?
+i=0
+?(h(i))h?
+(i)
+p
+K?1?
+j=0
+?(h(j))h?
+(j)
+q . (8)
+5 H-LF STEREO MATCHING SCHEME
+Our new feature descriptor and metric enable more reliable
+feature selection and matching. Compared with binocular
+stereo, LF stereo matching has two different properties: use
+of many views and refocusing. When modeled as a disparity
+labeling problem, the correspondence cost makes use of the
+multiple views while defocus cost is based on refocusing
+(e.g., [4], [7], [8], [17]). We denote ? as all LF views (s, t) and
+estimate the disparity map for the central view (so, to). For
+simplicity, we use Ip(s, t) to represent I?(up, vp, s, t, ?(s,t))
+in Equation 3.
+The correspondence cost is typically cast as ( [4], [7], [8],
+[17]):
+C(p, f(p)) ? 1
+|?|
+?
+(s,t)??
+|Ip(s, t)? Ip(so, to)|22. (9)
+For H-LF, we find a proper subset ?? (?? ? ?) and use
+that in conjunction with our feature descriptor and metric
+to maximize spectral consistency. The defocus cost in [17]
+is based on the depth-from-defocus formulation for non-
+occlusion regions:
+D(p, f(p)) ? ?(x,y)I?p. (10)
+For occlusion regions the defocus cost is
+D(p, f(p)) ? 1
+|?|
+?
+(s,t)??
+|Ip(s, t)? I?p|22, (11)
+where I?p = 1/|?| ·
+?
+(s,t)?? Ip(s, t). However, direct use
+of the defocus measure in H-LF would fail due to spectral
+variance. We instead propose a new defocus cost based on
+hue-spectrum matching. After extracting two initial dispar-
+ity maps f?c (based on correspondence cost) and f
+?
+d (based
+on defocus cost), we then impose regularization to generate
+the refined result f†.
+5.1 Correspondence Cost
+Recall that the correspondence cost measures similarity of
+corresponding pixels. For a hypothesized disparity f(p),
+we compute this cost using our spectral-invariant feature
+descriptor and BWNCC metric:
+C(p, f(p)) =
+1
+|??|
+?
+(s,t)???
+? log(?bwncc(H)). (12)
+6
+Instead of matching p in (so, to) with pixel q across all
+LF views, we use only a subset of views ?? that share a
+coherent appearance (response). To do so, we first compute
+the arithmetic mean gradient magnitude over all q. Next,
+we determine if the gradient magnitude of p is above or
+below the mean value. If it is above, then it is likely that p is
+an edge pixel; we use only pixels q in the H-LF views with
+a higher gradient magnitude. Similarly, if it is below, it is
+likely that p is a non-edge point, and we use only the ones
+with lower gradient magnitudes.
+In addition, we treat occluding and non-occluding pixels
+differently using the technique described in [17] to extract
+an initial disparity map f?c based on correspondence cost. If
+p is non-occluding, f?c (p) = minf{C}. If p is occluding,
+we partition ?? into occluder and occluded regions ??1
+and ??2 (analogous to [17]), then compute C1 and C2 using
+Equation 12. This yields f?c (p) = minf{C1, C2}.
+5.2 Defocus Cost
+A unique property in LF stereo matching is the availability
+of a synthetic focal stack, synthesized via LF rendering.
+Conceptually, if the disparity hypothesis is correct, the color
+variance over correspondences in all (non-occluding) views
+should be very small. If it is incorrect, the variance would
+be large, causing aliasing. In [17], the defocus cost measures
+the occlusion and non-occlusion regions separately in terms
+of color consistency. However, the traditional defocus cost
+cannot be used in our work because we cannot measure
+color consistency under different spectral responses. We
+adapted this cost to be spectral-aware.
+As Figure 5 shows, given a hypothesized disparity f(p),
+we estimate RGB color of p for a reference camera. To
+do this, we first form a spectral profile of p as Pp(?) by
+indexing ?(s,t) using Ip(s, t) into respective views. Next,
+we use the spectral profile to synthesize its RGB value. In
+our experiments, we use the spectral response function of
+the PTGrey FL3-U3-20E4C-C camera (reference camera) as
+Pc(?) = [Pr(?), Pg(?), Pb(?)]
+T and compute RGB values
+V = [R,G,B]T by summing Pp(?(s,t))Pc(?(s,t)) over the
+respective bandwidths:
+V =
+?
+(s,t)?? Pp(?(s,t))Pc(?(s,t))
+Pc(?(s,t))
+. (13)
+Finally, we map the RGB color back to spectra ?r by first
+converting it to hue before using a table to map hue to ?r
+based on CIE 1931 Color Space [39].
+If the disparity hypothesis is correct, Pp(?) and the final
+RGB values estimation should be accurate. The captured
+spectra should then approximately form a Gaussian distri-
+bution centered at ?r , with the probability density function
+Pg(?) =
+1
+?d
+?
+2?
+· exp
+(
+? (?? ?r)
+2
+2?2d
+)
+. (14)
+In our implementation, we use the special case of ?r =
+550nm (middle of [410nm, 700nm]) to set ?d = 96.5. This
+is to ensure that Pg(?) have at least 30% response in over-
+lapping the visible spectrum throughout (especially in the
+corner cases of ? = 400nm and ? = 700nm).
+Fig. 5. Spectral-aware defocus cue. Given a disparity hypothesis, we
+combine corresponding pixels from H-LF to form its spectral profile
+Pp(?). Next, we use the camera (PTGrey FL3-U3-20E4C-C) spectral
+response curves Pc(?) to map this profile to RGB color. We then
+convert the RGB color to its hypothesized wavelength ?r using the
+CIE 1931 Color Space. Finally, we match the observed profile with a
+Gaussian profile Pg(?) centered at ?r via K-L divergence.
+We subsequently normalize Pp(?) to P ?p(?) =
+Pp(?)/
+?
+(s,t)?? Pp(?(s,t)), and measure the Kullback–
+Leibler divergence [40], [41] from P ?p(?) to Pg(?). This
+results in our defocus cost
+D(p, f(p)) =
+?
+(s,t)??
+Pg(?(s,t)) log
+Pg(?(s,t))
+P ?p(?(s,t))
+. (15)
+Finally, we have f?d (p) = minf{D}.
+5.3 Regularization
+The energy function for disparity hypothesis f that is typi-
+cally used in an MRF is ( [8], [17])
+E(f) = Eunary(f) + Ebinary(f). (16)
+We adopt the binary term similar to Wang et al. [17] for
+smoothness and to handle occlusion. The major difference
+is that we use spectral-aware defocus cues (described in
+Section 5.2).
+Our unary term is defined as
+Eunary(f) =
+?
+p
+?c|C(f(p))? C(f?c (p))|
++ |D(f(p))?D(f?d (p))|,
+(17)
+where ?c adjusts the weight between defocus and corre-
+spondence cost. (Its value is 0.45 for synthetic data and 0.6
+for real data.) Minimizing this function yields the desired
+disparity map f†.
+6 PLENOPTIC CUBE COMPLETION
+The results of our H-LF stereo matching technique can be
+used to complete the missing dimensions. The direct ap-
+proach would be to use the disparity map of the central view
+to warp images to propagate the missing information. The
+problem, however, is that the warped images will contain
+holes due to occlusion. While it is possible to perform
+independent pairwise stereo matching between all views,
+this approach does not fully exploit the properties of LFs. We
+instead present a technique for cross-spectral joint binocular
+stereo.
+7
+6.1 Disparity Initialization
+We first warp the disparity map of the central view, f†(s0,t0)
+(using the technique described in Section 5) to individual LF
+views as their initial disparities:
+f?(s,t)(u+ d(s? s0), v + d(t? t0)) = d, (18)
+where d = f†(s0,t0)(u, v). At this point, at each view,
+f?(s,t)(u, v) is an incomplete disparity map. There are pixels
+with invalid depth due to occlusion, being outside the field-
+of-view of the central view, and mismatches. However,
+regions that are valid can be used to guide and refine
+correspondences between cross-spectral image pairs.
+6.2 Disparity Estimate
+Using our BWNCC metric described in Section 4, we extract
+the disparity map for an image pair using Graph Cuts [33].
+The energy function in [33] is
+E(f) = Edata(f) + Eocclu(f) + Esmooth(f) + Eunique(f).
+(19)
+Edata(f) is the data term that calculates similarity between
+corresponding pixels:
+Edata(f) =
+?
+p
+|C(f(p))? C(f?(p))|, (20)
+where C(f(p)) is defined in Equation 12 but applied to
+two views (i.e., left and right or top and bottom). Eocclu(f)
+is the occlusion term to minimize the number of occluded
+pixels while Esmooth(f) is the smoothness term that favors
+piecewise constant maps. Eunique enforces uniqueness of
+disparities between image pairs. The last three terms are
+same as those in [33].
+The disparity maps for all image pairs (with vertical or
+horizontal neighbors) are computed using Graph Cuts [33].
+These disparity maps are then merged to produce a single
+one denoted as f(s,t).
+6.3 Disparity Refinement
+As mentioned in Section 6.1, f?(s,t) has regions of invalid
+depth. Furthermore, f(s,t) is likely to have unreliable depths
+due to occlusion in neighboring views.
+Park et al. [42] propose an optimization technique using
+RGB-D images to acquire a high-quality depth map. This
+technique uses confidence weighting in terms of color sim-
+ilarities, segmentation, and edge saliency. We use a similar
+approach to refine f(s,t), with the difference being the con-
+fidence weighting is adapted to our single channel spectral
+images. This results in the improved disparity map f†(s,t) for
+each view.
+6.4 Image Registration
+We use f†(s,t) to warp images. First, all pixels p on left (or
+top) view are mapped to q on right (or bottom) view. We
+then register all images currently on right (or bottom) to left
+(or top) view. This is iterated for all neighboring pairs until
+the plenoptic cube is completed, i.e., when all the missing
+spectra are propagated across all the views. For an H-LF
+imager with M × N views, the number of hyperspectral
+images in the completed plenoptic cube is M × N ×MN ,
+with each view having MN images corresponding to MN
+different spectra.
+7 EXPERIMENTS AND APPLICATIONS
+In this section, we report the results of our technique and
+how they compare with competing state-of-the-art. We also
+describe two applications (namely, color sensor emulation
+and H-LF refocusing) that are made possible using the depth
+information generated using our technique.
+7.1 Experimental Setup
+Our prototype HLFI consists of a 5×6 monochrome camera
+array (Figure 1). The cameras are MER-132-30GM from
+Daheng ImaVision, with a resolution of 1292 × 964; they
+are synchronized via GenLock. The lens are M0814-MP2
+from Computar, with a focal length of 8mm. We mount
+30 narrow bandpass filters (from Rayan Technology) on
+cameras centered wavelengths between 410nm to 700nm at
+a 10nm interval. Data collection and processing are done on
+a Lenovo ThinkStation P500 with a Intel(R) Xeon(R) 4-core
+CPU E5-1630 running at 3.70GHz.
+We calibrate our cameras using Zhang’s algorithm [43] to
+extract the intrinsic and extrinsic parameters. Since we use a
+black-and-white checkerboard and all the filters are within
+the visible spectra, the calibration images have sufficient
+contrast for corner detection. Once the cameras are cali-
+brated, the views are rectified to simplify stereo matching.
+As mentioned in Section 4.1, throughout all our experi-
+ments, we set s = 1/64, o = 1/16, and w = [3, 5, 9]T to
+generate our hierarchical feature descriptor H.
+7.2 Validation for Feature Descriptor with BWNCC
+We compared results of pairwise stereo matching using
+Graph Cuts [33] with SSD [18], NCC [19], and the re-
+cent RSNCC [36] measures against those for our spectral-
+invariant descriptor with BWNCC measure.
+We first ran experiments involving synthetic data
+adapted from the Middlebury stereo vision datasets [37]. To
+emulate spectrum inconsistency, we treat the red channel of
+L and the blue channel of R as the pseudo cross-spectral
+pair. Figure 6 compares the visual quality of the results
+using different methods and Table 1 shows the quantitative
+comparisons in terms of bad5.0 (percentage of “bad” pixels
+whose error is greater than 5 pixels [37]). Our approach
+significantly reduces error in stereo matching.
+We also ran experiments on datasets captured using our
+HLFI on real scenes, again comparing our method with
+other competing techniques. Figure 7 shows results for
+two scenes. Visually, our approach outperforms the other
+techniques; for example, as can be seen at the bottom row,
+our technique is able to recover the guitar edge where other
+techniques fail due to spectral inconsistencies.
+TABLE 1
+Comparison of bad5.0 error metric (smaller values are better).
+Tsukuba Art Teddy
+Ours 3.14 10.27 7.01
+RSNCC 5.27 16.64 11.02
+NCC 6.09 18.31 15.68
+SSD 11.18 28.19 43.53
+8
+Fig. 6. Cross-channel stereo matching results for three Middlebury datasets. From left to right: red channel of the left image, blue channel of right
+image, ground truth disparity map, estimated disparity map by SSD, NCC, RSNCC methods with graph cuts, and our proposed feature descriptor
+with BWNCC metric. Our method can estimate much better disparity maps compared with these state-of-the-art methods.
+Fig. 7. Cross-spectral stereo matching results on real scenes captured using our HLFI. The first and second columns are left and right images
+captured by two adjacent cameras at different spectra. The other columns show extracted disparity maps using SSD, NCC, RSNCC and our
+technique. Qualitatively, our results outperform the other competing techniques.
+7.3 H-LF Stereo Matching Results
+In one set of experiments, we generate synthetic H-LF scenes
+from regular LFs used in Wanner et al. [15]. For each scene,
+we choose 5×6 views with uniform baseline. For each view,
+we add a synthetic tunable filter. Finally, we render 5 × 6
+spectral images from original images by adjusting the filter
+transmittance in the RGB channels and converting them
+to gray scale. Because this synthesized spectral profile is
+different from that for our HLFI, we choose different values
+of ?c in Equation 17 (0.45 for synthetic data and 0.6 for real
+data).
+In another set of experiments, we compare our H-LF
+stereo matching results with techniques by Tao et al. [8],
+Lin et al. [7] and Wang et al. [17], on synthetic and real
+data. Figure 8 compares the disparity maps on the synthetic
+dataset. The close-up regions (red and green boxes) show
+how well our technique works compared to the others. As
+Table 2 shows, our technique has the lowest RMSE.
+Figure 9 shows H-LF stereo matching results for three
+real scenes. The overall visual quality of our results is better
+than that for the other competing techniques. In particular,
+our technique is better able to handle scene detail; see, for
+example, the mug in the top scene and guitar’s neck in the
+bottom scene.
+These results show our approach outperforms the state-
+of-the art in visual quality, accuracy, and robustness on both
+synthetic and real data. They validate our design decisions
+on handling cross-spectral variation.
+TABLE 2
+Comparison of RMSE (smaller values are better) for H-LF stereo
+matching on synthetic data shown in Figure 8.
+Tao et al. Wang et al. Lin et al. Ours
+Top scene 0.2052 0.2970 0.4285 0.1958
+Bottom scene 0.4393 0.3690 0.2785 0.2266
+7.4 H-LF Reconstruction Results
+In another experiment, we use our HLFI to capture a room
+scene, processed the data using our technique, and com-
+pleted its plenoptic cube representation. Results are shown
+in Figure 10. The raw data are shown in Figure 10(a);
+the scene has colorful objects made with different mate-
+rials and placed at different depths. Figure 10(b) shows
+the completed plenoptic cube. Reconstructed hyperspectral
+datacubes at viewpoints (2, 2), (3, 4), and (5, 6) are shown in
+9
+Fig. 8. H-LF results for two synthetic scenes from Wanner et al. [15], with each view having a different spectral response. We show our result as
+well as those of previous LF stereo matching methods (Tao et al. [8], Lin et al. [7], and Wang et al. [17]). The two close-ups show the relative quality
+of our result.
+10
+Fig. 9. H-LF stereo matching results for three real scenes captured by our HLFI. We show our results as well as those of previous LF stereo
+matching methods (Tao et al. [8], Lin et al. [7], and Wang et al. [17]). The two close-ups show how well our technique can recover scene detail.
+11
+Fig. 10. H-LF reconstruction results for a real scene. (a) Raw data
+acquired by our HLFI, (b) completed plenoptic cube, (c) reconstructed
+hyperspectral datacubes at viewpoints (2, 2), (3, 4), and (5, 6), (d) close-
+ups of representative boundary and textured areas, (e) spectral profiles
+of three scene points: a point on the guitar, a cyan point surrounded by
+white letters, and a depth boundary.
+Figure 10(c). Selected close-ups in Figure 10(d) demonstrate
+that our technique can robustly align occlusion and texture
+boundaries under spectral variation. Figure 10(e) shows
+the spectral profiles of three scene points: a point on the
+guitar, a cyan point surrounded by white letters, and a
+depth boundary. These results show that our reconstruction
+scheme can robustly align occlusion and texture boundaries
+under spectral variations and recover high fidelity H-LFs.
+7.5 Applications: Color Sensor Emulation and H-LF Re-
+focusing
+We can use the recovered H-LF data to emulate a synthetic
+camera with a specific spectral profile. This allows us to
+reproduce color images unique to that camera.
+Figure 11 shows two pairs of real images captured by PT-
+Grey FL3-U3-20E4C-C alongside our synthesized color im-
+ages (whose original spectral profile is shown in Figure 5).
+The top pair includes original images (without cropping and
+alignment) of one scene. The red boxes show the incorrect
+color of the table cloth in the synthesized one (right), which
+is caused by missing spectra due to limited field of view.
+Notice that the top rows of Figure 10(b) do not include
+most of the table cloth; as a result, no information on a
+specific range of the spectrum is available for propagation,
+causing incorrect color synthesis. After removing the region
+of red box and aligning images, we get PSNR of right
+image is 22.6, given the left image as reference. The bottom
+pair includes cropped and aligned images of another scene,
+and PSNR of right image is 23.1. Both the images and
+Fig. 11. Comparison of real and synthetic color images. Left: real images
+captured by a PTGrey FL3-U3-20E4C-C camera (the profile is same as
+that shown in Figure 5). Right: synthesized images using our acquired
+H-LF and the camera profile. Given left images as references, PSNR of
+right image on top pair is 22.6 after removing the region of red box and
+alignment, whereas PSNR is 23.1 on bottom pair.
+PSNR values show that our synthesized color images are
+reasonable reproductions of the actual versions.
+Figure 12 shows results of synthetic refocusing for dif-
+ferent spectral profiles. These results demonstrate that our
+dynamic H-LF refocusing is different from regular LF re-
+focusing; it can focus at any depth layer at any sampled
+spectrum. Note that the banding artifacts are due to the
+discrete view sampling of our HLFI.
+8 DISCUSSION
+Because our HLFI is fundamentally a multi-view camera
+system, it has the same issues associated with length of base-
+line versus accuracy and ease of correspondence. Our HLFI
+has two main problems that are specific to multi-spectral
+matching. The first is the computational complexity of our
+feature descriptor and metric. In order to acquire accurate
+depth, we need to consider both edge and non-edge regions
+hierarchically, and compute the distance using descriptors
+over local patches at different levels. These operations are
+more computationally expensive compared to traditional
+methods. Our GPU implementation produces depth results
+in about 2 minutes for datasets shown in Figure 9 (each
+dataset has a 5× 6 array of images, with each image having
+a resolution of 1200× 900).
+Another problem is the incomplete spectral reconstruc-
+tion due to missing views. Each camera samples a narrow
+band of the visible spectrum and a different view of the
+scene. As a result, different parts of the scene would visible
+to a different subset of cameras in the HLFI. This results
+in incomplete propagation of the missing spectra, as can be
+seen in Figures 10 and 11. More specifically, the table cloth
+has incorrect colors because cameras at the top few rows are
+not able to capture its appearance, resulting in absence of
+certain spectral bands.
+There is also the interesting issue of filter arrangement.
+Currently, the filter wavelengths in our HLFI are arranged in
+12
+Fig. 12. H-LF refocusing results. Top: spectral profiles of three cameras.
+Bottom: synthetic refocusing results at different depths for the three
+profiles. Results in different rows are at different depths (near, middle
+and far). Results in different columns are synthesized from different
+profiles respectively.
+raster order. As a result, as can be seen on the left of Figure 1,
+horizontal neighbors are much more similar in appearance
+than vertical neighbors. This arrangement has implications
+on the H-LF stereo matching and reconstruction. There may
+be a better way of arranging these filters so as to reduce
+appearance changes in both vertical and horizontal direc-
+tions. While it is possible to redesign with different cameras
+having the same filters, this reduces the spectral sampling
+density (for the same number of cameras and overall visible
+spectral extent).
+9 CONCLUDING REMARKS
+We have presented a hyperspectral light field (H-LF) stereo
+matching technique. Our approach is based on a new
+robust spectral-invariant feature descriptor to address in-
+tensity inconsistency across different spectra and a novel
+cross-spectral multi-view stereo matching algorithm. For
+increased robustness in matching, we show how to perform
+view selection in addition to measuring focusness in an
+H-LF. We have conducted comprehensive experiments by
+constructing an H-LF camera array to validate our claims.
+Finally, we show how our results can be used for plenoptic
+cube completion, emulation of cameras with known spectral
+profiles, and spectral refocusing.
+An immediate future direction is to capture and process
+H-LF video. This will require temporal regularization tech-
+niques, in addition to requiring efficient compression to save
+bandwidth. In our current setup, the band-pass filters were
+sequentially assigned to the cameras, i.e., the neighboring
+cameras will have close spectral responses. The advantage
+of this setup is that we can more reliably conduct stereo
+matching and hence warping between adjacent images.
+Despite this, the baseline of the cameras cannot be too large,
+because we still require good visual overlap between images
+for effective spectral propagation. It would be interesting
+to investigate other camera designs with different spectral
+distributions to handle current limitations.
+REFERENCES
+[1] N. Ren, M. Levoy, M. Bredif, G. Duval, M. Horowitz, and P. Hanra-
+han, “Light field photography with a hand-held plenopic camera,”
+Stanford Tech Report, 2005.
+[2] T. N. Pappas, “Single lens 3d-camera with extended depth-of-
+field,” Proceedings of SPIE, vol. 8291, no. 1, p. 4, 2012.
+[3] M. W. Tao, P. P. Srinivasan, J. Malik, S. Rusinkiewicz, and R. Ra-
+mamoorthi, “Depth from shading, defocus, and correspondence
+using light-field angular coherence,” in Proceedings of the IEEE
+Conference on Computer Vision and Pattern Recognition, June 2015,
+pp. 1940–1948.
+[4] Z. Yu, X. Guo, H. Ling, A. Lumsdaine, and J. Yu, “Line assisted
+light field triangulation and stereo matching,” in Proceedings of
+the IEEE International Conference on Computer Vision, Dec 2013, pp.
+2792–2799.
+[5] X. Guo, Z. Yu, S. B. Kang, H. Lin, and J. Yu, “Enhancing light
+fields through ray-space stitching,” TVCG IEEE, vol. 22, no. 7, pp.
+1852–1861, July 2016.
+[6] M. W. Tao, J. C. Su, T. C. Wang, J. Malik, and R. Ramamoorthi,
+“Depth estimation and specular removal for glossy surfaces using
+point and line consistency with light-field cameras,” IEEE Transac-
+tions on pattern analysis and machine intelligence, vol. 38, no. 6, pp.
+1155–1169, June 2016.
+[7] H. Lin, C. Chen, S. B. Kang, and J. Yu, “Depth recovery from
+light field using focal stack symmetry,” in Proceedings of the IEEE
+International Conference on Computer Vision, Dec 2015, pp. 3451–
+3459.
+[8] M. Tao, S. Hadap, J. Malik, and R. Ramamoorthi, “Depth from
+combining defocus and correspondence using light-field cam-
+eras,” in Proceedings of the IEEE International Conference on Computer
+Vision, 2013.
+[9] Y. Ding, F. Li, Y. Ji, and J. Yu, “Dynamic fluid surface acquisition
+using a camera array,” in Proceedings of the IEEE International
+Conference on Computer Vision, 2011.
+[10] N. Li, J. Ye, Y. Ji, H. Ling, and J. Yu, “Saliency detection on
+light field,” IEEE Transactions on Pattern Analysis and Machine
+Intelligence, 2016.
+[11] T.-C. Wang, J.-Y. Zhu, E. Hiroaki, M. Chandraker, A. A. Efros, and
+R. Ramamoorthi, “A 4d light-field dataset and cnn architectures
+for material recognition,” in European Conference on Computer Vi-
+sion. Springer, 2016, pp. 121–138.
+[12] E. H. Adelson and J. R. Bergen, “The plenoptic function and
+the elements of early vision,” in Computational Models of Visual
+Processing. MIT Press, 1991, pp. 3–20.
+[13] J. Holloway, K. Mitra, S. J. Koppal, and A. N. Veeraraghavan,
+“Generalized assorted camera arrays: Robust cross-channel reg-
+istration and applications,” IEEE Transactions on Image Processing,
+vol. 24, no. 3, pp. 823–835, March 2015.
+[14] Z. Xiong, L. Wang, H. Li, D. Liu, and F. Wu, “Snapshot hyperspec-
+tral light field imaging,” in Proceedings of the IEEE Conference on
+Computer Vision and Pattern Recognition, 2017.
+[15] S. Wanner and B. Goldluecke, “Globally consistent depth labeling
+of 4d light fields,” in Proceedings of the IEEE Conference on Computer
+Vision and Pattern Recognition, June 2012, pp. 41–48.
+[16] C. Chen, H. Lin, Z. Yu, S. B. Kang, and J. Yu, “Light field
+stereo matching using bilateral statistics of surface cameras,” in
+Proceedings of the IEEE Conference on Computer Vision and Pattern
+Recognition, June 2014, pp. 1518–1525.
+[17] T. C. Wang, A. A. Efros, and R. Ramamoorthi, “Occlusion-aware
+depth estimation using light-field cameras,” in Proceedings of the
+IEEE International Conference on Computer Vision, Dec 2015, pp.
+3487–3495.
+[18] F. Shi, N. R. Hughes, and G. Roberts, “Ssd matching using shift-
+invariant wavelet transform,” 2001.
+[19] M. Goesele, N. Snavely, B. Curless, H. Hoppe, and S. M. Seitz,
+“Multi-view stereo for community photo collections,” in 2007 IEEE
+11th International Conference on Computer Vision, Oct 2007, pp. 1–8.
+13
+[20] N. Dalal and B. Triggs, “Histograms of oriented gradients for
+human detection,” in Proceedings of the IEEE Conference on Computer
+Vision and Pattern Recognition, vol. 1, 2005, pp. 886–893.
+[21] D. G. Lowe, “Object recognition from local scale-invariant fea-
+tures,” in Proceedings of the IEEE International Conference on Com-
+puter Vision, 1999, pp. 1150–1157.
+[22] A. F. H. Goetz, G. Vane, J. E. Solomon, and B. N. Rock, “Imaging
+spectrometry for earth remote sensing,” Science, vol. 228, no. 4704,
+pp. 1147–1153, 1985.
+[23] J. G. P. W. Clevers, “The use of imaging spectrometry for agri-
+cultural applications,” Isprs Journal of Photogrammetry and Remote
+Sensing, vol. 54, no. 5, pp. 299–304, 1999.
+[24] P. J. Curran, “Imaging spectrometry for ecological applications,”
+International Journal of Applied Earth Observation and Geoinformation,
+vol. 3, no. 4, pp. 305–312, 2001.
+[25] E. Bendor, R. G. Taylor, J. Hill, J. A. Dematte, M. L. Whiting,
+S. Chabrillat, and S. Sommer, “Imaging spectrometry for soil
+applications,” Advances in Agronomy, pp. 321–392, 2008.
+[26] R. B. Lockwood, T. Cooley, R. M. Nadile, J. A. Gardner, P. S.
+Armstrong, A. M. Payton, T. M. Davis, and S. D. Straight, “Ad-
+vanced responsive tactically effective military imaging spectrome-
+ter (artemis): system overview and objectives,” Proceedings of SPIE,
+vol. 6661, no. 1, 2007.
+[27] P. Mouroulis and M. M. Mckerns, “Pushbroom imaging spectrom-
+eter with high spectroscopic data fidelity: experimental demon-
+stration,” OE, pp. 808–816, 2000.
+[28] N. Gat, “Imaging spectroscopy using tunable filters: a review,”
+Proceedings of SPIE, vol. 4056, no. 1, pp. 50–64, 2000.
+[29] L. Su, Z. Zhou, Y. Yuan, L. Hu, and S. Zhang, “A snapshot light
+field imaging spectrometer,” Optik - International Journal for Light
+and Electron Optics, pp. 877–881, 2015.
+[30] N. Hagen, R. T. Kester, L. Gao, and T. S. Tkaczyk, “Snapshot
+advantage: a review of the light collection improvement for paral-
+lel high-dimensional measurement systems,” Optical Engineering,
+vol. 51, no. 11, pp. 111 702–1, 2012.
+[31] J. Ye and F. Imai, “High resolution multi-spectral image
+reconstruction on light field via sparse representation,” in
+Imaging and Applied Optics 2015. OSA, 2015, p. IT3A.4.
+[Online]. Available: http://www.osapublishing.org/abstract.cfm?
+URI=ISA-2015-IT3A.4
+[32] M. Okutomi and T. Kanade, “A multiple-baseline stereo,” IEEE
+Transactions on pattern analysis and machine intelligence, vol. 15, no. 4,
+pp. 353–363, 1993.
+[33] V. Kolmogorov, P. Monasse, and P. Tan, “Kolmogorov and Zabihs
+Graph Cuts Stereo Matching Algorithm,” IPOL, vol. 4, pp. 220–
+251, 2014.
+[34] Y. S. Heo, K. M. Lee, and S. U. Lee, “Robust stereo matching
+using adaptive normalized cross-correlation,” IEEE Transactions on
+Pattern Analysis and Machine Intelligence, vol. 33, no. 4, pp. 807–822,
+April 2011.
+[35] H. Hirschmuller, “Stereo processing by semiglobal matching and
+mutual information,” IEEE Transactions on pattern analysis and
+machine intelligence, vol. 30, no. 2, pp. 328–341, 2008.
+[36] X. Shen, L. Xu, Q. Zhang, and J. Jia, “Multi-modal and multi-
+spectral registration for natural images,” in European Conference on
+Computer Vision. Springer, 2014, pp. 309–324.
+[37] D. Scharstein and R. Szeliski, “A taxonomy and evaluation of
+dense two-frame stereo correspondence algorithms,” International
+journal of computer vision, vol. 47, no. 1-3, pp. 7–42, 2002.
+[38] M. Levoy, “Light field rendering,” in Conference on Computer Graph-
+ics and Interactive Techniques, 1996.
+[39] T. Smith and J. Guild, “The c.i.e. colorimetric standards and their
+use,” Transactions of the Optical Society, vol. 33, no. 3, p. 73, 1931.
+[40] S. Kullback and R. A. Leibler, “On information and sufficiency,”
+Ann. Math. Statist., vol. 22, no. 1, pp. 79–86, 03 1951. [Online].
+Available: http://dx.doi.org/10.1214/aoms/1177729694
+[41] MacKay and C. Davidj., Information theory, inference, and learning
+algorithms. Cambridge University Press, 2003.
+[42] J. Park, H. Kim, Y.-W. Tai, M. S. Brown, and I. S. Kweon, “High-
+quality depth map upsampling and completion for rgb-d cam-
+eras,” IEEE Transactions on Image Processing, vol. 23, no. 12, pp.
+5559–5572, 2014.
+[43] Z. Zhang, “A flexible new technique for camera calibration,” IEEE
+Transactions on pattern analysis and machine intelligence, vol. 22,
+no. 11, pp. 1330–1334, 2000.

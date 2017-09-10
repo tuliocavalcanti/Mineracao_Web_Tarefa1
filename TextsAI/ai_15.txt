@@ -1,0 +1,349 @@
+Fine-tuning deep CNN models on specific MS COCO categories
+DFKI library: py-faster-rcnn-?
+Daniel Sonntag
+German Research Center for Arti?cial
+Intelligence (DFKI)
+Saarbru?cken, Germany
+daniel.sonntag@d?i.de
+Michael Barz
+German Research Center for Arti?cial
+Intelligence (DFKI)
+Saarbru?cken, Germany
+michael.barz@d?i.de
+Jan Zacharias
+German Research Center for Arti?cial
+Intelligence (DFKI)
+Saarbru?cken, Germany
+jan.zacharias@d?i.de
+Sven Stauden
+German Research Center for Arti?cial
+Intelligence (DFKI)
+Saarbru?cken, Germany
+sven.stauden@d?i.de
+Vahid Rahmani
+German Research Center for Arti?cial
+Intelligence (DFKI)
+Saarbru?cken, Germany
+vahid.rahmani@d?i.de
+A?ron Fo?thi
+Faculty of Informatics
+Eo?tvo?s Lora?nd University
+Budapest, Hungary
+aronfothi@gmail.com
+Andra?s Lo?rincz
+Faculty of Informatics
+Eo?tvo?s Lora?nd University
+Budapest, Hungary
+lorincz@inf.elte.hu
+ABSTRACT
+Fine-tuning of a deep convolutional neural network (CNN) is o?en
+desired. ?is paper provides an overview of our publicly available
+py-faster-rcnn-? so?ware library that can be used to ?ne-tune
+the VGG CNN M 1024 model on custom subsets of the Microso?
+Common Objects in Context (MS COCO) dataset. For example,
+we improved the procedure so that the user does not have to look
+for suitable image ?les in the dataset by hand which can then be
+used in the demo program. Our implementation randomly selects
+images that contain at least one object of the categories on which
+the model is ?ne-tuned.
+KEYWORDS
+Machine Learning, Image Classi?cation, Deep Learning, Hyper-
+Parameter Selection, Transfer Learning
+1 INTRODUCTION
+Understanding of visual scenes is an important goal for many arti-
+?cial intelligence applications where knowledge acquisition, anom-
+aly detection and intelligent user interfaces are central parts. For
+example, human-robot interaction in Industry 4.0 factories [11];
+medical decision support [8] where scene understanding involves
+numerous tasks including localizing objects and images in 2D and
+3D; contextual reasoning between objects and the precise 2D lo-
+calization of objects [1]. Image recognition is a central part of
+the technical architectures of these applications. In order to pro-
+vide state-of-the-art image classi?ers, Chat?eld et al. trained their
+VGG CNN M 1024 model [2] on the ImageNet ILSVRC-2012 dataset
+[10] that contains about 1.2M training images categorized into 1000
+object classes. Girshick et al. showed that ?ne-tuning a model on
+the target dataset improves mean average precision [4]. Chat?eld
+et al. could verify this result by ?ne-tuning their model on the
+PASCAL-2007 VOC [3] dataset that contains only 2501 training
+images in 20 categories.
+Our approach is a fork of py-faster-rcnn1 by Ren et al. [9]
+which uses approximate joint training where the region proposal
+network is trained jointly with the FAST R-CNN network resulting
+in overall speed improvements. py-faster-rcnn-ft allows for a
+convenient fine-tuning of the VGG CNN M 1024 model on speci?c
+object classes of the MS COCO dataset [5]. We found it cumbersome
+that the user needed to enter these IDs in source code at several
+locations. Furthermore, the necessity of user inputs is error-prone
+and could cause incorrect states. ?e so?ware is freely available
+under the GPLv3 license2 via our GitHub repository3; developer
+feedback is very much appreciated.
+2 RELATEDWORK AND BACKGROUND
+In a number of cases, ?ne-tuning of the network is desired. ?is
+can be due to the environment that may strongly in?uence the best
+scores [6]. Alternatively, if evaluation is followed by a consistence
+seeking procedure that exploits more than one network, then cate-
+gorization can be ?xed and new training samples can be produced
+as demonstrated in [7]. In such cases, retraining the network(s)
+concerns only a few samples, and ?ne-tuning is the desired way to
+go:
+• R-CNN works with bounding boxes (BBs). Any BB has
+some part of the background. Background dependence
+can be strong and can easily mislead the categorization as
+shown in Figure 3. In turn, di?erent environments may
+need ?ne-tuning.
+• Faster R-CNN gains speed by sharing full image convolu-
+tional features with the detection network.
+1h?ps://github.com/rbgirshick/py-faster-rcnn
+2h?ps://www.gnu.org/licenses/gpl-3.0.en.html
+3h?ps://github.com/DFKI-Interactive-Machine-Learning/py-faster-rcnn-?
+ar
+X
+iv
+:1
+70
+9.
+01
+47
+6v
+1 
+ [
+cs
+.C
+V
+] 
+ 5
+ S
+ep
+ 2
+01
+7
+arXiv Preprint, 2017 D. Sonntag et al.
+Figure 1: Transition of the setup work?ow for training with
+the original py-faster-rcnn (le?) and our fork (right)
+?e net result is that the time required by region pro-
+posals is almost negligible compared to the rest of the
+computations. ?is solution is of high interest as it can be
+seen as a special version of transfer learning.
+3 IMPLEMENTATION
+?e original py-faster-rcnn so?ware works with a model trained
+on a dataset containing image ?les and the corresponding annota-
+tions. ?e model is able to detect and classify objects in the input
+images for several classes. In our work we use the pre-trained
+model VGG CNN M 1024 that is able to di?erentiate between 1000
+classes relating to the ILSVRC-2012 challenge. We improved this
+original so?ware as explained in the rest of this paper, in order to
+be able to ?ne-tune on speci?c image dataset categories.
+3.1 Prototxt File Managing
+Fine-tuning a model for a subset of categories requires changes of
+some aspects in the architecture of the neural network which will
+be applied in the retraining process. To perform ?ne-tuning, several
+parameters in the corresponding train.prototxt and test.prototxt
+?les need to be continuously changed, depending on the chosen
+subset of classes the ?ne-tuning should perform on. Because the
+manual change of these parameters in the ?les o?en leads to errors,
+we implemented a python wrapper that is able to read and manipu-
+late prototxt ?les. In our implementation, this wrapper performs
+the prototxt ?le manipulation automatically in the background
+(hyper-parameter selection).
+3.2 MS COCO Category IDs
+For the training process, the user has to decide on which categories
+the ?ne-tuning should be performed. As the MS COCO dataset man-
+ages its classes with so-called category IDs, we wrote a program that
+extracts all classes of the MS COCO 2014 dataset along with their
+IDs. ?is program is available at: data/scripts/MSCOCO API categories.py
+and helps the user to quickly decide on the correct category IDs.
+3.3 Con?g File Settings
+?e dataset MS COCO works with category IDs. We found it cum-
+bersome that the user needed to enter these IDs in the source code
+at several locations. Furthermore, the necessity of user inputs is
+error-prone and could cause incorrect states.
+To mitigate this risk, we implemented the possibility for the user
+to enter the category IDs just once in an already existing con?gura-
+tion ?le (experiments/cfgs/faster rcnn end2end.yml) under
+the keyword CAT IDS. All necessary changes are done automati-
+cally by our implementation. ?is e?ectively reduces erroneous
+user inputs and simpli?es the setup work?ow (cf. Figure 1).
+3.4 Demo Image Selection
+?e demo program tools/demo.py is an important tool for visu-
+alizing the performance of a trained or ?ne-tuned model. In the
+original version, the user is able to choose images from the dataset
+manually and apply the model on them while predicted bounding
+box regions and labels are plo?ed as an overlay on the correspond-
+ing image. We improved this procedure so that the user does not
+have to manually search for suitable image ?les in the dataset which
+can subsequently be used in the demo program. Our implementa-
+tion randomly selects images that contain at least one object of the
+categories on which the model is ?ne-tuned.
+3.5 Bug?xes
+As described in Section 3.3, the user can ?ne-tune on a subset
+of classes by ?lling up CAT IDS in the con?guration ?le. In the
+training stage, the so?ware creates a list of all training samples con-
+taining annotation information. ?e original so?ware does not dis-
+tinguish between data samples of selected or unselected categories.
+?is leads to the creation of many arrays with invalid data causing
+a lot of crashes and false results. In lib/datasets/coco.py, we
+?lter invalid data and make sure that only samples from the chosen
+categories are used for the ?ne-tuning step.
+4 USAGE
+To allow for a quick setup time and rapid results, we provide in-
+formation regarding the installation of the so?ware and how to
+?ne-tune a model as well as verifying performance of the newly
+trained model. ?is is explained in the following subsections. A
+complete step-by-step installation instruction and usage listings are
+available in the README ?le4 accompanying our so?ware library.
+4.1 Requirements
+We suggest the installation of the Ubuntu 17.04 64-bit operating
+system5 as this allows for an easy and quick installation with
+minimal compiling from addional sources. A computer with at
+least one GPU supporting CUDA6 is required for the operation of
+py-faster-rcnn-ft. A single Nvidia GTX 1080 was found to be
+su?cient for the experiments with the VGG CNN M 1024 model.
+4.2 Installation
+A?er installing Ubuntu 17.04, the proprietary Nvidia driver needs to
+be activated in the Additional Drivers tab of the So?ware & Updates
+4h?ps://github.com/DFKI-Interactive-Machine-Learning/py-faster-rcnn-
+?/blob/master/README.md
+5h?p://releases.ubuntu.com/zesty/
+6h?ps://developer.nvidia.com/cuda-downloads
+Fine-tuning deep CNN models on specific MS COCO categories arXiv Preprint, 2017
+Figure 2: Training with faster rcnn end2end.sh process diagram
+se?ings. Canonical Partners should be ticked in the Other So?ware
+tab as well.
+py-faster-rcnn-ft requires a lot of additional so?ware on a fresh
+installation, however most of it can be easily installed by using
+the apt7 command line tool, a root shell is required to be able
+to perform the installation of the following packages: python-pip
+python-opencv libboost-dev-all libgoogle-glog-dev libgflags-dev
+libsnappy-dev libatlas-dev libatlas4-base
+libatlas-base-dev libhdf5-serial-dev liblmdb-dev libleveldb-dev
+libopencv-dev g++-5 nvidia-cuda-toolkit cython python-numpy
+python-setuptools python-protobuf python-skimage python-tk
+python-yaml.
+?e python package easydict can then be installed via pip2. Fur-
+thermore cuDNN8 needs to be installed, this requires a registration
+with Nvidia. Note that the distribution version of protobuf can
+not be used: for compatibility with CUDA/cuDNN this needs to be
+cloned from the repository9 and compiled by the user with gcc-5.
+?e compilation of the Cython modules, Ca?e and pyca?e, as
+provided with our repository, is straightforward. Trained models
+and datasets need to be downloaded separately as these big ?les
+are not suitable for a GitHub repository:
+git clone https://github.com/DFKI-Interactive-Machine-
+Learning/py-faster-rcnn-ft.git
+cd py-faster-rcnn-ft/lib
+make -j8 &&
+cd ../caffe-fast-rcnn && make -j8 && make pycaffe &&
+cd .. && data/scripts/fetch_imagenet_models.sh
+7h?ps://wiki.debian.org/Apt
+8h?ps://developer.nvidia.com/cudnn
+9h?ps://github.com/google/protobuf.git
+4.3 Demo
+?e successful installation can be veri?ed by running the provided
+demo.py in the tools subfolder. ?is demo uses the MS COCO
+dataset which needs to be downloaded along with an already ?ne-
+tuned model with the classes person and car. ?e demo program
+randomly selects images and tries to classify the content and display
+the result (cf. Figure 3).
+4.4 Fine-tuning on Speci?c Classes
+In order to ?ne-tune the VGG CNN M 1024 model on speci?c cate-
+gories of the MS COCO dataset, the respective category IDs are spec-
+i?ed in the experiments/cfgs/faster rcnn end2end.yml con-
+?guration ?le. Possible IDs can be listed by running MSCOCO API
+categories.py inside the data folder.
+?e ?ne-tuning process (cf. Figure 2) is started by:
+./faster_rcnn_end2end.sh 0 VGG_CNN_M_1024 coco
+?e ?rst argument denotes the GPU ID to use while 0 is the ?rst
+GPU in the system. ?e training will take about 12 hours with the
+default and recommended iteration se?ing of 490000 and one Nvidia
+GTX 1080 graphics card. Following the training, an automatic test
+run is started with the new model and the MS COCO minival2014
+validation test dataset which is comprised of 5000 images. ?ese
+defaults can be changed by editing the faster rcnn end2end.sh
+script.
+If the demo program should use the newly trained model, the
+ca?e-model must be moved from the output directory (e.g. output
+/faster rcnn end2end/coco 2014 train/vgg cnn m 1024
+faster rcnn iter 49000.caffemodel) to data/faster rcnn
+arXiv Preprint, 2017 D. Sonntag et al.
+Figure 3: demo.py ex. output with classi?cation results and
+AP for categories person (top) and car (bottom)
+models/<yourmodel.caffemodel> and the NET dict in demo.py
+updated accordingly.
+4.5 Testing a Fine-tuned Model
+Testing of ?ne-tuned models can be started by using the test net.py
+program in the tools directory:
+tools/test_net.py --gpu 0 --def models/coco/VGG_CNN_M_1024/
+faster_rcnn_end2end/test.prototxt --net data/
+faster_rcnn_models/
+vgg_cnn_m_1024_faster_rcnn_iter_490000.caffemodel --
+imdb coco_2014_val --cfg experiments/cfgs/
+faster_rcnn_end2end.yml
+?is example tests the speci?ed ca?e-model against the coco 2014 val
+validation image dateset consisting of 40504 images, hence the test-
+ing will take longer. In case the smaller validation dataset should
+be used, --imdb coco 2014 minival can be speci?ed.
+Note that the prototxt ?le will be updated automatically with
+the category IDs as speci?ed in the con?g ?le analogously to the
+?ne-tuning (cf. Section 4.4).
+4.6 Informal Evaluation
+?e provided ca?emodel10 was ?ne-tuned on the categories person
+and car. When tested with the minival2014 dataset, the AP @
+IoU=[0.50,0.95] for person is 29.4% and 15.6% for car. A model
+trained on all 80 MS COCO categories results in 26.2% for person
+and 11.2% for car. ?ese early results indicate an improvement of
+average precision when ?ne-tuning is performed on a subset of the
+target dataset.
+5 FUTUREWORK
+py-faster-rcnn-ft is limited to the MS COCO dataset, we would
+like to be able to ?ne-tune by using other datasets that could be
+automatically generated using a pre-trained model, i.e., we could
+use output from Google Images11 for new dataset instances but
+verify them beforehand. NLP techniques could be used to search
+for relevant images based on the category.
+REFERENCES
+[1] Michael Barz, Peter Poller, and Daniel Sonntag. 2017. Evaluating Remote and
+Head-worn Eye Trackers in Multi-modal Speech-based HRI. In Companion of the
+2017 ACM/IEEE International Conference on Human-Robot Interaction. ACM/IEEE
+International Conference on Human-Robot Interaction (HRI-17), March 6-9, Vienna,
+Austria, Bilge Mutlu, Manfred Tscheligi, Astrid Weiss, and James E Young (Eds.).
+ACM, 79–80. h?ps://doi.org/10.1145/3029798.3036665
+[2] Ken Chat?eld, Karen Simonyan, Andrea Vedaldi, and Andrew Zisserman. 2014.
+Return of the Devil in the Details: Delving Deep into Convolutional Nets. British
+Machine Vision Conference (2014). h?ps://doi.org/10.5244/C.28.6 arXiv:1405.3531
+[3] Mark Everingham, Luc Van Gool, Christopher K I Williams, John Winn, and
+Andrew Zisserman. 2010. ?e Pascal Visual Object Classes (VOC) Challenge.
+International journal of computer vision 88, 2 (2010), 303–338.
+[4] Ross Girshick, Je? Donahue, Trevor Darrell, and Jitendra Malik. 2014. Rich
+feature hierarchies for accurate object detection and semantic segmentation.
+Proceedings of the IEEE conference on computer vision and pa?ern recognition
+(2014), 580–587. h?ps://doi.org/10.1109/CVPR.2014.81 arXiv:1311.2524
+[5] Tsung Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro Perona, Deva
+Ramanan, Piotr Dolla?r, and C. Lawrence Zitnick. 2014. Microso? COCO: Common
+objects in context. European conference on computer vision (2014), 740–755.
+h?ps://doi.org/10.1007/978-3-319-10602-1 48 arXiv:1405.0312
+[6] Andra?s Lo?rincz, Ma?te? Csa?kva?ri, A?ron Fo?thi, Z A?da?m Milacski, Andra?s Sa?rka?ny,
+and Zolta?n To?se?r. 2017. Towards Reasoning Based Representations: Deep Con-
+sistence Seeking Machine. Cognitive Systems Research (2017).
+[7] Andra?s Lo?rincz, A?ron Fo?thi, Bryar O Rahman, and Viktor Varga. 2017. Deep
+Gestalt Reasoning Model: Interpreting Electrophysiological Signals Related
+to Cognition. In Mutual Bene?ts of Cognitive and Computer Vision, Workshop,
+E Amino? A. Borji R.T. Pramod and C Kanan (Eds.). ICCV, MBCC.
+[8] Alexander Prange, Michael Barz, and Daniel Sonntag. 2017. Speech-based Med-
+ical Decision Support in VR using a Deep Neural Network (Demonstration).
+In Proceedings of the Twenty-Sixth International Joint Conference on Arti?cial
+Intelligence. IJCAI, 5241–5242. h?ps://doi.org/10.24963/ijcai.2017/777
+[9] Shaoqing Ren, Kaiming He, Ross Girshick, and Jian Sun. 2015. Faster R-CNN:
+Towards real-time object detection with region proposal networks. Advances in
+neural information processing systems (2015), 91–99.
+[10] Olga Russakovsky, Jia Deng, Hao Su, Jonathan Krause, Sanjeev Satheesh, Sean
+Ma, Zhiheng Huang, Andrej Karpathy, Aditya Khosla, Michael Bernstein, Alexan-
+der C. Berg, and Li Fei-Fei. 2015. ImageNet Large Scale Visual Recognition
+Challenge. International Journal of Computer Vision 115, 3 (2015), 211–252.
+h?ps://doi.org/10.1007/s11263-015-0816-y arXiv:1409.0575
+[11] Daniel Sonntag, Sonja Zillner, Patrick van der Smagt, and Andra?s Lo?rincz. 2017.
+Overview of the CPS for Smart Factories Project: Deep Learning, Knowledge Acqui-
+sition, Anomaly Detection and Intelligent User Interfaces. Springer International
+Publishing, Cham, 487–504. h?ps://doi.org/10.1007/978-3-319-42559-7 19
+10h?ps://www.d?i.de/?jan/vgg cnn m 1024 faster rcnn iter 490000.ca?emodel
+11h?ps://images.google.com/

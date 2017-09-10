@@ -1,0 +1,984 @@
+On Heterogeneous Coded Distributed Computing
+Mehrdad Kiamari?, Chenwei Wang† and A. Salman Avestimehr?
+?Department of Electrical Engineering, University of Southern California, Los Angeles, CA
+†DOCOMO Innovations, Inc., Palo Alto, CA
+Abstract
+We consider the recently proposed Coded Distributed Computing (CDC) framework [1]–[3] that leverages carefully designed
+redundant computations to enable coding opportunities that substantially reduce the communication load of distributed computing.
+We generalize this framework to heterogeneous systems where different nodes in the computing cluster can have different storage
+(or processing) capabilities. We provide the information-theoretically optimal data set placement and coded data shuffling scheme
+that minimizes the communication load in a cluster with 3 nodes. For clusters with K > 3 nodes, we provide an algorithm
+description to generalize our coding ideas to larger networks.
+I. INTRODUCTION
+The modern paradigm for large-scale distributed computing involves a massively large distributed system comprising
+individually small and relatively unreliable computing nodes made of commodity low-end hardware. Specifically, distributed
+computational frameworks like MapReduce [4], Spark [5], Dryad [6], and CIEL [7] have gained significant traction, as they
+enable the execution of production-scale tasks on data sizes of the order of tens of terabytes and more. However, as we
+“scale out” computations across many distributed nodes, massive amounts of raw and (partially) computed data must be moved
+among nodes, often over many iterations of a running algorithm, to execute the computational tasks. This creates a substantial
+communication bottleneck. For example, by analyzing Hadoop traces from Facebook, it is demonstrated that, on average, 33%
+of the overall job execution time is spent on data shuffling [8]. This ratio can be much worse for sorting and other basis tasks
+underlying many machine learning applications. For example, as shown in [9], 50% ? 70% of the execution time can be spent
+for data shuffling in applications including TeraSort, WordCount, RankedInvertedIndex, and SelfJoin.
+Recently, it has been been shown that “coding” can provide novel opportunities to significantly slash the communication load
+of distributed computing by leveraging carefully designed redundant local computations at the nodes (which can be viewed
+as creating “side information”). In particular, a coding framework, named Coded Distributed Computing (CDC), has been
+proposed in [1]–[3] , which assigns the computation of each task at r carefully chosen nodes (for some r ? Z+), in order to
+enable in-network coding opportunities that reduce the communication load by r times. For example, by redundantly computing
+each task at only two carefully chosen nodes, CDC can reduce the communication load by 50%. The impact of CDC has also
+been numerically demonstrated through experiments over Amazon EC2. For example, in [10] it is shown that in a 16-node
+cluster, CDC cuts down the execution time of the well-known distributed sorting algorithm TeraSort [11] by more than
+70%.
+However, CDC have so far been studied and developed for homogeneous computing clusters. In distributed computing
+networks different nodes have often different processing, storage, and communication capabilities. For example, Amazon
+EC2 [12] provides users with a wide selection of instance types with varying combinations of CPU, memory, storage, and
+bandwidth. Moreover, as discussed in [13], the computing environments in virtualized data centers are heterogeneous and
+algorithms based on homogeneous assumptions can result in significant performance reduction. Our goal in this paper is to
+take the first steps towards development of CDC for heterogeneous computing clusters. In particular, we aim to understand how
+we should optimally assign the computation tasks and design optimal coded shuffling techniques in heterogeneous computing
+clusters.
+From homogeneous to heterogeneous, although their CDC developments both rely on creating index coding-type coding
+opportunities, the problem in heterogeneous systems appears to be much more challenging, due to the fact that we have to deal
+with more parameters of storage size of nodes for file allocation. In addition, in homogeneous systems, the file allocation to
+achieve the minimum communication load turned out to be cyclically symmetric with node indices. In contrast, such a manner
+of file allocation is impossible for heterogeneous systems.
+To shed light on CDC for heterogeneous systems, in this paper, we focus on the smallest heterogeneous system with K=3
+nodes and characterize the information-theoretically minimum communication load for arbitrary storage size of all nodes. For
+the achievability, we resolve the main challenge of designing file allocation at each node and then identify how to create coding
+opportunities on top of carefully designed file allocation. For the converse, we provide a total of four bounds. While two of
+them are translated directly from [2], the other two bounds, derived by incorporating genie-aided arguments with the cut-set
+bounds, are novel.
+For K>3, generalizing the ideas used for developing the information theoretic result for K = 3 appears to be insufficient
+due to the fact that when the number of parameters {Mk}Kk=1 linearly grows, the number of possible coding opportunities
+ar
+X
+iv
+:1
+70
+9.
+00
+19
+6v
+1 
+ [
+cs
+.D
+C
+] 
+ 1
+ S
+ep
+ 2
+01
+7
+Map functions 
+Reduce functions 
+Fig. 1. A heterogeneous distributed computing system with Q=K=3
+exponentially increases. Specifically, for the achievability, we need to examine if there exists any coding opportunity among
+every possible subset of K ? out of the total K nodes for every 3 ? K ? ? K. Regarding the converse, investigating whether
+an achievable scheme is information-theoretically optimal in general is not possible due to lack of efficient tools. Because of
+these difficulties, we provide a heuristic algorithm to formulate the problem into a linear programming optimization to design
+the file allocation and the corresponding communication load.
+The problem of coded computing in heterogeneous systems has also been studied recently in [14]. However, the focus
+of that work has been on coded computing approaches that deal with the straggler problem, e.g., [15], as opposed to the
+communication load minimization that is the focus of this paper. An interesting future direction is the development of a unified
+coded computing method for heterogeneous systems that deals with both the bandwidth and straggler problems. Such a unified
+framework has been proposed for homogeneous systems in [16], but remains open for heterogeneous systems.
+II. SYSTEM MODEL AND MAIN RESULTS
+We consider a heterogeneous distributed computing system which consists of K distributed nodes, N input files {wn}Nn=1,
+and each wn ? F2F for some F ? Z+. We assume that each node k?K , {1, · · · ,K} can only store Mk files out of the total
+N files, i.e., the storage size is Mk. In addition, we use Mk?{w1, · · · , wN} with the cardinality Mk = |Mk| to denote the
+files stored at node k. For simplicity, we denote the set of all files by N , {1, 2, · · · , N}, and when there is no ambiguity we
+simplify the notation to Mk ? N to represent files stored at node k. In MapReduce-based distributed computing introduced
+in [4], the goal is to compute Q (for some Q/K ? Z+) output functions ?1, . . . , ?Q where each ?q : (F2F )N ? F2B maps
+the file wn, n ? N into an output length-B file uq = ?q(w1, . . . , wN ) ? F2B for some B ? Z+. As depicted in Fig. 1, the
+output function ?q , ?q ? {1, . . . , Q} can be decomposed as follows
+?q(w1, . . . , wN ) = hq(gq,1(w1), . . . , gq,N (wN )), (1)
+where ??g n = (g1,n, · · · , gQ,n) : F2F ? (F2T )Q, ?n ? N for some T ? Z+, represent the Map functions, and hq : (F2T )N ?
+F2B , ?q ? {1, . . . , Q} represent the Reduce functions. The MapReduce-based distributed computing consists of the following
+three phases:
+Map Phase: Node k ? K computes the Map functions on each of the files in Mk to obtain Q length-T intermediate values
+computed from each file wn, i.e., vq,n = gq,n(wn) ? F2T for q = 1, · · · , Q.
+Shuffle Phase: Node k ? K creates a message Xk which is a function of the intermediate values {vq,n|wn ? Mk, q ?
+{1, · · · , Q}} locally computed at itself during the Map phase, i.e., Xk = ?k({??g n|wn ? Mk}), and then broadcasts it to all
+the other nodes.
+Reduce Phase: Node k ? K utilizes the intermediate values computed from its locally stored files during the Map phase and
+the messages {Xk}Kk=1 collected during the Shuffle phase to recover all its desired intermediate values {vq,n|q?Wk, n?N}
+via the Reduce functions {hq}q?Wk , where Wk is the subset of indices of functions interesting to node k. Similar to [2], we
+assume that ?kWk = {1, · · · , Q}, Wi ?Wj = ? for ?i,?j, i 6= j, and |Wk| = Q/K.
+The communication load we use in this paper, represented by L, is defined as the total number of bits broadcasted by the
+K nodes, during the Shuffle phase, normalized by T . Intuitively, it means the total number of equations associated with the
+intermediate values (or files) contributed by the messages {Xk}Kk=1. To read the notations easily, we illustrate one example
+in Fig. 1 with K = 3 and by letting Q = K, which means that each node k desires only one intermediate value for each file
+vk,n, n ? N , represented by the blue (node 1), green (node 2) and brown (node 3) colors, respectively. For the file wn, n ? N ,
+the kth intermediate value desired by node k is denoted as vk,n or Vk,n which is a random variable when we study the converse.
+Since each file has to be stored at one node at least, we also assume that ?kMk = N and M ,
+?
+kMk?N .
+In this paper, we are primarily interested in the central question: given the parameters ({Mk}Kk=1, N), what is the minimum
+communication load L?? To address this question, we need to find out the file allocation at each node and the coding scheme
+for data shuffling to achieve L?. In particular, we will consider first the setting with K = 3 and then the setting with K>3.
+The result is shown as follows.
+A. Main Result
+For the problem we defined above, for K = 3, without loss of generality, we assume that M1 ?M2 ?M3. We summarize
+our new result for K = 3 in the following theorem.
+Theorem 1: For the CDC problem defined above, given a general setting with P , (M1,M2,M3, N) and M = M1 +
+M2 +M3, the minimum communication load L? is given by:
+L? =
+???????
+7
+2N ?
+3
+2M if P ? R1 ?R2 ?R3
+3N ? (M1 +M) if P ? R4 ?R5
+3
+2N ?
+1
+2M if P ? R6
+N ?M1 if P ? R7
+(2)
+where
+R1={P | M1+M2 ? N, M3 ? N+M1?M2},
+R2={P | M ? 2N, M1+M2 > N,M3 ? N+M1?M2},
+R3={P | M ? 2N, M1+M2 > N, N+M1?M2 ?M3 > 3N?M1?3M2},
+R4={P | M1+M2 ? N, M3 > N+M1?M2},
+R5={P | M ? 2N, M1+M2 > N,M3 > N+M1?M2},
+R6={P | M > 2N, M3 ? N+M1?M2},
+R7={P | M > 2N, M3 > N+M1?M2}.
+Proof: The proof will be presented in Section III for the achievability and Section IV for the converse, respectively.
+Remark 1: Compared to the uncoded scheme where the 3 nodes need a total of 3N ?M intermediate values in the Shuffle
+phase, Theorem 1 implies that we can save the communication load by up to 3N ?M ? L? by carefully designing the file
+allocation and the coding scheme.
+Remark 2: When M1 = M2 = M3, Theorem 1 reduces to the result specified for the homogeneous system in [2] after
+normalizing L by N . Meanwhile, it can be seen that the inequality M3 > N +M1 ?M2 in R4, R5 and R7 identifies cases
+which do not exist in the homogeneous system. In addition, comparison with the homogeneous system in [2] implies that L?
+depends on not only the computation load (defined as M/N in [2]), but also the storage size Mk (e.g., M1 in R4, R5, R7).
+The key idea for developing the result in Theorem 1 is to carefully design file allocation over nodes so that we can create
+coding opportunities for reducing the communication load as many as possible. Meanwhile, since the new result depends on
+the storage size of each node, it is natural to expect that file allocation to achieve L? is non-cyclically symmetric with node
+indices, as opposed to the manner of cyclically symmetric file allocation to achieve L? in the homogeneous system.
+For K > 3, due to the difficulties of characterizing the information-theoretically optimal result, we provide an achievable
+scheme in Section V via developing an algorithm that formulates the achievability into a linear programming problem, followed
+by several discussions. The main idea behind the achievability is to incorporate scaling up the coding schemes proposed for
+heterogeneous systems with K=3 with the coding schemes for homogeneous systems developed in [2].
+III. THE ACHIEVABILITY OF THEOREM 1
+Before proceeding into the proof in detail, we first provide an overview of CDC for heterogeneous systems and build the
+key intuitions behind the new result, which can be naturally applied when we design the achievable scheme.
+Let us consider an example with (M1,M2,M3, N) = (6, 7, 7, 12) where node k is only interested in collecting its desired
+N intermediate values {vk,n}n?N where k = 1, 2, 3. Clearly, without creating L = 16, since besides the 6, 7, 7 intermediate
+values computed directly from their own files, respectively, these nodes need another 6, 5, 5 intermediate values, respectively,
+to complete their reductions.
+Next, consider the files allocated sequentially as shown in Fig. 2 where node 1 stores files 1?6, node 2 stores files 7?12, 1,
+node 3 stores files 2?8, and they aim to reduce circle (blue), square (green), and triangle (brown) output functions, respectively.
+In this case, we can reduce the communication load from L = 16 to L = 13 by designing an appropriate coding scheme.
+Specifically, instead of broadcasting the intermediate values v2,2 (square 2) and v3,1 (triangle 1) individually, node 1 directly
+broadcasts v2,2?v3,1 where ? denotes the XOR operator. Since v2,2 and v3,1 are available at node 3 and node 2, respectively,
+they can obtain the desired interference-free v3,1 = X1 ? v2,2 and v2,2 = X1 ? v3,1, respectively. Similarly, encoding over 4
+intermediate values v2,5, v2,6, v3,7, v3,8 at node 3 to v2,5 ? v3,7 and v2,6 ? v3,8 enables saving another 2 transmissions. Thus,
+we save a total of 3 transmissions.
+However, for (M1,M2,M3, N) = (6, 7, 7, 12), Theorem 1 implies L? = 12, which means that L = 13 shown above is
+not minimum. As depicted in Fig. 3, if we carefully design the file allocation at node 3 to be M3 = {2, 4, 5, 6, 7, 8, 9} and
+files 
+1 2 3 4 5 
+1 2 3 4 5 
+1 2 3 4 5 
+1 2 3 4 5 
+Map 
+files 
+Needs 7 8 9 
+Computes 
+1 7 8 9 
+1 7 8 9 
+1 7 8 9 
+1 7 8 9 
+Map 
+Needs 
+Computes 
+2 3 4 5 6 7 
+2 3 4 5 6 7 
+2 3 4 5 6 7 
+2 3 4 5 6 7 
+Map 
+10 11 12 
+2 3 4 5 
+11 12 
+11 12 
+11 12 
+8 
+8 
+8 
+8 
+1 9 10 11 12 
+9 9 
+Broadcasts 
+Broadcasts 
+Broadcasts 
+, 
+, 
+, , 
+Node 1 
+Node 2 Node 3 
+, 
+6 
+6 
+6 
+6 
+6 
+, , , 10 12 10 12 
+11 12 10 
+11 
+10 
+10 
+10 
+, 11 
+Needs 
+Computes 
+files 
+Shuffle 
+7 5 6 8 , , 
+3 2 1 4 
+Fig. 2. An example of non-optimal CDC for heterogeneous network with (M1,M2,M3, N) = (6, 7, 7, 12) and K = Q = 3 achieves L = 13.
+files 
+1 2 3 4 5 
+1 2 3 4 5 
+1 2 3 4 5 
+1 2 3 4 5 
+Map 
+files 
+Needs 7 8 9 
+Computes 
+1 7 8 9 
+1 7 8 9 
+1 7 8 9 
+1 7 8 9 
+Map 
+Needs 
+Computes 
+2 4 5 6 7 8 
+2 4 5 6 7 8 
+2 4 5 6 7 8 
+2 4 5 6 7 8 
+Map 
+10 11 12 
+2 3 4 5 
+11 12 
+11 12 
+11 12 
+9 
+9 
+9 
+9 
+1 3 10 11 12 
+3 
+9 Broadcasts 
+Broadcasts 
+Broadcasts 
+, , 
+Node 1 
+Node 2 Node 3 
+, 
+6 
+6 
+6 
+6 
+6 
+, , , 10 12 10 12 
+2 
+7 5 6 8 , 
+11 12 10 
+11 
+10 
+10 
+10 
+, 11 
+Needs 
+Computes 
+files 
+4 9 , 
+1 
+Shuffle 
+Fig. 3. An example of optimal CDC for heterogeneous network with (M1,M2,M3, N) = (6, 7, 7, 12) and K = Q = 3 achieves L? = 12 which is 25%
+lower compared to uncoded distributed computing.
+keep the file allocation at the other two nodes the same, then we can create another coding opportunity of v2,4 ? v3,9 at
+node 3. By doing so, we save one more transmission, so as to achieve L? = 12. Meanwhile, as explained later, 12 is also
+information-theoretically optimal for (M1,M2,M3,N)=(6, 7, 7, 12) with every possible file allocation.
+Based on the example above, it turns out that we need to deal with two coupled challenges including (a) appropriate file
+allocation over the nodes, and (b) optimal coding scheme design. Let us first consider the challenge (b): given an arbitrary
+but fixed file allocation, we will show how to create coding opportunities as many as possible. In particular, given the file
+allocation M1, M2, M3, we can always characterize their relationship by identifying the following 7 subsets:
+S123 ,M1 ?M2 ?M3, S12 , (M1 ?M2) \ S123, S1 ,M1 \ (M2 ?M3),
+S13 , (M1 ?M3) \ S123, S2 ,M2 \ (M1 ?M3),
+S23 , (M2 ?M2) \ S123, S3 ,M3 \ (M1 ?M2).
+For simplicity, we denote the set cardinality by S(·) , |S(·)|.
+Since the subset S123 of files is available at every node, we do not need to consider the communication of the intermediate
+values vk,S123 , {vk,n}n?S123 among the 3 nodes. In addition, each of the 3 subsets S1, S2 and S3 of files is available at one
+node only. Thus, for each node k, if the other two nodes want to collect their intermediate values {vj,Sk}j 6=k, node k’s message
+Xk has to carry those intermediate values, which need a total of 2(S1+S2+S3) transmissions. Hence, the possibility of CDC
+originates from the remaining 3 subsets S12, S13, S23 where each file is stored at 2 nodes only. With this key observation, we
+have the following lemma.
+Lemma 1: Given file allocation M , (M1,M2,M3), the communication load LM is achievable, where
+LM = 2(S1 + S2 + S3) + g(S12, S13, S23), (3)
+and
+g(x1, x2, x3) =
+1
+2
+(???max
+k
+xk+
+?
+k
+xk
+2
+???+???max
+k
+xk?
+?
+k
+xk
+2
+???).
+Proof: Clearly, we only need to show the achievability of the g(S12, S13, S23) term. In fact, observations of the function
+g(S12, S13, S23) reveal that if we satisfy the triangle inequality S12 + S13 + S23 ?maxSij ? maxSij , then we can create a
+total of (S12+S13+S23)/2 equations. Otherwise, besides the S12+S13+S23?maxSij equations that we can create at most, we
+need to send additional maxSij? (S12+S13+S23?maxSij) intermediate values, so the total number of equations is maxSij .
+With this intuition, we provide the coding scheme for the two cases, respectively. Without loss of generality, we assume that
+S12 ? S13 ? S23.
+Case 1: S12 + S13 ? S23 ? g(S12, S13, S23) = (S12 + S13 + S23)/2: As shown in Fig. 4 (upper), we group the files
+into 3 non-overlapping groups Gl, l = 1, 2, 3 in 3 rectangles (dashed, solid and mixture), so that each Gl has the same size of
+overlapping with two out of the 3 sets S12, S13, S23. Denoting the number of files in Gl as Ll, we can resolve Ll, l = 1, 2, 3
+from the following linear equations:??? L1/2 + L2/2 = S12L2/2 + L3/2 = S13
+L1/2 + L3/2 = S23
+=?
+??? L1 = S12 ? S13 + S23L2 = S12 + S13 ? S23
+L3 = ?S12 + S13 + S23,
+(4)
+and we obtain the corresponding files in each group as:
+G1 = S12(1:L1/2) ? S23(1:L1/2) (5)
+G2 = S12(L1/2+1:S12) ? S13(1:L2/2) (6)
+G3 = S13(L2/2+1:S13) ? S23(L1/2+1:S23). (7)
+Thus, the messages broadcasted from each node are given by:
+X1 = v3,G2?S12 ? v2,G2?S23 (8)
+X2 = v3,G1?S12 ? v1,G1?S23 (9)
+X3 = v2,G3?S13 ? v1,G3?S23 . (10)
+With the design above, it is easy to examine that each node will obtain all desired intermediate values in the shuffling phase.
+Case 2: S12 + S13 < S23 ? g(S12, S13, S23) = S23: With the similar approach, as shown in Fig. 4 (lower), we split S23
+into 3 non-overlapping groups, each with cardinality 2S12, 2S13 and S23 ? (S12 + S13), respectively. While the former two
+groups have the same types of file allocation as in G1 and G3 in Case 1, respectively, we only need to let node 2 or node 3
+directly send the corresponding intermediate values in group 3 (outside of the rectangles in Fig. 4 (lower)) to node 1.
+So far, given file allocationM, L(M) can be uniquely determined by Lemma 1. What remains to be shown is the challenge:
+what file allocation achieves L? in Theorem 1. In the rest of this section, we provide the file allocation M to achieve L? for
+regimes R1 ?R7.
+S12 S13 S23
+S12 S13 S23
+node 1 
+node 2 
+node 3 
+file indices S121 S12+S13 S12+S13+S23¢¢¢ ¢¢¢ ¢¢¢
+file indices S121 S12+S13 S12+S13+S23¢¢¢ ¢¢¢ ¢¢¢
+node 1 
+node 2 
+node 3 
+Fig. 4. Illustration of coding scheme design for (upper) S12 + S13 ? S23 and (lower) S12 + S13 < S23 by considering the files in S12, S13, S23 only
+File indices 
+Node 1 
+Node 2 
+Node 3 
+1 ? 2 … 
+Fig. 5. File placement for R1 where `1 = M1 ? (M ?N)/2, `2 = (M ?N)/2, `3 = M2 ? (M ?N)/2, and `4 = N ? (M1 +M2).
+File indices 
+Node 1 
+Node 2 
+Node 3 
+1 ? 2 … 2?1 
+Fig. 6. File placement for R4 where `1 = M1, `2 = M2 +M3 ?N , `3 = N ?M3, and `4 = N ? (M1 +M2).
+A. M1 +M2 ? N
+1) M3 ? N +M1 ?M2 (Regime R1): We choose the file allocation M = (M1,M2,M3) as follows:
+M1 = [1 :M1],
+M2 = [M1 + 1 :M1 +M2],
+M3 = [M1 +M2 + 1 : N ] ? [M1 ? (M ?N)/2 + 1 :M1 + (M ?N)/2].
+(11)
+In order for the reader to understand more easily, we also illustrate the file allocation in Fig. 5. With counting the length of
+the segment corresponding to each subset in Fig. 5, the cardinality of each subset is given by:
+S1 = M1 ? (M ?N)/2, S12 = 0,
+S2 = M2 ? (M ?N)/2, S13 = (M ?N)/2, (12)
+S3 = N ? (M1 +M2), S23 = (M ?N)/2.
+Hence, by applying the coding scheme specified in the proof of Lemma 1, we obtain:
+L = 2(2N ?M) + (M ?N)/2 = 7
+2
+N ? 3
+2
+M. (13)
+2) M3 > N +M1 ?M2 (Regime R4): For this regime, we consider the file allocation M = (M1,M2,M3) as follows:
+M1 = [1 :M1],
+M2 = [M1 + 1 :M1 +M2], (14)
+M3 = [M1 +M2 + 1 : N ] ? [1 : (M ?N)].
+which are also shown in Fig. 6, where the length of L1, L2, L3 can be simply calculated via Lemma 1. Thus, the cardinality
+of each subset is given by:
+S1 = 0, S12 = 0,
+S2 = N ?M3, S13 =M1,
+S3 = N ? (M1 +M2), S23 =M2 +M3 ?N. (15)
+Hence, based on Lemma 1, we have:
+L = 2(2N?M) + (M2+M3?N) = 3N ? (M1 +M). (16)
+B. M ? 2N and M1 +M2 > N
+1) M3 ? 3N?M1?3M2 (Regime R2): We design the file allocationM = (M1,M2,M3), depicted in Fig. 7, as follows:
+M1 = [1 :M1],
+M2 = [M1 + 1 : N ] ? [1 :M1 +M2 ?N ], (17)
+M3 = [M1 +M2 ?N + 1 : 2(M1 +M2 ?N)] ?
+[
+M1?
+M3?(M1+M2?N)
+2
++1:M1+
+M3?(M1+M2?N)
+2
+]
+File indices 
+Node 1 
+Node 2 
+Node 3 
+1 ? … 
+?1 +?2 ? ? 
+… 
+?1 + ?2 ? ?1 +?2 ?? /2  
+… 
+Fig. 7. File placement for R2 where `1 = M1+M2?N , `2 = M1?2(M1+M2?N)? (M3? (M1+M2?N))/2, `3 = (M3? (M1+M2?N))/2,
+and `4 = N ?M1 ? (M3 ? (M1 +M2 ?N))/2.
+Thus, the cardinality of each subset is given by:
+S1 =M1? 2(M1+M2?N)? (M3? (M1+M2?N))/2, S12 =M1 +M2 ?N,
+S2 = N ?M1 ? (M3 ? (M1 +M2 ?N))/2, S13 =M1+M2?N+ (M3? (M1+M2?N))/2,
+S3 = 0, S23 = (M3 ? (M1 +M2 ?N))/2.
+(18)
+Hence, according to Lemma 1, we obtain:
+L = 2(2N ?M) +M1 +M2 ?N +
+M3 ? (M1 +M2 ?N)
+2
+=
+7
+2
+N ? 3
+2
+M. (19)
+2) M3 > 3N ?M1 ? 3M2: The file allocation M = (M1,M2,M3) is as follows:
+M1 = [1 :M1],
+M2 = [M1 + 1 : N ] ? [1 :M1 +M2 ?N ], (20)
+M3 = [M1 +M2 ?N + 1 :M ?N ].
+Thus, the cardinality of each subset is given by:
+S1 = 0, S12 =M1 +M2 ?N,
+S2 = 2N ?M, S13 = N ?M2, (21)
+S3 = 0, S23 =M2 +M3 ?N.
+According to Lemma 1, we have the results in the following two cases:
+Case 1: M3 ? N +M1 ?M2 (Regime R3)
+L = 2(2N ?M) + (M ?N)/2 = 7
+2
+N ? 3
+2
+M. (22)
+Case 2: M3 > N +M1 ?M2 (Regime R5)
+L = 2(2N?M)+M2+M3?N = 3N ? (M1 +M). (23)
+The corresponding file allocation for regimes R3 and R5 are shown in Fig. 8 and Fig. 9, respectively.
+File indices 
+Node 1 
+Node 2 
+Node 3 
+1 ? … 
+?1 +?2 ? ? 
+… 
+? ?? 
+… 
+Fig. 8. File placement for R3 where `1 = M1+M2+M3?N2 ? (N ?M2), `2 =
+M1+M2+M3?N
+2
+? (M2 +M3 ?N), `3 = M2 +M3 ?N ? L1, and
+`4 = 2N ?M .
+File indices 
+Node 1 
+Node2 
+Node 3 
+1 ? … 
+?1 +?2 ? ? 
+… 
+? ?? 
+… 
+Fig. 9. File placement for R5 where `1 = M1 +M2 ?N , `2 = N ?M2, `3 = M2 +M3 ?N ?M1, and `4 = 2N ?M .
+File indices 
+Node 1 
+Node 2 
+Node 3 
+1 ? … 
+Fig. 10. File placement for R6 where `1 = M ? 2N , `2 = N ?M3, `3 = N ?M2, and `4 = N ?M1.
+File indices 
+Node 1 
+Node 2 
+Node 3 
+1 ? … 
+Fig. 11. File placement for R7 where `1 = M ? 2N , `2 = N ?M3, `3 = N ?M2, and `4 = N ?M1.
+C. M > 2N
+We consider the following file allocation M = (M1,M2,M3):
+M1 = [1 :M1],
+M2 = [M1 + 1 : N ] ? [1 :M1 +M2 ?N ], (24)
+M3 = [M1 +M2 ?N + 1 : N ] ? [1 :M1 +M2 +M3 ? 2N ].
+Thus, the cardinality of each subset is given by:
+S123 =M ? 2N, S1 = 0, S12 =M1 +M2 ?N ? (M ? 2N) = N ?M3,
+S2 = 0, S13 =M1 +M3 ?N ? (M ? 2N) = N ?M2,
+S3 = 0, S23 =M2 +M3 ?N ? (M ? 2N) = N ?M1. (25)
+It is straightforward to see that after removing the subset S123 from the sets Sk, k = 1, 2, 3, respectively, the remaining subsets
+Sk \ S123, k = 1, 2, 3 fall into the setting that we have identified in Section III-B2). Specifically, we need to consider the two
+cases where S23 ? S12 + S13 and where S23 > S12 + S13 due to S12 ? S13 ? S23. Thus, according to Lemma 1, we have
+the results in the following two cases:
+Case 1: If S23?S12+S13, then M2+M3?M1?N (Regime R6)
+L = S12 + S13 + S23
+2
+=
+3
+2
+N ? 1
+2
+M. (26)
+Case 2: If S23>S12+S13, then M2+M3?M1>N (Regime R7)
+L = S23 = N ?M1. (27)
+The file allocation corresponding to regimes R6 and R7 are shown in Fig.10 and Fig.11, respectively.
+IV. CONVERSE OF THEOREM 1
+Applying the result in Lemma 1 in [2], letting K = 3 and translating their notation into those we use, i.e., 1) converting
+the communication load defined in [2] into ours, 2) a1M = S1 +S2 +S3 and 3) a
+2
+M = S12 +S13 +S23 where a
+j
+M represents
+the number files stored at j nodes only, we have the following corollary:
+Corollary 1: LM ? 2(S1 + S2 + S3) + 12 (S12 + S13 + S23).
+Remark 3: It can be easily seen that the right-hand side of inequality above is the same as the right-hand side of (3) in
+Lemma 1 when the triangle inequality S12 + S13 + S23 ?maxSij ? maxSij is satisfied.
+Next, considering any possible file allocation M and any coding scheme, we will provide the lower bounds on LM.
+A. Converse for P ? R1 ?R2 ?R3: LM ? 72N ?
+3
+2M
+According to our definition, we have: ??? S1 + S12 + S13 + S123 =M1S2 + S12 + S23 + S123 =M2
+S3 + S13 + S23 + S123 =M3
+(28)
+which leads to
+S12 + S13 + S23 =
+(
+?3
+k=1Mk)? (
+?3
+i=1 Si)? 3S123
+2
+. (29)
+Due to S1 + S2 + S3 + S12 + S13 + S23 + S123 = N , we have
+S123 =M +
+( 3?
+i=1
+Si
+)
+? 2N. (30)
+Substituting (30) into (29) and then expressing S12 + S13 + S23 with S1 + S2 + S3, we can rewrite Corollary 1 as follows:
+LM ?
+3
+2
+N ? 1
+2
+M +
+3?
+i=1
+Si. (31)
+Since M ? 2N , we must have S1+S2+S3 ? 2N?M for every possible file allocation. Thus, we obtain the bound:
+LM ?
+3
+2
+N ? 1
+2
+M +
+3?
+k=1
+Sk ?
+7
+2
+N ? 3
+2
+M. (32)
+B. Converse for P ? R6: LM ? 32N ?
+1
+2M
+Following from (31), since we always have S1 + S2 + S3 ? 0, we can directly obtain:
+LM ?
+3
+2
+N ? 1
+2
+M +
+3?
+k=1
+Sk ?
+3
+2
+N ? 1
+2
+M. (33)
+Observations of Theorem 1 reveal that the two bounds shown above apply to R1, R2, R3 and R6. What remains to be
+shown is the converse for R4, R5 and R7, respectively. Next, We provide two new propositions in the following.
+C. Converse for P ? R7: LM ? N ?M1
+This bound is essentially a “cut-set” bound, because intuitively server 1 needs at least a total of N ?M1 equations to collect
+its desired intermediate symbols. The formal proof is briefly written as follows:
+LM ? H(X1, X2, X3) (34)
+? H(X2, X3|V:,M1) (35)
+? I(X2, X3;V1,:|V:,M1) (36)
+= H(V1,:|V:,M1)?H(V1,:|X2, X3, V:,M1)? ?? ?
+(a)
+= 0
+(37)
+= N ?M1 (38)
+where (a) is due to the decoding requirement at node 1.
+D. Converse for P ? R4 ?R5: LM ? 3N ? (M +M1)
+Intuitively, this bound LM ? (N?M1)+(2N?M) can be interpreted as number of equations needed to meet the “cut-set”
+bound shown above and associated with the files stored at only one node and sent to another node. We first provide two
+inequalities in the following two lemmas.
+Lemma 2: H(X1|X2, X3) ? 2S1.
+Proof: The proof is readily shown as follows:
+H(X1|X2, X3) ? H(X1|X2, X3, V:,M2 , V:,M3) (39)
+? I(X1;V2,:, V3,:|X2, X3, V:,M2 , V:,M3) (40)
+= H(V2,:|X2, X3, V:,M2 , V:,M3)? ?? ?
+?S1
++H(V3,:|V2,:, X2, X3, V:,M2 , V:,M3)? ?? ?
+?S1
+?H(V2,:, V3,:|X1, X2, X3, V:,M2 , V:,M3)? ?? ?
+(a)
+= 0
+(41)
+? 2S1 (42)
+where (a) is due to the decoding requirements at node 2, 3.
+Remark 4: This lemma essentially implies that the message X1 must contain S1 equations required by node 2 and another
+S1 equations required by node 3, because node 2 and node 3 do not have any intermediate signals accosted with the files in
+N \ (M2 ?M3) = S1.
+Lemma 3: H(X2, X3|V1,:, V:,M1) ? S2 + S3.
+Proof: It can be proved by following the similar approach above and omitted due to the space limitation.
+Finally, we derive the desired bound as follows.
+LM ? H(X1, X2, X3) (43)
+= H(X2, X3) +H(X1|X2, X3) (44)
+? H(X2, X3|V:,M1) +H(X1|X2, X3) (45)
+= H(X2, X3|V:,M1)+H(V1,:|X2, X3,V:,M1)+H(X1|X2, X3) (46)
+= H(V1,:|V:,M1)+H(X2, X3|V1,:, V:,M1)+H(X1|X2, X3) (47)
+? N ?M1 +H(X2, X3|V1,:, V:,M1) +H(X1|X2, X3) (48)
+? N ?M1 + S2 + S3 + 2S1 (49)
+? N ?M1 + 2N ? (M1 +M2 +M3) + S1 (50)
+? N ?M1 + 2N ?M (51)
+where (49) is obtained due to Lemma 2 and Lemma 3.
+The union of the inequalities derived above cover all the regimes specified in Theorem 1. This completes the entire converse
+proof of Theorem 1. In addition, observations of the 4 inequalities reveal that each inequality is a valid lower bound in every
+regime, but they are not simultaneously active.
+V. ALGORITHM OF THE ACHIEVABILITY FOR THE GENERAL K SERVER NODES
+As we introduced earlier, due to the difficulties of seeking information theoretic result for K > 3, we provide an algorithm
+to investigate the achievability of the communication load.
+Before presenting the algorithm, we first summarize the main idea behind our algorithm. Specifically, given a file allocation
+M = {Mk}Kk=1, we can identify a total of 2K ? 1 subsets (similar to 7 subsets defined for the case K = 3) by considering
+the relationship among the K subsets M1, · · · ,MK . Thus, we decompose the system into up to K parallel subsystems
+where in the jth subsystem for each j ? K, every file is stored at j nodes only. Then for each subsystem, we will find the
+coding opportunities as many as possible, by using coding schemes developed for K = 3 in Section III in this paper and
+in [2]. Since each coding equation involves j intermediate values, we can save at least j ? 1 transmissions compared to the
+communication load Lju of the uncoded scheme. Hence, the communication load contributed by the jth subsystem is given
+by Lj = Lju ? (j ? 1)lj where lj is the number of equations we can create. Next, we obtain L =
+?
+j?K Lj , i.e., adding up
+the communication load contributed by each subsystem. Since the explicit expressions of the 2K ? 1 subsets depend on the
+choice of file allocationM, we treatM as undetermined variables and choose the total communication load L as the objective
+function which is a linear function of the variables we define. Finally, resolving the linear programming problem we formulate,
+we are able to obtain a feasible solution.
+Since our proposed algorithm might not be easy to read, in the following we will first provide two specific examples for
+K = 3 and K = 4 before presenting the algorithm for the systems with general K > 4.
+A. Example 1: K = 3
+Let us start with the simplest setting with K = 3. Although this setting has already been completely resolved in the prior
+sections, we will readily show an alternative approach of developing an algorithm to formulate the original problem into an
+optimization problem, while getting rid of the 7 regime classification. Given the setting with (M1,M2,M3, N), the algorithm,
+which results in the same conclusion as in Theorem 1, is shown in the following.
+• Step 0: Initialize the communication load L = 0, and the set of constraints E = ?.
+• Step 1: Consider the subsystem j = 1 where we only have the files in the 3 subsets S1, S2, S3. According to Section III,
+we can directly obtain the communication load function:
+L1 = 2(S1 + S2 + S3). (52)
+• Step 2: Consider the subsystem j = K?1 = 2 where we only have S12, S13, S23. Recall that in Lemma 1 in Section III,
+we develop the function g(·) based on the subsets where each file is stored at K?1 = 2 nodes only. Denoting the number
+of files in S12, S13, S23 as undetermined non-negative variables x12, x13, x23, we can obtain the following inequalities:
+x21 + x22 ? S12,
+x21 + x23 ? S13, (53)
+x22 + x23 ? S23.
+In addition, we also have x2q ? 0, for q = 1, 2, 3, and S12 ? 0, S13 ? 0, S23 ? 0. Add all these 9 inequalities to E .
+• Step 3: Then the communication load function L2 can be written as follows:
+L2 = (S12 + S13 + S23)? (x21 + x22 + x23). (54)
+• Step 4: Consider the subsystem j = K = 3 where we only have S123. Clearly, L3 = 0.
+• Step 5: Next, we obtain the entire communication load function L = L1+L2+L3. Meanwhile, we also have the following
+constraints over the entire files:
+S1 + S2 + S3 + S12 + S13 + S23 + S123 = N, (55)
+S1 + S2 + S3 + 2(S12 + S13 + S23) + 3S123 = M1 +M2 +M3, (56)
+and the following constraints over the files allocated at each server:
+S1 + S12 + S13 + S123 = M1,
+S2 + S12 + S23 + S123 = M2, (57)
+S3 + S13 + S23 + S123 = M3.
+Add all these K + 2 = 5 equations to E .
+• Step 6: Finally, after removing redundant variables and constraints, we translate seeking the communication load problem
+into resolving the linear optimization problem:
+min L = 2(S1 + S2 + S3) + (S12 + S13 + S23)? (x21 + x22 + x23)
+subject to E ,
+???????????????????????????????????
+x21 + x22 ? S12,
+x21 + x23 ? S13,
+x22 + x23 ? S23,
+x2q ? 0, q = 1, 2, 3.
+S1 + S12 + S13 + S123 =M1,
+S2 + S12 + S23 + S123 =M2,
+S3 + S13 + S23 + S123 =M3,
+S1 + S2 + S3 + S12 + S13 + S23 + S123 = N,
+Sk ? 0, k = 1, 2, 3,
+Sij ? 0, i, j = 1, 2, 3, j 6= j,
+S123 ? 0.
+This linear optimization problem above can be easily resolved via several algorithms and programming tools.
+• Step 7: According to optimal solution we obtained above, we can readily determine file allocation Mok greedily for each
+server k sequentially.
+Remark 5: It can be readily seen that the linear optimization problem above is equivalent to the original problem, but we
+do not need to specify the boundaries between those 7 regimes associated with M1, M2, M3 and N .
+B. Example 2: K = 4
+Considering the setting of ({Mk}4k=1, N), the simplest setting beyond K = 3, we can use the following algorithm to find
+an achievability.
+• Step 0: Initialize the communication load L = 0, and the set of constraints E = ?.
+• Step 1: Consider the subsystem j = 1 where we only have the files in the 4 subsets S1, S2, S3, S4. Similar to the
+subsystem j = 1 for K = 3 explained in Section III, we can directly obtain the communication load function:
+L1 = 3(S1 + S2 + S3 + S4). (58)
+• Step 2: Then we consider the subsystem with j = 2 where we only have {Sij}(i,j)?C and the set C is given
+by C = {(1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)}. Considering the optimal coding scheme identified in [2] for the
+homogeneous system with j = 2 and K = 4, we have the following three file allocation methods to achieve the mini-
+mum communication load, i.e., {(1, 2), (1, 3), (2, 4), (3, 4)}, {(1, 2), (1, 4), (2, 3), (3, 4)}, and {(1, 3), (1, 4), (2, 3), (2, 4)}.
+Specifically, regarding the first set, it implies that if we allocate L files to K = 4 users, we will allocate the first quarter
+to node 1, 2, the second quarter to node 1, 3, the third quarter to node 2, 4, and the last quarter to node 3, 4.
+• Step 3: Denote the number of files for encoding by using the three methods above by 3 non-negative variables x21, x22,
+x23. Clearly, we must have
+x21 + x22 ? S12, x21 + x22 ? S34,
+x21 + x23 ? S13, x21 + x23 ? S24, (59)
+x22 + x23 ? S14, x22 + x23 ? S23,
+due to the cardinality constraints. In addition, we add all these inequalities into E . Also, the communication load L2 can
+be written as follows:
+L2 = (K ? j)(S12 + S13 + S14 + S23 + S24 + S34)? (j ? 1)K(x21 + x22 + x23) (60)
+where K = 4 and j = 2.
+• Step 4: Consider the subsystem j = K ? 1 = 3 where we only have S123, S124, S134, S234. Recall that in Lemma 1 for
+K = 3 in Section III, we develop the function g(·) based on the subsets where each file is stored at K?1 = 2 nodes only. In
+fact, we generalize the function g(·) to achieve the information-theoretically optimal (i.e., minimum) communication load
+for K = 3 to K > 3. In particular, denote the number of files in S123, S124, S134 as undetermined non-negative variables
+x31, x32, x33, x34. Extending the main idea behind the proof of Lemma 1, we can obtain the following inequalities:
+x31 + x32 + x33 ? S123,
+x31 + x32 + x34 ? S124, (61)
+x31 + x33 + x34 ? S134,
+x32 + x33 + x34 ? S234.
+In addition, we also have x3q ? 0, for q = 1, 2, 3, 4, and Sijk ? 0. Add all these 12 inequalities to E .
+• Step 5: Then the communication load function L3 can be written as follows:
+L3=(S123+ S124+ S134+ S234)?2(x31+ x32+ x33+ x34).
+• Step 6: Consider the subsystem j = K = 4 where we only have S1234. Clearly, L4 = 0.
+• Step 7: Next, we obtain the entire communication load function L =
+?4
+j=1 Lj . Meanwhile, we also have the following
+constraints over the entire files: ?
+k
+Sk +
+?
+ij
+Sij +
+?
+ijk
+Sijk + S1234 = N,?
+k
+Sk + 2
+?
+ij
+Sij + 3
+?
+ijk
+Sijk + S1234 = M, (62)
+and the constraints over the files allocated at each node:
+S1+ S12+ S13+ S14+ S123+ S124+ S134+ S1234=M1,
+S2+ S12+ S23+ S24+ S123+ S124+ S234+ S1234=M2, (63)
+S3+ S13+ S23+ S34+ S123+ S134+ S234+ S1234=M3,
+S4+ S14+ S24+ S34+ S124+ S134+ S234+ S1234=M4.
+Add all these K + 2 = 6 equations to E .
+• Step 8: Finally, after removing redundant variables and constraints, we translate seeking the communication load problem
+into resolving the linear optimization problem:
+min L, subject to E .
+• Step 9: According to optimal solution we obtained above, we can determine file allocation {Mok}k?K greedily for each
+node k sequentially.
+Remark 6: Based on what we have obtained so far, several interesting observations can be summarized as follows.
+1) It can be easily seen that we consider the coding opportunities among the nodes’ files in every jth subsystem, individually.
+Since we do not consider the coding opportunities across subsystems, this algorithm is suboptimal in general.
+2) Observations of steps 2?3 (for the subsystems with 1 < j < K?1) and steps 4?5 (for the subsystem with j = K?1)
+reveal that they have the similar form, but their cost functions appear to be different. This is because for the subsystem
+with j = K ? 1, we generalize the coding idea that we identified for K = 3 to the general setting with K > 3, which
+further means that for the subsystem with j = K ? 1, our achievability is also information-theoretically optimal.
+3) Recall that in Lemma 1 in Section III, the communication load includes the function of g(·), which is piece-wise linear.
+In contrast, still regarding the subsystem with j = K ? 1, L3 in Step 5 is a linear function. This is the key to formulate
+finding the communication load into resolving a linear programming problem.
+C. The Algorithm for General K
+Finally, we are going to show the algorithm for general K. Considering the setting of ({Mk}Kk=1, N) where Mk > 0 for
+?k ? K and
+?K
+k=1Mk ? N , we state the algorithm as follows.
+• Step 0: (Initialization) Set L = 0, E = ?, j = 1.
+• Step 1: Find out the collection Cj of every possible subsets in K with cardinality j: Cj , {K? | K? ? K, |K?| = j}, and
+its cardinality is given by |Cj | =
+(
+K
+j
+)
+, P . Note that each element in Cj is a subset or a tuple with j indices.
+• Step 2: Find out the collection C?j of every possible subsets in Cj with cardinality K where the node indices from 1 to
+K appear exactly j times: C?j , {C | ?C ? Cj ,
+?
+1(k ? C) = j, for ?k ? K}. We denote its cardinality by |C?j | = Q.
+• Step 3: Claim Q non-negative variables xj1, xj2, · · · , xjQ. Set p = 1.
+• Step 4: Add up all the variables {xjq} if the qth element in C?j contains (Cj)p, the pth subset or tuple in Cj for
+q = 1, · · · , Q, and upper bound it by a non-negative S(Cj)p . That is,
+Q?
+q=1
+xjq1((Cj)p ? (C?j)q) ? S(Cj)p .
+In addition, note that xjq ? 0, for q = 1, 2, · · · , Q, and S(Cj)p ? 0. Add all these Q+ 2 inequalities to E .
+• Step 5: If p < Q, then p = p+ 1 and go back to Step 4; Otherwise, go to Step 6.
+• Step 6: Develop the cost function Lj as follows. Without coding, we need a total of (K ? j)
+?P
+p=1 S(Cj)p transmissions.
+Note that we create a total of
+?Q
+q=1 xjq collections, each with K subsets and each file exactly mapped to j servers. After
+extending the encoding scheme described in [2] to the homogeneous setting, we can save (K ? j)(1 ? 1j )Kxjq for the
+qth collection. Thus, we save a total of (K ? j)(1? 1j )(
+?Q
+q=1 xjq) transmissions. Hence, the cost function is given by:
+Lj = (K ? j)
+P?
+p=1
+S(Cj)p ?K(K ? j)
+(
+1? 1
+j
+)( Q?
+q=1
+xjq
+)
+.
+Then we update the objective function as L = L+ Lj .
+• Step 7: Let j = j + 1. If j < K ? 1, then go back to Step 1; Otherwise, go to Step 8.
+• Step 8: Find out the collection CK?1 of every possible subsets in K with cardinality K ? 1: CK?1 , {K \ {k} | k =
+1, · · · ,K}, and its cardinality is given by |CK?1| =
+(
+K
+K ? 1
+)
+= K.
+• Step 9: Claim K non-negative variables {xK?1,q | q = 1, 2, · · · ,K}.
+• Step 10: Sum up all the variables {xK?1,q | q = 1, 2, · · · ,K} if the qth element in CK?1 contains p for p = 1, · · · ,K,
+and we upper bound them by non-negative S(CK?1)p , respectively. That is,
+Q?
+q=1
+xK?1,q1(q ? (CK?1)p) ? S(CK?1)p , p = 1, 2, · · · ,K.
+In addition, we also have xK?1,q ? 0, for q = 1, 2, · · · ,K, and S(CK?1)p ? 0. Add all these 3K inequalities to E .
+• Step 11: Develop the cost function LK?1 as follows. If there is no coding, then we need a total of
+?K
+p=1 S(CK?1)p
+transmissions. After we use coding, we create a total of
+?K
+q=1 xK?1,q equations, each involving K ? 1 intermediate
+symbols, and thus saving a total of (K ? 2)(
+?K
+q=1 xK?1,q) transmissions. Thus, the cost function is:
+LK?1 =
+K?
+p=1
+S(CK?1)p ? (K ? 2)
+( K?
+q=1
+xK?1,q
+)
+.
+Then we update the objective function as L = L+ LK?1.
+• Step 12: Consider the set of variables S(Cj)p for every p, j where p = 1, 2, · · · ,
+(
+K
+j
+)
+and every j ? K. We have the
+following constraints over the entire files:
+K?
+j=1
+(
+K
+j
+)?
+p=1
+S(Cj)p = N,
+K?
+j=1
+(
+K
+j
+)?
+p=1
+jS(Cj)p =
+K?
+k=1
+Mk,
+and the following constraints over the files allocated at each server:
+K?
+j=1
+(
+K
+j
+)?
+p=1
+S(Cj)p1(If k is contained in the foot indices of S(Cj)p) =Mk, for ?k ? K.
+Add all these K + 2 equations to E .
+• Step 13: Finally, after removing redundant variables and constraints, we translate seeking the communication load problem
+into resolving the linear optimization problem:
+min L, subject to E .
+• Step 14: We denote the optimal solution by Lo, and the values of corresponding variables by So , {So(Cj)p | p =
+1, 2, · · · ,
+(
+K
+j
+)
+, j = 1, 2, · · · ,K}. According to So, the corresponding file allocation Mok to each server k for k =
+1, 2 · · · ,K can be readily obtained.
+Remark 7: It is worth noting that when K increases, the number of variables and constraints grows much faster than K.
+When K is large, even the linear optimization problem would be overwhelming, which prevents our algorithm from being
+applied for large K due to the computational complexity. Therefore, an improved algorithm with lower complexity might be
+of interest in the future work.
+VI. CONCLUSION
+We investigate the MapReduce-based coded distributed computing (CDC) for heterogeneous systems by carefully designing
+file allocation and the optimal coding scheme to achieve the minimum communication load. While we completely resolve
+the minimum communication load for the system with K = 3 by providing the achievability and the information theoretic
+converse, we provide an algorithm for the achievability for K > 4. Future potential works would be to seek the minimum
+communication load for heterogeneous systems in the information theoretic sense under the MapReduced CDC framework.
+VII. ACKNOWLEDGMENT
+This work is in part supported by ONR award N000141612189, NSA Award No. H98230-16-C-0255, a research gift from
+Intel. This material is also based upon work supported by Defense Advanced Research Projects Agency (DARPA) under
+Contract No. HR001117C0053. The views, opinions, and/or findings expressed are those of the author(s) and should not be
+interpreted as representing the official views or policies of the Department of Defense or the U.S. Government.
+REFERENCES
+[1] S. Li, M. A. Maddah-Ali, and A. S. Avestimehr, “Coded MapReduce,” 53rd Allerton Conference, Sept. 2015.
+[2] ——, “Fundamental tradeoff between computation and communication in distributed computing,” in 2016 IEEE International Symposium on Information
+Theory (ISIT), July 2016, pp. 1814–1818.
+[3] S. Li, M. A. Maddah-Ali, Q. Yu, and A. S. Avestimehr, “A fundamental tradeoff between computation and communication in distributed computing,”
+e-print arXiv:1604.07086, Apr. 2016.
+[4] J. Dean and S. Ghemawat, “Mapreduce: simplified data processing on large clusters,” Comm. of the ACM, vol. 51, no. 1, pp. 107–113, 2008.
+[5] M. Zaharia, M. Chowdhury, M. J. Franklin, S. Shenker, and I. Stoica, “Spark: Cluster computing with working sets.” HotCloud, vol. 10, no. 10-10,
+p. 95, 2010.
+[6] M. Isard, M. Budiu, Y. Yu, A. Birrell, and D. Fetterly, “Dryad: distributed data-parallel programs from sequential building blocks,” in ACM SIGOPS
+operating systems review, vol. 41, no. 3, 2007, pp. 59–72.
+[7] D. G. Murray, M. Schwarzkopf, C. Smowton, S. Smith, A. Madhavapeddy, and S. Hand, “Ciel: a universal execution engine for distributed data-flow
+computing,” in Proc. 8th ACM/USENIX Symposium on Networked Systems Design and Implementation, 2011, pp. 113–126.
+[8] M. Chowdhury, M. Zaharia, J. Ma, M. I. Jordan, and I. Stoica, “Managing data transfers in computer clusters with orchestra,” in ACM SIGCOMM
+Computer Comm. Review, vol. 41, no. 4, 2011, pp. 98–109.
+[9] Z. Zhang, L. Cherkasova, and B. T. Loo, “Performance modeling of mapreduce jobs in heterogeneous cloud environments,” in 2013 IEEE Sixth Int.
+Conf. on Cloud Computing, June 2013, pp. 839–846.
+[10] S. Li, S. Supittayapornpong, M. A. Maddah-Ali, and A. S. Avestimehr, “Coded Terasort,” in proc. 2017 Int. Workshop on Parallel and Dis. Comp. for
+Large Scale Machine Learning and Big Data Analytics, 2017.
+[11] O. O’Malley, “Terabyte sort on apache hadoop,” 2008.
+[12] Amazon: Elastic Compute Cloud (EC2), http://aws.amazon.com/ec2.
+[13] M. Zaharia, A. Konwinski, A. D. Joseph, R. H. Katz, and I. Stoica, “Improving mapreduce performance in heterogeneous environments.” in Osdi, vol. 8,
+no. 4, 2008, p. 7.
+[14] A. Reisizadehmobarakeh, S. Prakash, R. Pedarsani, and S. Avestimehr, “Coded computation over heterogeneous clusters,” arXiv preprint
+arXiv:1701.05973, 2017.
+[15] K. Lee, M. Lam, R. Pedarsani, D. Papailiopoulos, and K. Ramchandran, “Speeding up distributed machine learning using codes,” in 2016 IEEE Int.
+Symposium on Information Theory, July 2016, pp. 1143–1147.
+[16] S. Li, M. A. Maddah-Ali, and A. S. Avestimehr, “A unified coding framework for distributed computing with straggling servers,” in 2016 IEEE Globecom
+Workshops, 2016, pp. 1–6.

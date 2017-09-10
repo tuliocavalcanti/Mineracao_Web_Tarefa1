@@ -1,0 +1,915 @@
+1
+Neural Class-Specific Regression for face
+verification
+Guanqun Cao, Alexandros Iosifidis, Moncef Gabbouj
+Abstract—Face verification is a problem approached in the
+literature mainly using nonlinear class-specific subspace learning
+techniques. While it has been shown that kernel-based Class-
+Specific Discriminant Analysis is able to provide excellent per-
+formance in small- and medium-scale face verification problems,
+its application in today’s large-scale problems is difficult due
+to its training space and computational requirements. In this
+paper, generalizing our previous work on kernel-based class-
+specific discriminant analysis, we show that class-specific sub-
+space learning can be cast as a regression problem. This allows
+us to derive linear, (reduced) kernel and neural network-based
+class-specific discriminant analysis methods using efficient batch
+and/or iterative training schemes, suited for large-scale learning
+problems. We test the performance of these methods in two
+datasets describing medium- and large-scale face verification
+problems.
+I. INTRODUCTION
+Facial image analysis received intensive research attention
+during the last two decades, due to its importance in a wide
+variety of applications, ranging from surveillance, affective
+computing, entertainment and assisted living [1], [2], [3].
+Depending on the application scenario, different facial image
+analysis problems are considered, the most widely used ones
+being those of face recognition and face verification. On the
+one hand, face recognition is a multi-class problem, where
+the objective is to categorize a new (unknown) facial image
+in one of the classes defined by all person IDs included in a
+facial image database. On the other hand, face verification is a
+binary problem, where the objective is to distinguish one class
+(usually called positive class) defined by the ID of the person
+of interest from the rest of the world (usually called negative
+class formed by the IDs of all other persons, who might not
+even be included in the facial image database). An illustration
+of the face recognition and face verification problems is shown
+in Figure 1.
+One line of work in face verification exploits the power
+of Subspace Learning techniques. While it has been shown
+that unsupervised subspace learning techniques, like Principal
+Component Analysis [5], Locally Linear Embedding [6] and
+Locality Preserving Projections [7], can successfully capture
+facial image manifolds, their unsupervised nature usually leads
+to lower performance compared to supervised subspace learn-
+ing approaches. Perhaps the most well-known and commonly
+applied supervised subspace learning technique is Linear Dis-
+criminant Analysis (LDA) and its variants [5], [8], [9]. LDA
+(under the Gaussian class assumption) defines the optimal
+linear projection from the input space to the discriminant
+(sub)space where the within-class scatter is minimized, while
+the between-class scatter is maximized. Extensions of LDA
+exploiting kernels, like Kernel Discriminant Analysis (KDA)
+[10] and Kernel Reference Discriminant Analysis (KRDA)
+[11] can also define non-linear discriminant spaces, greatly
+enhancing performance in non-linear problems.
+While LDA and its variants have shown to achieve very
+good performance in multi-class problems, like face recogni-
+tion, their performance in face verification problems (which
+are usually defined as binary problems) is limited by the fact
+that the maximal dimensionality of the derived discriminant
+(sub-)space is restricted by the number of classes. This is a
+result of the within-class and between-class scatters definition,
+making the maximal rank of the corresponding matrices for a
+P -class problem equal to P ?1. That is, for verification prob-
+lems, the maximal discriminant (sub-)space dimensionality
+derived by LDA is equal to one. Class-Specific Discriminant
+Analysis (CSDA) techniques have been proposed to overcome
+this restriction by exploiting intra-class and out-of-class scatter
+definitions leading to matrices of higher ranks [12], [13], [15],
+[16]. As a consequence, class-specific techniques have been
+shown to outperform their multi-class counterparts in verifica-
+tion problems, exploiting data representations in discriminant
+(sub-)spaces of higher dimensionality.
+Another issue that should be appropriately addressed, both
+for multi-class and class-specific approaches, is related to the
+space and computational costs of their non-linear versions
+based on kernels. For a training set formed by N samples,
+standard kernel-based solutions require O(N2) storage size
+and O(N3) computations, rendering their application in to-
+day’s large-scale problems difficult. Solutions based on low-
+rank approximations [17], [18] and reduced kernels [19], [20]
+have been proposed in order to highly reduce both costs, while
+achieving satisfactory performance. In our previous work, we
+have shown that the non-linear version of CSDA based on
+kernels is equivalent to a kernel-regression problem and, thus,
+its computational cost can be reduced by exploiting efficient
+linear system solutions [22]. In addition, we have shown that
+eigenanalysis of the graph Laplacians defined in Class-Specific
+kernel Spectral Regression can be efficiently computed using a
+matrix factorization process taking into account the class labels
+of the training samples, leading to an efficient approximate
+CS-KDA solution [20], [21].
+In this paper, we build on top of our previous work [22], [20]
+and show that the linear and reduced kernel versions of CSDA
+are equivalent to a linear and a reduced kernel regression
+problem, respectively. Casting the linear CSDA criterion as
+a linear regression problem allows us to view CSDA as a
+processing block that can be used for iterative optimization on
+top of a (possibly deep) neural network topology. Based on
+ar
+X
+iv
+:1
+70
+8.
+09
+64
+2v
+1 
+ [
+cs
+.C
+V
+] 
+ 3
+1 
+A
+ug
+ 2
+01
+7
+2
+Fig. 1: Illustration of face recognition and face verification problems. (Left) Face recognition is a multi-class problem, where
+given a new facial image the answer is the ID of the depicted person. (Right) Face verification is a binary problem, where given
+a new facial image the answer is whether the image depicts the ID of interest or not. Here we show the 2-D representations
+of the facial vectors in ORL dataset [4] obtained by applying PCA.
+that, we propose a non-linear CSDA solution based on neural
+networks. While neural network-based solutions for multi-
+class discriminant analysis have been recently proposed [23],
+[24], [25], this is the first time that neural networks are used
+for optimizing class-specific projections. We apply all three
+(linear, approximate kernel and neural) CSDA variants on two
+publicly available datasets describing medium- and large-scale
+face verification problems and compare their performance with
+related methods.
+The paper is structured as follows. In Section II, we provide
+an overview of the face verification problem. Linear and
+kernel-based CSDA techniques are briefly described in Section
+III. We provide our analysis in Section IV. We first show that
+the linear (subsection IV-A) and reduced kernel (subsection
+IV-B) versions of CSDA are equivalent to regression problems
+using class-specific target vectors. Subsequently, we describe
+the proposed neural network-based CSDA in subsection V.
+Experiments on medium- and large-scale face verification
+problems are provided in Section VII and conclusions are
+drawn in Section VIII.
+II. PROBLEM STATEMENT
+Let us assume that a facial image database is formed by N
+images, each depicting a person belonging to an ID set P =
+{1, . . . , p, . . . , P}. Let us also assume that these images have
+been pre-processed in order to produce the so-called facial
+image vectors xi ? RD, i = 1, . . . , N . Vector xi represents
+the i-th facial image in the database and is followed by an ID
+label li ? P .
+Given the above, we would like to determine a class-
+specific model discriminating person p from all other persons.
+We will define this class-specific model by learning a (non-
+)linear mapping from the input space RD to a low-dimensional
+(discriminant) space Rdp , dp ? D, in which class p is
+represented by the corresponding mean vector:
+z?p =
+1
+Np
+?
+i,li=p
+zi, (1)
+where Np is the cardinality of class p in the facial image
+database. Nn = N ? Np denotes the cardinality of the
+negative class (formed by the facial images not belonging
+to class p). zi = f(xi,Wp) is the image of xi in Rdp
+obtained by optimizing the parameters Wp of function f(·)
+for achieving the maximal class-specific discrimination.
+After determining the (non-)linear mapping parameters Wp
+and the class mean vector z?p, a new facial image vector
+z ? Rd calculated by z = f(x,Wp) should be close to z?p,
+if it depicts person p, or far from it, if it depicts another person.
+Notations: We define by e ? RN a vector of ones,
+eI ? RN a binary vector having elements [eI ]i = 1 if li = p
+and [eI ]i = 0 if li 6= p and eO = e ? eI . We also define
+the matrices EI = eIeTI and EO = eOe
+T
+O. X ? RD×N is a
+matrix formed by the facial vectors xi as columns.
+III. STANDARD CLASS-SPECIFIC DISCRIMINANT
+ANALYSIS
+Let us denote by DI and DO the intra-class and out-of-class
+distances defined as:
+DI =
+?
+i,li=p
+?zi ? z?p?22 =
+?
+i,li=p
+?f(xi,Wp)? z?p?22 (2)
+and
+DO =
+?
+i,li 6=p
+?zi ? z?p?22 =
+?
+i,li 6=p
+?f(xi,Wp)? z?p?22. (3)
+The parameters of the class-specific model Wp are optimized
+so that the intra-class distance is minimized and the out-of-
+3
+class distance is maximized, as illustrated in Figure 2. This
+can be expressed as maximizing the criterion:
+J (Wp) =
+DO(Wp)
+DI(Wp)
+. (4)
+Fig. 2: Face verification criterion. Facial images depicting the
+person of interest are forced to be as close as possible to
+the mean of the positive class (in this case the mean facial
+image depicted on the right), while facial images forming the
+negative class are forced to be as far as possible for it.
+A. Linear case
+In the case where f(·) corresponds to a linear mapping [12],
+DI and DO are given by:
+DI =
+?
+i,li=p
+?WTxi ?WT x?p?22 = tr(WTSIW) (5)
+and
+DO =
+?
+i,li 6=p
+?WTxi ?WT x?p?22 = tr(WTSOW), (6)
+where W ? RD×dp is the projection matrix, linearly mapping
+the input space RD to the discriminant subspace Rdp and x?p =
+1
+Np
+?
+i,li=p
+xi. SI ? RD×D and SO ? RD×D are the intra-
+class and out-of-class scatter matrices defined by:
+SI =
+?
+i,li=p
+(xi ? x?p)(xi ? xp)T = XLIXT , (7)
+SO =
+?
+i,li 6=p
+(xi ? x?p)(xi ? xp)T = XLOXT , (8)
+where LI = (1? 2Np +
+1
+N1p
+)eIe
+T
+I and LO = eOe
+T
+O? 1Np eIe
+T
+O?
+1
+Np
+eIe
+T
+O +
+1
+Np
+eIe
+T
+I .
+The optimal projection matrix is obtained by solving the
+trace ratio problem [26] defined on SI and SO and is formed
+by the eigen-vectors of the matrix S = S?1I SO corresponding
+to the dp maximal eigen-values. By assuming that the number
+of images depicting person p is smaller than the number of
+the images depicting all other persons in the facial image
+database (which is usually the case), the rank of S is equal to
+Np?1. Thus, the maximal dimensionality of the class-specific
+discriminant space is equal to dp = min(Np ? 1, D).
+B. Nonlinear case based on kernels
+In order to define a non-linear mapping f(·), Class-Specific
+Kernel Discriminant Analysis [13] applies a two-step process;
+the input space RD is first non-linearly mapped to the so-called
+kernel space F using a function ?(·), so that:
+xi ? RD
+?(·)? ?(xi) ? F . (9)
+Then, a linear mapping W? ? R|F|×dp is obtained by
+minimizing the intra-class and out-of-class distances defined
+as follows:
+DI =
+?
+i,li=p
+?WT??(xi)? x??p?22 = tr(WT?S
+?
+IW?) (10)
+and
+DO =
+?
+i,li 6=p
+?WT??(xi)? x??p?22 = tr(WT?S
+?
+OW?), (11)
+where x??p =
+1
+Np
+?
+i,li=p
+?(xi). Here, the intra-class and out-
+of-class scatter matrices are defined in the kernel space F by:
+S?I =
+?
+i,li=p
+(?(xi)? x??p )(?(xi)? x??p )T = ?LI?T , (12)
+S?O =
+?
+i,li 6=p
+(?(xi)? x??p )(?(xi)? x??p )T = ?LO?T . (13)
+? = [?(x1), . . . , ?(xN )] ? R|F|×N is a matrix having as
+columns the training data representations in F . The Rep-
+resenter Theorem [14] states that the linear mapping in F
+can be expressed as a linear combination of the training data
+representation, i.e.:
+W? = ?A, (14)
+where A ? RN×dp . Using (14), we obtain DI =
+tr(ATKLIKA) and DO = tr(ATKLOKA), where K =
+?T? is the so-called kernel matrix.
+Two solutions have been proposed in order to obtain the
+optimal matrix A. The first, applies eigenanalysis to the matrix
+(KLIK)
+?1(KLOK) and forms A with the eigen-vectors
+corresponding to the dp maximal eigen-values [13], [16]. The
+second one, noted as Class-Specific Kernel Spectral Regres-
+sion, applies a two-step process; eigenanalysis of the matrix
+L?1I LO in order to obtain the eigen-vectors corresponding
+to the dp maximal eigen-values, i.e. T = [t1, . . . , tdp ], and
+solution of a kernel regression problem given by A = K?1T
+[15]. In [15] it has been also shown that the eigenanalysis
+of L?1I LO can be readily obtained by applying a fast matrix
+decomposition process. Based on this, an approximate solution
+has also been proposed in [20], where the kernel regression
+step was replaced by reduced kernel-based regression.
+IV. CLASS-SPECIFIC REGRESSION
+In this Section, we show that class-specific subspace learn-
+ing is equivalent to a regression problem. We start by showing
+4
+that the linear version of Class-Specific Discriminant Analysis
+is equivalent to linear regression using class-specific targets.
+Subsequently, we show that the approximate kernel-based ver-
+sion of Class-Specific Discriminant Analysis can be obtained
+by applying reduced kernel-based regression, generalizing our
+previous results in [20], [22] for the case where a reduced
+reference vector set is used for kernel-based learning. Please
+note that the above analysis shows that the class specific kernel
+regression in [22] is equivalent to the class-specific kernel
+spectral regression in [20] in both the cases where standard
+and reduced kernels are used. Moreover, we propose a new
+solution to the CSDA problem based on neural networks at
+the end of this section.
+A. Linear case
+Let us assume that the training vectors are centered with
+respect to x?p1. Then, the intra-class and out-of-class scatter
+matrices are given by SI = XEIXT and SO = XEOXT ,
+respectively. We also define the matrix ST = XXT denoting
+the total scatter of the training data with respect to x?p. It is
+easy to show that ST = SI + SO. The optimal projection
+matrix is obtained by maximizing:
+J? (W) = J (W)+1 = tr(W
+TSOW)
+tr(WTSIW)
++1 =
+tr(WTSTW)
+tr(WTSIW)
+.
+(15)
+Thus, W is obtained by applying eigenanalysis to the matrix
+S = ST
+?1SI , i.e. by solving the following problem:
+XEIX
+Tw = ?XXTw, ? 6= 0. (16)
+Let us now consider a linear regression problem using target
+vectors T = [t1, . . . , tdp ], i.e.:
+J? (W) = ?WTX?T?2F . (17)
+Let us also express the data projection matrix as a product of
+two matrices W = QR, where Q ? RD×dp and R ? Rdp×dp .
+Then, we have:
+J? = ?RTQTX?T?2F . (18)
+The saddle point of J? with respect to R is given for R =
+(QTXXTQ)?1QTXTT . Substituting R in (18), we obtain:
+J? = ?TXTQ(QTXXTQ)?1QTX?T?2F
+= c? 2tr((QTXXTQ)?1(QTXTTTXTQ). (19)
+Thus, the solution of J? is given by solving the following
+problem:
+XTTTXTw = ?XXTw, ? 6= 0. (20)
+By comparing (20) with (16) we observe that the solution
+of the linear version of Class-Specific Discriminant Analysis
+is equivalent to a linear regression problem, where the target
+vectors satisfy TTT = EI . We will show how to calculate
+such target vectors in Subsection IV-B.
+1This can always be done by using X? X? 1
+Np
+XeIe
+T .
+B. Nonlinear case based on kernels
+Similar to the linear case, we assume that the training
+vectors are centered with respect to x??p
+2. Then, the intra-class
+and out-of-class scatter matrices expressed in F are given by
+S?I = ?EI?
+T and S?O = ?EO?
+T , respectively. In addition,
+we define the matrix S?T = ??
+T = S?I + S
+?
+O denoting the
+total scatter of the training data in F with respect to x??p .
+Let us express the data projection matrix in F as a linear
+combination of K reference vectors ? ? R|F|×K , i.e.:
+W? = ?A, (21)
+where A ? RK×dp . The optimal A is obtained by maximiz-
+ing:
+J? (A) = J (A) + 1 =
+tr(AT?TS?O?A)
+tr(AT?TS?I?A)
++ 1
+=
+tr(AT?TS?T?A)
+tr(AT?TS?I?A)
+=
+tr(AT?T??T?A)
+tr(AT?T?EI?T?A)
+=
+tr(AT K?K?TA)
+tr(AT K?EIK?TA)
+. (22)
+Thus, A is obtained by applying eigenanalysis to the matrix
+(K?K?T )?1(K?EIK?
+T ), i.e. by solving the following problem:
+K?EIK?
+Ta = ?K?K?Ta, ? 6= 0. (23)
+Next, we consider a linear regression problem in F using
+target vectors T = [t1, . . . , tdp ], i.e.:
+J? = ?WT???T?2F = ?AT K??T?2F . (24)
+where we have also exploited (21).
+Similar to the linear case, we set A = QR, where Q ?
+RK×dp and R ? Rdp×dp . Then, we have:
+J? = ?RTQT K??T?2F . (25)
+The saddle point of J? with respect to R is given for R =
+(QT K?K?TQ)?1QT K?TT . Substituting R in (25), we obtain:
+J? = ?TK?TQ(QT K?K?TQ)?1QT K??T?2F
+= c? 2tr((QT K?K?TQ)?1(QT K?TTTK?TQ).(26)
+Thus, the solution of J? is given by solving for:
+K?TTTK?Tq = ?K?K?Tq, ? 6= 0. (27)
+By comparing (27) with (23) we observe that the solution of
+the approximate kernel Class-Specific Discriminant Analysis
+[20] is equivalent to a reduced kernel regression problem,
+where the target vectors satisfy TTT = EI . This is not
+surprising, since the kernel-based solution is obtained by
+applying the method described in subsection IV-A in F .
+When the training vectors are used as reference vectors,
+i.e. when ? = ?, the above analysis shows that the Class-
+Specific Kernel Discriminant Analysis method is equivalent
+2This can always be done by centering the kernel matrix K with respect
+to 1
+Np
+KeI . Test kernel vectors should be centered accordingly.
+5
+to (low-rank) kernel regression, which is the case of [22].
+When a reduced kernel is used, the above analysis is equivalent
+to Approximate Class-Specific Kernel Discriminant Analysis
+(ACSKDA) [20]. However, here we should note that while in
+ACSKDA the analysis involves the intra-class and out-of-class
+scatter matrices, in the above analysis the intra-class and total
+scatter matrices are used. Moreover, as has been shown in [20],
+where a Spectral Regression process is used, reference vectors
+can be defined by using a subset of the training vectors, or by
+applying clustering on the training data and using the cluster
+centers. This case corresponds to an approximate solution of
+the original Class-Specific Kernel Discriminant Analysis. We
+have observed that the use of cluster centers, e.g. obtained
+by applying K-Means to the training vectors, as reference
+vectors provides good performance, when compared to other
+alternatives [20].
+Target vectors used in both linear and non-linear case can be
+calculated by applying an efficient orthogonalization technique
+exploiting the (class-specific) labels of the training data, as
+we have shown in our previous work [22]. This process is
+illustrated in Pseudocode 1.
+V. NEURAL CLASS-SPECIFIC REGRESSION
+As has been shown above, both linear and approximate
+kernel Class-Specific Discriminant Analysis approaches are
+equivalent to linear regression problems in the RD and F ,
+respectively, using the same target vectors defined based on
+the (class-specific) training labels (Pseudocode 1). In order to
+derive a neural network based solution, let us define (with
+some abuse of notation) a non-linear mapping from the input
+space RD to a feature space RL obtained by applying a non-
+linear function g(xi,Wn), such that:
+xi ? RD
+g(·,Wn)? hi ? RL. (28)
+After mapping the training data in RL, a linear projection
+can be obtained by solving the CSDA problem (15), or its
+equivalent class-specific regression problem (17), as illustrated
+in Figure 3. That is, the neural network-based class-specific
+mapping is obtained by minimizing:
+J (W,Wn) = ?WTH?T?2F , (29)
+where H is a function of Wn, i.e. H = g(X,Wn).
+The parameters of the above-described class-specific neural
+network are initialized randomly and can be optimized as
+follows:
+• Batch-based optimization: In this case, the entire training
+set X is fed to the network in order to obtain the data
+representations in RL and the optimal linear projection
+matrix W for the epoch t is, subsequently calculated by:
+W(t) = H
+†
+(t)T
+T , (30)
+where the symbol † denotes the pseudo-inverse of a
+matrix. The training error, then it is used in order to
+update the parameters of the network Wn, based on
+gradient descent. Multiple training epoches are applied
+using the above-described process.
+• Mini batch-based optimization: In this case, we regard
+the entire process as a neural network having nonlinear
+activation functions in all layers, except the last one
+which is formed by linear neurons. Thus, the optimization
+of both the network’s parameters Wn and the linear
+projection W can be performed sequentially, following
+mini batch-based gradient descent optimization.
+We have found in our preliminary experiments that the
+latter approach leads to much faster solutions achieving good
+performance, when compared to the first one, and we use it in
+all our experiments. Moreover, as will be describe in Section
+VII, we jointly train the network parameters Wn for multiple
+class-specific problems. This approach greatly speeds up the
+training process.
+Pseudocode 1: Calculation of T
+1: procedure T = TARGETS CALCULATION(l, p, dp)
+2:
+3: N = length(l);
+4: T = rand(2, dp + 1); Z = zeros(N, dp + 1);
+5: f1 = find(l == p); f2 = find(l 6= p);
+6: Z(f1, :) = repmat(T (1, :), length(f1), 1);
+7: Z(f2, :) = repmat(T (2, :), length(f2), 1);
+8: Z(:, 1) = ones(N, 1)/
+?
+N ;
+9: M = qr(Z); M(:, 1) = []; T = MT
+VI. DISCUSSION
+Here we provide discussion related to the properties of
+the class-specific regression models, compared to the original
+models based on eigenanalysis. We start by providing the time
+complexity of each variant. Subsequently, we discuss some
+limitations of the class-specific regression-based models and
+possible ways to address them.
+In the linear case, the class-specific regression model in-
+volves the following processing steps:
+• Data centering, having a time complexity of O(DN).
+• Calculation of the target vectors T, having a time com-
+plexity of O(NpN ? 13N
+3
+p ) [28].
+• Calculation of W. In the case where a Cholesky
+decomposition-based solution is used, this step has a time
+complexity of O( 16D
+3 + (Np +N)D
+2) [22].
+Thus, the overall time complexity of the linear class-specific
+regression model is O( 16D
+3 + 16D
+3 + (Np +N)D
+2 +NpN ?
+1
+3N
+3
+p +DN).
+The eigenanalysis based CSDA method involves the follow-
+ing processing steps:
+• Data centering, having a time complexity of O(DN).
+• Calculation of SI and SO, having time complexity of
+O(D2N).
+• Calculation of S = S?1I SO, having time complexity of
+O(2D3).
+• Eigenanalysis of S, having time complexity of O(D3).
+Thus, the overall time complexity of CSDA is O(3D3 +
+D2N + DN). Comparing the two approaches, we can see
+that both are linear with respect to the number of samples N
+and cubic with respect to the data dimensionality D.
+6
+Fig. 3: Neural network-based class-specific regression. The neural network is trained by using the facial image vectors xi ? RD
+and the class-specific target vectors ti ? Rdp forming the matrices X and T, respectively. After training, the network maps
+an input vector xi to hi ? RL using the nonlinear function g(·,Wn). A linear mapping W ? Rdp×L is subsequently used to
+linearly map hi to the corresponding class-specific representation in Rdp .
+The time complexities of CS-KDA [15], [16] is equal to
+O( 403 N
+3 + (D + dp)N
+2), while the time of the ACSKDA is
+equal to O((N2p+dp+D)N+K
+3+dpK
+2? 13N
+3
+p ) [20]. As can
+be seen, by adopting an approximate kernel-based solution the
+time complexity becomes a cubic function of the number of
+reference vectors and positive samples K and Np, respectively.
+Regarding the time complexity of the neural network-based
+solution, it is a function of the number of parameters of the
+adopted architecture. However, by taking into account the high
+parallelization of feedforward networks, the time cost can be
+highly reduced.
+One of the disadvantages of adopting a regression model is
+that, since such models optimize the mean square error with
+respect to the targets, the ratio between the cardinalities of
+the positive and negative classes is important. That is, in the
+case where the number of positive samples is much lower than
+the number of negative samples, the solution of the regression
+model will focus more on providing small training error on the
+negative class, while achieving a high error on the positive
+samples. In order to address this issue, weighted regression
+models can be adopted that increase the cost of training
+errors on the positive samples. Similar weighting schemes
+have also been used for eigenanalysis based discriminant
+analysis methods [29], [30]. A disadvantage of all class-
+specific models compared to their multi-class counterparts is
+related to their application in multi-class problems. In that
+case one needs to learn multiple models (in an one-versus-rest
+manner) increasing the overall computational cost linearly with
+respect to the number of classes. However, as will be discussed
+in subsection VII-D, in the case of class-specific regression
+models the overall computational cost can be highly reduced.
+Finally, one advantage of the proposed neural network-based
+class-specific model is the fact that it can easily extended
+in order to learn class-specific representations directly from
+(raw image) data, e.g. by including convolutional layers at the
+beginning of the architecture depicted in Figure 3.
+VII. EXPERIMENTS
+In this Section, we provide experimental results obtained by
+applying the regression-based CSDA methods described above
+on two face verification problems. First, we describe the two
+datasets used in our experiments. Later, we provide details
+on the experimental setup followed and speed up schemes we
+used in order to accelerate the training of the multiple class-
+specific models involved in each experiment.
+A. Datasets
+We have employed two facial image datasets, namely
+PubFig+LFW [31] and Youtube Faces (YTFaces) [27]. The
+PubFig+LFW dataset describes a medium-scale facial image
+analysis problem. It is formed by the 47189 facial images
+depicting 200 persons coming from the Public Figures (Pub-
+Fig) and the Labeled Faces in the Wild (LFW) datasets.
+The YTFaces dataset has been collected from YouTube. It is
+formed by 621126 facial images depicting 1595 person ID
+classes and it corresponds to a highly imbalanced problem.
+We kept the classes formed by at least 500 images, leading
+to a dataset formed by 370319 images depicting 340 persons.
+Figure 4 illustrates images from these two datasets.
+B. Experimental setup
+On each of the datasets, we form multiple verification
+problems. That is, each ID class is split in two sets, one to
+be used for training and the remaining one for evaluation. On
+the the PubFig+LFW dataset we use the provided 75%/25%
+partition. Since there is no widely adopted dataset partitioning
+for single image-based verification on the YouTube dataset,
+we perform five experiments and on each experiment we use a
+random 70%/30% partition of each class. Here we should note
+that YouTube Faces recently has been used for face verification
+using image pairs, e.g. in [27], however, in this paper we apply
+single-image verification. Facial images of the PubFig+LFW
+and YouTube Faces datasets are represented by using the facial
+image representations suggested in [31] and [27], respectively.
+7
+.
+Fig. 4: Facial images depicting persons from (top)
+PubFig+LFW and (bottom) YouTube Faces datasets.
+On each experiment, we solve P verification problems (P =
+200 for PubFig+LFW and P = 340 for YouTube Faces). For
+each verification problem p, we use the vectors representing
+the training facial images of class p as positive samples and the
+vectors representing the training facial images of the rest of the
+classes in as negative samples. The class-specific discriminant
+(sub-)space is determined by applying each of the methods
+and the class representation in the discriminant (sub-)space
+z?p is calculated. Subsequently, the representations of the test
+facial images of all classes in that discriminant (sub-)space zj
+are calculated and their similarity to the class representation
+is calculated using sj = ?zj ? z?p??12 . Similarity values of all
+test images are sorted in a decreasing order and the equal error
+rate (EER) metric is calculated. The above-described process is
+repeated for all ID classes in the dataset and the performance
+of each method is measured by using the mean EER value
+and the corresponding standard deviation (over the multiple
+experiments).
+C. Benchmark methods
+We tested the performance of all three (linear, approx-
+imate kernel and neural network-based) class-specific re-
+gression models (Table I). These models are referred to as
+LinCSDA, AK-CSDA and NN-CSDA, respectively. We also
+tested the performance obtained by applying the following
+methods: Support Vector Machine (SVM), Ridge Regression-
+based classification (RRC), LDA, CS-LDA, Extreme Learning
+Machine (ELM) [32], Reduced Kernel Support Vector Ma-
+chine (RKSVM) [33], Approximate Kernel Extreme Learning
+Machine (AKELM) [34], [35] and Random Feature Regression
+(RFR) [36]. For the non-linear methods using reference vec-
+tors, we applied multiple experiments using the reference vec-
+tor set cardinalities of K = {500, 1000, 1500, 2000, 2500} and
+report the best performance. For the class-specific approaches,
+we applied multiple experiments using discriminant (sub-
+)space dimensionality dp = d, p = 1, . . . , P for d = {1, 5, 10}.
+D. Implementation details
+In the neural network-based approach, we adopted two
+single hidden layer networks for both datasets. Similarly, we
+set the learning rate as 1e ? 7, the minibatch size n = 200,
+the number of epoches as 40 and sigmoid function as the
+activation function throughout the networks on both datasets.
+We experimented numerous topologies with the number of
+neurons L = {100, 200, 500, 1000, 1500} using a set of
+NVIDIA Tesla K80 GPUs in a parallel setting, and report the
+best collective results based on the validation set in Table II.
+On the PubFig+LFW dataset, the number of hidden neurons is
+1500 while that of hidden neurons on YouTube Faces is 1000.
+We omitted the result with the number of dimensionality equal
+to 10 in the subspace due to the memory constraints of the
+graphic cards.
+On the YouTube Faces dataset we perform five experiments
+and report the average EER and the corresponding standard
+deviation over all experiments. We have observed that the five
+datasets provided by PubFig+LFW database correspond to the
+same P = 2000 face verification problems. For the linear
+methods, the standard deviation values in [20] correspond to
+the deviation of the performance due to different training
+subsets (N = 10000) employed. A comparison of these
+results and those obtained using all training data is provided
+in Table II. For the (approximate) kernel-based methods, the
+provided standard deviations correspond to the deviation of
+the performance due to different reference vectors selected
+over the five experiments (for different random K-Means
+initializations).
+In order to speed up the training process over the multiple
+verification problems of each experiment, we exploit the fact
+that the training samples of all verification problems are the
+same (what changes is the labels used in order to define the
+target vectors, as detailed in Section IV and Pseudocode 1).
+Let us denote by Tp the matrix formed by the target vectors
+used for the determination of the discriminant (sub-)space of
+class p. Then, the solution of the (class-specific) regression
+problem (17) is given by W = (XXT )?1XTTp . That is, the
+matrix X† = (XXT )?1X is used in all verification problems
+and can be calculated once. Subsequently, the determination
+of all class-specific discriminant sub-spaces can be obtained
+by applying a matrix multiplication between the matrices X†
+and TTp . In a similar way, we cluster the training vectors
+once in order to define the reference vectors, and calculate the
+matrix K?† = (K?K?T )?1K?, which is used for all approximate
+kernel class-specific discriminant spaces, only once. For the
+neural network-based CSDA, we use the same network for all
+8
+TABLE I: Performance (mean ERR %) of linear and non-linear
+methods on PubFig+LFW and YouTube Faces datasets
+Method PubFig+LFW YouTube Faces
+SVM 7.43 1.68±0.09
+RRC 17.25 21.9±1.34
+LDA 17.24 28.27±0.66
+CS-LDA (d=1) 15.63 23.62±0.77
+CS-LDA (d=5) 6.05 1.81±1.41
+CS-LDA (d=10) 5.89 2.71±1.89
+LinCSDA (d=1) 17.24 22.13±1.3
+LinCSDA (d=5) 9.34 0.87±0.05
+LinCSDA (d=10) 9.45 0.53±0.02
+ELM [20] 25.81±0.91 (K=2500) 17.08±0.57 (K=1500)
+RKSVM [20] 18.95±0.46 (K=2500) 15.44±0.55 (K=1500)
+AKELM [20] 17.21±0.98 (K=2000) 12.02±0.57 (K=500)
+RFR [20] 20.62±0.84 (K=2500) 27.67±0.48 (K=2000)
+AK-CSDA (d=1) [20] 18.4±0.72 (K=2500) 18.92±0.57 (K=1000)
+AK-CSDA (d=5) [20] 11.49±0.82 (K=2500) 12.98±0.93 (K=500)
+AK-CSDA (d=10) [20] 11.65±1.09 (K=2500) 2.26±0.11 (K=2500)
+NN-CSDA (d=1) 17.94 (L=1500) 22.47±1.05 (L=1000)
+NN-CSDA (d=5) 12.31 (L=1500) 1.96±0.39 (L=1000)
+NN-CSDA (d=10) 12.38 (L=1500) -
+TABLE II: Performance (mean ERR %) of linear methods on
+PubFig+LFW dataset
+Method Using N = 104 [20] Using N = 35469
+SVM 7.86±0.43 7.43
+RRC 17.48±0.15 17.25
+LDA 15.61±0.27 17.24
+CS-LDA 14.69±0.34 15.63
+verification models, based on the intuition that such a choice
+will lead to a better representation of the facial images in the
+(shared) feature space RL. We implemented this stacking the
+target vectors of all class-specific regression models during the
+training process. During evaluation, we use the class-specific
+representations as described earlier in this subsection in order
+to measure the performance of each method.
+E. Results
+The regression-based class-specific methods provide good
+performance in both face verification problems. Linear class-
+specific regression achieves better performance when com-
+pared to the multi-class linear discriminant and regression
+methods, and similar performance to SVM. Approximate
+class-specific regression [20] (corresponding to the reduced
+kernel-based class-specific regression in Subsection IV-B)
+outperforms the related multi-class regression models. Class-
+specific regression based on neural networks achieves compet-
+itive performance in PubFig+LFW dataset, which corresponds
+to a medium-scale verification problem, while it outperforms
+all non-linear models in the large-scale verification problem
+of YouTube Faces dataset. We believe that this is due to
+cardinality of the data (we have observed that convergence
+of the networks was difficult for PubFig+LFW dataset). We
+observe that linear models achieve better performance in both
+datasets. This might be due to the adopted data representations
+(this might also be the reason why both [27] and [31] use linear
+models in their experiments). For nonlinear methods, we notice
+that the neural networks provide a performance gain over the
+kernel methods when the dataset size is large.
+VIII. CONCLUSIONS
+In this paper, we showed that class-specific subspace learn-
+ing is equivalent to a regression problem using class-specific
+target vectors. Based on that, we derived linear, reduced kernel
+and neural network-based class-specific regression models
+suited for large-scale learning problems. Interesting future
+research directions based on the derived solutions include
+the application of class-specific models directly on (raw)
+image/video data for representation learning, e.g. by using con-
+volutional and recurrent neural layers and the investigation of
+class-specific representations obtained by using such learning
+schemes.
+REFERENCES
+[1] Barr P., Noble J., Biddle R.: ‘Video game values: Human-computer inter-
+action and games’, Interacting with Computers, 2011, 19:2, pp. 180–195
+[2] Li Z. Park U., Jain A.: ‘A discriminative model for age invariant face
+recognition’, IEEE Trans. Inf. Forens. Sec., 2011, 6:3, pp. 1028–1037
+[3] Iosifidis A., Tefas A. Pitas I.: ‘Activity based Person Identification
+using Fuzzy Representation and Discriminant Learning’, IEEE Trans.
+Inf. Forens. Sec., 2012, 7:2, pp. 530–542
+[4] Samaria F., Harter A., ‘Parameterisation of a stochastic model for human
+face identification’, IEEE Work. Appl. Comp. Vis., 1994
+[5] Duda R., Hart P., Stork D.: ‘Pattern Classification’ (Wiley-Interscience,
+2000, 2nd edn.)
+[6] Saul L., Roweis S.: ‘Think Globally, Fit Locally: Unsupervised Learning
+of Nonlinear Manifolds’, J. Mach. Learn. Res., 2003, 4, pp. 119–155
+[7] He X., Niyogi P.: ‘Locality Preserving Projections’, Adv. Neur. Inf.
+Proces. Syst., 2003
+[8] Ye J.: ‘Least Squares Linear Discriminant Analysis’, Int. Conf. Mach.
+Learn., 2007
+[9] Iosifidis A., Tefas A., Pitas I.: ‘On the optimal class representation in
+Linear Discriminant Analysis’, IEEE Trans. Neur. Net. Learn. Syst.,
+2003, 24:9, pp. 1491–1497
+[10] Baudat G., Anouar F.: ‘Generalized Discriminant Analysis using a kernel
+approach’, Neur. Comp., 2000, 12, pp. 2385–2404
+[11] Iosifidis A., Tefas A., Pitas I.: ‘Kernel Reference Discriminant Analysis’,
+Pat. Rec. Lett., 2014, 49, pp. 85–91
+[12] Kittler Y., Li J.,J.,: ‘Face verification using client specific Fisher faces’,
+Stat. Direct. Shapes Im., 2000, pp. 63–66
+[13] Goudelis G., Zafeiriou S., Tefas A., Pitas I.: ‘Class-Specific Kernel
+Discriminant Analysis for face verification’, IEEE Tran. Inf. Forens.
+Sec., 2007, 2:3, pp. 570–587
+[14] Scho?lkopf B., Smola A.J.: ‘Learning with kernels: Support Vector Ma-
+chines, Regularization, Optimization, and Beyond’, (MIT Press, 2001,
+ISBN: 9780262253437)
+[15] Arashloo S., Kittler J.: ‘Class-specific kernel fusion of multiple descrip-
+tors for face verification using multiscale binarized statistical image
+features’, IEEE Trans. Inf. Forens. Sec., 2014, 9:12, pp. 2100–2109
+[16] Iosifidis A., Tefas A., Pitas I.: ‘Class-Specific Reference Discriminant
+Analysis with application in human behavior analysis’, IEEE Trans.
+Human Mach. Syst., 2015, 45:3, pp. 315–326
+[17] Williams C.K.I., Seeger M.: ‘Using the Nystro?m method to speed up
+kernel machines’, Adv. Neur. Inf. Proces. Syst., 2001, pp. 682–688
+[18] Drineas P., Mahoney M.: ‘On the Nystro?m Method for Approximating
+a Gram Matrix for Improved Kernel-based Learning’, J. Mach. Learn.
+Res., 2005, 6, pp. 2153–2275
+[19] Lee Y., Huang S.: ‘Reduced Support Vector Machines: A statistical
+theory’, IEEE Trans. Neur. Net., 2007, 18:1, pp. 1–13
+[20] Iosifidis A., Gabbouj M.: ‘Scaling up Class-Specific Kernel Discriminant
+Analysis for large-scale Face Verification’, IEEE Trans. Inf. Forens. Sec.,
+2016, 11:11, pp. 2453–2465
+[21] Iosifidis, A., Gabbouj, M.: ‘Prototype-based class-specific nonlinear
+subspace learning for large-scale face verification’, Int. Conf. Im. Proc.
+Theory, Tools Appl., 2016
+[22] Iosifidis A., Gabbouj M.: ‘Class-Specific Kernel Discriminant Analysis
+revisited: further analysis and extensions’, IEEE Trans. Cyb., DOI:
+10.1109/TCYB.2016.2612479, 2016
+[23] Wong W.K., Sun M.: ‘Deep Learning Regularized Fisher Mappings’,
+IEEE Trans. Neur. Net., 2011, 22:10, pp. 1668–1675
+9
+[24] Stuhlsatz A., Lippel J., Zielke T.: ‘Feature Extraction With Deep Neural
+Networks by a Generalized Discriminant Analysis’, IEEE Trans. Neur.
+Net., 2012, 23:4, pp. 596–608
+[25] Cao G., Iosifidis A., Chen K., Gabbouj M.: ‘Generalized Multi-
+view Embedding for Visual Recognition and Cross-modal Retrieval’,
+arXiv:1605.09696v1, 2016, pp. 1–13
+[26] Jia Y., Nie F., Zhang C.: ‘Trace ratio problem revisited’, IEEE Trans.
+Neur. Net., 2009, 20:4, pp. 729–735
+[27] Wolf L., Hassner T., Maoz I.: ‘Face Recognition in Unconstrained
+Videos with Matched Background Similarity’, Comp. Vis. Patt. Rec.,
+2011
+[28] Golub G., Loan C.: ‘Matrix Computations’, Johns Hopkins University
+Press, 3rd edition, 1996
+[29] Tang E.K., Suganthan P.N., Yao X., Qin A.K.: ‘Linear dimensional-
+ity reduction using relevance weighted LDA’, Patt. Rec., 2005, 38:4,
+pp. 485–493
+[30] Li Z., Lin D., Tang X.: ‘Nonparametric discriminant analysis for
+face recognition’, IEEE Trans. Patt. Anal. Mach. Intell., 2009, 31:4,
+pp. 755–761
+[31] Ortiza E.G., Beckerb B.C.: ‘Face recognition for web-scale datasets’,
+Comp. Vis. Im. Und., 2014, 118, pp. 153–170
+[32] Huang G.B., Zhou H., Ding X., Zhang, R.: ‘Extreme Learning Machine
+for Regression and Multi-class Classification’, IEEE Tran. Syst. Man
+Cyb.:P Part B, 2012, 42:2, pp. 513–529
+[33] Lee Y., Huang, S.: ‘Reduced support vector machines: A statistical
+theory’, IEEE Tran. Neur. Net., 2007, 18:1, pp. 1–13
+[34] Iosifidis A., Tefas A., Pitas I.: ‘Large-scale nonlinear facial image
+classification based on Approximate Kernel Extreme Learning Machine’,
+IEEE Int. Conf. Im. Proc., 2015
+[35] Iosifidis A., Tefas A., Pitas I.: ‘Approximate Kernel Extreme Learning
+Machine for Large-Scale Data Classification’, Neucom., 2017, 219,
+pp. 210–220
+[36] Rahimi A., Recht B.: ‘Random features for large-scale kernel machines’,
+Adv. Neur. Inf. Proces. Syst., 2007

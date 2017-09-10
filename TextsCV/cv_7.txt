@@ -1,0 +1,939 @@
+A Multilayer-Based Framework for Online Background Subtraction
+with Freely Moving Cameras
+Yizhe Zhu Ahmed Elgammal
+Department of Computer Science, Rutgers University, Piscataway, NJ 08854
+yizhe.zhu@rutgers.edu elgammal@cs.rutgers.edu
+Abstract
+The exponentially increasing use of moving platforms for
+video capture introduces the urgent need to develop the gen-
+eral background subtraction algorithms with the capability
+to deal with the moving background. In this paper, we pro-
+pose a multilayer-based framework for online background
+subtraction for videos captured by moving cameras. Unlike
+the previous treatments of the problem, the proposed method
+is not restricted to binary segmentation of background and
+foreground, but formulates it as a multi-label segmentation
+problem by modeling multiple foreground objects in differ-
+ent layers when they appear simultaneously in the scene.
+We assign an independent processing layer to each fore-
+ground object, as well as the background, where both mo-
+tion and appearance models are estimated, and a proba-
+bility map is inferred using a Bayesian filtering framework.
+Finally, Multi-label Graph-cut on Markov Random Field is
+employed to perform pixel-wise labeling. Extensive eval-
+uation results show that the proposed method outperforms
+state-of-the-art methods on challenging video sequences.
+1. Introduction
+The identification of regions of interest is typically
+the critical preprocessing step for various high-level com-
+puter vision applications, including event detection, video
+surveillance, human motion analysis, etc. Background
+subtraction is a widely-used technique to perform pixel-
+wise segmentation of foreground regions out of background
+scenes. Unlike foreground object detection algorithms,
+background subtraction methods typically produce much
+more accurate segmentation of foreground regions rather
+than merely detection bounding boxes, without the need to
+train individual object detectors. A great number of vari-
+ous traditional background subtraction methods and algo-
+rithms have been proposed [34, 8, 21, 32, 12, 28]. Most of
+these methods focused on modeling background under the
+assumption that the camera is stationary. However, more
+and more videos are captured from moving platforms, such
+as camera phones, and cameras mounted on ground vehi-
+cles, robots, ariel drones, etc. Traditional background sub-
+traction algorithms are no longer applicable for such videos
+captured from a non-stationary platform [7]. The exponen-
+tially increasing use of moving platforms for video capture
+introduces a high demand for the development of general
+background subtraction algorithms that are not only as ef-
+fective as traditional background subtraction but also appli-
+cable to moving-camera videos.
+Similar to most video segmentation methods, a few
+works [26, 5] resort to processing the whole video offline.
+Offline methods can typically produce good results on short
+sequences since the information in latter frames can signifi-
+cantly benefit the segmentation in the earlier frames. How-
+ever, since it needs to store and process the information over
+the whole video, the memory and computational cost in-
+crease exponentially as the number of frames to process
+grows [7]. Additionally, in various cases, such as video
+surveillance and security monitoring, videos need to be ana-
+lyzed as they being streamed in real time, where an efficient
+online background subtraction method is greatly in demand.
+The key to handling long sequences in an online way is
+to learn and maintain models for the background and fore-
+ground layers. Such models accumulate and update the ev-
+idence over a large number of frames and also supply valu-
+able knowledge foundation to high-level vision tasks. Re-
+cently, a few online background subtraction methods with
+moving cameras have been proposed [31, 20, 9, 22, 41].
+Most methods formulate it as a binary segmentation prob-
+lem with the assumption of only one foreground object, nat-
+urally resulting in bad segmentation when multiple moving
+objects appear in the scene. Especially in the case where
+objects go across each other, motion estimation for objects
+suffers great confusion, which further degrades the perfor-
+mance of background subtraction.
+To remedy this drawback, we propose a general
+multilayer-based framework with the capability of handling
+multiple foreground objects in the scene. The objects can be
+automatically detected based on motion inconsistency and
+4321
+ar
+X
+iv
+:1
+70
+9.
+01
+14
+0v
+1 
+ [
+cs
+.C
+V
+] 
+ 4
+ S
+ep
+ 2
+01
+7
+an independent processing layer is assigned to every fore-
+ground object as well as the background. In each layer, we
+would like the same process to be preformed concurrently
+inside the “processing block”, which takes the accumulated
+information and the new evidence of each layer as input,
+and outputs a probability map indicating the confidence of
+pixels belonging to each layer. In this paper, we elaborately
+design such a “processing block” with three steps as fol-
+lows. (a) Motion model estimation is first performed based
+on Gaussian Belief Propagation [1] with motion vectors of
+corresponding trajectories as the evidence. (b) The appear-
+ance model and the prior probability are predicted by prop-
+agating the previous one with the estimated motion model.
+(c) Given the current frame as new evidence, Kernel Den-
+sity Estimation [8] is employed to infer the probability map
+as the output. Finally, based on the collection of probability
+maps produced by each “processing block”, the pixel-wise
+segmentation for the current frame is generated by Multi-
+label Graph-cut.
+Besides, since it is the first work to tackle multilabel
+background subtraction problem in moving camera scenar-
+ios, to our best knowledge, we also design a methodology to
+evaluate the performance and show our method outperforms
+the state-of-the-art methods.
+2. Related Work
+Motion Estimation and Compensation: The freely mov-
+ing camera introduces a movement in the projected back-
+ground scene, and thus complicates the background subtrac-
+tion problem. An intuitive idea to tackle such a problem is
+compensating the camera motion. A few pioneering works
+resort to estimating a homography [13] that characterizes
+the geometric transformation of background scene between
+consecutive frames. Typically RANSAC [11] and its vari-
+ants MLESAC [36] are employed to achieve robust estima-
+tion using many matches of feature points. Jin et al. [15]
+model the scene as a set of planer regions where each back-
+ground pixel is assumed to belong to one of these regions.
+Homographies are used to rectify each region to its corre-
+sponding planer representation in the model. Zamalieva et
+al. [41] leverage geometric information to develop multiple
+transformation models, and choose one that best describes
+the relation between consecutive frames.
+Recently, motion estimation has been widely employed
+to comprehensively specify the motion for every pixel
+[25, 2, 20, 22]. These works [20, 22] used optical flow as
+the evidence. Kwak et al. [20] divided the images into small
+blocks in a grid pattern, and employed nonparametric belief
+propagation to estimate the motion field based on average
+optical flow of each block. Its following work [22] im-
+proved the quality of motion estimation by replacing blocks
+with superpixels as the model unit. On the other hand, in
+[25, 2], optical flow orientations were claimed independent
+of object depth in the scene, and used to clusters pixels that
+have similar real-world motion, irrespective of their depth
+in the scene. However, high dependency on the optical flow
+makes these methods susceptible to the noise in the estima-
+tion of optical flow. In contrast, our method improves mo-
+tion model estimation by employing Gaussian Belief Prop-
+agation [1] with the motion vectors of sparse feature points
+as more robust evidence.
+Appearance Modeling: Traditionally, statistical represen-
+tations of the background scene have been proposed to es-
+timate spatially extendable background models. Hayman
+et al. [14] built a mixture of Gaussian mosaic background
+model. Ren et al. [29] used motion compensation to pre-
+dict the position of each pixel in a background map, and
+model the uncertainty of that prediction by a spacial Gaus-
+sian distribution. The construction of image mosaic associ-
+ated with a traditional mixture Gaussian background model
+was also claimed to be effective in [23, 30]. However, the
+hyper-parameter required by this parametric model restricts
+its adaptability and application. On the contrary, we em-
+ploy nonparametric Kernal Density Estimation method [8]
+to build models of the appearance of foreground and back-
+ground regions, making our approach more stable and ap-
+plicable.
+Layered Representation: The layered representation, re-
+ferring to approaches that model the scene as a set of mov-
+ing layers, has been used for foreground detection [27, 16],
+motion segmentation [39, 37, 19]. In [27], the background
+was modeled as the union of nonparametric layer-models to
+facilitate detecting the foreground under static or dynamic
+background. Kim et al. [16] proposed a layered background
+model where a long-term background model is used besides
+several multiple short-term background models. Wang et
+al. [39] used an iterative method to achieve layered-motion
+segmentation. Torr et al. [37] modeled the layers as planes
+in 3D and integrating priors in a Bayesian framework. [19]
+models spatial continuity while representing each layer as
+composed of a set of segments. A common theme of these
+layered models is the assumption that the video is avail-
+able beforehand [7]. Such an assumption prevents the use
+of such approaches for processing videos from streaming
+sources. Some dynamic textures methods [3, 4, 24] also
+employed the layered model to tackle the complex dynamic
+background, but with stationary cameras. To the best of our
+knowledge, the proposed method is the first layered model
+applied in the moving camera scenarios.
+The organization of this paper is as follows. The
+overview of our proposed framework are presented in Sec-
+tion 3. Section 4 describes the trajectory labeling. The com-
+ponents inside “processing block” are described in Section
+5&6 and the final pixel-wise multi-labeling are presented in
+section 7. Finally, Section 8 illustrates quantitatively and
+qualitatively experimental results based on two criteria.
+Layer 1    
+Processing  Block
+……
+App. Models
+Prop. Maps
+Layer 2      
+Processing  Block
+Layer K      
+Processing  Block
+Posterior 
+Prop. Maps
+Multilabel Segmentation
+Update  App. Models with New 
+Frame
+Processing Block
+Feature
+Trajectories
+Motion Estimation App. Model 
+Prediction
+Prop. Map 
+Prediction
+KDE 
+Estimation
+Posterior
+Prop. Map
+Figure 1: The framework of our proposed approach.
+3. Framework Overview
+The proposed framework is demonstrated in Figure 1.
+First we employ the feature point tracking method presented
+in [35] to generate feature trajectories. Then the generated
+trajectories are clustered into different layers based on mo-
+tion inconsistency, and the labels of trajectories are continu-
+ously propagated over frames using the dynamic label prop-
+agation [42]. Each cluster of trajectories is assigned to the
+corresponding layer, and the number of layers is adapted
+according to that of foreground objects appearing in each
+frame.
+Each layer possesses an independent “processing block”
+that produces a posterior probability map. Let k and t de-
+note the index of the layer and the frame respectively. In-
+side the “processing block”, we have two sources of input:
+the appearance model Akt?1 and the prior probability map
+of labels P (Lkt?1) produced from the previous frame, and
+a group of corresponding sparse trajectories Pkt . The first
+step is the inference of the motion model in each layer using
+Gaussian Belief Propagation with the motion vectors of cor-
+responding trajectories as the evidence. Then, the new ap-
+pearance model Akt is obtained by shifting the previous ap-
+pearance modelAkt?1 based on the estimated motion model
+Mkt , and the new prior probability map Pprior(Lkt |Pkt ) can
+be inferred from the previous one in the same way.
+Given the current frame It as the new observation, the
+likelihood P (It|Lkt ) is estimated by Kernal density Estima-
+tion(KDE) [8] with the propagated appearance model in ev-
+ery layer. Then the posterior probability map for each layer
+is inferred as
+Ppost(Lkt |It,Pkt ) =
+1
+Z
+P (It|Lkt )Pprior(Lkt |Pkt ), (1)
+where Z =
+?
+k Ppost(Lkt |It,Pkt ) is the partition function.
+With a collection of the posterior probability maps from
+each layer, we achieve the final pixel-wise labeling by op-
+timizing a cut on a multilabel graph with the minimal cut
+energy. At the end of the whole process, appearance mod-
+els are updated with the current frame and labels. In the
+following sections, we will describe the process steps in de-
+tail.
+4. Trajectory Labeling and Propagation
+The feature point tracking method [35] we employ has
+achived a good performance in feature trajectories genera-
+tion. To cluster trajectories, several motion segmentation
+methods [26, 40] have provided good solutions, but may
+fail when the video does not meet the assumption of the
+affine camera model. To get rid of such an assumption,
+an online method proposed by Elqursh et al. [10] consid-
+ered sparse trajectory clustering as the problem of manifold
+separation and dynamically propagate labels over frames.
+Inspired by [10], we first cluster the trajectories in the ini-
+tialization frames, and continuously propagates the label of
+trajectories over frames using the dynamic label propaga-
+tion [42]. We briefly describe the algorithm here.
+4.1. Trajectory Clustering
+Given n trajectories, two distance matrices DtM and D
+t
+S
+are defined to represent the difference between trajecto-
+ries in motion and spatial location. The entries DMij =
+d1:tM (Ti, Tj) and D
+S
+ij = d
+1:t
+S (Ti, Tj) are the distances be-
+tween i-th and j-th trajoctories over frames up to t. For de-
+tailed defination, please refer to [26]. The affinity matrix
+over n trajectories is then formulated as
+A = exp(?(?DtM + (1? ?)DtS)), (2)
+where ? is the paramater to balance two distances.
+Considering each trajectory as a node and the affinity
+matrix as the edge weights, we cast the trajectory cluster-
+ing to graph cut problem. Starting from the initial cluster
+that contains all trajectories, normalized cuts [33] are em-
+ployed to perform optimal binary cut on initial cluster and
+again on the generated clusters. This recursive process con-
+tinues until the evaluated normalized cut cost on the cluster
+is above the threshold(10?4 in our work), which indicates
+this cluster of trajoctories belongs to the same component
+(i.e. objects or the background), and needs no further split-
+ting. All trajectories are assigned with labels according to
+which cluster they belong to.
+4.2. Label Propagation
+With the labels of trajectories in the intial frames, the
+label propagation, as a semi-supervised learning method,
+is adopted to infer the labels of trajectories in subsequent
+frames. We first construct a graph G with the trajectories
+in the previews and current frames as the labeled and un-
+labeled nodes respectively. The affinity matrix A involv-
+ing the labeled and unlabeled trajectories are calculated and
+used as edge weights between corresponding nodes. Let Yl
+and Yu denote the labeling probability matrix correspond-
+ing to labeled and unlabeled node respectively. Each row of
+Yl is a one-hot vector with one at the location coorespond-
+ing to the label of node and zero otherwise. To estimate the
+labeling probability matrix Yu, we apply Markov random
+walks on the graph [43]. A transition matrix P is defined as
+[pij = Aij/
+?
+k Aik], where the entry pij is the transition
+probabilities from ith node to jth node. Given the partition
+of nodes into labeled and unlabeled nodes, the matrix P can
+be splitted into 4 blocks:
+P =
+[
+Pll Plu
+Pul Puu
+]
+. (3)
+The closed form solution of the labeling probability ma-
+trix of unlabeled node is Yu = (I?Puu)?1PulYl. The label
+for the node i can be obtained by
+li = arg max
+j
+yij , (4)
+where yij is the entry in the row corresponding to node i.
+It is worth noting that the label propagation algorithm
+can only assign the trajectories with known labels. How-
+ever, when new objects move into the scene, new labels
+should be introduced in time. To accomplish it, after the
+labels are predicted in each frame, a normalized cut cost
+in each cluster is evaluated. A small cost indicates a great
+intra-cluster variation inside the cluster. If the cost is below
+the threshold (10?4 in our work), the cluster should be fur-
+ther splitted and a new label is assigned to the cluster with
+more different appearance from the previous one. When an
+object moves out of the scene, few trajetories are assigned
+with the corresponding label and the corresponding clus-
+ter is removed. In this way, the number of clusters changes
+adaptively according to how many moving objects appear in
+the scene. After clustering process is done, all trajectories
+in each cluster are further assigned to each layer.
+5. Motion Model Estimation
+Although providing the motion information only at
+sparse pixels, trajectories of feature points are more ac-
+curate and less noisy compared with optical flow. With
+these accurate motion vectors of trajectories as evidence,
+we can estimate the motion field model for the whole frame
+(i.e. to estimate the motion vector of every pixel in each
+layer). To accomplish the pixel-wise motion estimation, we
+construct a pairwise MRF on a grid structure, where each
+vertex represents a pixel and the set of edges ? represents
+pairwise neighborhood relationship on this structure. Two
+sets of potentials are involved: edge potentials ?ij measur-
+ing the similarity between neighborhood vertices, and self-
+potentials ?i measuring the likelihood of evidence. If these
+potentials are defined as Guassion distribution, the task is
+thus formulated as a Gaussian Belief Propagation(GaBP)
+Figure 2: Visualization of labeled trajectories and motion
+models of three layers. The first figure is the original im-
+age covered with labeled trajectories: the trajectories are
+clustered into three layers: background layer(Red), car1
+layer(Blue) and car2 layer(Green). The following three fig-
+ures show the estimated motion models for the three layers,
+where the arrow and length indicate the direction and mag-
+nitude of motion.
+problem [1]. Given the motion vectors of trajectories in the
+k-th layer, the conditional joint probability distribution of
+motion model can be inferred as:
+P (Mkt |Pkt ) ?
+?
+(i,j)??
+?(mik,t,m
+j
+k,t)
+?
+i?Sk,t
+?(mik,t), (5)
+where Pk,t donates the set of feature points along with
+trajectories that are clustered to k-th layer. The edge
+and self potentials are defined as ?(mik,t,m
+j
+k,t) =
+N (mik,t|m
+j
+k,t,?m) and ?(m
+i
+k,t) = N (mik,t|mip,t,?p),
+where mip,t represents the motion vector of corresponding
+trajectories associated with i-th pixel. Our formulation en-
+courages the similarity between motion vectors of neigh-
+borhood points and that between estimated motion vectors
+of feature points and the evidence (i.e. motion of trajecto-
+ries). According to GaBP, this equation can be rewritten as
+P (Mkt |Pkt ) ? exp(?
+1
+2
+mTAm+mT b), (6)
+where the inverse covariance matrix A is defined to show
+the connection of every pair of nodes, and the shift vec-
+tor b is defined by the motion of trajectory. A closed form
+solution for marginal posterior probability is p(mik,t|Pkt ) =
+N (µik,t,?ik,t), where µik,t is the i-th entry ofA?1b and ?ik,t
+is the entry {A?1}ii. The estimated motion field is demon-
+strated in Figure 2.
+6. Bayesian Filtering
+The inference of probability maps can be performed as
+the sequential Bayesian filtering on the Hidden Markov
+Model. In this section, we first predict appearance model
+and prior probability for each layer given the motion mod-
+els, followed by the inference of the posterior probability
+with new observations in the current frame. For simplicity
+of the expression, we remove the subscript k in the rest of
+paper. Note that the processes in each layer are identical.
+6.1. Model Propogation
+Given the probability distribution of the estimated mo-
+tion model P (Mt|Pt), we can estimate the appearance
+model and the probability map in the current frame by prop-
+agating the corresponding model and map from the previ-
+ous frame. Specifically, the motion vector describes ex-
+actly how a pixel shifts between the consecutive frames.
+Therefore, armed with the motion information of a pixel
+in the current frame, we can easily obtain the appearance
+of the pixel by propagating that of the corresponding pixel
+in the previous frame. However, the motion vector of
+each pixel has Gaussian distribution over two-dimentional
+space. It is impractical to marginalize the appearance over
+the whole Gaussian distribution. If we discard the uncer-
+tainty in the motion vector and set the variance to 0, the
+gaussion distribution is reduced to a Dirac delta function
+P (mit|Pt) = ?(mit ? µik,t). Then the marginalization over
+the whole appearance model is reduced to the involvement
+of the particular pixel. The appearance model of i-th pixel
+can be readily obtained by
+ait = a
+?(i,µit)
+t?1 , (7)
+where the function ?(i, µit) is to obtain the corresponding
+index in the previous frame by reversely shifting the i-th
+pixel according to the associated motion vector µit. In prac-
+tice, we found this approximation have little performance
+degradation while saving much computational cost.
+Similarly, the prior probability of i-th pixel in each layer
+is obtained by
+Pprior(l
+i
+t|Pt) = P (l
+?(i,µjt)
+t?1 ). (8)
+6.2. Probability Map Update
+Once the appearance model and probability map are
+propagated from the previous frame, the posterior probabil-
+ity map of each layer can be inferred with the current Frame
+It as the new observation. With the assumption of indepen-
+dence between pixels, the posterior probability of i-th pixel
+is computed by Eq. (9).
+Ppost(l
+i
+t|Iit ,Pt) ? P (Iit |lit)Pprior(lit|Pt), (9)
+The likelihood of the observation in i-th pixel P (Iit |lit)
+is essentially describing how well the appearance Iit fits
+the appearance model in each layer . Kernel Density Es-
+timation(KDE), as a nonparametric method, can effectively
+Probability Maps
+Input Image Output Segmentation
+Figure 3: Inside the dotted box, three probability maps
+are demonstrated: the background layer, foreground1
+layer(woman on the right), foreground2 layer(woman on
+the left). Note that the lighter color represents the high con-
+fidence. Two images in the bottom show the input image
+and the result of Multilabel Segmentation.
+model the appearance for background or foreground with-
+out the restriction of hyper-parameter estimation. For its
+simplicity and effectiveness, we employ KDE technique for
+appearance modeling. The appearance model of i-th pixel
+ait is involved with a pool of color features {If}iN accu-
+mulated from the previews frames. The likelihood of the
+observation P (Iit |lit) estimated as:
+P (Iit |lit) =
+1
+N
+N?
+f=1
+KG(I
+i
+t ? Iif ), (10)
+whereKG(·) is the Gaussian kernel function, Iif is the color
+feature in f frame stored for KDE modeling, andN = 20 is
+the number of stored previous frames. The posterior proba-
+bility map produced in each layer is normalized by partition
+function, and then used as the knowledge for multilabel seg-
+mentation.
+7. Multilabel Segmentation
+With the collection of normalized probability maps of all
+layers at hand, our final task for foreground objects segmen-
+tation is to perform pixel-wise labeling for the whole frame.
+This segmentation problem can be converted into an energy
+minimization problem on the pairwise MRF which can be
+polynomially solvable via Graph Cuts [17]. Due to ill-posed
+nature of the segmentation problem, regularizations are al-
+ways required. For our problem, we designed two regular-
+izers: a smoothing cost and a label cost in preference of
+smoothness of labeling and fewer unique labels assigned,
+respectively. The global energy function is formulated as:
+E(L) =
+?
+k?S(L)
+?
+i:li=k
+E(Ii) + ?1
+?
+(i,j)?N
+qijE(Ii, Ij)
++ ?2
+?
+k?S(L)
+hk?k(L)
+(11)
+where S(L) denotes the set of unique labels of L. The three
+terms in the right-side of equation are data cost, smooth-
+ness cost and label cost, respectively. The data cost E(Ii) is
+defined as the negative log probability of ith pixel belong-
+ing to a certain layer ? logPpost(lit|Iit). The smoothness
+cost is defined as the similarity of two neighboring pixels
+E(Ii, Ij) = ? logN (Ii|Ij ,?a), and qij , as a sign function,
+equals to +1 if li, lj have the same label; otherwise ?1.
+Moreover, in the term of label cost, hk is the non-negative
+label cost of the label k. And ?k(f) is the corresponding in-
+dicator function with the definition ?k(L) = 1 if ?i : li = k;
+and 0 otherwise. ?1, ?2 are non-negative parameters to bal-
+ance data cost against such two regularizations (both are 1 in
+our work). The energy minimization function can be solved
+efficiently using the method presented in [6].
+It is worth noting that when a new foreground object ap-
+pears in the scene or initial frames are processed, the feature
+samples to build the appearance model usually are not suf-
+ficient for Kernel Density Estimation. In these cases that
+KDE is invalid, the probability maps is no longer avaiable
+as the data cost for the multilabel segmentation. An alterna-
+tive way to define the term of data cost in energy function is
+based on the labeled trajectories. E(Ii) = c if li = lp and
+?c otherwise, where c is a negative constant, and lp is the
+label of trajectory associated with i-th pixel. This defina-
+tion simply ultilizes the motion informance rather than the
+appearance model.
+Finally, according to the labels of pixels, the appearance
+models At are updated by adding the color feature Iit in the
+current frame to the corresponding appearance model.
+8. Experiments
+We evaluate our algorithm qualitatively and quantita-
+tively based on two criteria: one is the normal two-label
+background subtraction and one is multilabel background
+segmentation. The former is evaluated using F-score, which
+is the common measurement. For the latter, since, to
+our best knowledge, no one has done such work before,
+we carefully design a reasonable measurement. The re-
+sult shows our method outperforms the state-of-the-art ap-
+proaches in both settings.
+Dataset: Experiments were run on two public datasets.
+A set of sequences (cars1-8, people1-2) in the Hopkins
+dataset [38] is commonly used for quantitative evaluation
+on this topic, some of which contain multiple foreground
+objects. To quantitatively evaluate the performance, we pro-
+duced the groundtruth mask manually for all frames, includ-
+ing the discrimination of foreground objects. Another one is
+Complex Background Dataset(CBD) [25], where the com-
+plex background and camera rotation introduce a great chal-
+lenge.
+MLBS GBSSP FOF OMCBS GBS BSFMC
+cars1 92.04 87.14 50.84 91.77 80.30 73.13
+cars2 90.16 82.17 56.60 69.13 68.45 55.68
+cars3 93.16 72.94 73.57 41.27 79.22 60.91
+cars4 91.55 88.24 47.96 73.65 66.63 54.81
+cars5 86.62 81.66 70.94 60.44 74.56 51.97
+cars6 92.23 81.44 84.34 90.31 73.34 37.56
+cars7 91.17 90.86 42.92 89.87 69.10 40.35
+cars8 85.93 86.85 87.61 83.84 80.29 62.42
+people1 81.38 81.21 69.59 64.04 80.19 34.25
+people2 94.34 84.74 88.40 89.32 81.40 64.92
+drive 65.95 53.55 61.80 13.68 5.18 2.02
+forest 72.20 91.44 31.44 42.99 23.19 16.76
+parking 83.66 68.97 73.19 11.47 11.02 13.05
+store 86.28 83.44 70.74 10.18 21.42 8.83
+traffic 48.19 31.31 71.24 41.49 24.14 27.49
+Overall 83.66 77.73 65.45 58.23 55.90 40.28
+Table 1: Two-label background subtraction performance
+comparison with the F-score(%) on Hopkins and CBD
+Dataset. Best performance scores are highlighted in bold.
+8.1. Two-label Background Subtraction
+The performance of our framework, represented as
+MLBS (Multi-Layer Background Subtraction), is compared
+to five state-of-the-art algorithms: GBSSP [22], FOF [25],
+OMCBS [9], GBS [20], and BSFMC [31]. GBS requires the
+initialization labels of each frame as additional inputs, and
+GBSSP needs the groundtruth of the first frame as the ini-
+tialization. For fair comparisons, we provide GBS with the
+labeling results of BSFMC, and offer GBSSP the labeling
+result of the first frame generated by our method. Note that
+instead of the requirement of these additional informations,
+our MLBS method completes self-initialization automati-
+cally. Moreover, we use the parameters provided by authors
+in external methods and fixed them for each algorithm in all
+experiments.
+The quantitative comparisons on two dataset are shown
+in Table 1. It can be seen that the proposed method out-
+performs other methods in the literature on most test se-
+quences. Especially in the case where the objects are oc-
+cluded and then separated, such as the cars3 and people2,
+the multilayer strategy boosts the performance with a great
+jump on F-score. This is because our method can accu-
+rately estimate separate motion models for foreground ob-
+jects, instead of only one ambiguous model for the whole
+foreground, and separate appearance models comprehen-
+sively provide the evidence of probabilistic inference. The
+overall F-score of our method is higher than the best score
+of the state-of-the-arts by a noticeable margin (83.66% vs
+77.73%).
+Figure 4: Comparison of our MLBS, and three state-of-the-art algorithms on the sequences cars5, people2 and forest, sepa-
+rated in three blocks. Row1: Groundtruth; Row2: our MLBS; Row3: GBS [20]; Row4: OMCBS [9]; Row5: GBSSP [22].
+For clear demonstration, the background is darkened and the foreground objects are marked in different colors. (Better seen
+in color)
+To evaluate the ability of the proposed method handling
+multiple objects, we categorize the suquences into three sce-
+narios according to the number of moving objects in the
+scene, and report the average F-score on each scenario in
+Table 2. In the single object scenario, our method outper-
+form the second best method by a small margin (84.05% vs
+80.70%). But as the number of objects increases, the mar-
+gin grows (3.4% vs 8.0% vs 8.7%). It clearly demonstrates
+the outstanding capability of our method in complex scenes.
+MLBS GBSSP FOF OMCBS GBS BSFMC
+1 84.05 80.70 59.20 54.22 47.82 31.20
+2 91.14 81.51 83.19 71.48 80.30 62.75
+? 3 74.99 65.05 66.26 57.02 55.72 45.05
+Table 2: Two-label background subtraction performance
+comparison on the videos with different numbers of moving
+objects. Best performance scores are highlighted in bold.
+Qualitative comparisons with three algorithms are illus-
+trated in Figure 4. We pick two representative sequences
+(cars5 and people2), where at least two foreground objects
+appear in the scene, from Hopkins Dataset, and one se-
+quence (forest) from CBD. It is notable that our MLBS
+algorithm separates moving objects and background accu-
+rately when the background scene is complex and the mo-
+tions of objects are not simply in the same direction. For
+instance, in the sequence of people2, two women, who are
+walking in different directions, occluded and then sepa-
+rated, are separated precisely while other methods wrongly
+label the new appearing background region (e.g. the black
+rubbish bin) as foreground.
+8.2. Multilabel Background Subtraction
+We also evaluate the capability to separate different fore-
+ground objects. Since no one, to our best knowledge, has
+done such work before, we have designed a baseline to com-
+pare the performance. Details about baseline are shown in
+the Supplementary Material. Besides, [26] have proposed
+an offline approach (SLT) to tackle video segmentation
+problem based on long-term video analysis, and achieved
+a cutting edge performance. Since this method has no dis-
+crimination of foreground and background, we modify it by
+manually assigning the background label to the best fit seg-
+mented region, and make a comparison with it.
+For quantitative comparison, we design a measurement
+Precision Recall F-Score
+First 10 Frames
+ours 89.79 83.00 85.06
+SLT 90.70 78.94 83.41
+Baseline 61.23 62.32 61.35
+All Frames
+ours 88.60 85.05 86.16
+SLT 89.51 78.24 82.00
+Baseline 63.63 66.22 64.35
+Table 3: Performance comparison of Multi-foreground seg-
+mentation on Hopkins Dataset
+by modifying the metric used in [26]. Let gi denote the fore-
+ground region in the groundtruth, ci the corresponding re-
+gions in the mask generated by algorithms, and |.| the num-
+ber of pixels inside the region. For each foreground region
+in the groundtruth, precision, recall and F-score are defined
+as:
+Pi =
+|ci ? gi|
+|ci|
+Ri =
+|ci ? gi|
+|gi|
+Fi =
+2PiRi
+Pi +Ri
+(12)
+Overall metric is obtained by averaging the measures of
+single regions. And the best one-to-one assignment of gen-
+erated regions to groundtruth regions is found by the Hun-
+garian method [18]. In the case where there exist generated
+regions without the assignment of groundtruth regions, we
+set the precision and recall of such regions to 1 and 0 re-
+spectively. It’s worth mentioning that our revised metric is
+calculated over only foreground regions to keep consistency
+with the binary background subtraction, as the measurement
+values are the same as that of the binary one when there is
+only one foreground object in the scene.
+The performance evaluation is shown in Table 3. We
+have compared the performance of the approaches evalu-
+ated on both all frames and the first ten frames. It can be
+seen that the proposed method outperforms SLT on both
+sets and has a great jump from the baseline. It’s notable
+that the F-score of our method on all frames is higher than
+that on first ten frames due to the nature of online meth-
+ods. Unlike the offline methods that hold the knowledge of
+the whole sequence at the beginning of the sequence pro-
+cess, our online approach has little prior knowledge and
+requires the self-initialization step during the first several
+frames, which surely leads to lower performance due to the
+insufficiency of prior knowledge. But it affects little as the
+sequence becomes longer.
+Qualitative evaluations of our method and SLT are
+demonstrated in Figure 5. Our proposed method can sep-
+arate the objects more accurately while SLT may falsely
+recognize two objects as only one when objects are very
+near and moving in the similar direction (see Block2). Fur-
+thermore, our method could detect new objects immediately
+when they enter the scene (see Block2). With the ability of
+accurate and robust foreground objects detection and seg-
+Figure 5: The Multilabel segmentation performance com-
+parison with SLT on the sequence cars3, cars2 and peo-
+ple2, separated in three blocks. Row1: Groundtruth; Row2:
+MLBS; and Row3: SLT [26]. (Better seen in color)
+mentation, our method produces a proper number of fore-
+ground object regions, which is reflected by the higher re-
+call in Table 3. Additionally, equipped with appearance
+models for each layer, our MLBS method is capable of deal-
+ing with the articulated motion (see Block3) to a certain ex-
+tent.
+tclb mtest mdprop grapcut upmdl Total
+1109 3675 144 1369 559 6856
+Table 4: Average computation time (msec) over different
+stages on a single frame from cars1. The stages are: tra-
+jectory clustering and label propagation (tclb), motion es-
+timation(mtest), model propogation (mdprop), graphCut
+(grapcut) and update model(upmdl).
+Table 4 shows the average computational time per frame.
+Our un-optimized Matlab implementation takes around 7
+seconds per frame with an Intel Xeon-E5 CPU and 16GB
+menory. The computational time is dominated by motion
+estimation and graphcut. Motion estimation is done mainly
+by matrix inversion and multiplication. Since such opera-
+tions can be readily parallelized on the GPU, we believe the
+real-time performance can be achieved by the optimation
+with the GPU and faster multi-thread implementation.
+9. Conclusion
+We propose a novel online multilayer-based framework
+for background subtraction with moving camera. In our
+framework, every foreground object and the background are
+assigned to an independent processing layer. A processing
+block is carefully designed to perform the posterior infer-
+ence using Bayesian Filtering Framework, and Multi-label
+Graph-cut is employed to produce the pixel-wise segmen-
+tation for every video frame based on the normalized prob-
+ability maps. Experiments show that our method performs
+favorably against other state-of-the-art methods, with out-
+standing ability to segment multiple foreground objects.
+References
+[1] D. Bickson. Gaussian belief propagation: Theory and apli-
+cation. CoRR, abs/0811.2518, 2008.
+[2] P. Bideau and E. Learned-Miller. It’s moving! a probabilis-
+tic model for causal motion segmentation in moving camera
+videos. arXiv preprint arXiv:1604.00136, 2016.
+[3] A. B. Chan and N. Vasconcelos. Modeling, clustering, and
+segmenting video with mixtures of dynamic textures. IEEE
+transactions on pattern analysis and machine intelligence,
+30(5):909–926, 2008.
+[4] A. B. Chan and N. Vasconcelos. Layered dynamic textures.
+IEEE Transactions on Pattern Analysis and Machine Intelli-
+gence, 31(10):1862–1879, 2009.
+[5] X. Cui, J. Huang, S. Zhang, and D. N. Metaxas. Background
+subtraction using low rank and group sparsity constraints. In
+Proceedings of the 12th European Conference on Computer
+Vision - Volume Part I, pages 612–625, 2012.
+[6] A. Delong, A. Osokin, H. N. Isack, and Y. Boykov. Fast
+approximate energy minimization with label costs. Interna-
+tional journal of computer vision, 96(1):1–27, 2012.
+[7] A. Elgammal. Background Subtraction: Theory and Prac-
+tice. Morgan & Claypool Publishers, 2014.
+[8] A. Elgammal, R. Duraiswami, D. Harwood, and L. S. Davis.
+Background and foreground modeling using nonparametric
+kernel density estimation for visual surveillance. Proceed-
+ings of the IEEE, 90(7):1151–1163, Jul 2002.
+[9] A. Elqursh and A. Elgammal. Online moving camera back-
+ground subtraction. In European Conference on Computer
+Vision, pages 228–241. Springer, 2012.
+[10] A. Elqursh and A. Elgammal. Online motion segmentation
+using dynamic label propagation. In Proceedings of the IEEE
+International Conference on Computer Vision, pages 2008–
+2015, 2013.
+[11] M. A. Fischler and R. C. Bolles. Random sample consen-
+sus: A paradigm for model fitting with applications to im-
+age analysis and automated cartography. Commun. ACM,
+24(6):381–395, June 1981.
+[12] B. Han and L. S. Davis. Density-based multifeature back-
+ground subtraction with support vector machine. IEEE
+Transactions on Pattern Analysis and Machine Intelligence,
+34(5):1017–1023, May 2012.
+[13] R. I. Hartley and A. Zisserman. Multiple View Geometry
+in Computer Vision. Cambridge University Press, ISBN:
+0521540518, second edition, 2004.
+[14] E. Hayman and J.-O. Eklundh. Statistical background sub-
+traction for a mobile observer. In Computer Vision, 2003.
+Proceedings. Ninth IEEE International Conference on, pages
+67–74. IEEE, 2003.
+[15] Y. Jin, L. Tao, H. Di, N. I. Rao, and G. Xu. Background mod-
+eling from a free-moving camera by multi-layer homography
+algorithm. In 2008 15th IEEE International Conference on
+Image Processing, pages 1572–1575. IEEE, 2008.
+[16] K. Kim, D. Harwood, and L. S. Davis. Background updat-
+ing for visual surveillance. In International Symposium on
+Visual Computing, pages 337–346. Springer, 2005.
+[17] V. Kolmogorov and R. Zabin. What energy functions can
+be minimized via graph cuts? IEEE Transactions on Pat-
+tern Analysis and Machine Intelligence, 26(2):147–159, Feb
+2004.
+[18] H. W. Kuhn. The hungarian method for the assignment prob-
+lem. Naval research logistics quarterly, 2(1-2):83–97, 1955.
+[19] M. P. Kumar, P. H. Torr, and A. Zisserman. Learning lay-
+ered motion segmentations of video. International Journal
+of Computer Vision, 76(3):301–319, 2008.
+[20] S. Kwak, T. Lim, W. Nam, B. Han, and J. H. Han. Gen-
+eralized background subtraction based on hybrid inference
+by belief propagation and bayesian filtering. In 2011 Inter-
+national Conference on Computer Vision, pages 2174–2181,
+2011.
+[21] D.-S. Lee. Effective gaussian mixture learning for video
+background subtraction. IEEE Transactions on Pattern Anal-
+ysis and Machine Intelligence, 27(5):827–832, May 2005.
+[22] J. Lim and B. Han. Generalized background subtraction us-
+ing superpixels with label integrated motion estimation. In
+European Conference on Computer Vision, pages 173–187.
+Springer, 2014.
+[23] A. Mittal and D. Huttenlocher. Scene modeling for wide area
+surveillance and image synthesis. In Computer Vision and
+Pattern Recognition, 2000. Proceedings. IEEE Conference
+on, volume 2, pages 160–167 vol.2, 2000.
+[24] A. Mumtaz, W. Zhang, and A. B. Chan. Joint motion seg-
+mentation and background estimation in dynamic scenes. In
+Proceedings of the IEEE Conference on Computer Vision
+and Pattern Recognition, pages 368–375, 2014.
+[25] M. Narayana, A. Hanson, and E. Learned-Miller. Coherent
+motion segmentation in moving camera videos using optical
+flow orientations. In Proceedings of the IEEE International
+Conference on Computer Vision, pages 1577–1584, 2013.
+[26] P. Ochs, J. Malik, and T. Brox. Segmentation of moving ob-
+jects by long term video analysis. IEEE Transactions on Pat-
+tern Analysis and Machine Intelligence, 36(6):1187–1200,
+June 2014.
+[27] K. Patwardhan, G. Sapiro, and V. Morellas. Robust
+foreground detection in video using pixel layers. IEEE
+Transactions on Pattern Analysis and Machine Intelligence,
+30(4):746–751, 2008.
+[28] X. Ren, T. X. Han, and Z. He. Ensemble video object cut
+in highly dynamic scenes. In Computer Vision and Pat-
+tern Recognition (CVPR), 2013 IEEE Conference on, pages
+1947–1954, June 2013.
+[29] Y. Ren, C.-S. Chua, and Y.-K. Ho. Statistical background
+modeling for non-stationary camera. Pattern Recognition
+Letters, 24(1):183–196, 2003.
+[30] S. Rowe and A. Blake. Statistical mosaics for tracking. Im-
+age and Vision Computing, 14(8):549–564, 1996.
+[31] Y. Sheikh, O. Javed, and T. Kanade. Background subtrac-
+tion for freely moving cameras. In 2009 IEEE 12th Inter-
+national Conference on Computer Vision, pages 1219–1225,
+Sept 2009.
+[32] Y. Sheikh and M. Shah. Bayesian modeling of dynamic
+scenes for object detection. IEEE Transactions on Pattern
+Analysis and Machine Intelligence, 27(11):1778–1792, Nov
+2005.
+[33] J. Shi and J. Malik. Normalized cuts and image segmenta-
+tion. IEEE Transactions on pattern analysis and machine
+intelligence, 22(8):888–905, 2000.
+[34] C. Stauffer and W. E. L. Grimson. Adaptive background mix-
+ture models for real-time tracking. In Computer Vision and
+Pattern Recognition, 1999. IEEE Computer Society Confer-
+ence on., volume 2. IEEE, 1999.
+[35] N. Sundaram, T. Brox, and K. Keutzer. Dense point trajec-
+tories by gpu-accelerated large displacement optical flow. In
+European conference on computer vision, pages 438–451.
+Springer, 2010.
+[36] P. Torr and A. Zisserman. Mlesac. Comput. Vis. Image Un-
+derst., 78(1):138–156, Apr. 2000.
+[37] P. H. Torr, R. Szeliski, and P. Anandan. An integrated
+bayesian approach to layer extraction from image sequences.
+IEEE Transactions on Pattern Analysis and Machine Intelli-
+gence, 23(3):297–303, 2001.
+[38] R. Tron and R. Vidal. A benchmark for the comparison of
+3-d motion segmentation algorithms. In 2007 IEEE Con-
+ference on Computer Vision and Pattern Recognition, pages
+1–8, June 2007.
+[39] J. Y. Wang and E. H. Adelson. Representing moving im-
+ages with layers. IEEE Transactions on Image Processing,
+3(5):625–638, 1994.
+[40] J. Yan and M. Pollefeys. A general framework for motion
+segmentation: Independent, articulated, rigid, non-rigid, de-
+generate and non-degenerate. In European conference on
+computer vision, pages 94–106. Springer, 2006.
+[41] D. Zamalieva, A. Yilmaz, and J. W. Davis. A multi-
+transformational model for background subtraction with
+moving cameras. In European Conference on Computer Vi-
+sion, pages 803–817. Springer, 2014.
+[42] X. Zhu, Z. Ghahramani, and J. Lafferty. Semi-supervised
+learning using gaussian fields and harmonic functions. In IN
+ICML, pages 912–919, 2003.
+[43] X. Zhu, Z. Ghahramani, J. Lafferty, et al. Semi-supervised
+learning using gaussian fields and harmonic functions.

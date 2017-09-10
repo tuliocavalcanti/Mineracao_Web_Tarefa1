@@ -1,0 +1,2129 @@
+Inhomogeneous Hypergraph Clustering with
+Applications
+Pan Li
+Department ECE
+UIUC
+panli2@illinois.edu
+Olgica Milenkovic
+Department ECE
+UIUC
+milenkov@illinois.edu
+Abstract
+Hypergraph partitioning is an important problem in machine learning, computer
+vision and network analytics. A widely used method for hypergraph partitioning
+relies on minimizing a normalized sum of the costs of partitioning hyperedges
+across clusters. Algorithmic solutions based on this approach assume that different
+partitions of a hyperedge incur the same cost. However, this assumption fails
+to leverage the fact that different subsets of vertices within the same hyperedge
+may have different structural importance. We hence propose a new hypergraph
+clustering technique, termed inhomogeneous hypergraph partitioning, which as-
+signs different costs to different hyperedge cuts. We prove that inhomogeneous
+partitioning produces a quadratic approximation to the optimal solution if the
+inhomogeneous costs satisfy submodularity constraints. Moreover, we demonstrate
+that inhomogenous partitioning offers significant performance improvements in
+applications such as structure learning of rankings, subspace segmentation and
+motif clustering.
+1 Introduction
+Graph partitioning or clustering is a ubiquitous learning task that has found many applications in
+statistics, data mining, social science and signal processing [1, 2]. In most settings, clustering is
+formally cast as an optimization problem that involves entities with different pairwise similarities
+and aims to maximize the total “similarity” of elements within clusters [3, 4, 5], or simultaneously
+maximize the total similarity within cluster and dissimilarity between clusters [6, 7, 8]. Graph
+partitioning may be performed in an agnostic setting, where part of the optimization problem is to
+automatically learn the number of clusters [6, 7].
+Although similarity among entities in a class may be captured via pairwise relations, in many real-
+world problems it is necessary to capture joint, higher-order relations between subsets of objects. From
+a graph-theoretic point of view, these higher-order relations may be described via hypergraphs, where
+objects correspond to vertices and higher-order relations among objects correspond to hyperedges.
+The vertex clustering problem aims to minimize the similarity across clusters and is referred to as
+hypergraph partitioning. Hypergraph partitioning has found a wide range of applications in network
+motif clustering, subspace clustering and image segmentation. [8, 9, 10, 11, 12].
+Classical hypergraph partitioning approaches share the same setup: A nonnegative weight is assigned
+to every hyperedge and if the vertices in the hyperedge are placed across clusters, a cost proportional
+to the weight is charged to the objective function [13]. We refer to this clustering procedure as
+homogenous hyperedge clustering and refer to the corresponding partition as a homogeneous partition
+(H-partition). Clearly, this type of approach prohibits the use of information regarding how different
+vertices or subsets of vertices belonging to a hyperedge contribute to the higher-order relation. A
+more appropriate formulation entails charging different costs to different cuts of the hyperedges,
+thereby endowing hyperedges with vector weights capturing these costs. To illustrate the point,
+To appear in 31st Conference on Neural Information Processing Systems (NIPS 2017), Long Beach, CA, USA.
+ar
+X
+iv
+:1
+70
+9.
+01
+24
+9v
+2 
+ [
+cs
+.A
+I]
+  6
+ S
+ep
+ 2
+01
+7
+c(M3) M3(Product)
+M1(Reactant) M2(Reactant)
+c(M1) c(M2)
+1
+2
+3
+4
+5
+6
+7
+8
+9
+H-­?partition
+InH-­?partition
+10
+Graph	  partition
+Figure 1: Clusters obtained using homogenous and inhomogeneous hypergraph partitioning and
+graph partitioning (based on pairwise relations). Left: Each reaction is represented by a hyperedge.
+Three different cuts of a hyperedge are denoted by c(M3), c(M1), and c(M2), based on which vertex
+is “isolated” by the cut. The graph partition only takes into account pairwise relations between
+reactants, corresponding to w(c(M3)) = 0. The homogenous partition enforces the three cuts to
+have the same weight, w(c(M3)) = w(c(M1)) = w(c(M2)), while an inhomogenous partition is
+not required to satisfy this constraint. Right: Three different clustering results based on optimally
+normalized cuts for a graph partition, a homogenous partition (H-partition) and an inhomogenous
+partition (InH-partition) with 0.01w(c(M1)) ? w(c(M3)) ? 0.44w(c(M1)).
+consider the example of metabolic networks [14]. In these networks, vertices describe metabolites
+while edges describe transformative, catalytic or binding relations. Metabolic reactions are usually
+described via equations that involve more than two metabolites, such as M1 + M2 ? M3. Here,
+both metabolites M1 and M2 need to be present in order to complete the reaction that leads to
+the creation of the product M3. The three metabolites play different roles: M1,M2 are reactants,
+while M3 is the product metabolite. A synthetic metabolic network involving reactions with three
+reagents as described above is depicted in Figure 1, along with three different partitions induced by a
+homogeneous, inhomogeneous and classical graph cut. As may be seen, the hypergraph cuts differ in
+terms of how they split or group pairs of reagents. The inhomogeneous clustering preserves all but
+on pairing, while the homogenous clustering splits two pairings. The graph partition captures only
+pairwise relations between reactants and hence, the optimal normalized cut over the graph splits six
+reaction triples. The differences between inhomogenous, homogenous, and pairwise-relation based
+cuts are even more evident for large graphs and they may lead to significantly different partitioning
+performance in a number of important partitioning applications.
+The problem of inhomogeneous hypergraph clustering has not been previously studied in the literature.
+The main results of the paper are efficient algorithms for inhomogenous hypergraph partitioning
+with theoretical performance guarantees and extensive testing of inhomogeneous partitioning in
+applications such as hierarchical biological network studies, structure learning of rankings and sub-
+space clustering (All proofs and discussions of some applications are relegated to the Supplementary
+Material). The algorithmic methods are based on transforming hypergraphs into graphs and subse-
+quently performing spectral clustering based on the normalized Laplacian of the derived graph. A
+similar approach for homogenous clustering has been used under the name of Clique Expansion [11].
+However, the projection procedure, which is the key step of Clique Expansion, differs significantly
+from the projection procedure used in our work, as the inhomogenous clustering algorithm allows
+non-uniform expansion of one hyperedge while Clique Expansion only allows for uniform expan-
+sions. A straightforward analysis reveals that the normalized hypergraph cut problem [13] and the
+normalized Laplacian homogeneous hypergraph clustering algorithms [10, 13] are special cases
+of our proposed algorithm, where the costs assigned to the hyperedges take a very special form.
+Furthermore, we show that when the costs of the proposed inhomogeneous hyperedge clustering
+are submodular, the projection procedure is guaranteed to find a constant-approximation solutions
+for several graph-cut related entities. Hence, the inhomogeneous clustering procedure has the same
+quadratic approximation properties as spectral graph clustering [15].
+2 Preliminaries and Problem Formulation
+A hypergraph H = (V,E) is described in terms of a vertex set V = {v1, v2, ..., vn} and a set of
+hyperedges E. A hyperedge e ? E is a subset of vertices in V . For an arbitrary set S, we let |S|
+stand for the cardinality of the set, and use ?(e) = |e| to denote the size of a hyperedge. If for all
+e ? E, ?(e) equals a constant ?, the hypergraph is called a ?-uniform hypergraph.
+Let 2e denote the power set of e. An inhomogeneous hyperedge (InH-hyperedge) is a hyperedge
+with an associated weight function we : 2e ? R?0. The weight we(S) indicates the cost of
+cutting/partitioning the hyperedge e into two subsets, S and e/S. A consistent weight we(S) satisfies
+2
+the following properties: we(?) = 0 and we(S) = we(e/S). The definition also allows we(·) to
+be enforced only for a subset of 2e. However, for singleton sets S = {v} ? e, we({v}) has to be
+specified. The degree of a vertex v is defined as dv =
+?
+e: v?e we({v}), while the volume of a subset
+of vertices S ? V is defined as
+volH(S) =
+?
+v?S
+dv. (1)
+Let (S, S?) be a partition of the vertices V . Define the hyperedge boundary of S as ?S = {e ?
+E|e ? S 6= ?, e ? S? 6= ?} and the corresponding set volume as
+volH(?S) =
+?
+e??S
+we(e ? S) =
+?
+e?E
+we(e ? S), (2)
+where the second equality holds since we(?) = we(e) = 0. The task of interest is to minimize the
+normalized cut NCut of the hypergraph with InH-hyperedges, i.e., to solve the following optimization
+problem
+arg min
+S
+NCutH(S) = arg min
+S
+volH(?S)
+(
+1
+volH(S)
++
+1
+volH(S?)
+)
+. (3)
+One may also extend the notion of InH hypergraph partitioning to k-way InH-partition. For this pur-
+pose, we let (S1, S2, ..., Sk) be a k-way partition of the vertices V , and define the k-way normalized
+cut for inH-partition according to
+NCutH(S1, S2, ..., Sk) =
+k?
+i=1
+volH(?Si)
+volH(Si)
+. (4)
+Similarly, the goal of a k-way inH-partition is to minimize NCutH(S1, S2, ..., Sk). Note that if
+?(e) = 2 for all e ? E, the above definitions are consistent with those used for graphs [16].
+3 Inhomogeneous Hypergraph Clustering Algorithms
+Motivated by the homogeneous clustering approach of [11], we propose an inhomogeneous clustering
+algorithm that uses three steps: 1) Projecting each InH-hyperedge onto a subgraph; 2) Merging
+the subgraphs into a graph; 3) Performing classical spectral clustering based on the normalized
+Laplacian (described in the Supplementary Material, along with the complexity of all algorithmic
+steps). The novelty of our approach is in introducing the inhomogenous clustering constraints via the
+projection step, and stating an optimization problem that provides the provably best weight splitting
+for projections. All our theoretical results are stated for the NCut problem, but the proposed methods
+may be used as heuristics for k-way NCuts.
+Suppose that we are given a hypergraph with inhomogeneous hyperedge weights, H = (V,E,w).
+For each InH-hyperedge (e, we), we aim to find a complete subgraph Ge = (V (e), E(e), w(e))
+that “best” represents this InH-hyperedge; here, V (e) = e, E(e) = {{v, v?}|v, v? ? e, v 6= v?}, and
+w(e) : E(e) ? R denotes the hyperedge weight vector. The goal is to find the graph edge weights
+that provide the best approximation to the split hyperedge weight according to:
+min
+w(e)
+?(e) s.t. we(S) ?
+?
+v?S,v??e/S
+w
+(e)
+vv? ? ?(e) we(S), for all S ? 2e s.t. we(S) is defined. (5)
+Upon solving for the weights w(e), we construct a graph G = (V,Eo, w), where V are the vertices of
+the hypergraph, Eo is the complete set of edges, and where the weights wvv?, are computed via
+wvv? ,
+?
+e?E
+w
+(e)
+vv? , ?{v, v?} ? Eo. (6)
+This step represents the projection weight merging procedure, which simply reduces to the sum of
+weights of all hyperedge projections on a pair of vertices. Due to the linearity of the volumes (1) and
+boundaries (2) of sets S of vertices, for any S ? V , we have
+VolH(?S) ? VolG(?S) ? ??VolH(?S), VolH(S) ? VolG(S) ? ??VolH(S), (7)
+where ?? = maxe?E ?(e). Applying spectral clustering on G = (V,Eo, w) produces the desired
+partition (S?, S??). The next result is a consequence of combining the bounds of (7) with the
+approximation guarantees of spectral graph clustering (Theorem 1 [15]).
+3
+Theorem 3.1. If the optimization problem (5) is feasible for all InH-hyperedges and the weights
+wvv? obtained from (6) are nonnegative for all {v, v?} ? Eo, then ?? = NCutH(S?) satisfies
+(??)3?H ?
+(??)2
+8
+? ?
+2
+H
+8
+. (8)
+where ?H is the optimal value of normalized cut of the hypergraphH.
+There are no guarantees that the wvv? will be nonnegative: The optimization problem (5) may result
+in solutions w(e) that are negative. The performance of spectral methods in the presence of negative
+edge weights is not well understood [17, 18]; hence, it would be desirable to have the weights
+wvv? generated from (6) be nonnegative. Unfortunately, imposing nonngativity constraints in the
+optimization problem may render it infeasible. In practice, one may use (wvv?)+ = max{wvv?, 0} to
+remove negative weights (other choices, such as (wvv?)+ =
+?
+e(w
+(e)
+vv? )+ do not appear to perform
+well). This change invalidates the theoretical result of Theorem 3.1, but provides solutions with very
+good empirical performance. The issues discussed are illustrated by the next example.
+Example 3.1. Let e = {1, 2, 3}, (we({1}), we({2}), we({3})) = (0, 0, 1). The solution to the
+weight optimization problem is (?(e), w(e)12 , w
+(e)
+13 , w
+(e)
+23 ) = (1,?1/2, 1/2, 1/2). If all components
+w(e) are constrained to be nonnegative, the optimization problem is infeasible. Nevertheless, the above
+choice of weights is very unlikely to be encountered in practice, as we({1}), we({2}) = 0 indicates
+that vertices 1 and 2 have no relevant connections within the given hyperedge e, while we({3}) = 1
+indicates that vertex 3 is strongly connected to 1 and 2, which is a contradiction. Let us assume
+next that the negative weight is set to zero. Then, we adjust the weights ((w(e)12 )+, w
+(e)
+13 , w
+(e)
+23 ) =
+(0, 1/2, 1/2), which produce clusterings ((1,3)(2)) or ((2,3)(1)); both have zero costs based on we.
+Another problem is that arbitrary choices for we may cause the optimization problem to be infeasi-
+ble (5) even if negative weights of w(e) are allowed, as illustrated by the following example.
+Example 3.2. Let e = {1, 2, 3, 4}, with we({1, 4}) = we({2, 3}) = 1 and we(S) = 0 for all other
+choices of sets S. To force the weights to zero, we require w(e)vv? = 0 for all pairs vv?, which fails to
+work for we({1, 4}), we({2, 3}). For a hyperedge e, the degrees of freedom for we are 2?(e)?1 ? 1,
+as two values of we are fixed, while the other values are paired up by symmetry. When ?(e) > 3, we
+have
+(
+?(e)
+2
+)
+< 2?(e)?1 ? 1, which indicates that the problem is overdetermined/infeasible.
+In what follows, we provide sufficient conditions for the optimization problem to have a feasible
+solution with nonnegative values of the weights w(e). Also, we provide conditions for the weights
+we that result in a small constant ?? and hence allow for quadratic approximations of the optimum
+solution. Our results depend on the availability of information about the weights we: In practice, the
+weights have to be inferred from observable data, which may not suffice to determine more than the
+weight of singletons or pairs of elements.
+Only the values of we({v}) are known. In this setting, we are only given information about how
+much each node contributes to a higher-order relation, i.e., we are only given the values of we({v}),
+v ? V . Hence, we have ?(e) costs (equations) and ?(e) ? 2 variables, which makes the problem
+underdetermined and easy to solve. The optimal ?e = 1 is attained by setting for all edges {v, v?}
+w
+(e)
+vv? =
+1
+?(e)? 2 [we({v}) + we({v?})]?
+1
+(?(e)? 1)(?(e)? 2)
+?
+v??e
+we({v?}). (9)
+The components of we(·) with positive coefficients in (3) are precisely those associated with the
+endpoints of edges vv?. Using simple algebraic manipulations, one can derive the conditions under
+which the values w(e)vv? are nonnegative, and these are presented in the Supplementary Material.
+The solution to (9) produces a perfect projection with ?(e) = 1. Unfortunately, one cannot guarantee
+that the solution is nonnegative. Hence, the question of interest is to determine for what types of
+cuts can one can deviate from a perfect projection but ensure that the weights are nonnegative. The
+proposed approach is to set the unspecified values of we(·) so that the weight function becomes
+submodular, which guarantees nonnegative weights wevv? that can constantly approximate we(·),
+although with a larger approximation constant ?.
+Submodular weights we(S). As previously discussed, when ?(e) > 3, the optimization problem (5)
+may not have any feasible solutions for arbitrary choices of weights. However, we show next that if
+4
+the weights we are submodular, then (5) always has a nonnegative solution. We start by recalling the
+definition of a submodular function.
+Definition 3.2. A function we : 2e ? R?0 that satisfies
+we(S1) + we(S2) ? we(S1 ? S2) + we(S1 ? S2) for all S1, S2 ? 2e,
+is termed submodular.
+Theorem 3.3. If we is submodular, then
+w
+?(e)
+vv? =
+?
+S?2e/{?,e}
+[
+we(S)
+2|S|(?(e)? |S|)1|{v,v?}?S|=1 (10)
+? we(S)
+2(|S|+ 1)(?(e)? |S| ? 1)1|{v,v?}?S|=0 ?
+we(S)
+2(|S| ? 1)(?(e)? |S|+ 1)1|{v,v?}?S|=2
+]
+is nonnegative. For 2 ? ?(e) ? 7, the function above is a feasible solution for the optimization
+problem (5) with parameters ?(e) listed in Table 1.
+Table 1: Feasible values of ?(e) for ?(e)
+|?(e)| 2 3 4 5 6 7
+? 1 1 3/2 2 4 6
+Theorem 3.3 also holds when some weights within we are not specified, but may be completed to
+satisfy submodularity constraints (See Example 3.3). Also, (10) lead to an optimal approximation
+ratio ?(e) if we restrict w(e) to be a linear mapping of we, which is formally stated next.
+Theorem 3.4. Suppose that for all pairs of {v, v?} ? Eo, w(e)vv? is a linear function of we, denoted by
+w
+(e)
+vv? = fvv?(we), where {fvv?}{vv??E(e)} depends on ?(e) but not on we. Then, when ?(e) ? 7, the
+optimal values of ? for the following optimization problem depend only on ?(e), and are equal to
+those listed in Table 1.
+min
+{fvv?}{v,v?}?Eo
+max
+submodular we
+? (11)
+s.t. we(S) ?
+?
+v?S,v??e/S
+fvv?(we) ? ?we(S), for all S ? 2e.
+Remark 3.1. Although we were able to prove feasibility (Theorem 3.3) and optimality of linear
+solutions (Theorem 3.4) only for small values of ?(e), we conjecture the results to be true for all ?(e).
+Example 3.3. Let e = {1, 2, 3, 4}, (we({1}), we({2}), we({3}), we({4})) = (1/3, 1/3, 1, 1). Solv-
+ing (9) yields w(e)12 = ?1/9 and ?(e) = 1. By completing the missing components in we as
+(we({1, 2}), we({1, 3}), we({1, 4})) = (2/3, 1, 1) leads to submodular weights (Observe that com-
+pletions are not necessarily unique). Then, the solution of (10) gives w(e)12 = 0 and ?
+(e) ? (1, 2/3],
+which is clearly larger than one.
+4 Related Work and Discussion
+One contribution of our work is to introduce the notion of an inhomogenous partition of hyperedges
+and a new hypergraph projection method that accompanies the procedure. Subsequent edge weight
+merging and spectral clustering are standardly used in hypergraph clustering algorithms, and in
+particular in Zhou’s normalized hypergraph cut approach [13], Clique Expansion, Star Expansion and
+Clique Averaging [11]. The formulation closest to ours is Zhou’s method [13]. In the aforementioned
+hypergraph clustering method for H-hyperedges, each hyperedge e is assigned a scalar weight wHe .
+For the projection step, Zhou used wHe /?(e) for the weight of each pair of endpoints of e. If we
+view the H-hyperedge as an InH-hyperedge with weight function we, where we(S) = wHe |S|(?(e)?
+|S|)/?(e) for all S ? 2e, then our definition of the volume/cost of the boundary (2) is identical to
+that of Zhou’s. With this choice of we, the optimization problem (5) outputs w
+(e)
+vv? = w
+H
+e /?(e), with
+?(e) = 1, which are the same values as those obtained via Zhou’s projection. The degree of a vertex
+5
+in [13] is defined as dv =
+?
+e?E h(e, v)w
+H
+e =
+?
+e?E
+?(e)
+?(e)?1we({v}), which is a weighted sum of
+the we({v}) and thus takes a slightly different form when compared to our definition. As a matter of
+fact, for uniform hypergraphs, the two forms are same. Some other hypergraph clustering algorithms,
+such as Clique expansion and Star expansion, as shown by Agarwal et al. [19], represent special cases
+of our method for uniform hypergraphs as well.
+The Clique Averaging method differs substantially from all the aforedescribed methods. Instead
+of projecting each hyperedge onto a subgraph and then combining the subgraphs into a graph, the
+algorithm performs a one-shot projection of the whole hypergraph onto a graph. The projection
+is based on a `2-minimization rule, which may not allow for constant-approximation solutions. It
+is unknown if the result of the procedure can provide a quadratic approximation for the optimum
+solution. Clique Averaging also has practical implementation problems and high computational
+complexity, as it is necessary to solve a linear regression with n2 variable and n?(e) observations.
+In the recent work on network motif clustering [10], the hyperedges are deduced from a graph where
+they represent so called motifs. Benson et. al [10] proved that if the motifs have three vertices,
+resulting in a three-uniform hypergraph, their proposed algorithm satisfies the Cheeger inequality for
+motifs1. In the described formulation, when cutting a H-hyperedge with weight wHe , one is required to
+pay wHe . Hence, recasting this model within our setting, we arrive at inhomogenous weights we(S) =
+wHe , for all S ? 2e, for which (5) yields w(e)vv? = wHe /(?(e) ? 1) and ?(e) = b ?
+2(e)
+4 c/(?(e) ? 1),
+identical to the solution of [10]. Furthermore, given the result of our Theorem 3.1, one can prove that
+the algorithm of [10] offers a quadratic-factor approximation for motifs involving more than three
+vertices, a fact that was not established in the original work [10].
+5 Applications
+Network motif clustering. Real-world networks exhibit rich higher-order connectivity patterns
+frequently referred to as network motifs [20]. Motifs are special subgraphs of the graph and may be
+viewed as hyperedges of a hypergraph over the same set of vertices. Recent work has shown that
+hypergraph clustering based on motifs may be used to learn hidden high-order organization patterns
+in networks [10, 8, 21]. However, this approach treats all vertices and edges within the motifs in the
+same manner, and hence ignores the fact that each structural unit within the motif may have a different
+relevance or different role. As a result, the vertices of the motifs are partitioned with a uniform
+cost. However, this assumption is hardly realistic as in many real networks, only some vertices of
+higher-order structures may need to be clustered together. Hence, inhomogenous hyperedges are
+expected to elucidate more subtle high-order organizations of network. We illustrate the utility of
+InH-partition on the Florida Bay foodweb [22] and compare our findings to those of [10].
+The Florida Bay foodweb comprises 128 vertices corresponding to different species or organisms
+that live in the Bay, and 2106 directed edges indicating carbon exchange between two species. The
+Foodweb essentially represents a layered flow network, as carbon flows from so called producers
+organisms to high-level predators. Each layer of the network consists of “similar” species that play
+the same role in the food chain. Clustering of the species may be performed by leveraging the
+layered structure of the interactions. As a network motif, we use a subgraph of four species, and
+correspondingly, four vertices denoted by vi, for i = 1, 2, 3, 4. The motif captures, among others,
+relations between two producers and two consumers: The producers v1 and v2 both transmit carbons
+to v3 and v4, and all types of carbon flow between v1 and v2, v3 and v4 are allowed (see Figure 2
+Left). Such a motif is the smallest structural unit that captures the fact that carbon exchange occurs in
+uni-direction between layers, while is allowed freely within layers. The inhomogeneous hyperedge
+costs are assigned according to the following heuristics: First, as v1 and v2 share two common
+carbon recipients (predators) while v3 and v4 share two common carbon sources (preys), we set
+we({vi}) = 1 for i = 1, 2, 3, 4, and we({v1, v2}) = 0, we({v1, v3}) = 2, and we({v1, v4}) = 2.
+Based on the solution of the optimization problem (5), one can construct a weighted subgraph whose
+costs of cuts match the inhomogeneous costs, with ?(e) = 1. The graph is depicted in Figure 2 (left).
+Our approach is to perform hierarchical clustering via iterative application of the InH-partition
+method. In each iteration, we construct a hypergraph by replacing the chosen motif subnetwork by an
+hyperedge. The result is shown in Figure 2. At the first level, we partitioned the species into three
+1The Cheeger inequality [15] arises in the context of minimizing the conductance of a graph, which is related
+to the normalized cut.
+6
+Primary consumers
+Secondary consumers
+Producers Invertebrates Forage fishes Predatory fishes & Birds Top-­?level Predators
+v1
+v2
+v3
+v4
+1
+0
+0
+0
+0
+1
+v1
+v2
+v3
+v4
+ProjectionMotif:
+Microfauna Pelagic fishes
+Crabs&
+Benthic fishes Macroinvertebrates
+Motif
+(Benson’16):
+Projection
+Figure 2: Motif clustering in the Florida Bay food web. Left: InHomogenous case. Left-top: Hy-
+peredge (network motif) & the weighted induced subgraph; Left-bottom: Hierarchical clustering
+structure and five clusters via InH-partition. The vertices belonging to different clusters are distin-
+guished by the colors of vertices. Edges with a uni-direction (right to left) are colored black while
+other edges are kept blue. Right: Homogenous partitioning [10] with four clusters. Grey vertices are
+not connected by motifs and thus unclassified.
+clusters corresponding to producers, primary consumers and secondary consumers. The producer
+cluster is homogeneous in so far that it contains only producers, a total of nine of them. At the second
+level, we partitioned the obtained primary-consumer cluster into two clusters, one of which almost
+exclusively comprises invertebrates (28 out of 35), while the other almost exclusively comprises
+forage fishes. The secondary-consumer cluster is partitioned into two clusters, one of which comprises
+top-level predators, while the other cluster mostly consists of predatory fishes and birds. Overall,
+we recovered five clusters that fit five layers ranging from producers to top-level consumers. It is
+easy to check that the producer, invertebrate and top-level predator clusters exhibit high functional
+similarity of species (> 80%). An exact functional classification of forage and predatory fishes is not
+known, but our layered network appears to capture an overwhelmingly large number of prey-predator
+relations among these species. Among the 1714 edges, obtained after removing isolated vertices and
+detritus species vertices, only five edges point in the opposite direction from a higher to a lower-level
+cluster, two of which go from predatory fishes to forage fishes. Detailed information about the species
+and clusters is provided in the Supplementary Material.
+In comparison, the related work of Benson et al. [10] which used homogenous hypergraph clustering
+and triangular motifs reported a very different clustering structure. The corresponding clusters
+covered less than half of the species (62 out of 128) as many vertices were not connected by the
+triangle motif; in contrast, 127 out of 128 vertices were covered by our choice of motif. We attribute
+the shortcomings of the approach in [10] to a) the choice of the triangle network motif, which fails
+to connect all vertices unlike our “fan” motif that connects many vertices and promotes layered
+structures; b) the lack of inhomogeneous weights, as homogeneous weights produce only a giant
+cluster. Another orthogonal line of work used topological sorting to rank species based on their
+carbon flows [23]. Topological sorting cannot use biological side information and hence fails to
+automatically determine the boundaries of the clusters.
+Learning the Riffled Independence Structure of Ranking Data. Learning probabilistic models
+for ranking data has attracted significant interest in social and political sciences as well as in machine
+learning [24, 25]. Recently, a probabilistic model, termed the riffled-independence model, was shown
+to accurately describe many benchmark ranked datasets [26]. In the riffled independence model, one
+first generates two rankings over two disjoint sets of element independently, and then riffle shuffles
+the rankings to arrive at an interleaved order. The structure learning problem in this setting reduces to
+distinguishing the two categories of elements based on limited ranking data. More precisely, let Q
+be the set of candidates to be ranked, with |Q| = n. A full ranking is a bijection ? : Q? [n], and
+for an a ? Q, ?(a) denotes the position of candidate a in the ranking ?. We use ?(a) < (>)?(b)
+to indicate that a is ranked higher (lower) than b in ?. If S ? Q, we use ?S : S ? [|S|] to denote
+the ranking ? projected onto the set S. We also use S(?) , {?(a)|a ? S} to denote the subset of
+positions of elements in S. Let P(E) denote the probability of the event E. Riffled independence
+asserts that there exists a riffled-independent set S ? Q, such that for a fixed ranking ?? over [n],
+P(? = ??) = P(?S = ??S)P(?Q/S = ??Q/S)P(S(?) = S(?
+?)).
+Suppose that we are given a set of rankings ? = {?(1), ?(2), ..., ?(m)} drawn independently according
+to some probability distribution P. If P has a riffled-independent set S?, the structure learning problem
+7
+Party Candidates
+Fianna Fáil 1,4,13
+Fine Gael 2,5,6
+Independent 3,7,8,9
+Others 10, 11,12,14
+{1,2,3,4,5,6,7,8,9,10,11,12,13,14}
+{1,4,13}
+{2,3,5,6,7,8,9,10,11,12,14}
+{2,5,6}
+{3,7,8,9,10,11,12,14}
+{7,8,9}
+{3,10,11,12,14}
+...
+...
+...
+Fianna Fa?il
+Fine Gael
+Independent
+10
+1
+10
+2
+10
+3
+Sample Complexity m
+0
+0.2
+0.4
+0.6
+0.8
+1
+S
+u
+c
+c
+e
+s
+s
+ R
+a
+te
+0 0.2 0.4 0.6 0.8 1
+Triple-Sampling Probability r
+0
+0.2
+0.4
+0.6
+0.8
+1
+S
+u
+c
+c
+e
+s
+s
+ R
+a
+te
+InH-Par-F.F.
+InH-Par-F.G.
+InH-Par-Ind.
+InH-Par-All
+Apar-F.F.
+Apar-F.G.
+Apar-Ind.
+Apar-All
+Figure 3: Election dataset. Left-top: parties and candidates; Left-bottom: hierarchical partitioning
+structure of Irish election detected by InH-Par; Middle: Success rate vs Sample Complexity; Right:
+Success rate vs Triple-sampling Rate.
+is to find S?. In [26], the described problem was cast as an optimization problem over all possible
+subsets of Q, with the objective of minimizing the Kullback-Leibler divergence between the ranking
+distribution with riffled independence and the empirical distribution of ? [26]. A simplified version
+of the optimization problem reads as
+arg min
+S?Q
+F(S) ,
+?
+(i,j,k)??cross
+S,S?
+Ii;j,k +
+?
+(i,j,k)??cross
+S?,S
+Ii;j,k, (12)
+where ?crossA,B , {(i, j, k)|i ? A, j, k ? B}, and where Ii;j,k denotes the estimated mutual informa-
+tion between the position of the candidate i and two “comparison candidates” j, k. If 1?(j)<?(k)
+indicates the indicator function of the underlying event, we may write
+Ii;j,k , I?(?(i); 1?(j)<?(k)) =
+?
+?(i)
+?
+1?(j)<?(k)
+P?(?(i), 1?(j)<?(k)) log
+P?(?(i), 1?(j)<?(k))
+P?(?(i))P(1?(j)<?(k))
+, (13)
+where P? denotes an estimate of the underlying probability. If i and j, k are in different riffled-
+independent sets, the estimated mutual information I?(?(i); 1?(j)<?(k)) converges to zero as the
+number of samples increases.
+One may recast the above problem as an InH-partition problem over a hypergraph where each
+candidate represents a vertex in the hypergraph, and Ii;j,k represents the inhomogeneous cost we({i})
+for the hyperedge e = {i, j, k}; the optimization problem reduces to minS volH(?S). The two
+optimization tasks are different, and we illustrate next that the InH-partition outperforms the original
+optimization approach AnchorsPartition (Apar) [26] both on synthetic data and real data. Due to
+space limitations, synthetic data and a subset of the real dataset results are listed in the Supplementary
+Material.
+Here, we analyzed the Irish House of Parliament election dataset (2002) [27]. The dataset consists
+of 2490 ballots fully ranking 14 candidates. The candidates were from a number of parties, where
+Fianna Fáil (F.F.) and Fine Gael (F.G.) are the two largest (and rival) Irish political parties. Using InH-
+partition (InH-Par), one can split the candidates iteratively into two sets (See Figure 3) which yields
+to meaningful clusters that correspond to large parties: {1, 4, 13} (F.F.), {2, 5, 6} (F.G.), {7, 8, 9}
+(Ind.). We compared InH-partition with Apar based on their performance in detecting these three
+clusters using a small training set: We independently sampled m rankings 100 times and executed
+both algorithms to partition the set of candidates iteratively. During the partitioning procedure,
+“party success” was declared if one exactly detected one of the three party clusters (“F.F.”, “F.G.” &
+“Ind.”). “All” was used to designate that all three party clusters were detected completely correctly.
+InH-partition outperforms Apar in recovering the clusters F.F. and Ind. and achieved comparable
+performance for cluster F.G.; hence, InH-partition offers superior overall performance compared to
+Apar. We also compared InH-partition with APar in the large sample regime (m = 2490), using
+only a subset of triple comparisons (hyperedges) sampled independently with probability r (This
+strategy significantly reduces the complexity of both algorithms). The average is computed over 100
+independent runs. The results are shown in Figure 3, highlighting the robustness of InH-partition
+with respect to missing triples. Additional test on ranking data are described in the Supplementary
+Material, along with new results on subspace clustering, motion segmentation and others.
+8
+References
+[1] A. K. Jain, M. N. Murty, and P. J. Flynn, “Data clustering: a review,” ACM computing surveys
+(CSUR), vol. 31, no. 3, pp. 264–323, 1999.
+[2] A. Y. Ng, M. I. Jordan, and Y. Weiss, “On spectral clustering: Analysis and an algorithm,” in
+Advances in neural information processing systems, 2002, pp. 849–856.
+[3] S. R. Bulò and M. Pelillo, “A game-theoretic approach to hypergraph clustering,” in Advances
+in neural information processing systems, 2009, pp. 1571–1579.
+[4] M. Leordeanu and C. Sminchisescu, “Efficient hypergraph clustering.” in AISTATS, 2012, pp.
+676–684.
+[5] H. Liu, L. J. Latecki, and S. Yan, “Robust clustering as ensembles of affinity relations,” in
+Advances in neural information processing systems, 2010, pp. 1414–1422.
+[6] N. Bansal, A. Blum, and S. Chawla, “Correlation clustering,” in Foundations of Computer
+Science, 2002. Proceedings. The 43rd Annual IEEE Symposium on. IEEE, 2002, pp. 238–247.
+[7] N. Ailon, M. Charikar, and A. Newman, “Aggregating inconsistent information: ranking and
+clustering,” Journal of the ACM (JACM), vol. 55, no. 5, p. 23, 2008.
+[8] P. Li, H. Dau, G. Puleo, and O. Milenkovic, “Motif clustering and overlapping clustering for
+social network analysis,” in INFOCOM, 2017 Proceedings IEEE. IEEE, 2017, pp. 109–117.
+[9] S. Kim, S. Nowozin, P. Kohli, and C. D. Yoo, “Higher-order correlation clustering for image
+segmentation,” in Advances in neural information processing systems, 2011, pp. 1530–1538.
+[10] A. R. Benson, D. F. Gleich, and J. Leskovec, “Higher-order organization of complex networks,”
+Science, vol. 353, no. 6295, pp. 163–166, 2016.
+[11] S. Agarwal, J. Lim, L. Zelnik-Manor, P. Perona, D. Kriegman, and S. Belongie, “Beyond
+pairwise clustering,” in Computer Vision and Pattern Recognition, 2005. CVPR 2005. IEEE
+Computer Society Conference on, vol. 2. IEEE, 2005, pp. 838–845.
+[12] G. Chen and G. Lerman, “Spectral curvature clustering (scc),” International Journal of Computer
+Vision, vol. 81, no. 3, pp. 317–330, 2009.
+[13] D. Zhou, J. Huang, and B. Schölkopf, “Learning with hypergraphs: Clustering, classification,
+and embedding,” in Advances in neural information processing systems, 2007, pp. 1601–1608.
+[14] H. Jeong, B. Tombor, R. Albert, Z. N. Oltvai, and A.-L. Barabási, “The large-scale organization
+of metabolic networks,” Nature, vol. 407, no. 6804, pp. 651–654, 2000.
+[15] F. R. Chung, “Four proofs for the cheeger inequality and graph partition algorithms,” in
+Proceedings of ICCM, vol. 2, 2007, p. 378.
+[16] J. Shi and J. Malik, “Normalized cuts and image segmentation,” IEEE Transactions on pattern
+analysis and machine intelligence, vol. 22, no. 8, pp. 888–905, 2000.
+[17] J. Kunegis, S. Schmidt, A. Lommatzsch, J. Lerner, E. W. De Luca, and S. Albayrak, “Spectral
+analysis of signed graphs for clustering, prediction and visualization,” in Proceedings of the
+2010 SIAM International Conference on Data Mining. SIAM, 2010, pp. 559–570.
+[18] A. V. Knyazev, “Signed laplacian for spectral clustering revisited,” arXiv preprint
+arXiv:1701.01394, 2017.
+[19] S. Agarwal, K. Branson, and S. Belongie, “Higher order learning with graphs,” in Proceedings
+of the 23rd international conference on Machine learning. ACM, 2006, pp. 17–24.
+[20] R. Milo, S. Shen-Orr, S. Itzkovitz, N. Kashtan, D. Chklovskii, and U. Alon, “Network motifs:
+simple building blocks of complex networks,” Science, vol. 298, no. 5594, pp. 824–827, 2002.
+[21] C. Tsourakakis, J. Pachocki, and M. Mitzenmacher, “Scalable motif-aware graph clustering,”
+arXiv preprint arXiv:1606.06235, 2016.
+[22] “Florida bay trophic exchange matrix,” http://vlado.fmf.uni-lj.si/pub/networks/data/bio/
+foodweb/Florida.paj.
+[23] S. Allesina, A. Bodini, and C. Bondavalli, “Ecological subsystems via graph theory: the role of
+strongly connected components,” Oikos, vol. 110, no. 1, pp. 164–176, 2005.
+[24] P. Awasthi, A. Blum, O. Sheffet, and A. Vijayaraghavan, “Learning mixtures of ranking models,”
+in Advances in Neural Information Processing Systems, 2014, pp. 2609–2617.
+9
+[25] C. Meek and M. Meila, “Recursive inversion models for permutations,” in Advances in Neural
+Information Processing Systems, 2014, pp. 631–639.
+[26] J. Huang, C. Guestrin et al., “Uncovering the riffled independence structure of ranked data,”
+Electronic Journal of Statistics, vol. 6, pp. 199–230, 2012.
+[27] I. C. Gormley and T. B. Murphy, “A latent space model for rank data,” in Statistical Network
+Analysis: Models, Issues, and New Directions. Springer, 2007, pp. 90–102.
+[28] B. Bollobás, Modern graph theory. Springer Science & Business Media, 2013, vol. 184.
+[29] R. L. Plackett, “The analysis of permutations,” Applied Statistics, pp. 193–202, 1975.
+[30] T. Kamishima, “Nantonac collaborative filtering: recommendation based on order responses,”
+in Proceedings of the ninth ACM SIGKDD international conference on Knowledge discovery
+and data mining. ACM, 2003, pp. 583–588.
+[31] R. Vidal, “Subspace clustering,” IEEE Signal Processing Magazine, vol. 28, no. 2, pp. 52–68,
+2011.
+[32] J. P. Costeira and T. Kanade, “A multibody factorization method for independently moving
+objects,” International Journal of Computer Vision, vol. 29, no. 3, pp. 159–179, 1998.
+[33] R. Tron and R. Vidal, “A benchmark for the comparison of 3-d motion segmentation algorithms,”
+in Computer Vision and Pattern Recognition, 2007. CVPR’07. IEEE Conference on. IEEE,
+2007, pp. 1–8.
+[34] R. Vidal, Y. Ma, and S. Sastry, “Generalized principal component analysis (gpca),” IEEE
+Transactions on Pattern Analysis and Machine Intelligence, vol. 27, no. 12, pp. 1945–1959,
+2005.
+[35] J. Yan and M. Pollefeys, “A general framework for motion segmentation: Independent, articu-
+lated, rigid, non-rigid, degenerate and non-degenerate,” in European conference on computer
+vision. Springer, 2006, pp. 94–106.
+[36] Y. Ma, H. Derksen, W. Hong, and J. Wright, “Segmentation of multivariate mixed data via lossy
+data coding and compression,” IEEE transactions on pattern analysis and machine intelligence,
+vol. 29, no. 9, 2007.
+[37] E. Elhamifar and R. Vidal, “Sparse subspace clustering,” in Computer Vision and Pattern
+Recognition, 2009. CVPR 2009. IEEE Conference on. IEEE, 2009, pp. 2790–2797.
+[38] P. Purkait, T.-J. Chin, A. Sadri, and D. Suter, “Clustering with hypergraphs: the case for large
+hyperedges,” IEEE Transactions on Pattern Analysis and Machine Intelligence, 2016.
+10
+A Conductance of a Cut for an Inhomogeneous Hypergraph
+The conductance of a cut (S, S?) for an inhomogeneous hypergraph is defined according to
+?H(S) =
+volH(?S)
+min{volH(S), volH(S?)}
+. (14)
+This definition is consistent with the definition of conductance of a graph cut [28] and homogeneoous
+hypergraph cut [10]. The conductance is an upper bound for the normalized cut
+?H(S) ?
+1
+2
+NCutH(S). (15)
+B A Brief Overview of Spectral Graph Partitioning
+The combinatorial optimization problem of minimizing the NCut (3) for graphs is known to be
+NP-complete [16]. However, an efficient algorithm based on spectral techniques (Algorithm 1 below)
+can produce a solution within a quadratic factor of the optimum (Theorem. B.1).
+Algorithm 1: Spectral Graph Partitioning
+Input: The adjacency matrix A of the graph G.
+Step 1: Construct the diagonal degree matrix D, with Dii =
+?n
+j=1Aij for all i ? [n].
+Step 2: Construct the normalized Laplacian matrix L = I ?D?1/2AD?1/2.
+Step 3: Compute the eigenvector u = (u1, u2, ..., un)T corresponding to the second
+smallest eigenvalue of L.
+Step 4: Let `i be the index of the i-th smallest entry of D?1/2u.
+Step 5: Compute S = arg minSi,1?i?n?1 NCutG(Si) over all sets Si = {`1, `2, . . . , `i}.
+Output: Output S if |S| < |S?|, and S? otherwise.
+Theorem B.1. [Derived based on Theorem 1 [15]] Let ? denote the value of the NCut output by
+Algorithm 1, and let ?G denotes the optimal NCut of the graph G. Also, let ?G stand for the second
+smallest eigenvalue of normalized Laplacian matrix L. Then,
+?G ? ?G ?
+?2
+8
+? ?
+2
+G
+8
+. (16)
+Proof. Let S? denote the output of Algorithm 1. We have ?G ? NCutG(S?) = ? based on the
+definition of ?G . Suppose that ?G is achieved by the set So, i.e., that
+?G = volG(?So)
+(
+1
+volG(So)
++
+1
+volG(S?o)
+)
+.
+Let V be the vertices of G. We define the following function g over V
+g(v) = 1v?So ?
+volG(So)
+volG(V )
+, ? v ? V.
+Recall that dv is the degree of vertex v. It is easy to check that
+?
+v?V g(v)dv = 0. Hence, due to the
+definition of ?G , we have
+?G ?
+gT (D ?A)g
+gTDg
+= ?G ,
+where A denotes the adjacency matrix of the graph and D is a diagonal matrix whose diagonal entries
+equal to the degrees of the corresponding vertices. According to Theorem 1 [15] and the results
+of (15), we have
+?G ?
+?2G(S
+?)
+2
+? ?
+2
+8
+,
+which concludes the proof.
+For k-way partitions, Step 3 of the previously described algorithm entails computing the eigenvectors
+corresponds to the k smallest eigenvalues of L. The i-th components of these k eigenvectors may
+be viewed as the coordinates of a representation for vertex vi. Partitioning is performed by using
+the eigenvector representations of the vertices in some distance-based clustering algorithms, such as
+k-means.
+11
+C Proof of Theorem 3.1
+Assume that the optimization problem (5) is feasible for all InH-hyperedges, and recall that ?? =
+maxe?E ?
+(e). Then G = (V,Eo, w) can constantly approximate the original hypergraph H in the
+sense that
+VolH(?S) ? VolG(?S) ? ??VolH(?S), VolH(S) ? VolG(S) ? ??VolH(S). (17)
+Furthermore, recall that wvv? is the weight of the edge vv? of the graph G. If the weights wvv? are
+non-negative for all {v, v?} ? Eo, we can use Theorem B.1 when performing Algorithm 1 over the
+graph G. Combining Theorem B.1 and equation (17), we have
+(??)3?H ?
+(??)2
+8
+? ?
+2
+H
+8
+, (18)
+which concludes the proof.
+D Proof of Theorem 3.3
+First, recall that w?(e)vv? denotes the projection weight of equation (10), for the case that we(·) is
+submodular:
+w
+?(e)
+vv? =
+?
+S?2e/{?,e}
+[
+we(S)
+2|S|(?(e)? |S|)1|{v,v?}?S|=1 (19)
+? we(S)
+2(|S|+ 1)(?(e)? |S| ? 1)1|{v,v?}?S|=0 ?
+we(S)
+2(|S| ? 1)(?(e)? |S|+ 1)1|{v,v?}?S|=2
+]
+We start by proving that for a fixed pair of vertices v and v?, the weights w?(e)vv? are nonnegative
+provided that the we(·) are submodular. Note that the sum on the right-hand side of (19) is over all
+proper subsets S. The coefficients of we(S) are positive if and only if S contains exactly one of the
+endpoints v and v?. The idea behind the proof is to construct bijections between the subsets with
+positive coefficients and those with negative coefficients and cancel negative and positive terms.
+We partition the power set 2e into four parts, namely
+S1 , {S ? 2e : v ? S, v? 6? S},
+S2 , {S ? 2e : v 6? S, v? ? S},
+S3 , {S ? 2e : v 6? S, v? 6? S},
+S4 , {S ? 2e : v ? S, v? ? S}.
+Choose any S1 ? S1 and construct the unique sets S2 = S1/{v} ? {v?} ? S2, S3 = S1/{v} ? S3,
+S4 = S1 ? {v?} ? S4. Consequently, each set may be reconstructed from another set in the group,
+and we denote this set of bijective relations by S1 ? S2 ? S3 ? S4. Let s = |S1|. Due to the way
+the sets S1 and S2 are chosen, the corresponding coefficients of we(S1) and we(S2) in (10) are both
+equal to
+1
+2s(?(e)? s) .
+We also observe that the corresponding coefficients of we(S3) and we(S4) are
+? 1
+2s(?(e)? s) .
+Note that the submodularity property
+we(S1) + we(S2) ? we(S3) + we(S4),
+allows us to cancel out the negative terms in the sum (19). This proves the claimed result.
+Next, we prove that the optimization problem (5) has a feasible solution.
+12
+Recall that Ge = (V (e), E(e), w(e)) is the subgraph obtained by projecting e. Set w(e) = w?(e). For
+simplicity of notation, we denote the volume of the boundary of S over Ge as
+VolGe(?S) =
+?
+v?S,v??e/S
+w
+(e)
+vv? , for S ? 2e.
+The existence of a feasible solution of the optimization problem may be verified by checking that
+for any S ? 2e/{?, e}, and for a given ?(e), we have the following bounds on the volume of the
+boundary of S:
+we(S) ? VolGe(?S) ? ?(e)we(S).
+Due to symmetry, we only need to perform the verification for sets S of different cardinalities
+|S| ? ?(e)/2. This verification is performed on a case-by-case bases, as we could not establish a
+general proof for arbitrary degree ?(e) ? 2. In what follows, we show that the claim holds true for
+all ?(e) ? 7; based on several special cases considered, we conjecture that the result is also true for
+all values of ?(e) greater than seven.
+For notational simplicity, we henceforth assume that the vertices in e are labeled by elements in
+{1, 2, 3, ..., ?(e)}.
+First, note that by combining symmetry and submodularity, we can easily show that
+we(S1) + we(S2) = we(S1) + we(S?2) ? we(S1 ? S?2) + we(S1 ? S?2) = we(S2/S1) + we(S1/S2).
+We iteratively use this equality in our subsequent proofs, following a specific notational format for all
+relevant inequalities:
+vi1 , ..., vir ? S1, vj1 , ..., vjs ? S2, Weight inequality =? Volume inequality.
+The above line asserts that for all ordered subsets (vi1 , ..., vir ) and (vj1 , ..., vjs) chosen from S1
+and S2 without replacement, respectively, we have that the Weight inequalities follow based on the
+properties of we(·). These Weight inequalities are consequently inserted into the formula for the
+volume VolGe(S) to arrive at the Volume inequality for VolGe(S).
+For ?(e) = 2, the projection (19) is just a “self-projection”: It is easy to check that for any singleton
+S, VolGe(?S) = we(S) and hence ?
+(e) = 1. We next establish the same claim for larger hyperedge
+sizes ?(e).
+D.1 ?(e) = 3, ?(e) = 1
+By using the symmetry property of we(·) we have
+w
+?(e)
+12 =
+1
+2
+(we({1}) + we({2}))? we({3}).
+Therefore, VolGe(?{1}) = w?(e)12 + w
+?(e)
+13 = we({1}) and hence ?(e) = 1.
+D.2 ?(e) = 4, ?(e) = 3/2
+By using the symmetry property of we(·) we have
+w
+?(e)
+12
+=
+1
+3
+(we({1}) + we({2}))?
+1
+4
+(we({3}) + we({4}))
++
+1
+4
+we({1, 2}) + we({1, 3}))?
+1
+3
+we({1, 4}).
+The basic idea behind the proof of the equalities to follow is to carefully select subsets for which
+the submodular inequality involving we(·) may be used to eliminate the terms corresponding to the
+volumes VolGe(?S).
+13
+Case S = {1}:
+VolGe(?{1})
+=we({1})?
+1
+6
+(we({2}) + we({3}) + we({4}))
++
+1
+6
+(we({1, 2}) + we({1, 3}) + we({1, 4}))
+v1 = 1, v2, v3 ? {2, 3, 4}, we({v1, v2}) + we({v1, v3}) ? we({v2}) + we({v3})
+=? VolGe(?{1}) ? we({1}).
+v1 = 1, v2 ? {2, 3, 4}, we({v1, v2}) ? we({v1}) + we({v2})
+=? VolGe(?{1}) ?
+3
+2
+we({1}).
+Case S = {1, 2}:
+VolGe(?{1, 2})
+=
+1
+6
+(we({1}) + we({2}) + we({3}) + we({4}))
++we({1, 2})?
+1
+6
+(we({1, 3}) + we({1, 4}))
+v1 ? {1, 2}, v2 ? {3, 4}, we({v1}) + we({v2}) ? we({v1, v2})
+=? VolGe(?{1, 2}) ? we({1, 2}).
+v1, v2 ? {1, 2}, v3 ? {3, 4}, we({v1}) + we({v3}) ? we({v1, v2}) + we({v2, v3})
+=? VolGe(?{1, 2}) ?
+4
+3
+we({1, 2}).
+D.3 ?(e) = 5, ?(e) = 2
+By using the symmetry property of we(·) we have
+w
+?(e)
+12
+=
+1
+4
+(we({1}) + we({2}))?
+1
+6
+(we({3}) + we({4}) + we({5}))?
+1
+4
+we({1, 2})
++
+1
+6
+(we({1, 3}) + we({1, 4}) + we({1, 5}) + we({2, 3}) + we({2, 4}) + we({2, 5}))
+?1
+6
+(we({3, 4}) + we({3, 5}) + we({4, 5})).
+Case S = {1}:
+VolGe(?{1})
+=we({1})?
+1
+4
+(we({2}) + we({3}) + we({4}) + we({5}))
++
+1
+4
+(we({1, 2}) + we({1, 3}) + we({1, 4}) + we({1, 5}))
+v1 = 1, v2, v3 ? {2, 3, 4, 5}, we({v1, v2}) + we({v1, v3}) ? we({v2}) + we({v3})
+=? VolGe(?{1}) ? we({1}).
+v1 = 1, v2 ? {2, 3, 4, 5}, we({v1, v2}) ? we({v1}) + we({v2})
+=? VolGe(?{1}) ? 2we({1}).
+14
+Case S = {1, 2}:
+VolGe(?{1, 2})
+=
+1
+4
+(we({1}) + we({2}))?
+1
+6
+(we({3}) + we({4}) + we({5})) + we({1, 2})
+? 1
+12
+(we({1, 3}) + we({1, 4}) + we({1, 5}) + we({2, 3}) + we({2, 4}) + we({2, 5}))
++
+1
+3
+(we({3, 4}) + we({3, 5}) + we({4, 5}))
+v1, v2, v3 ? {3, 4, 5}, we({v2}) + we({v3}) ? we({v1, v2}) + we({v1, v3})
+v1 ? {1, 2}, v2 ? {3, 4, 5}, we({v1, v2}) ? we({v1}) + we({v2})
+=? VolGe(?{1, 2}) ? we({1, 2}).
+v1 ? {1, 2}, v2, v3 ? {3, 4, 5}, we({v1, v2}) + we({v1, v3}) ? we({v2}) + we({v3})
+v1, v2 ? {1, 2}, v3, v4, v5 ? {3, 4, 5}, we({v3, v4}) ? we({v1, v2}) + we({v5})
+=? VolGe(?{1, 2}) ? 2we({1, 2}).
+D.4 ?(e) = 6, ?(e) = 4
+By using the symmetry property of we(·) we have
+w
+?(e)
+12
+=
+1
+5
+(we({1}) + we({2}))?
+1
+8
+(we({3}) + we({4}) + we({5}) + we({6}))?
+1
+5
+we({1, 2})
++
+1
+8
+(we({1, 3}) + we({1, 4}) + we({1, 5}) + we({1, 6}) + we({2, 3}) + we({2, 4})
++ we({2, 5}) + we({2, 6}))
+?1
+9
+(we({3, 4}) + we({3, 5}) + we({3, 6}) + we({4, 5}) + we({4, 6}) + we({5, 6}))
+?1
+9
+(we({1, 2, 3}) + we({1, 2, 4}) + we({1, 2, 5}) + we({1, 2, 6}))
++
+1
+8
+(we({1, 3, 4}) + we({1, 3, 5}) + we({1, 3, 6}) + we({1, 4, 5})
++ we({1, 4, 6}) + we({1, 5, 6}))
+Case S = {1}:
+VolGe(?{1})
+=we({1})?
+3
+10
+(we({2}) + we({3}) + we({4}) + we({5}) + we({6}))
++
+3
+10
+(we({1, 2}) + we({1, 3}) + we({1, 4}) + we({1, 5}) + we({1, 6}))
+? 1
+12
+(we({2, 3}) + we({2, 4}) + we({2, 5}) + we({2, 6}) + we({3, 4})
++ we({3, 5}) + we({3, 6}) + we({4, 5}) + we({4, 6}) + we({5, 6}))
++
+1
+12
+(we({1, 2, 3}) + we({1, 2, 4}) + we({1, 2, 5}) + we({1, 2, 6})
++ we({1, 3, 4}) + we({1, 3, 5}) + we({1, 3, 6})
++ we({1, 4, 5}) + we({1, 4, 6}) + we({1, 5, 6}))
+15
+v1 = 1, v2, v3 ? {2, 3, 4, 5, 6}, we({v1, v2}) + we({v1, v3}) ? we({v2}) + we({v3})
+v1 = 1, v2, v3, v4, v5 ? {2, 3, 4, 5, 6},
+we({v1, v2, v3}) + we({v1, v4, v5}) ? we({v2, v3}) + we({v4, v5})
+=? VolGe(?{1}) ? we({1}).
+v1 = 1, v2 ? {2, 3, 4, 5, 6}, we({v1, v2}) ? we({v1}) + we({v2})
+v1 = 1, v2, v3 ? {2, 3, 4, 5, 6}, we({v1, v2, v3}) ? we({v1}) + we({v2, v3})
+=? VolGe(?{1}) ?
+10
+3
+we({1}).
+Case S = {1, 2}:
+VolGe(?{1, 2})
+=
+3
+10
+(we({1}) + we({2}))?
+7
+20
+(we({3}) + we({4}) + we({5}) + we({6}))
++we({1, 2})?
+1
+30
+(we({1, 3}) + we({1, 4}) + we({1, 5}) + we({1, 6}) + we({2, 3})
++ we({2, 4}) + we({2, 5}) + we({2, 6}))
++
+1
+18
+(we({3, 4}) + we({3, 5}) + we({3, 6}) + we({4, 5}) + we({4, 6}) + we({5, 6}))
++
+5
+12
+(we({1, 2, 3}) + we({1, 2, 4}) + we({1, 2, 5}) + we({1, 2, 6}))
+? 1
+18
+(we({1, 3, 4}) + we({1, 3, 5}) + we({1, 3, 6}) + we({1, 4, 5}) + we({1, 4, 6}) + we({1, 5, 6}))
+v1 ? {1, 2}, v2 ? {3, 4, 5, 6}, we({v1, v2}) ? we({v1}) + we({v2})
+v1 = 1, v2 = 2, v3, v4 ? {3, 4, 5, 6}, we({v3}) + we({v4}) ? we({v1, v2, v3}) + we({v1, v2, v4})
+v1 = 1, v2, v3 ? {3, 4, 5, 6}, we({v1, v2, v3}) ? we({v1}) + we({v2, v3})
+=? VolGe(?{1, 2}) ? we({1, 2}).
+v1 = 1, v2 = 2, v3 ? {3, 4, 5, 6}, we({v3}) ? we({v1, v2, v3})? we({v1, v2})
+v1, v2 ? {1, 2}, v3 ? {3, 4, 5, 6}, we({v1, v3}) ? we({v1}) + we({v1, v2, v3})? we({v1, v2})
+v1, v2 ? {1, 2}, v3, v4, v5, v6 ? {3, 4, 5, 6}, we({v1, v3, v4}) ? we({v5, v6}) + we({v1})? we({v1, v2})
+=? VolGe(?{1, 2}) ? 3we({1, 2}).
+Case S = {1, 2, 3}:
+VolGe(?{1, 2, 3})
+=? 3
+20
+(we({1}) + we({2}) + we({3}) + we({4}) + we({5}) + we({6}))
++
+5
+12
+(we({1, 2}) + we({1, 3}) + we({2, 3}+ we({4, 5}) + we({4, 6}) + we({5, 6}))
+?13
+90
+(we({1, 4}) + we({1, 5}) + we({1, 6}) + we({2, 4}) + we({2, 5}) + we({2, 6})
++ we({3, 4}) + we({3, 5}) + we({3, 6}))
++we({1, 2, 3}) +
+1
+18
+(we({1, 2, 4}) + we({1, 2, 5}) + we({1, 2, 6}) + we({1, 3, 4})
++ we({1, 3, 5}) + we({1, 3, 6}) + we({1, 4, 5}) + we({1, 4, 6}) + we({1, 5, 6}))
+v1, v2, v3 ? {1, 2, 3}, v4, v5, v6 ? {4, 5, 6}, we({v2}) + we({v3}) ? we({v1, v2}) + we({v1, v3}),
+we({v5}) + we({v6}) ? we({v4, v5}) + we({v4, v6})
+v1, v2, v3 ? {1, 2, 3}, v4, v5, v6 ? {4, 5, 6}, we({v1, v2}) + we({v4, v5}) ? we({v3, v6})
+v1, v2, v3 ? {1, 2, 3}, v4, v5, v6 ? {4, 5, 6}, we({v1, v2, v4}) + we({v1, v4, v5}) ? we({v1, v4}) + we({v3, v6})
+=? VolGe(?{1, 2, 3}) ? we({1, 2, 3}).
+16
+v1, v2 ? {1, 2, 3}, v4, v5 ? {4, 5, 6}, we({v1, v4, v5}) ? we({v1, v4}) + we({v1, v5})? we({v1}),
+we({v1, v2, v4}) ? we({v1, v4}) + we({v2, v4})? we({v4})
+v1, v2, v3 ? {1, 2, 3}, v4, v5, v6 ? {4, 5, 6}, we({v1, v4}) ? we({v1}) + we({v5, v6})? we({v1, v2, v3})
+v1, v2, v3 ? {1, 2, 3}, v4, v5, v6 ? {4, 5, 6}, we({v1}) + we({v2}) ? we({v1, v2}),
+we({v1}) ? we({v2, v3})? we({v1, v2, v3}),
+we({v4}) + we({v5}) ? we({v4, v5}),
+we({v4}) ? we({v5, v6})? we({v4, v5, v6})
+=? VolGe(?{1, 2, 3}) ? 4we({1, 2, 3}).
+D.5 ?(e) = 7, ?(e) = 6
+By using the symmetry property of we(·) we have
+w
+?(e)
+12
+=
+1
+6
+(we({1}) + we({2}))?
+1
+10
+(we({3}) + we({4}) + we({5}) + we({6}) + we({7}))
+?1
+6
+we({1, 2}) +
+1
+10
+(we({1, 3}) + we({1, 4}) + we({1, 5}) + we({1, 6}) + we({1, 7})
++ we({2, 3}) + we({2, 4}) + we({2, 5}) + we({2, 6}) + we({2, 7}))
+? 1
+12
+(we({3, 4}) + we({3, 5}) + we({3, 6}) + we({3, 7}) + we({4, 5}) + we({4, 6})
++ we({4, 7}) + we({5, 6}) + we({5, 7}) + we({6, 7}))
+? 1
+10
+(we({1, 2, 3}) + we({1, 2, 4}) + we({1, 2, 5}) + we({1, 2, 6}) + we({1, 2, 7}))
++
+1
+12
+(we({1, 3, 4}) + we({1, 3, 5}) + we({1, 3, 6}) + we({1, 3, 7}) + we({1, 4, 5})
++ we({1, 4, 6}) + we({1, 4, 7}) + we({1, 5, 6}) + we({1, 5, 7}) + we({1, 6, 7})
++ we({2, 3, 4}) + we({2, 3, 5}) + we({2, 3, 6}) + we({2, 3, 7}) + we({2, 4, 5})
++ we({2, 4, 6}) + we({2, 4, 7}) + we({2, 5, 6}) + we({2, 5, 7}) + we({2, 6, 7}))
+? 1
+12
+(we({3, 4, 5}) + we({3, 4, 6}) + we({3, 4, 7}) + we({3, 5, 6}) + we({3, 5, 7}) + we({3, 6, 7})
++ we({4, 5, 6}) + we({4, 5, 7}) + we({4, 6, 7}) + we({5, 6, 7}))
+Case S = {1}:
+VolGe(?{1})
+=we({1})?
+1
+3
+(we({2}) + we({3}) + we({4}) + we({5}) + we({6}) + we({7}))
++
+1
+3
+(we({1, 2}) + we({1, 3}) + we({1, 4}) + we({1, 5}) + we({1, 6}) + we({1, 7}))
+? 2
+15
+(we({2, 3}) + we({2, 4}) + we({2, 5}) + we({2, 6}) + we({2, 7}) + we({3, 4})
++ we({3, 5}) + we({3, 6}) + we({3, 7}) + we({4, 5}) + we({4, 6})
++ we({4, 7}) + we({5, 6}) + +we({5, 7}) + we({6, 7}))
++
+2
+15
+(we({1, 2, 3}) + we({1, 2, 4}) + we({1, 2, 5}) + we({1, 2, 6}) + we({1, 2, 7}) + we({1, 3, 4})
++ we({1, 3, 5}) + we({1, 3, 6}) + we({1, 3, 7}) + we({1, 4, 5}) + we({1, 4, 6})
++ we({1, 4, 7}) + we({1, 5, 6})) + we({1, 5, 7}) + +we({1, 6, 7})
+17
+v1 = 1, v2, v3 ? {2, 3, 4, 5, 6, 7}, we({v1, v2}) + we({v1, v3}) ? we({v2}) + we({v3})
+v1 = 1, v2, v3, v4, v5 ? {2, 3, 4, 5, 6, 7},
+we({v1, v2, v3}) + we({v1, v4, v5}) ? we({v2, v3}) + we({v4, v5})
+=? VolGe(?{1}) ? we({1}).
+v1 = 1, v2 ? {2, 3, 4, 5, 6, 7}, we({v1, v2}) ? we({v1}) + we({v2})
+v1 = 1, v2, v3 ? {2, 3, 4, 5, 6, 7}, we({v1, v2, v3}) ? we({v1}) + we({v2, v3})
+=? VolGe(?{1}) ? 5we({1}).
+Case S = {1, 2}:
+VolGe(?{1, 2})
+=
+1
+3
+(we({1}) + we({2}))?
+7
+15
+(we({3}) + we({4}) + we({5}) + we({6}) + we({7}))
++we({1, 2})?
+1
+10
+(we({3, 4}) + we({3, 5}) + we({3, 6}) + we({3, 7}) + we({4, 5})
++ we({4, 6}) + we({4, 7}) + we({5, 6}) + we({5, 7}) + we({6, 7}))
++
+7
+15
+(we({1, 2, 3}) + we({1, 2, 4}) + we({1, 2, 5}) + we({1, 2, 6}+ we({1, 2, 7}))
+? 1
+30
+(we({1, 3, 4}) + we({1, 3, 5}) + we({1, 3, 6}) + we({1, 3, 7}) + we({1, 4, 5})
++ we({1, 4, 6}) + we({1, 4, 7}) + we({1, 5, 6}) + we({1, 5, 7}) + we({1, 6, 7})
++ we({2, 3, 4}) + we({2, 3, 5}) + we({2, 3, 6}) + we({2, 3, 7}) + we({2, 4, 5})
++ we({2, 4, 6}) + we({2, 4, 7}) + we({2, 5, 6}) + we({2, 5, 7}) + we({2, 6, 7}))
++
+1
+6
+(we({3, 4, 5}) + we({3, 4, 6}) + we({3, 4, 7}) + we({3, 5, 6}) + we({3, 5, 7}) + we({3, 6, 7})
++ we({4, 5, 6}) + we({4, 5, 7}) + we({4, 6, 7}) + we({5, 6, 7}))
+v1, v2 ? {1, 2}, v3, v4, v5, v6, v7 ? {3, 4, 5, 6, 7}, we({v2, v6, v7}) ? we({v1}) + we({v3, v4, v5})
+v1 = 1, v2 = 2, v3, v4, v5, v6, v7 ? {3, 4, 5, 6, 7},
+we({v6, v7}) ? we({v1, v2, v3}) + we({v3, v4, v5})? we({v3})
+v1 = 1, v2 = 2, v3, v4 ? {3, 4, 5, 6, 7}, we({v3}) + we({v4}) ? we({v1, v2, v3}) + we({v1, v2, v4})
+=? VolGe(?{1, 2}) ? we({1, 2}).
+v1 = 1, v2 = 2, v3 ? {3, 4, 5, 6}, we({v3}) ? we({v1, v2, v3})? we({v1, v2})
+v1 = 1, v2 = 2, v3, v4, v5, v6, v7 ? {3, 4, 5, 6}, we({v3, v4}) ? we({v5, v6, v7})? we({v1, v2})
+v1, v2 ? {1, 2}, v3, v4, v5, v6, v7 ? {3, 4, 5, 6},
+we({v1, v3, v4}) ? we({v5, v6, v7}) + we({v1})? we({v1, v2})
+=? VolGe(?{1, 2}) ? 5we({1, 2}).
+18
+Case S = {1, 2, 3}:
+VolGe(?{1, 2, 3})
+=? 2
+15
+(we({1}) + we({2}) + we({3}))?
+2
+5
+(we({4}) + we({5}) + we({6}) + we({7}))
++
+7
+15
+(we({1, 2}) + we({1, 3}) + we({2, 3})
+?1
+6
+(we({1, 4}) + we({1, 5}) + we({1, 6}) + we({1, 7}) + we({2, 4}) + we({2, 5})
++ we({2, 6}) + we({2, 7}) + we({3, 4}) + we({3, 5}) + we({3, 6}) + we({3, 7}))
++
+1
+10
+(we({4, 5}) + we({4, 6}) + we({4, 7}) + we({5, 6}) + we({5, 7}) + we({6, 7}))
++we({1, 2, 3}) +
+2
+15
+(we({1, 2, 4}) + we({1, 2, 5}) + we({1, 2, 6}) + we({1, 2, 7})
++ we({1, 3, 4}) + we({1, 3, 5}) + we({1, 3, 6}) + we({1, 3, 7})
++ we({2, 3, 4}) + we({2, 3, 5}) + we({2, 3, 6}) + we({2, 3, 7})
+? 1
+30
+(we({1, 4, 5}) + we({1, 4, 6}) + we({1, 4, 7}) + we({1, 5, 6}) + we({1, 5, 7}) + we({1, 6, 7})
++ we({2, 4, 5}) + we({2, 4, 6}) + we({2, 4, 7}) + we({2, 5, 6}) + we({2, 5, 7}) + we({2, 6, 7})
++ we({3, 4, 5}) + we({3, 4, 6}) + we({3, 4, 7}) + we({3, 5, 6}) + we({3, 5, 7}) + we({3, 6, 7}))
++
+1
+2
+(we({4, 5, 6}) + we({4, 5, 7}) + we({4, 6, 7}) + we({5, 6, 7}))
+v1, v2, v3 ? {1, 2, 3}, we({v1}) + we({v2}) ? we({v1, v3}) + we({v2, v3}),
+v1, v2, v3 ? {1, 2, 3}, v4, v5, v6, v7 ? {4, 5, 6, 7},
+we({v4}) ? we({v1, v2, v4}) + we({v4, v5, v6})? we({v3, v7}),
+v1, v2, v3 ? {1, 2, 3}, v4, v5, v6, v7 ? {4, 5, 6, 7}, we({v3, v7}) ? we({v1, v2}) + we({v4, v5, v6}),
+v1, v2, v3 ? {1, 2, 3}, v4, v5, v6, v7 ? {4, 5, 6, 7}, we({v1, v4, v5}) ? we({v2, v3}) + we({v6.v7}),
+=? VolGe(?{1, 2, 3}) ? we({1, 2, 3}).
+v1, v2, v3 ? {1, 2, 3}, v4, v5, v6, v7 ? {4, 5, 6, 7},
+we({v1, v4, v5}) ? we({v2, v3}) + we({v4, v5})? we({v1, v2, v3}),
+v1, v2, v3 ? {1, 2, 3}, v4, v5, v6, v7 ? {4, 5, 6, 7},
+we({v1, v4}) ? we({v1}) + we({v5, v6, v7})? we({v1, v2, v3}),
+v1, v2 ? {1, 2, 3}, v3 ? {4, 5, 6, 7}, we({v3}) ? we({v1, v2, v3})? we({v1, v2}),
+v1, v2, v3 ? {1, 2, 3}, we({v1}) ? we({v2, v3})? we({v1, v2, v3}),
+=? VolGe(?{1, 2, 3}) ? 6we({1, 2, 3}).
+E Proof of Theorem 3.4
+Suppose that {fovv?}{vv??E(e)}and ?o represent the optimal solution of the optimization problem (11).
+To prove that the values of ?o are equal to those listed in Table 1, we proceed as follows. The result
+of the optimization procedure over {fvv?}{vv??E(e)} produces the weights (coefficients) of the linear
+mapping. The optimization problem (11) may be rewritten as
+min
+{fvv?}{v,v?}?Eo
+? (20)
+s.t. we(S) ?
+?
+v?S,v??e/S
+fvv?(we) ? ?we(S), ? S ? 2e and submodular we(·).
+which is essential a linear programming. However, as there are uncountable many choices for the
+submodular functions we(·), the above optimization problem has uncountable many constraints.
+19
+However, given a finite collection of inhomogenous cost functions ? = {w(1)e (·), w(2)e (·), ...} all of
+which are submodular, the following linear program
+min
+{fvv?}{v,v?}?Eo
+? (21)
+s.t. w(r)e (S) ?
+?
+v?S,v??e/S
+fvv?(w
+(r)
+e ) ? ?w(r)e (S), for all S ? 2e and w(r)e (·) ? ?.
+can be efficiently computed and yields an optimal ?? that provides a lower bound for ?o. Therefore,
+we just need to identify the sets ? for different values of ?(e) that meet the values of ?(e) listed in
+Table 1.
+The proof involves solving the linear program (21). We start by identifying some structural properties
+of the problem.
+Proposition E.1. Given ?(e), the optimization problem (11) over {fvv?}{vv??E(e)} involves 3[ ?(e)2 ]?1
+variables, where [a] denotes the largest integer not greater than a.
+Proof. The linear mapping fvv? may be written as
+fvv?(we) =
+?
+S?2e
+?(vv?, S)we(S),
+where ?(vv?, S) represent the coefficients that we wish to optimize, and which depend on the edge vv?
+and the subset S. Although we have
+(
+?(e)
+2
+)
+× 2?(e) coefficients, the coefficients are not independent
+from each other. To see what kind of dependencies exist, define the set of all permutations of the
+vertices of e ? : e ? {1, 2, ..., ?(e)}; clearly, there are ?(e)! such permutations ?. Also, define
+?(S) = {?(v)|v ? S} for S ? e. If a set function w(·) over all the subsets of {1, 2, ..., ?(e)} satisfies
+the following conditions
+w(?) = 0,
+w(S) = w(S?),
+w(S1) + w(S2) ? w(S1 ? S2) + w(S1 ? S2),
+for S, S1, S2 ? {1, 2, ..., ?(e)}, then one may construct ?(e)! many inhomogeneous cost functions
+w
+(?)
+e (·) such that for all distinct ? one hasw(?)e (·) = w(?(·)). As all the weightsw(?)e are submodular
+and appear in the constraints of the optimization problem (20), the coefficients ?(vv?, S) will be
+invariant under the permutations ?; thus, they will depend only on two parameters, |{v, v?} ? S| and
+|S|. We replace ? with another function ?? to capture this dependence
+?(vv?, S) = ?(?(v)?(v?), ?(S)) = ??(|{v, v?} ? S|, |S|).
+Moreover, as we(S) is symmetric, i.e., as we(S) = we(S?), we also have
+??(|{v, v?} ? S?|, |S?|) = ??(|{v, v?} ? S|, |S|).
+Hence, for any given ?(e), the set of the coefficients of the linear function may be written as
+? = {??(r, s)|(r, s) ? {0, 1, 2} × {1, 2, 3, ..., ?(e)? 2, ?(e)? 1}/{(2, 1), (0, ?(e)? 1)},
+s.t. ??(0, s) = ??(2, ?(e)? s) , ??(1, s) = ??(1, ?(e)? s)}.
+which concludes the proof.
+Using Proposition E.1, we can transform the optimization problem (21) into the following form:
+min
+?
+?
+s.t. w(r)e (S) ?
+?
+v?S,v??e/S
+?
+S??e
+??(|{v, v?} ? S?|, |S?|)w(r)e (S?) ? ?w(r)e (S), ?S ? 2e,?w(r)e (·) ? ?.
+For a given ?(e), we list the sets ? = {w(1)e , w(2)e , ...} in Table. 6. The above linear program yields
+optimal values of ?? equal to those listed in Table 1. As already pointed out, the cases ?(e) = 2, 3
+are simple to verify, and hence we concentrate on the sets ? for ?(e) ? 4. The case ?(e) = 7 is
+handled similarly but requires a large verification table that we omitted for succinctness.
+20
+F Complexity analysis
+Recall that the proposed algorithm consists of three computational steps: 1) Projecting each InH-
+hyperedge onto a subgraph; 2) Combining the subgraphs to create a graph; 3) Performing spectral
+clustering on the derived graph based on Algorithm 1 (Appendix. B). The complexity of the algorithms
+depends on the complexity of these three steps. Let ?? = maxe?E ?(e) denote the largest size of a
+hyperedge. If in the first step we solve the optimization procedure (5) for all InH-hyperedges with
+at most 2?(e) constraints, the worst case complexity of the algorithm is O(2c?
+? |E|), where c is a
+constant that depends on the LP-solver. The second step has complexity O((??)2|E|), while the third
+step has complexity O(n2), given that one has to find the eigenvectors corresponding to the extremal
+eigenvalues. Other benchmark hypergraph clustering algorithms, such as Clique Expansion, Star
+Expansion [11] and Zhou’s normalized hypergraph cut [13] share two steps of our procedure and
+hence have the same complexity for the corresponding computations. In practice, we usually deal with
+hyperedges of small size (< 10) and hence ?? may, for all purposes, be treated as a constant. Hence,
+the complexity overhead of our method is of the same order as that of the last two steps, and hence
+we retain the same order of computation as classical homogeneous clustering methods. Nevertheless,
+to reduce the complexity of InH-partition, one may use predetermined mappings of the form (9)
+and (10). In the applications discussed in what follows, we exclusively used this computationally
+efficient approach.
+G Discussion of Equation (9)
+For the case that only the values of we({v}) are known, we showed that one may perform perfect
+projections with ?(e) = 1. Suppose now that w(e) takes the form (9), i.e., that for each pair of vertices
+vv? in e, one has
+w
+(e)
+vv? =
+1
+?(e)? 2 [we({v}) + we({v?})]?
+1
+(?(e)? 1)(?(e)? 2)
+?
+v??e
+we({v?}).
+For all v ? e, one can compute?
+v??e/{v}
+w
+(e)
+vv? =
+?(e)? 1
+?(e)? 2we({v}) +
+1
+?(e)? 2
+?
+v??e/{v}
+we({v?})?
+1
+?(e)? 2
+?
+v??e
+we({v?})
+=we({v},
+which confirms that the projection is perfect. When ?(e) > 3, a perfect projection is not unique
+as the problem is underdetermined. It is also easy to check the conditions for nonnegativity of the
+components of w(e): For each pair of vertices vv? in e, one requires
+we({v}) + we({v?}) ?
+1
+(?(e)? 1)
+?
+v??e
+we({v?}), (22)
+which indicates the weights in we(·) associated with different vertices should satisfy a special form
+of a balancing condition.
+H Supplementary Applications and Experiments
+H.1 Structure Learning of Ranking Data
+Synthetic data. We first compare the InH-partition (InH-Par) method with the AnchorsPartition
+(APar) technique proposed in [26] on synthetic data. Note that APar is assumed to know the correct
+size of the riffled-independent sets while InH-partition automatically determines the sizes of the parts.
+We set the number elements to n = 16, and partitioned them into a pair (S?, S??), where |S?| = q,
+1 ? q ? n. For a sample set size m, we first independently choose scores si, s?i ?Uniform([0,1]).
+For i ? V and then generate m rankings via the following procedure: We first use the Plackett-
+Luce Model [29] with parameters si, i ? S? and s?i, i ? S??, to generate ?S? and ?S?? . Then, we
+interleave ?S? and ?S?? , which were sampled uniformly at random without replacement, to form ?.
+The performance of the method is characterized via the success rate of full recovery of (S?, S??).
+21
+10
+1
+10
+2
+10
+3
+10
+4
+Sample Complexity m
+0
+0.2
+0.4
+0.6
+0.8
+1
+S
+u
+c
+c
+e
+s
+s
+ R
+a
+te
+Apar
+InH-Par
+(a)
+10
+1
+10
+2
+10
+3
+10
+4
+Sample Complexity m
+0
+0.2
+0.4
+0.6
+0.8
+1
+S
+u
+c
+c
+e
+s
+s
+ R
+a
+te
+Apar
+InH-Par
+(b)
+0 0.2 0.4 0.6 0.8 1
+Triple-Sampling Probability r
+0
+0.2
+0.4
+0.6
+0.8
+1
+S
+u
+c
+c
+e
+s
+s
+ R
+a
+te
+Apar
+InH-Par
+(c)
+0 0.2 0.4 0.6 0.8 1
+Triple-Sampling Probability r
+0
+0.2
+0.4
+0.6
+0.8
+1
+S
+u
+c
+c
+e
+s
+s
+ R
+a
+te
+Apar
+InH-Par
+(d)
+10
+1
+10
+2
+10
+3
+10
+4
+Sample Complexity m
+0
+0.2
+0.4
+0.6
+0.8
+1
+S
+u
+c
+c
+e
+s
+s
+ R
+a
+te
+Apar
+InH-Par
+(e)
+10
+1
+10
+2
+10
+3
+10
+4
+Sample Complexity m
+0
+0.2
+0.4
+0.6
+0.8
+1
+S
+u
+c
+c
+e
+s
+s
+ R
+a
+te
+Apar
+InH-Par
+(f)
+Figure 4: Success rate vs Sample Complexity & Triple-sampling Rate. a),c): q = 4 with scores si;
+b),d): q = 8 with scores si; e) q = 4 with scores s3i ; f): q = 8 with scores s
+3
+i .
+The results of various algorithms based on 100 independently generated sample sets are listed in
+Figure 4 a) and b). For almost all m, InH-partition outperforms APar. Only when q = 4 and the
+sample size m is large, InH-partition may offer worse performance than Apar. The explanation for
+this finding is that InH-partition performs a normalized cut that tends to balance the sizes of different
+classes. With regards to the computational complexity of the methods, both require one to evaluate
+the mutual information of all triples of elements at the cost of O(mn3) operations. To reduce the
+time complexity of this step, one may sample each triple independently with probability r. Results
+pertaining to triple-sampling with m = 104 are summarized in Figure 4 c) and d). The InH-partition
+can achieve high success rate 80% even when only a small fraction of triples (r < 0.2) is available.
+On the other hand, APar only works when almost all triples are sampled (r > 0.7).
+To further test the performance of InH-partition, instead of using the previously described si values
+as the parameters for Plakett-Luce Model, we use the values s3i instead. This choice of parameters
+further restricts the positions of the candidates within S? and S??. Hence, the mutual information of
+interest is closer to zero and hence harder to estimate. The results for this setting are shown in part e)
+and f) of Figure 4. As may be seen, in this setting, the performance of APar is poor while that of
+InH-partition changes little.
+Real data - Supplement for the Irish Election Dataset [27]. The Irish Election Dataset consists
+of rankings of 14 candidates from different parties, listed in Table 2. This information was used to
+perform the learning tasks described in the main text.
+Table 2: List of candidates from the Meath Constituency Election in 2002 (reproduced from [26, 27])
+Candidate Party
+1 Brady, J. Fianna Fáil
+2 Bruton, J. Fine Gael
+3 Colwell, J. Independent
+4 Dempsey, N. Fianna Fáil
+5 English, D. Fine Gael
+6 Farrelly, J. Fine Gael
+7 Fitzgerald, B. Independent
+Candidate Party
+8 Kelly, T. Independent
+9 O’Brien, P. Independent
+10 O’Byrne, F. Green Party
+11 Redmond, M. Christian Solidarity
+12 Reilly, J. Sinn Féin
+13 Wallace, M. Fianna Fáil
+14 Ward, P. Labour
+22
+Table 3: List of 10 sushi from the sushi preference dataset (reproduced from [30])
+Sushi Type
+1 ebi shrimp
+2 anago sea eel
+3 maguro tuna
+4 ika squid
+5 uni sea urchin
+Candidate Party
+6 sake salmon roe
+7 tamago egg
+8 toro fatty tuna
+9 tekka-maki tuna roll
+10 kappa-maki cucumber roll
+{1,2,3,4,5,6,7,8,9,10}
+{5,6}
+{1,2,3,4,7,8,9,10}
+{3,8,9}
+{1,2,4,7,10}
+{4,7}
+{1,2,10}
+...
+... ...
+sea urchin, salmoe roe
+tuna, fatty tuna, tuna roll
+squid, egg
+Figure 5: Hierarchical partitioning structure of sushi preference detected by InH-Par
+In addition, we performed the same structure learning task on the sushi preference ranking dataset [30].
+This dataset consists of 5000 full rankings of ten types of sushi. The different types of sushi evaluated
+are listed in Table 3. We ran InH-partition to split the ten sushi types to obtain a hierarchical clustering
+structure as the one shown in Figure 5. The figure reveals two meaningful clusters, {5, 6} (uni,sake)
+and {3, 8, 9} (tuna-related sushi): The sushi types labeled by 5 and 6 have the commonality of being
+expensive and branded as “daring, luxury sushi,” while sushi types labeled by 3, 8, 9 all contain
+tuna. InH-partition cannot detect the so-called “vegeterian-choice sushi” cluster {7, 10}, which was
+recovered by Apar [26]. This may be a consequence of the ambiguity and overlap of clusters, as
+the cluster {4, 7} may also be categorized as “rich in lecithin”. The detailed comparisons between
+InH-partition and APar are performed based on their ability to detect the two previously described
+standard clusters, {5, 6} and {3, 8, 9}, using small training sets. The averaged results based on 100
+independent tests are depicted in Figure 6 a). As may be seen, InH-partition outperforms APar in
+recovering both the clusters (uni,sake) and (tuna sushi), and hence is superior to APar when learning
+both classes simultaneously. We also compared InH-partition and APar in the large sample regime
+(m = 5000) while using only a subset of triples. The averaged results over 100 sets of independent
+samples are shown Figure 6 b), again indicating the robustness of InH-partition to missing triple
+information.
+H.2 Subspace segmentation
+Subspace segmentation is an extension of traditional data segmentation problems that has the goal
+to partition data according to their intrinsically embedded subspaces. Among subspace segmen-
+tation methods, those based on hypergraph clustering exhibit superior performance compared to
+others [31]. They also exhibit other distinguishing features, such as loose dependence on the choice
+of parameters [11], robustness to outliers [3, 5], and clustering robustness and accuracy [12].
+Hypergraph clustering algorithms are exclusively homogeneous: If the intrinsic affine space is p-
+dimensional (p-D), the algorithms use ?-uniform (? > p + 1, typically set to p + 2) hypergraphs
+H = (V,E), where the vertices in V correspond to observed data vectors and the hyperedges in
+E are chosen ?-tuples of vertices. To each hyperedge e in the hypergraphH one assigns a weight
+we, typically of the form we = exp(?d2e/?2), where de describes the deviation needed to fit the
+corresponding ?-tuple of vectors into a p-D affine subspace, and ? represents a tunable parameter
+obtained by cross validation [11] or computed empirically [12]. A small value of de corresponds to
+a large value of we, and indicates that ?-tuples of vectors in e tend to be clustered together. As a
+good fit of the subspace yields a large weight for the corresponding hyperedge, hypergraph clustering
+tends to avoid cutting hyperedges of large weight and thus mostly groups vectors within one subspace
+together. The performance of the methods varies due to different techniques used for computing the
+deviation de and for sampling the hyperedges. Some widely used deviations include dH?1e , defined
+as the mean Euclidean distance to the optimal fitted affine subspace [11, 3, 5, 4], and the polar
+23
+10
+1
+10
+2
+10
+3
+Sample Complexity m
+0
+0.2
+0.4
+0.6
+0.8
+1
+S
+u
+c
+c
+e
+s
+s
+ R
+a
+te
+InH-Par-uni,sake
+InH-Par-tuna-related
+InH-Par-All
+Apar-uni,sake
+Apar-tuna-related
+Apar-All
+(a)
+0 0.2 0.4 0.6 0.8 1
+Triple-Sampling Probability r
+0
+0.2
+0.4
+0.6
+0.8
+1
+S
+u
+c
+c
+e
+s
+s
+ R
+a
+te
+(b)
+Figure 6: Clusters detected in the sushi preference dataset: a) Success rate vs Sample Complexity; b)
+Success rate vs Triple-Sampling Probability.
+curvature (PC) [12], both of which lead to a homogeneous partition. Instead, we propose to use an
+inhomogeneous deviation defined as
+dInHe ({v}) = Euclidean distance between v and the affine subspace generated by e/{v}, for all v ? e.
+This deviation measures the “distance” needed to fit v into the subspace supported by e/v and will
+be used to construct inhomogeneous cost functions we(·) via we({v}) = exp[?dInHe ({v})2/?2], as
+described in what follows. Note that the choice of a “good” deviation is still an open problem, which
+may depend on specific datasets. Hence, to make a comprehensive comparison, besides dH?1e and
+PC, we also made use of another homogeneous deviation, dH?2e =
+?
+v?e d
+InH
+e ({v})/?(e) which
+is the average of all the defined inhomogeneous deviations. Comparing the results obtained from
+dInHe with d
+H?2
+e will highlight the improvements obtained from InH-partition, rather than from the
+choice of the deviation. The inhomogeneous form of deviation dInHe (·) has a geometric interpretation
+based on the polytopes (p = 1) shown in Figure 7 (with dH?1e and d
+H?2
+e ). There, d
+InH
+e ({v}) is
+the distance of {v} from the hyperplane spanned by e/{v}. The induced inhomogeneous weight
+we({v}) = exp(?dInHe ({v})2/?2) may be interpreted as the cost of separating {v} away from the
+other points (vertices) in e.
+vi vi
+vj vj
+vk vk
+? i
+? j
+? k
+hi
+hj
+hk
+dH?1e = (`i + `j + `k)/3
+dH?2e = (hi + hj + hk)/3
+dInHe ({vi}) = hi
+Figure 7: Illustration of the deviation (p = 1) used for subspace segmentation.
+All hypergraph-partitioning based subspace segmentation algorithms essentially use the NCut pro-
+cedure described in the main text, but their performances vary due to different approaches for
+constructing the hypergraphs. Three steps in the clustering procedure are key to the performance
+quality: The first is to quantify the deviation to fit a collection of vectors into a affine subspace;
+the second is to choose the parameter ?; the third is to sample ?-tuples of vectors, i.e., choose the
+hyperedges of the hypergraph. For fairness of comparison, in all our experiments we computed an
+inhomogeneous deviation de for the hyperedge e instead of a homogeneous one in the first step, and
+kept the other two key steps the same as used in the standard literature. In particular, we performed
+hyperedge sampling uniformly at random for the experiments pertaining to k-line segmentation; we
+used the same hyperedge sampling procedure as that of SCC [12] for the experiments pertaining to
+motion segmentation. The reason for these two different types of settings are to assess the contribution
+of InH methods, rather than the sampling procedure.
+24
+Table 4: The directions of the k-lines.
+k =2 k =3 k =4
+(0.97,0.26,0.00)
+(0.97,-0.26,0.00)
+(0.95,0.30,0.00)
+(0.95,-0.15,0.26)
+(0.95,-0.15,-0.26)
+(0.93,0.37,0.00)
+(0.93,0.00,0.37)
+(0.93,-0.37,0.00)
+(0.93,0.00,-0.37)
+-3 -2.5 -2 -1.5 -1
+log10(?n)
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0.35
+0.4
+e
+%
+d
+InH
+e
+d
+H?2
+e
+d
+H?1
+e
+(a)
+-3 -2.5 -2 -1.5 -1
+log10(?n)
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+e
+%
+d
+InH
+e
+d
+H?2
+e
+d
+H?1
+e
+(b)
+-3 -2.5 -2 -1.5 -1
+log10(?n)
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+e
+%
+d
+InH
+e
+d
+H?2
+e
+d
+H?1
+e
+(c)
+Figure 8: Misclassification rate (mean and standard deviation) vs noise level: a) k = 2; b) k = 3; c)
+k = 4.
+Our first experiment pertains to segmenting k-lines in a 3D Euclidean space (D = 3, p = 1, k =
+2, 3, 4). The k-lines all pass through the origin, and their directions, listed in Table 4, are such that
+the minimal angles between two lines are restricted to 30 degree; 40 points are sampled uniformly
+from the segment of each line lying in the unit ball so there are 40k points in total. Each point is
+independently corrupted by 3D mean-zero Gaussian noise with covariance matrix ?2nI. We determined
+the parameter ? through cross validation and uniformly at random picked 100× k2 many triples. We
+computed the percentage of misclassified points based on 50 independent tests; the misclassification
+rate is denoted by e% and the results are shown in Figure 8. The InH-partition only has 50% of the
+misclassification errors of H-partition, provided that the noise is small (?n < 0.01). To see why this
+may be the case, let us consider a triple of datapoints {vi, vj , vk} where vi and vj belong to the same
+cluster, while vk may belong to a different cluster. The line that goes through vi and vj is close to
+the true affine subspace when the noise is small and thus the distance from the third point vk to this
+line can serve as a precise indicator whether vk lies within the same true affine subspace. When
+the noise is high, the InH-partition also performs better when the number of classes is k = 2, but
+starts to deteriorate in performance as k increases. The reason behind this phenomena is as follows:
+Inhomogenous costs of a hyperedge provide more accurate information about the subspaces than the
+homogenous costs when at least two points of the hyperedge belong to the same line cluster. This
+is due to the definition of the deviation dinHe ; but hyperedges of this type become less likely as k
+increases.
+The second problem we investigated in the context of subspace clustering is motion segmentation.
+Motion segmentation, a widely used application in computer vision, is the task of clustering point
+trajectories extracted from a video of a scene according to different rigid-body motions. The problem
+can be reduced to a subspace clustering problem as all the trajectories associated with one motion lie
+in one specified 3D affine subspace (p = 3) [32]. We evaluate the performance of the InH-partition
+method over the well-known motion segmentation dataset, Hopkins155 [33]. This dataset consists of
+155 sequences of two and three motions from three categories of scenes: Checkerboard, traffic and
+articulated sequences. Our experiments show the InH-partition algorithm outperforms the benchmark
+algorithms based on the use of H-partitions over this dataset including spectral curvature clustering
+technique (SCC [12]). To make the comparison fair, we simply replaced the homogeneous distance
+polar curvature in SCC with the inhomogeneous distance dInHe , the homogenous distances d
+H?1
+e
+and dH?2e , and keep all other steps the same. We also evaluated the performance of some other
+methods, including Generalized PCA (GPCA) [34], Local Subspace Affinity [35], Agglomerative
+Lossy Compression (ALC) [36], and Sparse Subspace Clustering (SSC) [37]. The results based on
+the average over 50 runs for each video are shown in Table 5.
+25
+As may be seen, InH-partition outperforms all methods except for SSC (not based on hypergraph
+clustering), which shows the superiority of replacing H-hyperedges with inhomogeneous ones.
+Although InH-partition fails to outperform SSC, it has significantly lower complexity and is much
+easier to use and implement in practice. In addition, some recent algorithms based on H-partitions
+may leverage the complex hyperedge-sampling steps for this application [38], and we believe that
+the InH-partition method can be further improved by changing the sampling procedure, and made
+more appropriate for inhomogeneous hypergraph clustering as opposed to SSC. This topic will be
+addressed elsewhere.
+Table 5: Misclassification rates e% for the Hopkins 155 dataset. (MN: mean; MD: median)
+Two Motions Three Motions
+Method Chck.(78) Trfc.(31) Artc.(11) All(120) Chck.(26) Trfc.(7) Artc.(2) All(115)
+MN MD MN MD MN MD MN MD MN MD MN MD MN MD MN MD
+GPCA [34] 6.09 1.03 1.41 0.00 2.88 0.00 4.59 0.38 31.95 32.93 19.83 19.55 16.85 16.85 28.66 28.26
+LSA [35] 2.57 0.27 5.43 1.48 4.10 1.22 3.45 0.59 5.80 1.77 25.07 23.79 7.25 7.25 9.73 2.33
+ALC [36] 1.49 0.27 1.75 1.51 10.70 0.95 2.40 0.43 5.00 0.66 8.86 0.51 21.08 21.08 6.69 0.67
+SSC [37] 1.12 0.00 0.02 0.00 0.62 0.00 0.82 0.00 2.97 0.27 0.58 0.00 1.42 1.42 2.45 0.20
+SCC [12] 1.77 0.00 0.63 0.14 4.02 2.13 1.68 0.07 6.23 1.70 1.11 1.40 5.41 5.41 5.16 1.58
+H+dH?1e 12.27 5.06 14.91 9.94 12.85 3.66 12.92 6.01 22.13 23.98 21.99 18.12 19.79 19.79 21.97 20.45
+H+dH?2e 4.20 0.43 0.33 0.00 1.53 0.10 2.93 0.06 7.05 2.22 7.02 3.98 6.47 6.47 7.01 2.12
+InH-par 1.69 0.00 0.61 0.22 1.22 0.62 1.40 0.04 4.82 0.69 2.46 0.60 4.23 4.23 4.06 0.65
+26
+I Supplementary Tables
+Table 6: Inhomogeous cost functions w(r)e (S) for ?(e) ? {4, 5, 6}.
+?(e) = 4, ?(e) = 3/2
+r S
+1 2 3 4 1, 2 1, 3 1, 4
+1 0 1 1 1 1 1 1
+2 0 0 1 1 0 1 1
+3 1 1 1 1 1 1 1
+4 1 1 1 1 2 2 2
+?(e) = 5, ?(e) = 2
+r S
+1 2 3 4 5 1, 2 1, 3 1, 4 1, 5 2, 3 2, 4 2, 5 3, 4 3, 5 4, 5
+1 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+2 0 1 1 1 1 1 1 1 1 2 2 2 2 2 2
+3 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+4 1 1 1 1 1 1 2 2 2 2 2 2 1 1 1
+5 1 1 1 1 1 0 2 2 2 2 2 2 1 1 1
+6 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2
+?(e) = 6, ?(e) = 4
+r S
+1 2 3 4 5 6 1, 2 1, 3 1, 4 1, 5 1, 6 2, 3 2, 4 2, 5 2, 6
+1 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+2 0 1 1 1 1 1 1 1 1 1 1 2 2 2 2
+3 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+4 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2
+5 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2
+6 1 1 1 1 1 1 0 2 2 2 2 2 2 2 2
+7 1 1 1 1 1 1 1 1 2 2 2 1 2 2 2
+8 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2
+9 1 1 1 1 1 1 1 1 2 2 2 1 2 2 2
+r S
+3, 4 3, 5 3, 6 4, 5 4, 6 5, 6 1, 2, 3 1, 2, 4 1, 2, 5 1, 2, 6 1, 3, 4 1, 3, 5
+1 1 1 1 1 1 1 1 1 1 1 1 1
+2 2 2 2 2 2 2 2 2 2 2 2 2
+3 1 1 1 1 1 1 1 1 1 1 1 1
+4 2 2 2 2 2 2 3 3 3 3 3 3
+5 1 1 1 1 1 1 1 1 1 1 2 2
+6 1 1 1 1 1 1 1 1 1 1 2 2
+7 2 2 2 1 1 1 1 2 2 2 2 2
+8 2 2 2 2 2 2 1 3 3 3 3 3
+9 2 2 2 1 1 1 0 2 2 2 2 2
+r S
+1, 3, 6 1, 4, 5 1, 4, 6 1, 5, 6
+1 1 1 1 1
+2 2 2 2 2
+3 1 1 1 1
+4 3 3 3 3
+5 2 2 2 2
+6 2 2 2 2
+7 2 2 2 2
+8 3 3 3 3
+9 2 2 2 2
+27
+Table 7: Species in the Florida Bay foodweb with biological classification and assigned clusters.
+Cluster labels and colors correspond to the clusters shown in Figure 2. For InH-partition, in the
+first-level clustering, the species Roots is the only singleton while in the second-level clustering, the
+species Kingfisher, Hawksbill Turtle and Manatee are singletons.
+Species Biological Classification Cluster (Ours) Cluster (Benson’s [10])
+Roots producers (no predator) Singleton Singleton
+2µm Spherical cya phytoplankton producers Green Singleton
+Synedococcus phytoplankton producers Green Singleton
+Oscillatoria phytoplankton producers Green Singleton
+Small Diatoms (< 20µm) phytoplankton producers Green Singleton
+Big Diatoms (> 20µm) phytoplankton producers Green Singleton
+Dinoflagellates phytoplankton producers Green Singleton
+Other Phytoplankton phytoplankton producers Green Singleton
+Free Bacteria producers Green Green
+Water Flagellates producers Green Green
+Water Cilitaes producers Green Green
+Kingfisher bird (no predator) Singleton Singleton
+Hawksbill Turtle reptiles (no predator) Singleton Singleton
+Manatee mammal (no predator) Singleton Singleton
+Rays fish Blue Singleton
+Bonefish fish Blue Singleton
+Lizardfish fish Blue Red
+Catfish fish Blue Blue
+Eels fish Blue Red
+Brotalus fish Blue Blue
+Needlefish fish Blue Yellow
+Snook fish Blue Singleton
+Jacks fish Blue Singleton
+Pompano fish Blue Singleton
+Other Snapper fish Blue Singleton
+Gray Snapper fish Blue Singleton
+Grunt fish Blue Singleton
+Porgy fish Blue Singleton
+Scianids fish Blue Singleton
+Spotted Seatrout fish Blue Singleton
+Red Drum fish Blue Singleton
+Spadefish fish Blue Singleton
+Flatfish fish Blue Blue
+Filefish fish Blue Singleton
+Puffer fish Blue Singleton
+Other Pelagic fish fish Blue Yellow
+Small Herons & Egrets bird Blue Singleton
+Ibis bird Blue Singleton
+Roseate Spoonbill bird Blue Singleton
+Herbivorous Ducks bird Blue Singleton
+Omnivorous Ducks bird Blue Singleton
+Gruiformes bird Blue Singleton
+Small Shorebird bird Blue Singleton
+Gulls & Terns bird Blue Singleton
+Loggerhead Turtle reptiles (no predator) Blue Singleton
+Sharks fish (no predator) Purple Singleton
+Tarpon fish Purple Singleton
+Grouper fish (no predator) Purple Singleton
+Mackerel fish (no predator) Purple Singleton
+Barracuda fish Purple Singleton
+Loon bird (no predator) Purple Singleton
+Greeb bird (no predator) Purple Singleton
+Pelican bird Purple Singleton
+Comorant bird Purple Singleton
+Big Herons & Egrets bird Purple Singleton
+Predatory Ducks bird (no predator) Pubirdrple Singleton
+Raptors bird (no predator) Purple Singleton
+Crocodiles reptiles (no predator) Purple Singleton
+SingleDolphin mammal (no predator) Purple Singleton
+28
+Species Biological Classification Cluster Labels Cluster(Benson’s [10])
+Benthic microalgea algea producers Yellow Blue
+Thalassia seagrass producers Yellow Blue
+Halodule seagrass producers Yellow Blue
+Syringodium seagrass producers Yellow Blue
+Drift Algae algea producers Yellow Blue
+Epiphytes algea producers Yellow Blue
+Acartia Tonsa zooplankton invertebrates Yellow Green
+Oithona nana zooplankton invertebrates Yellow Green
+Paracalanus zooplankton invertebrates Yellow Green
+Other Copepoda zooplankton invertebrates Yellow Green
+Meroplankton zooplankton invertebrates Yellow Green
+Other Zooplankton zooplankton invertebrates Yellow Green
+Benthic Flagellates invertebrates Yellow Blue
+Benthic Ciliates invertebrates Yellow Blue
+Meiofauna invertebrates Yellow Blue
+Sponges macro-invertebrates Yellow Green
+Bivalves macro-invertebrates Yellow Blue
+Detritivorous Gastropods macro-invertebrates Yellow Blue
+Epiphytic Gastropods macro-invertebrates Yellow Singleton
+Predatory Gastropods macro-invertebrates Yellow Blue
+Detritivorous Polychaetes macro-invertebrates Yellow Blue
+Predatory Polychaetes macro-invertebrates Yellow Blue
+Suspension Feeding Polych macro-invertebrates Yellow Blue
+Macrobenthos macro-invertebrates Yellow Blue
+Benthic Crustaceans macro-invertebrates Yellow Blue
+Detritivorous Amphipods macro-invertebrates Yellow Blue
+Herbivorous Amphipods macro-invertebrates Yellow Blue
+Isopods macro-invertebrates Yellow Blue
+Herbivorous Shrimp macro-invertebrates Yellow Red
+Predatory Shrimp macro-invertebrates Yellow Blue
+Pink Shrimp macro-invertebrates Yellow Blue
+Thor Floridanus macro-invertebrates Yellow Singleton
+Detritivorous Crabs macro-invertebrates Yellow Red
+Omnivorous Crabs macro-invertebrates Yellow Blue
+Green Turtle reptiles Yellow Singleton
+Coral macro-invertebrates Red Singleton
+Other Cnidaridae macro-invertebrates Red Blue
+Echinoderma macro-invertebrates Red Blue
+Lobster macro-invertebrates Red Singleton
+Predatory Crabs macro-invertebrates Red Red
+Callinectus sapidus macro-invertebrates Red Red
+Stone Crab macro-invertebrates Red Singleton
+Sardines fish Red Yellow
+Anchovy fish Red Yellow
+Bay Anchovy fish Red Yellow
+Toadfish fish Red Blue
+Halfbeaks fish Red Yellow
+Other Killifish fish Red Singleton
+Goldspotted killifish fish Red Yellow
+Rainwater killifish fish Red Yellow
+Sailfin Molly fish Red Singleton
+Silverside fish Red Yellow
+Other Horsefish fish Red Singleton
+Gulf Pipefish fish Red Singleton
+Dwarf Seahorse fish Red Singleton
+Mojarra fish Red Singleton
+Pinfish fish Red Singleton
+Parrotfish fish Red Singleton
+Mullet fish Red Blue
+Blennies fish Red Blue
+Code Goby fish Red Red
+Clown Goby fish Red Red
+Other Demersal Fish fish Red Blue
+29

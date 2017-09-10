@@ -1,0 +1,569 @@
+Deep Learning-Guided Image Reconstruction from
+Incomplete Data
+Brendan Kelly
+Department of Computer Science
+Washington University in Saint Louis
+St. Louis, MO 63130
+bmkelly@wustl.edu
+Thomas P. Matthews
+Department of Biomedical Engineering
+Washington University in Saint Louis
+St. Louis, MO 63130
+thomas.matthews@wustl.edu
+Mark A. Anastasio
+Department of Biomedical Engineering
+Washington University in Saint Louis
+St. Louis, MO 63130
+anastasio@wustl.edu
+Abstract
+An approach to incorporate deep learning within an iterative image reconstruction
+framework to reconstruct images from severely incomplete measurement data
+is presented. Specifically, we utilize a convolutional neural network (CNN) as
+a quasi-projection operator within a least squares minimization procedure. The
+CNN is trained to encode high level information about the class of images being
+imaged; this information is utilized to mitigate artifacts in intermediate images
+produced by use of an iterative method. The structure of the method was inspired
+by the proximal gradient descent method, where the proximal operator is replaced
+by a deep CNN and the gradient descent step is generalized by use of a linear
+reconstruction operator. It is demonstrated that this approach improves image
+quality for several cases of limited-view image reconstruction and that using a
+CNN in an iterative method increases performance compared to conventional
+image reconstruction approaches. We test our method on several limited-view
+image reconstruction problems. Qualitative and quantitative results demonstrate
+state-of-the-art performance.
+1 Introduction
+Deep learning (DL) methods have had a profound impact on computer vision and image analysis
+applications. Such methods are now ubiquitous and routinely employed for tasks that include image
+classification [11, 26], segmentation [8, 2], and image completion [30, 13], to name a few. Until very
+recently, however, DL methods have not been utilized for the upstream task of improving the quality
+of the images themselves that are produced by computed imaging systems. The process of forming
+an image from a collection of measurements by use of a computational procedure is referred to as
+image reconstruction. Almost all modern imaging systems that are utilized in scientific or medical
+applications are computed in nature and utilize an image reconstruction method to form an image.
+The next wave in DL methodologies for imaging applications is likely to address the important task
+of improving the quality of images produced by computed imaging systems [27].
+In many imaging applications, in order to reduce data-acquisition times or radiation doses in the
+case of X-ray-based systems, it is desirable to reconstruct an accurate image from an incomplete
+set of measurements. Here, an incomplete set of measurements refers to one that does not uniquely
+specify an image that can produce the measured data, even in the idealized situation where noise or
+other measurement errors are absent. In such cases, the measurement process is not described by an
+31st Conference on Neural Information Processing Systems (NIPS 2017), Long Beach, CA, USA.
+ar
+X
+iv
+:1
+70
+9.
+00
+58
+4v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+ S
+ep
+ 2
+01
+7
+injective operator and therefore the inverse operator is not defined. Accordingly, image reconstruction
+from incomplete data corresponds to an ill-posed inverse problem and a regularized solution must be
+computed. Bayesian theory provides a natural framework for computing regularized solutions via
+penalized least squares estimators by incorporating a priori information regarding the sought-after
+image. For example, image priors that describe sparseness properties are routinely employed and
+have proven to be successful for certain classes of problems. They are particularly effective when
+the measurement model satisfies the mathematical conditions prescribed by compressive sampling
+theory [6]. However, most computed imaging systems do not satisfy these conditions. Although
+recent advances in generative neural networks are exciting and encouraging [21] [23], the task of
+specifying an image prior that comprehensively describes the statistical properties of a specified
+ensemble of images remains a challenging task. Human observers can often reliably identify artifacts
+in reconstructed images. Codifying this knowledge in a mathematically tractable way such that it
+can be incorporated into a reconstruction method has proven difficult. These issues have limited the
+effectiveness of regularized methods for reconstructing images from inconsistent and/or incomplete
+measurement data.
+DL methods hold great promise for circumventing these limitations and may enable great improve-
+ments in image reconstruction performance when the measurement data are incomplete. As mentioned
+above, for this problem, there exists a large number of images that can produce the measured data; one
+of these images is the sought-after ‘true’ image, while the others will contain artifacts and distortions.
+The fundamental problem is that it is difficult to design a regularization strategy (i.e., optimization
+program) that results in computation of the true solution, or some accurate approximation of it. To
+circumvent this, DL methods can be naturally employed to learn domain knowledge that is subse-
+quently exploited by the reconstruction method to improve the accuracy of the reconstructed image.
+A DL-assisted image reconstruction method would be ‘intelligent’ in the sense that it is able to utilize
+this domain knowledge to guide it to arrive at a solution that contains greatly reduced artifact levels
+as compared to a solution computed by use of a traditional reconstruction method. Intuitively, the
+DL-assisted reconstruction method would be able to avoid producing an image that contains strong
+artifacts because the DL model knows what those images look like. As described below, in terms of
+linear operator theory, the DL model would permit the reconstruction method to accurately estimate
+the null space component of the image that is invisible to the imaging system.
+In this paper, a DL-assisted image reconstruction method for use with incomplete data is proposed
+and investigated. Consider that two ensembles of images are available: one ensemble corresponds
+to artifact free (‘true’) images while the second contains images that are degraded by artifacts and
+distortions that are attributable to the incompleteness of the measurement data. A convolutional neural
+network (CNN) is trained by use of these data to learn a mapping that relates the true and artifact-laden
+images. This mapping is subsequently embedded within an iterative image reconstruction method
+to guide the iterative method toward a solution that contains greatly reduced artifact levels. The
+proposed approach holds conceptual similarities to the proximal gradient descent method, which
+alternates between taking a step along the gradient of some cost function and applying a proximal
+operator. In the proposed approach, the proximal operator is replaced by the mapping learned by the
+CNN and the gradient descent update is generalized by use of a reconstruction operator. A novel
+two-stage training scheme is introduced in order to train the CNN to be used within the proposed
+framework.
+Related Work
+Extensive work has been performed on applying DL methods to image restoration tasks, such as
+denoising or in-painting [16, 30, 19]. These tasks share similarities with image reconstruction tasks,
+but differ in the information provided as input. In image restoration, a degraded image is provided as
+input, while in image reconstruction, measurements corresponding to some operator applied to the
+image are provided. Typically, these measurements differ structurally in some significant way from
+the images themselves. Additionally, many image reconstruction methods require an initial guess of
+the true image, which itself may be a degraded image.
+Image restoration methods can be combined with image reconstruction methods as a post-processing
+step to try to correct any artifacts in the reconstructed image. However, since these restoration
+methods accept only an image as input, it is not possible to consider the measured data during this
+post-processing step. Thus, in summarizing the related work, the methods have been partitioned into
+those that apply DL-based image restoration methods to independently reconstructed images and
+those that consider the measured data as part of a larger DL-based image reconstruction approach. To
+contrast with the proposed approach, the image restoration methods will be referred to as single-pass
+approaches, as the images pass through DL-based network a single time.
+2
+Deep Image Restoration: The problem of image restoration using DL techniques has been well-
+studied, and, as such, it is not possible to mention all the meaningful contributions. In [16], a deep
+residual network is proposed for the task of image super-resolution. In [19], an autoencoder style
+CNN is proposed which makes use of residual-style layers [11], and is applied to the tasks of image
+denoising and super-resolution. Recently, several groups has have used DL techniques to remove
+artifacts and noise from images reconstructed from incomplete and/or inconsistent measurement data
+[7, 1, 28].
+Deep Image Reconstruction: Recently, several groups have proposed using DL techniques to improve
+image reconstruction. In [12], inference algorithms are unfolded into a series of layers and the
+parameters of those layers are optimized by a neural network. This technique has been expanded
+to incorporate many standard inference algorithms and applications [29, 22, 10, 15]. In [18], the
+original image is directly estimated by a CNN. In [5], the original image is estimated by gradient
+descent where the estimated image is constrained to lie in the range of a generative CNN. In [20], the
+proximal operator is replaced by a denoising CNN for an image reconstruction problem.
+There has been a large amount of work conducted on understanding and improving the optimization of
+conventional CNNs for the task of image restoration. However, many of the deep image reconstruction
+techniques are more difficult to train than CNNs, which has limited the complexity of the DL
+models they employ. In this work, a DL-assisted reconstruction method is proposed that embeds a
+conventional CNN within an iterative framework. In this way, the method is able to exploit the power
+of a deep CNN that is relatively easy to train but also is responsive to the measured data.
+2 Statement of image reconstruction problem
+Consider an inverse problems in which one seeks to recover an image f ? Rn from a collection
+of measurements g ? Rm for m < n. While the proposed approach is more general, for ease of
+discussion and interpretation, we will focus on the case in which the measured data are related to the
+true image via
+g = Hf , (1)
+where H ? Rm×n is a linear operator describing the measurement system. Given some H, any object
+f can be decomposed into two orthogonal components, the measurable component fmeas ? Umeas,
+and the null space component fnull ? Unull, where Unull ? {f | Hf = 0} and Umeas is its
+orthogonal complement. A key challenge is how to recover the component of f that lies in Unull.
+From the definition of Unull, it follows that the measured data g does not contain any information on
+fnull, which is invisible to the imaging system. Thus, to accurately recover fnull and thereby avoid
+strong artifacts in the reconstructed f = fmeas + fnull, some a priori knowledge about the set of
+objects that might be measured is needed.
+The penalized least squares (PLS) approach to image reconstruction seeks to compute an estimate
+f? of the image by minimizing an objective function consisting of a data fidelity (loss) term and a
+penalty, or regularization, term. For example,
+f? = arg min
+f?S
+?Hf ? g?22 + ??(f), (2)
+where S is some, typically convex, set, ? is a regularization term, and ? > 0 is a scalar parameter
+that controls the relative weight of the two terms in the objective function.
+3 Approach
+DL-Guided Image Reconstruction
+The structure of the proposed approach is inspired by that of proximal (or projected) gradient descent.
+In that approach, an initial guess for the true object f (0) is iteratively refined by first taking a step
+along the gradient of some cost function C (f) and then applying a proximal operator P that maps the
+current iterate to:
+f? (k+1) = P
+(
+f? (k) ? ??C
+(
+f? (k)
+))
+(3)
+Here, k is the iteration number and ? is the step size. In theory, this approach can be very effective.
+For example, P could be defined as a projection operator onto the set of all artifact-free images. In
+practice, however, it is difficult to determine a method for computing P except for relatively simple
+3
+cases. This limits the amount and complexity of a priori information that can be encoded in the
+projection operator.
+To move beyond this restriction, P is replaced with a quasi-projection operator Q (f ;w), consisting
+of a CNN parameterized by a set of weights w. These weights will be determined by training the
+CNN to map images from the space of artifact-laden images to the space of artifact-free images. In
+this case, the learned operator Q may not strictly satisfy the properties of a projection or proximal
+operator. However, as demonstrated below, embedding this quasi-projection operator within an
+iterative reconstruction method can result in images that possess significantly reduced artifact levels
+as compared to those produced by use conventional (non-DL-based) reconstruction methods.
+Algorithm 1 General reconstruction procedure
+Input: w,p,g,H, n,R,Q
+Output: f?
+1: f? (0)Q ? 0
+2: k ? 0 {k is the algorithm iteration number.}
+3: while k < n do
+4: f? (k+1)R ? R
+(
+f?
+(k)
+Q ;H,g,p
+)
+5: f? (k+1)Q ? Q
+(
+f?
+(k+1)
+R ;w
+)
+6: k ? k + 1
+7: end while
+8: f? ? f? (k)Q
+Traditionally, projection or proximal operators
+are applied at every iteration during the recon-
+struction process. However, that would require
+the quasi-projection operator Q to project the
+estimated images at early iterations, which may
+be very inaccurate. Instead, a further general-
+ization of the proximal gradient descent method
+is proposed. The single gradient descent step
+performed at each iteration is replaced by a
+more general approximate reconstruction oper-
+atorR (f ;H,g,p), where p is a set of parame-
+ters for the reconstruction method. This approx-
+imate reconstruction operator should update the
+current estimate of the object to more closely
+match the measured data. For example,R could
+be a solution to the optimization problem given
+in Eqn. 2 subject to some stopping criteria. As
+a result, the output ofR should be closer to the
+sought-after image, yielding a simpler quasi-projection mapping for the CNN to learn. In this way,
+the training problem is made easier, while Q still learns all the necessary a priori information to
+improve the reconstructed image given by our conventional reconstruction operatorR. Pseudocode
+for our algorithm is provided in Alg. 1, where n is the number of timesR and Q are applied.
+When Q is chosen to be a projection operator and R is chosen to correspond to a single gradient
+descent step, the proposed approach reduces to the projected gradient descent method as a special
+case. Further, when n = 1, the proposed approach reduces to the single-pass approach.
+Network Architecture for Establishing Q
+The operator Q represents a mapping from Rn to Rn. When employing a DL model to implement
+this mapping, there is great freedom in selecting the appropriate network architecture. We base our
+selection on two main reasons. The first is that recent work has shown that deeper networks are more
+powerful than shallower networks with the same number of parameters [11],[25]. Deeper networks
+consist of a larger chain of non-linear layers which allows for a higher level of abstraction. The
+second reason is that learning a residual mapping is an attractive alternative when there is a high
+correlation between the input and output. Since the input and output are quite similar for this problem,
+it is intuitively an easier problem to learn the residual instead of learning the direct mapping.
+The chosen network architecture for implementing Q corresponds to a deep residual CNN, inspired
+by [16]. The network contains 20 convolutional layers, with a ReLU layer after each convolutional
+layer except for the final layer. In all but the final layer, there are 64 filters of size 3× 3. In the final
+layer the CNN is mapping back to the original image space so it contains a single 3× 3 layer. Instead
+of learning a direct mapping, this network predicts a residual image that is added to the original input
+to get the final output. Additional details can be found in [16].
+Training Q
+Conventional training: Given a training set of images F and their corresponding measured data
+{g = Hf | f ? F}, the weights w are determined by minimizing
+w? = arg min
+w
+1
+2
+?
+i
+?f(i) ?Q
+(
+f?
+(1)
+R,(i);w
+)
+?22, (4)
+4
+where the subscript (i) denotes the i-th training sample and f? (k)R,(i) denotes the estimate of the image
+given by line 4 of Alg. 1 for the k-th iteration and the i-th training sample. This corresponds to
+optimizing the weights of the CNN using reconstructed images generated byR for an initial guess of
+all zeros.
+Two stage training: It was observed that a CNN optimized by the conventional training scheme
+described above may not generalize well to inputs of f? (k)R,(i) for k > 1. In order to regularize the
+weights, a two-stage training scheme was introduced, where the network is initially trained with only
+zero-initialized reconstructed images as in Eqn. 4. Then, the weights are fine-tuned with intermediate
+results acquired by applying Alg. 1 with the weights trained in the first stage,
+w?? = arg min
+w?
+1
+2
+?
+i,k
+?f(i) ?Q
+(
+f?
+(k)
+R,(i); w?
+)
+?22, (5)
+where k denotes the iteration number during which the reconstructed image was estimated. During
+training, no additional improvement is made after including 10 intermediate results per image, so
+n = 10 during this second training stage. This phenomena is likely due to the second stage acting
+as a data augmentation technique which produces very similar, and therefore redundant, results
+after n = 10 iterations. Use of dropout or traditional data augmentation techniques lead to worse
+improvement compared to the two stage training scheme.
+A separate CNN was trained for each of the studies described below. All models were trained in
+the same way, using ADAM [17], a batchsize of 64 and minimizing the mean squared error loss as
+in Eqn. 4 and 5. The default parameters for ADAM [17] were used, except for a learning rate of
+0.0001. Each model was trained for 3 million iterations in each stage, taking around 10 hours total
+on 2 NVIDIA Titan X GPU cards. We employed the weight initialization strategy introduced in [9].
+4 Computer-simulation studies
+As a demonstration of our approach, a canonical image reconstruction problem in X-ray computed
+tomography (CT) that utilizes very limited measurements was considered.
+Sample generation
+Taking inspiration from the Shepp-Logan phantom [14], the generated images are made up of one
+main ellipse and between 2 and 7 other minor ellipses. The number and characteristics of the ellipses
+were chosen randomly. Additional details about the sample generation process are provided in the
+supplementary materials. This particular form for the samples allowed use of a closed form solution
+for calculating the measured data. This provided an independent way to calculate the measured data
+that did not depend on the numerical model H.
+The images were of size 256 × 256, with 7500 training images, 1000 validation images, and 500
+testing images. The validation images were used to optimize hyper-parameters, and the test images
+where used to evaluate performance only once.
+X-ray CT forward model
+An idealized 2-D X-ray CT forward model is considered. A series of parallel X-rays are transmitted
+through a 2-D object with the intensity of the X-rays decreasing as they travel through the object. The
+resulting intensity of the transmitted X-rays is recorded by a linear detector. The detector is rotated
+about the object and this process is repeated for a collection of tomographic views. Typically, the
+detector is swept across an angular range of 180?. Here, we consider the limited-view case in which
+the angular coverage is much less than 180?.
+There exists two main sources of error when reconstructing images. The first source is model error,
+where the assumed forward operator, H, does not correspond to the forward operator that generated
+the measured data. In practice, H cannot exactly capture all properties of a real-world imaging
+system so there is always some amount of model error. In simulations, we can construct a scenario
+with no model error by using the same H in the generation of the measured data by Eqn. 1 and in
+the reconstruction. This scenario is referred to as inverse crime. The second source of error is noise
+in the measured data. This occurs due to imperfections in the measurement equipment, and we can
+simulate this phenomena by treating the measured data as a random vector.
+In this work, we simulated three different scenarios: (1) the inverse crime scenario, where we have
+no model error and no noise in the measured data; (2) a scenario with model error but no stochastic
+5
+noise; and (3) a scenario that contains both model error and stochastic noise in the measured data. We
+simulated noise in the measured data by introducing Gaussian noise to g with a standard deviation
+equal to 2% of the maximum of g.
+For the non-inverse-crime scenarios, we use three different ranges of tomographic view angles: 60,
+100, and 140 degrees, with one view at each degree. These angular ranges all correspond to a severely
+under-determined problems that cannot be accurately solved with existing methods. For the inverse
+crime case, we only consider the 60 degree case. In all cases, the detector has 256 elements.
+Image reconstruction methods
+In this work, three different formulations of the optimization problem given by Eqn. 2 were considered
+for purposes of comparison, corresponding to different choices of S and ? (f):
+1. Least squares (LS): S = Rn, ? (f) = 0
+2. Non-negative least squares (LS-NN): S = Rn?0, ? (f) = 0
+3. Penalized least squares with TV regularization (PLS-TV): S = Rn?0, ? (f) = ?f?TV ,
+where Rn?0 denotes the set of non-negative real numbers and ?f?TV denotes the total-variation (TV)
+semi-norm.
+The proposed DL-assisted approach requires some choice for the approximate reconstruction operator
+R (line 4 in Alg. 1). In this work, the action ofR was computed by approximately minimizing the
+LS objective function or the LS-NN objective function.
+The LS objective function was employed in the inverse crime case. The least squares solution was
+computed by applying the Moore-Penrose pseudoinverse of H, denoted H?1MP , to the measured data.
+The Moore-Penrose pseudoinverse was computed by first performing singular value decomposition
+of H and then employing the method described in [3].
+The LS-NN objective function was employed in the case of inconsistent data. Empirically, it was
+observed that this produced superior results in the case of inconsistent data, perhaps as the non-
+negativity constraint results in estimated images that are closer to the true images. As a result, the
+mapping that must be learned by the quasi-projection operator Q may be simpler and thus easier to
+approximate with a given finite-capacity network architecture. In this case, the LS-NN optimization
+problem was solved by projected gradient descent.
+For all iterative methods, a constant step size of 0.75 was employed. The stopping criteria was set to
+be when the relative change in the `2-norm of the object between consecutive iterations was less than
+0.001.
+5 Numerical experiments
+Interpretation
+The least challenging version of the inverse problem, the inverse crime case, was first considered. The
+operatorR was specified to compute the solution of the LS optimization problem. This solution can
+be calculated by applying the Moore-Penrose pseudoinverse to the measured data. Since the measured
+data is consistent and H?1MPH is the projection operator onto Umeas, R, in this case, recovers the
+measurable component of the true object. The null space component of the estimated object will
+remain unchanged from that of the initial guess. Further, any alterations to measurable component
+made byQ can be corrected by applyingR while leaving the null component unchanged. In this way,
+R and Q each take responsibility for estimating different components of the object: the measurable
+component is estimated byR and the null component is estimated by Q. By applying each of these
+operators in an alternating fashion, the information in the measured data and the learned a priori
+information encoded in the network are jointly considered, allowing both the measurable space and
+null space components to be more accurately reconstructed.
+This behavior is reflected in the plots of the RMSEs in the measurable and null space components,
+shown in Fig. 1. The RMSE of the null space component is progressively improved with repeated
+application of Q. The RMSE of the measurable space component estimated by R (e.g. before
+application of Q) is quite small for all iterations, as this component can be reliably estimated from
+the measured data. The RMSE of the measurable space component is increased after applying the
+6
+Q operator, but repeated application of R recovers the high accuracy estimate of the measurable
+space component. With iteration, the method converges to an estimate that has low RMSE in both the
+measurable and null space components.
+Figure 1: Comparison of RMSE in measurable and
+null space for a test sample from the 60 degree
+inverse crime case. In black, we show the RMSE
+between the null space component of the inter-
+mediate reconstruction fkQ and the true null space
+component fnull. We show the RMSE between the
+measurable space components of fkQ in blue and f
+k
+R
+in red, and the true measurable component fmeas.
+When R does not correspond to the solution
+of the LS optimization problem, R may make
+changes to the estimated null space component.
+Still, the division of responsibility in which
+R estimates the measurable space component
+and Q estimates the null space component may
+largely, though perhaps not strictly, hold true.
+While this approach does not necessarily have as
+simple an interpretation, it may be beneficial for
+two reasons. First, if the output ofR is closer to
+the true object, the mapping that must be learned
+by the Q operator may be simpler, resulting in
+an easier training task. Second, the learned net-
+work may not strictly enforce simple constraints,
+such as non-negativity, which can be readily
+included within a conventional reconstruction
+approach. By incorporating these constraints
+withinR, both learned and user-specified a pri-
+ori information can be included within the pro-
+posed framework.
+Results
+The proposed approach was compared with a
+single-pass approach and PLS-TV method. In
+the DL-assisted approach, little to no increase in
+performance was observed after 5 iterations; thus n = 5 was employed.
+Figure 2: Images showing showing reconstruction results for all methods for several test images for
+the 60 degree noisy case. The images are shown in false color, with a consistent intensity scale.
+In order to compare with the single-pass approach (i.e., CNN-based image restoration), a CNN
+with the same architecture described above was initially trained using the conventional training
+scheme. The performance of the single-pass CNN increased when trained with the two stage scheme.
+This performance increase can be explained by the additional training data acting in the capacity
+of common data augmentation techniques which increase the ability of the CNN to generalize to
+new data. Therefore, to fairly compare the single-pass approach with the proposed DL-assisted
+reconstruction approach, the same CNN is used for both methods.
+The PLS-TV optimization problem was solved using the FISTA [4] with an initial guess of all zeros.
+This approach represents a state-of-the-art method for sparse image reconstruction [24]. It should
+be especially effective for the piece-wise constant images considered in this work, which possess
+7
+Figure 3: Images showing showing reconstruction results for all methods for several test images for
+the 100 degree noisy case. The images are shown in false color, with a consistent intensity scale.
+relatively sparse gradient maps. The regularization parameter was swept using a grid search and the
+image corresponding to the lowest RMSE was selected for comparison with the proposed approach.
+Representative reconstructed images for the 60 and 100 degree noisy cases are displayed in Figs. 2
+and 3. None of the example images considered were contained in the training set. Additionally,
+results for the other cases are presented in the supplementary material. The PLS-TV reconstruction
+was quite well suited to remove noise from the measured data, but it was not as successful at removing
+streaking artifacts. It is apparent that a single-pass with the CNN significantly improved the accuracy
+of the reconstructed images, but the proposed approach provided substantial further improvement.
+RMSE SSIM
+LS PLS-TV SP Proposed LS PLS-TV SP Proposed
+60D IC 0.111 0.097 0.046 0.027 0.490 0.772 0.823 0.929
+LS-NN PLS-TV SP Proposed LS-NN PLS-TV SP Proposed
+60D 0.112 0.099 0.072 0.057 0.689 0.734 0.796 0.874
+100D 0.069 0.059 0.031 0.022 0.764 0.852 0.929 0.969
+140D 0.050 0.042 0.017 0.011 0.793 0.895 0.963 0.989
+60D N 0.154 0.010 0.089 0.074 0.261 0.734 0.665 0.794
+100D N 0.151 0.061 0.057 0.047 0.277 0.845 0.758 0.887
+140D N 0.155 0.049 0.032 0.026 0.296 0.894 0.810 0.900
+Table 1: Average RMSE/SSIM for each reconstruction approach for test set. IC - Inverse Crime. N -
+Noise applied to measured data. D - Degree, the number of view. SP - Single-pass approach.
+For each case, the performance was evaluated on 500 test images. The average root mean squared
+error (RMSE) and structural similarity (SSIM) were computed as summary measures of performance.
+RMSE corresponds to the pixel-wise difference between the original image and the reconstructed
+image, while SSIM attempts to measure differences between images in a manner more consistent with
+human visual perception. As indicated in Table 1, the proposed approach produces the best measures
+for all test cases. Interestingly, the performance of PLS-TV varied little between the noisy and
+noiseless cases, which suggests it performed extremely well at removing the noise from the measured
+data. The single-pass and the proposed approach performed worse in the noisy cases compared with
+the noiseless cases, with the single-pass approach achieving worse SSIM than PLS-TV for the noisy
+cases.
+The LS-NN reconstructions are significantly worse than PLS-TV reconstructions, yet the DL ap-
+proaches performed quite well using the LS-NN as the R operator. This suggests a significant
+possible performance increase in using PLS-TV in the DL approaches, as PLS-TV successfully
+removes stochastic noise from the measured data.
+8
+6 Conclusion
+An approach was presented that embeds a conventional deep CNN within an iterative framework for
+the task of image reconstruction. Due to its iterative nature, our approach balances the information
+available in the measured data with the learned a priori information encoded within the CNN.
+Experimental results and our analysis show our approach achieves better results than a common
+single-pass CNN-based image restoration approach and a state-of-the-art reconstruction method that
+exploits sparsity for regularization. Our framework is general enough to incorporate other variants
+of R, such as ones that estimate a PLS-TV solution, and can be applied to fields outside image
+reconstruction as well.
+References
+[1] Stephan Antholzer, Markus Haltmeier, and Johannes Schwab. Deep learning for photoacoustic
+tomography from sparse data. arXiv preprint arXiv:1704.04587, 2017.
+[2] Vijay Badrinarayanan, Alex Kendall, and Roberto Cipolla. Segnet: A deep convolutional
+encoder-decoder architecture for image segmentation. IEEE Transactions on Pattern Analysis
+and Machine Intelligence, 2017.
+[3] H.H. Barrett and K.J. Myers. Foundations of image science. Wiley series in pure and applied
+optics. Wiley-Interscience, 2004.
+[4] Amir Beck and Marc Teboulle. A fast iterative shrinkage-thresholding algorithm for linear
+inverse problems. SIAM Journal on Imaging Sciences, 2(1):183–202, 2009.
+[5] Ashish Bora, Ajil Jalal, Eric Price, and Alexandros G Dimakis. Compressed sensing using
+generative models. arXiv preprint arXiv:1703.03208, 2017.
+[6] Emmanuel J. Candès, Justin K. Romberg, and Terence Tao. Stable signal recovery from
+incomplete and inaccurate measurements. Communications on Pure and Applied Mathematics,
+59(8):1207–1223, 2006.
+[7] Hu Chen, Yi Zhang, Mannudeep K Kalra, Feng Lin, Peixi Liao, Jiliu Zhou, and Ge Wang.
+Low-dose ct with a residual encoder-decoder convolutional neural network (red-cnn). arXiv
+preprint arXiv:1702.00288, 2017.
+[8] Liang-Chieh Chen, George Papandreou, Iasonas Kokkinos, Kevin Murphy, and Alan L Yuille.
+Deeplab: Semantic image segmentation with deep convolutional nets, atrous convolution, and
+fully connected crfs. arXiv preprint arXiv:1606.00915, 2016.
+[9] Xavier Glorot and Yoshua Bengio. Understanding the difficulty of training deep feedforward
+neural networks. International conference on artificial intelligence and statistics, 2010.
+[10] Kerstin Hammernik, Tobias Würfl, Thomas Pock, and Andreas Maier. A Deep Learning
+Architecture for Limited-Angle Computed Tomography Reconstruction, pages 92–97. Springer
+Berlin Heidelberg, Berlin, Heidelberg, 2017.
+[11] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image
+recognition. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR),
+June 2016.
+[12] John R. Hershey, Jonathan Le Roux, and Felix Weninger. Deep unfolding: Model-based
+inspiration of novel deep architectures. September 2014. arXiv:1409.2574.
+[13] Satoshi Iizuka, Edgar Simo-Serra, and Hiroshi Ishikawa. Globally and Locally Consistent Image
+Completion. ACM Transactions on Graphics (Proc. of SIGGRAPH 2017), 36(4):107:1–107:14,
+2017.
+[14] Anil K. Jain. Fundamentals of Digital Image Processing, page 439. Englewood Cliffs, NJ,
+Prentice, 1989.
+[15] U. S. Kamilov and H. Mansour. Learning Optimal Nonlinearities for Iterative Thresholding
+Algorithms. IEEE Signal Processing Letters, 23(5):747–751, May 2016.
+9
+[16] Jiwon Kim, Jung Kwon Lee, and Kyoung Mu Lee. Accurate image super-resolution using
+very deep convolutional networks. In The IEEE Conference on Computer Vision and Pattern
+Recognition (CVPR Oral), June 2016.
+[17] Diederik P. Kingma and Jimmy Ba. Adam: A method for stochastic optimization. CoRR,
+abs/1412.6980, 2014.
+[18] Kuldeep Kulkarni, Suhas Lohit, Pavan Turaga, Ronan Kerviche, and Amit Ashok. Reconnet:
+Non-iterative reconstruction of images from compressively sensed random measurements. arXiv
+preprint arXiv:1601.06892, 2016.
+[19] Xiaojiao Mao, Chunhua Shen, and Yu-Bin Yang. Image restoration using very deep convolu-
+tional encoder-decoder networks with symmetric skip connections. In D. D. Lee, M. Sugiyama,
+U. V. Luxburg, I. Guyon, and R. Garnett, editors, Advances in Neural Information Processing
+Systems 29, pages 2802–2810. 2016.
+[20] Tim Meinhardt, Michael Möller, Caner Hazirbas, and Daniel Cremers. Learning proximal
+operators: Using denoising networks for regularizing inverse imaging problems. arXiv preprint
+arXiv:1704.03488, 2017.
+[21] Anh Nguyen, Jason Yosinski, Yoshua Bengio, Alexey Dosovitskiy, and Jeff Clune. Plug & play
+generative networks: Conditional iterative generation of images in latent space. arXiv preprint
+arXiv:1612.00005, 2016.
+[22] Dimitris Perdios, Adrien Georges Jean Besson, Philippe Rossinelli, and Jean-Philippe Thiran.
+Learning the weight matrix for sparsity averaging in compressive imaging. In IEEE International
+Conference on Image Processing (ICIP 2017), number EPFL-CONF-225655, 2017.
+[23] Alec Radford, Luke Metz, and Soumith Chintala. Unsupervised representation learning with
+deep convolutional generative adversarial networks. CoRR, abs/1511.06434, 2015.
+[24] Emil Y Sidky and Xiaochuan Pan. Image reconstruction in circular cone-beam computed
+tomography by constrained, total-variation minimization. Physics in medicine and biology,
+53(17):4777, 2008.
+[25] Rupesh Kumar Srivastava, Klaus Greff, and Jürgen Schmidhuber. Highway networks. CoRR,
+abs/1505.00387, 2015.
+[26] Christian Szegedy, Sergey Ioffe, Vincent Vanhoucke, and Alex Alemi. Inception-v4, inception-
+resnet and the impact of residual connections on learning. arXiv preprint arXiv:1602.07261,
+2016.
+[27] Ge Wang. A perspective on deep imaging. IEEE Access, 4:8914–8924, 2016.
+[28] Shanshan Wang, Zhenghang Su, Leslie Ying, Xi Peng, Shun Zhu, Feng Liang, Dagan Feng,
+and Dong Liang. Accelerating magnetic resonance imaging via deep learning. In Biomedical
+Imaging (ISBI), 2016 IEEE 13th International Symposium on, pages 514–517. IEEE, 2016.
+[29] Yan Yang, Jian Sun, Huibin Li, and Zongben Xu. Deep admm-net for compressive sensing
+mri. In D. D. Lee, M. Sugiyama, U. V. Luxburg, I. Guyon, and R. Garnett, editors, Advances in
+Neural Information Processing Systems 29, pages 10–18. Curran Associates, Inc., 2016.
+[30] Raymond Yeh, Chen Chen, Teck Yian Lim, Mark Hasegawa-Johnson, and Minh N Do. Semantic
+image inpainting with perceptual and contextual losses. arXiv preprint arXiv:1607.07539, 2016.
+10

@@ -1,0 +1,800 @@
+ar
+X
+iv
+:1
+70
+9.
+00
+20
+1v
+1 
+ [
+cs
+.C
+V
+] 
+ 1
+ S
+ep
+ 2
+01
+7
+DeepUNet: A Deep Fully Convolutional Network
+for Pixel-level Sea-Land Segmentation
+Ruirui Li, Wenjie Liu, Lei Yang, Shihao Sun,
+Wei Hu*, Fan Zhang, Senior Member, IEEE, Wei Li, Senior Member, IEEE
+Beijing University of Chemical Technology
+Beijing, China
+ilydouble@gmail.com, 1186894139@qq.com, ylxx@live.com, 472527311@qq.com,
+huwei@mail.buct.edu.cn, zhangf@mail.buct.edu.cn, liw@mail.buct.edu.cn
+Abstract—Semantic segmentation is a fundamental research
+in remote sensing image processing. Because of the complex
+maritime environment, the sea-land segmentation is a challeng-
+ing task. Although the neural network has achieved excellent
+performance in semantic segmentation in the last years, there
+are a few of works using CNN for sea-land segmentation and
+the results could be further improved. This paper proposes a
+novel deep convolution neural network named DeepUNet. Like
+the U-Net, its structure has a contracting path and an expansive
+path to get high resolution output. But differently, the DeepUNet
+uses DownBlocks instead of convolution layers in the contracting
+path and uses UpBlock in the expansive path. The two novel
+blocks bring two new connections that are U-connection and Plus
+connection. They are promoted to get more precise segmentation
+results. To verify our network architecture, we made a new chal-
+lenging sea-land dataset and compare the DeepUNet on it with the
+SegNet and the U-Net. Experimental results show that DeepUNet
+achieved good performance compared with other architectures,
+especially in high-resolution remote sensing imagery.
+Index Terms—sea-land segmentation, satellite imagery process-
+ing, fully convolution network, ResNet, U-Net
+I. INTRODUCTION
+Optical remote sensing images play an important role
+in maritime safety, maritime management, and illegal
+smuggling as they can provide more detailed information
+compared with SAR images. For remote sensing imagery,
+sea-land segmentation is aimed to separate coastline or wharf
+images into ocean region and land region, which is of great
+significance to ship detection and classification, since a clear
+coastline can reduce the number of ships in the wrong mark.
+The sea-land segmentation task is very challenging. First
+of all, the interference of the atmospheric factors could not
+be neglected. These factors include clouds, shadows, waves
+caused by the wind, and etc. Traditional thresholding based
+methods such as OTSU [1], LATM [2] often fails due to the
+complicated distribution of intensity and texture. Secondly,
+images containing the marine and terrestrial environment
+are of complex semantic contents. There probably are
+This work was supported by the National Natural Science Founda-
+tion of China under Grant No. 91638201, Grant No. 61501018, Grant
+No. 61571033, and the Higher Education and High-Quality and World-Class
+Universities (PY201619).
+* The corresponding author.
+ships, inland waters, islands, and forests that confusing
+the algorithms. As a result, early learning based methods
+cannot solve the problems of misclassification. In the last
+several years, convolutional neural networks (CNNs) have
+been widely developed in computer vision and semantic
+segmentation. For sea-land segmentation task, the SeNet [3]
+has been proposed, which combines the segmentation task
+and edge detection task into an end-to-end deconvNet [4]
+in a multi-task way. The SeNet also promoted the Local
+Regularized loss to decrease the misclassification. In their
+experiments, the SeNet achieved better results than original
+deconvNet. In fact, remote sensing images are usually of
+high resolution, for example, 1024×1024 or 2048×2048.
+They contain both large areas and small targets in one image,
+which require deeper convolutional network to take both the
+high-level global features and the low-level local features into
+considerations.
+To solve this problem, in this paper we explored a novel
+network structure named DeepUNet for pixel-level sea-land
+segmentation. DeepUNet is an end-to-end fully convolutional
+network with two other kinds of short connections. We
+call them U connections and Plus connections. The main
+idea of the DeepUNet is to concatenate the layers in the
+contracting path to that of expansive path. High-resolution
+features from the contracting path are combined with the
+upsampled output. Hence a successive convolution layer can
+then learn to assemble a more precise output based on this
+information. Furthermore, to better extract high-level semantic
+information with less loss error, the proposed DeepUNet
+optimize the contracting path as well as the expansive path
+by introducing the DownBlock, the UpBlock and the Plus
+connections. In the DownBlock and the UpBlock, features
+before and after convolution layers are added together.
+This structure skips the invalid convolution operation and
+supplies a deeper and efficient convolution neural architecture.
+To prove the DeepUNet in sea-land segmentation, we
+collected images from different places and of various
+illuminated condition from the google earth (GE). With the
+handicraft labeled ground truth images (GT), we compare
+the U-Net, SegNet and DeepUNet on the collected dataset.
+Experiments demonstrated that the DeepUNet achieve high
+precision-recall and F1-measure for both sea and land regions.
+In summary, this paper makes the following contributions
+to the community:
+• A new dataset for sea-land segmentation is provided. It
+contains 207 handicraft labeled images in which 122 for
+training, and 85 images for validating.
+• A novel convolutional network structure is introduced for
+remote-sensing image segmentation, named DeepUNet.
+It is concise and efficient. Compared with other architec-
+ture, it gets better sea-land segmentation results.
+• We perform a complete comparison among SegNet,
+U-Net, and DeepUNet on the provided dataset.
+The remainder of the paper is organized as follows. The
+section 2 reviews related works and differentiates our method
+from such works. The Section 3 and Section 4 introduce
+our proposed method as well as detailed implementations.
+Extensive experimental results and comparisons are presented
+in section 5. And section 6 concludes this paper.
+II. RELATED WORKS
+A. Sea-land segmentation
+Sea-land segmentation has been a hot area for remote
+sensing image processing. For multispectral imagery, the
+map of normalized difference water index (NDWI) is often
+calculated in the near-infrared (NIR) band to enhance the
+water areas while suppressing the green land and soil areas.
+These works include Kuleli et al. [5], Di et al. [6], Zhang et
+al. [7], Aktas et al. [8], Aedla et al. [9], and etc.
+However, for natural-colored imagery, there is limited
+literature for sea-land segmentation and coastline extraction.
+Most of the existing works are based on thresholding
+algorithms, accompanied with morphological operations to
+eliminate errors in the results. For example, Liu [2] proposed
+an automatic threshold determination algorithm for the
+local region. You and Li [10] built a Gaussian statistical
+sea model based on the OTSU (Otsu 1979) [1]. Zhu et
+al. (Zhu et al. 2010) [11] enhanced the images first and
+segmented the enhanced images using the OTSU as well. The
+OTSU algorithm is considered to make the optimal threshold
+selection in image segmentation, which is not affected by
+image brightness and contrast, so it has good performance in
+simple sea-land segmentation tasks. The thresholding based
+methods only employ the spectral information of individual
+pixel and ignore the local relationship of neighboring pixels.
+The results of them often contain misclassication, especially
+in the land area. To solve the problem, the learning based
+methods are proposed. They try to extract the features of
+local small areas in remote sensing imagery and train the
+weight of these features to classify the sea and land. Xia
+[12] integrates LBP feature to sea-land segmentation. Cheng
+[13] clustered the pixels into super-pixels and promoted a
+super-pixel based seeds learning for sea-land segmentation.
+These learning based methods rely on the manually selected
+features in a large degree. As a result, for remote sensing
+imagery with complex semantic information, these methods
+also have plenty of misclassified pixels. For instance, the
+shadow and green colored regions in land areas may be
+classied as water, while waves and noises in water areas may
+be considered as land.
+Recent advancement in deep learning motivates researchers
+to address these problems with deep neural networks. Two
+states of the art works have been found. The last sea-land
+segmentation algorithm is SeNet [3] which is based on
+DeconvNet framework. The SeNet designed a multi-task way,
+thus it can do sea-land segmentation and edge detection at
+the same time. Lin et al. [14] proposed a multi-scale fully
+convolutional network for maritime semantic labeling. They
+divide the pixels of maritime imagery into three classes that
+are sea, land, and ships. Because of the pooling steps of the
+FCN, the output of the images cannot provide high-resolution
+segmental results. Despite lots of efforts they did, challenges
+on remote sensing image segmentation are far from resolved.
+Currently, neither the SeNet nor the multi-scale structure
+network is intelligent enough to segment well, especially
+in the case of high-resolution remote sensing imagery with
+plenty of detailed contents.
+B. Deep learning for semantic segmentation
+Semantic segmentation is aimed to understand an image
+in pixel level. Its main task is to label each pixel into
+a certain class. Deep learning based object detection and
+semantic segmentation in computer vision have made
+a big advancement. The Fully Convolutional Networks
+(FCNs) [15], proposed by Long et al. from Berkeley, is a
+landmark in image segmentation. It first allowed pixel-level
+segmentation by replacing fully connected neural layers
+with convolutional neural layers.However, the FCNs produce
+coarse segmentation maps because of the loss of information
+during pooling operations. Thus lots of research focuses
+on how to provide pixel-level high-resolution segmentation
+results. There are two kinds of works addressing this problem.
+The first kinds are based on dilated convolution [16] (also
+called as atrous convolution). Lots of works are proposed
+to improve the dilated convolution including atrous spatial
+pyramid pooling [17], fully connected CRF [18] and etc..
+Other efforts are made to build connections between the
+pooling layers and the unpooling layers. In the convolutional
+network, the max pooling operation is non-invertible; how-
+ever, we can obtain an approximate inverse by recording
+the locations of the maxima within each pooling region in
+a set of switch variables. For example, in the DeconvNet,
+the unpooling operation uses the switches to place the re-
+constructions from the layer above into appropriate locations,
+preserving the structure of the stimulus. The SegNet is very
+like the DeconvNet in structure but is different in the unpool-
+ing strategy. The SegNet [19] proposed an encoder-decoder
+convolutional network which transfers encoded maxpooling
+indices to decoder to improve the segmentation resolution.
+Another impressive CNN structure is U-Net [20] which is
+proposed for biomedical image segmentation. Its architecture
+consists of a contracting path and an expansive path and
+its feature maps from the contracting path are cropped and
+copied for the correspondingly upsamplings in the expansive
+path. Inspired by the U-Net architecture, our work supplies
+two connections that are u-connection and plus connection.
+It replaces the contracting path and the expansive path with
+successive DownBlock and UpBlock which are described in
+detail in Section 3.
+III. PROPOSED METHOD
+With the improvement of the spatial resolution of satellite
+and aircraft sensors, more details of the intensity and texture
+are presented in remote sensing images, which makes the
+segmentation problem more challenging. On the other hand,
+for image classification in computer vision, deeper networks
+are proved to be able to get better accuracy and thus become
+popular. Currently, both the last two CNN-based methods for
+sea-land segmentation are based on VGG16 structure. Through
+multi-task techniques and multi-scale techniques, they allevi-
+ate the problem of misclassification. But they probably fail
+when facing images with rich semantic information. Here,
+we proposed the DeepUNet which is specifically designed for
+high resolution images with detailed contents and objects. This
+network has the reception field covering the whole image while
+has the ability to distinct the small area in the images as Fig.1
+illustrated. Our network structure does not conflict with the last
+two CNN-based works and can be further improved combined
+with multi-task techniques.
+Fig. 1. the comparison of the DeepUNet,U-Net,SegNet and the Ground truth
+This section begins with the main framework of the Deep-
+UNet, which introduces the basic idea and the architecture
+first. Then we describe the DownBlock and the UpBlock in
+detail with which together greatly enhance the performance of
+the network when dealing complex segmentation tasks.
+A. Network Structure
+The process of the DeepUNet is simply illustrated in Fig.2.
+It provides an end-to-end network. The input images are
+three channels RGB remote sensing images and the output
+images are binary segmentation maps in which the white
+pixels symbolize the sea and the land vice versa. The network
+does not have any fully connected layers and only uses 1x1
+convolution layer for dimension reduction. At the end, we use
+a Softmax layer to transform the results of the neural network
+into a two-class problem. This strategy allows the seamless
+segmentation of arbitrarily large images by an overlap-tile
+strategy.
+The structure defines two kinds of blocks. In Fig.2, the
+blue bold bar is named DownBlock, and the green bold bar is
+name UpBlock. Like the U-Net, our structure is symmetrical.
+The left side path consists of repeated DownBlocks which are
+connected to the corresponding UpBlocks. This connection is
+showed with the yellow lines in the Fig.2. We called them
+u-connections since they concatenate the feature maps of the
+DownBlock to that of the corresponding UpBlock. Besides
+the u-connection , there is another kind of short connections
+between the successive DownBlocks or UpBlocks. They are
+showed with purple lines in the Fig.2 and called the Plus
+connection or the Plus layer. The Plus layer is an optimized
+structure. It can solve the problem that the loss error increases
+when the network goes deep. The Plus layer avoids the training
+step converge on the local optimal solution and thus guarantees
+the very deep networks achieve good performance in complex
+image segmentation task.
+B. Down-sampling block
+The DownBlock has two convolutional layers that are
+concatenated through the ReLU layer. The first convolutional
+layer uses a 3×3 convolution kernel, a 1×1 step size,
+and a total of 64 convolution cores. The second layer
+uses a 3×3 convolution kernel, a 1×1 step size, and a
+total of 32 convolution cores. The DeepUNet chooses two
+convolutions of small kernel size instead of a larger single
+convolution kernel. The reception field of two successive
+3×3 convolutional layers is the same with that of a 5×5
+convolutional layer; but in the former choice, the parameters
+that have to be computed are much less.
+The input of the block is 32-dimension features. It is of the
+same feature size with that of the second convolution layers
+output. A Plus layer is added after the convolution operation.
+Assuming y is the output of the Plus layer, x is the input
+of the DownBlock, the Plus layer passes x and the result
+of the second convolution layer through the (1), and leaves
+optimal results y into max pooling layer.
+In the (1), W1 symbolizes the first convolution operation,
+W2 symbolizes the second convolution operation, and ? illus-
+trates the ReLU function.
+Fig. 2. DeepUNet detailed structure and annotations
+Fig. 3. reception field of two successive 3×3 convolutional layers
+y = W2?(W1x) + x (1)
+The max pooling layer in the DownBlock has a kernel size
+of 2×2 and a step size of 2×2. Here, we not only pass y to
+the max pooling layer; but also concatenate the feature maps
+to the corresponding UpBlock of the same level.
+C. Up-sampling Block
+The DeepUNet adopts an elegant architecture that is sym-
+metric. The UpBlock is promoted to assemble a more precise
+Fig. 4. DownBlock results send to UpBlock and next DownBlock
+Fig. 5. Detail of DownBlock
+output. The structure of the module is basically the same as
+that of the DownBlock module (Fig.5).
+Fig. 6. Detail of UpBlock
+It also contains two convolutional layers and a Plus layer.
+But differently, there is an upsampling layer instead of the
+max pooling layer. The input of the convolution layer is a
+concatenated feature map named x
+x = [?, x1, x2] (2)
+In the (2), x1 is the feature map from the previous UpBlock
+and x2 is that from the DownBlock through u-connection and
+? is the upsampling operator. On the basis of the structure,
+the DeepUNet passes the information before max pooling to
+the same level of the UpBlock through the connected channel.
+The information is processed by the convolutional layers and
+is helped to get more precise results during the upsampling.
+According to the architecture, we have to keep the resolution
+of DownBlocks output the same with that of UpBlocks input.
+Thus we add the upsampling layer in the beginning of the
+block.
+In summary, the detailed parameters of DeepUNet layers
+are listed in Table I
+IV. IMPLEMENTATION DETAILS
+A. Data preprocessing
+Data augmentation is essential to teach the network the
+desired invariance and robustness properties, when only few
+training samples are available. In case of remote sensing
+images, we primarily need shift and rotation invariance as well
+as scale variations. The data for training are square images
+randomly cropped from the augmented data. To enhance the
+efficiency of the training, we only choose those cropped
+images containing both sea and land. In 122 high-resolution
+remote sensing images, we finally generate 24000 training
+samples.
+TABLE I
+THE DETAILED PARAMETERS OF DEEPUNET LAYERS
+Layer name Kernel size Kernel Number Remark
+conv0 0
+conv0 1
+conv0 2
+Pooling0
+3×3
+3×3
+2×2
+2×2
+64
+64
+32
+-
+Down pooling stage
+conv1 1
+conv1 2
+Pooling21
+3×3
+2×2
+2×2
+64
+32
+-
+conv3 1
+conv3 2
+Pooling31
+3×3
+2×2
+2×2
+64
+32
+-
+conv4 1
+conv4 2
+Pooling41
+3×3
+2×2
+2×2
+64
+32
+-
+conv5 1
+conv5 2
+Pooling51
+3×3
+2×2
+2×2
+64
+32
+-
+conv6 1
+conv6 2
+Pooling61
+3×3
+2×2
+2×2
+64
+32
+-
+conv7 1
+conv7 2
+Pooling71
+3×3
+2×2
+2×2
+64
+32
+-
+Upsample81
+conv8 1
+conv8 2
+-
+3×3
+3×3
+-
+64
+32
+Up Sampling stage
+Upsample91
+conv9 1
+conv9 2
+-
+3×3
+3×3
+-
+64
+32
+Upsample101
+conv10 1
+conv10 2
+-
+3×3
+3×3
+-
+64
+32
+Upsample111
+conv11 1
+conv11 2
+-
+3×3
+3×3
+-
+64
+32
+Upsample121
+conv12 1
+conv12 2
+-
+3×3
+3×3
+-
+64
+32
+Upsample131
+conv13 1
+conv13 2
+-
+3×3
+3×3
+-
+64
+32
+Upsample141
+conv14 1
+conv14 2
+-
+3×3
+3×3
+-
+64
+32
+B. network definition
+We implement the DeepUNet on the mxNet [21]. The
+mxNet is an excellent deep learning framework that provides
+two ways to program: shallow embedded mode and deep
+embedded mode. We use the deep embedded mode to realize
+our idea.
+Our network defines the convolutional layer, the ReLU
+layer, and the pooling layer through the sym model of the
+mxNet. The defined layers are then added to the UpBlock and
+DownBlock according to the network design.
+C. Training
+To minimize the overhead and make maximum use of the
+GPU memory, we favor large input tiles over a large batch
+size. For Nvidia 1080Ti GPU, We choose 640×640 square
+images and hence reduce the batch to 11 samples. The epoch
+that is number of learning steps is set to 10000. We use a
+high momentum (0.9) .The initial learning rate is 0.1, when
+the number of training steps reaches half of the total learning
+steps and the learning rate is adjusted to 0.01. When the
+number of training steps reaches 3/4 of the total learning
+step, set the learning rate as 0.001.
+We set the Softmax function to sort out the results. The
+Softmax is the generalization of logistic function that converts
+all the results to probabilities between (0,1). In the task of sea-
+land segmentation, the DeepUNet divides the pixels into sea
+and land; thus the Softmax function Si is simplified by (3).
+Si =
+evi
+?k
+2
+evk
+(3)
+D. Overlap tiles
+In the predicting step, we cropped the large image into
+640×640 tiles, and test the tiles one by one from bottom
+left to up right in a sliding window way. The cropped step
+is not necessary, but for high-resolution image we have to
+do it because of the limitation of GPU memory. We propose
+an overlap tiles strategy. To predict the pixels in the border
+region of the image the missing context is extrapolated by
+mirroring the input image. For each tile, we compute the
+weight for overlap areas by the Gaussian function in which
+the distance is between current pixels and the center of the
+tile. Through weighted summary, we composite the overlap
+tiles and seamless stitch the whole segmental image.
+V. EXPERIMENTS AND ANALYSIS
+A. Experiments setup
+The experiments are carried out on a laboratory computer.
+Its configuration is shown in Table II. The operating system
+is installed of Ubuntu 16.04. The main required packages
+include python 2.7, CUDA8.0, cudnn7, tensorflow1.3.0, caffe,
+keras1.2.0, mxNet0.10.0 and etc.
+TABLE II
+EXPERIMENTAL ENVIRONMENTS
+CPU Intel (R) Core (TM) i7-4790K 4.00Hz
+GPU GeForce GTX1080 Ti
+RAM 20GB
+Hard disk Toshiba SSD 512G
+System Ubuntu 16.04
+To prove the efficiency of the DeepUNet, we compare it
+with the U-Net and the SegNet using the same dataset and
+on the same experimental environment. The source code of
+U-Net and SegNet are all downloaded from the Github web
+pages that their authors provided. We train each model for
+all networks on the 122 high resolution images without any
+pertained model and test the models on the left 85 images to
+prove their generalization.
+The deepUNet is developed for more complex sea-land
+segmentation as it can provide deeper convolutional structure
+with low loss error. To verify this point, in the experiments, we
+increase the resolution and complexity of the remote sensing
+images and analysis the results.
+1) Datasets preparation: The dataset contains 207 remote
+sensing images which are collected from the Google Earth.
+Since we focus on sea-land segmentation, the images we
+selected are all from coastline and wharfs. We captured
+images by the software Google Earth provided and we chose
+viewpoints in space resolutions ranging from 3m to 50m.
+The satellites images we obtained are unlabeled, so we used
+the Photoshop to manually label the ground truth for all the
+images. Among them, 122 images were randomly selected as
+training sets, and the left 85 images were used for verification
+and testing. Our dataset has multi-scale images. Fig.7 shows
+some images collected from different heights but in the same
+location.
+Fig. 7. images collected from different heights but in the same location
+2) Evaluation Metrics: In the comparison experiments,
+we use Precision, Recall, F1metric to evaluate the proposed
+method. The sea-land segmentation task concerns not only the
+sea region but also the land region. In this paper, we calculated
+land precision (LP), land recall (LR), overall precision (OP),
+and overall recall (OR) which are defined as follows:
+LP =
+TPL
+TPL + FPL
+, LR =
+TPL
+TPL + FNL
+(4)
+OP =
+TPL + TPS
+TPL + FPL + TPS + FPS
+(5)
+OR =
+TPL + TPS
+TPL + FNL + TPS + FNS
+(6)
+where TP(land), FP(land), and FN(land) are true positive,
+false positive, and false negative of land. TP(sea), FP(sea),and
+FN(sea) are true positive, false positive, and false negative of
+sea. OP combines precision of land and sea. OR combines
+recall of land and sea. The F1-measure is defined as,
+F1 =
+2 · Precision ·Recall
+Precision+Recall
+(7)
+B. Comparison and Analysis
+We compare the U-Net, SegNet and DeepUNet on the
+same experimental environment. Part of the obtained results
+are shown in Figure 8, 9, 10, 1. In these figures we can
+clearly figure out that the proposed method is significantly
+outperformed the other methods.
+Fig. 8. The segmentation results of island predicted by DeepUNet,U-
+Net,SegNet
+Fig.8(a) shows an optical image containing an island that
+almost covering the whole image. The island has uneven
+surface color because of the sunlight. Fig.8(b) shows the
+result of the DeepUNet. Compared with Fig.8(c) U-Net and
+Fig.8(d) SegNet, it completely segments the island without
+internal errors. The proposed network has a reception field of
+4220×4220 that is covering the image, and thus it takes the
+global features including the connectivity into considerations.
+For Fig.8 the evaluation table is listed in Table III. The
+indicators show that DeepUNet’s OP is 3.65% higher than
+U-Net and 3.26% higher than SegNet. The F1-measure of
+DeepUNet is 4.8% higher than U-Net and 1.92% higher than
+SegNet.
+TABLE III
+THE EVALUATION RESULTS OF FIG.8
+Name LP(%) LR(%) OP(%) OR(%) F1(%)
+DeepUNet 98.90 99.76 99.41 99.41 99.32
+U-Net 99.73 98.52 99.24 99.24 94.10
+SegNet 99.69 91.72 96.25 96.25 95.53
+For a harbor case, the results of different networks are
+shown in Fig.9. The test image not only contains small
+ships and shadows, but also contains grassland. These factors
+make the segmentation task difficult. From the Fig.9(b), it
+is interested to find that the segmental result is greater than
+the ground truth in Fig.9(e). The small ships can be found
+and at the meanwhile can be semantically segmented out
+from the sea area through the model of the DeepUNet. The
+result of U-Net (Fif.3(c)) is good as well. However, in the
+small areas especially near the boundary, there are a lot of
+misclassified pixels. This experiment shows that the U-Net
+cannot deal with the detailed areas and minor objects. In
+comparison, the famous SegNet does not get good perfor-
+mance in sea-land segmentation, though it ranks high in the
+ImageNet competition. There exist two reasons. First of all,
+the sea-land images are usually of high-resolution and contain
+objects of various scales from small ships to large connected
+island. Secondly, the semantic content is different from that
+of natural images. The sea-land segmentation task is a pixel-
+level binary classification problem. It pays more attention to
+the connectivity of the area, which is traditionally solved by
+morphological methods. But it is a hard problem for CNN
+based methods. For example, the SegNet is base on the VGG16
+net. Its architecture cannot afford deeper convolution layers for
+the complex connectivity problem. However, it can get high
+precision segmental results along the boundary because of the
+encoder-decoder architecture.
+Fig. 9. the segmentation results of port predict by DeepUNet, U-Net, SegNet
+For Fig.9 the evaluation table is listed in Tablb IV. The
+indicators show that DeepUNet’s OP is 3.65% higher than
+U-Net and 3.26% higher than SegNet. The F1-measure of
+DeepUNet is 4.8% higher than U-Net and 1.92% higher than
+SegNet.
+TABLE IV
+THE EVALUATION RESULTS OF FIG.9
+Name LP(%) LR(%) OP(%) OR(%) F1(%)
+DeepUNet 96.02 96.02 98.14 98.14 96.02
+U-Net 94.91 99.81 97.71 97.71 97.30
+SegNet 80.99 95.33 88.85 88.85 87.57
+Fig.10 shows a special case. It is an remote sensing image
+that contains facilities on the sea. The ocean area is clear with-
+out waves and other interference factors. We use this image to
+further test the DeepUNet’s performance when facing various
+boundary and small objects. The result of the DeepUNet are
+almost correct. In comparison, the U-Net cannot deal with
+the detailed areas and the SegNet fails to distinct all the land
+areas. It is obvious that ships in the sea can be segmented out
+through the DeepUNet. The detailed of indicators are shown
+in TABLE V.
+Fig. 10. the segmentiation result of the building which is Complex structure
+TABLE V
+THE EVALUATION RESULTS OF FIG.10
+Name LP(%) LR(%) OP(%) OR(%) F1(%)
+DeepUNet 91.73 99.35 97.50 97.50 95.39
+U-Net 64.74 98.94 85.70 85.70 78.27
+SegNet 89.30 91.44 94.92 94.92 90.35
+More results can be found in Fig.1. On all the 85 testing
+images, the overall LP, LR, OP, OR and F1 are listed in
+TABLE VI. Both the indicators of the DeepUNet are higher
+than the that of the other two networks. The SeNet also
+promoted a sea-land segmentation architecture. It chooses a
+multi-task way to combine the image segmentation and edge
+detection to get better results than original DeconvNet. The
+SegNet is very like the DeconvNet in structure except that
+it optimizes the encoding and decoding strategy. Moreover,
+the work [15] demonstrated that the SegNet has better perfor-
+mance than DeconvNet in image segmentation on the cityscape
+dataset. In our experiment, we did not compare the DeepUNet
+to the SeNet directly, since we neither had their datasets
+nor implemented their architecture. Instead, we compare our
+network with the SegNet which is better than DeconvNet. It
+is indicated that the DeepUNet outperforms the SegNet or
+DeconvNet a lot. The contribution of the DeepUNet is to
+provide a more concise and elegant network structure. It is
+in fact not conflict with the multi-task method that the SeNet
+introduced.
+TABLE VI
+THE EVALUATION RESULTS OF ALL THE 85 TESTING IMAGES
+Name LP(%) LR(%) OP(%) OR(%) F1(%)
+DeepUNet 98.58 98.91 99.04 99.04 98.74
+U-Net 96.68 97.42 97.57 97.57 97.05
+SegNet 97.52 96.50 97.81 97.81 97.01
+VI. CONCLUSION AND FUTURE WORKS
+In this paper, we designed a very elegant symmetric
+neural network named DeepUNet for pixel-level sea-land
+segmentation. DeepUNet is an end-to-end fully convolutional
+network with two other kinds of short connections. We call
+them U connections and Plus connections. We specifically
+designed the DownBlock structure and the UpBlock structure
+to adopt these connections.
+To verify the network architecture, we collected a set
+of remote sensing Sea-land data RGB image sets from
+Google-Earth. And, we manually labeled the ground truth.
+On the collected dataset, we compare the DeepUnet with
+the SeNet and the SegNet. Experiments results show that
+the proposed DeepUNet outperformed the other networks
+significantly.
+In the future, we intend to combine the multi-task learning
+technique to our architecture to further enhance accuracy.
+REFERENCES
+[1] N. Otsu, ”A Threshold Selection Method from Gray-Level Histograms,”
+IEEE Transactions on Systems Man & Cybernetics, vol. 9, no. 1, pp.
+62–66, 2007.
+[2] H. Liu and K. C. Jezek, ”Automated extraction of coastline from satellite
+imagery by integrating Canny edge detection and locally adaptive
+thresholding methods,” International Journal of Remote Sensing, vol.
+25, no. 5, pp. 937–958, 2004.
+[3] D. Cheng, G. Meng, G. Cheng, and C. Pan, ”SeNet: Structured Edge
+Network for SeaLand Segmentation,” IEEE Geoscience & Remote
+Sensing Letters, vol. 14, no. 2, pp. 247–251, 2017.
+[4] H. Noh, S. Hong, and B. Han, ”Learning Deconvolution Network for
+Semantic Segmentation,” in IEEE International Conference on Computer
+Vision, 2015, pp. 1520–1528.
+[5] T. Kulei, A. Guneroglu, F. Karsli, and M. Dihkan, ”Automatic detection
+of shoreline change on coastal Ramsar wetlands of Turkey,” Ocean
+Engineering, vol. 38, no. 10, pp. 1141–1149, 2011.
+[6] K. Di, J. Wang, R. Ma, and R.Li, ”Automatic shoreline extraction from
+high resolution IKONOS satellite imagery,” in Proceedings of the 2003
+annual national conference on Digital government research, 2003, pp.
+5–9.
+[7] T. Zhang, X. Yang, S. Hu, and F. Su, ”Extraction of Coastline in
+Aquaculture Coast from Multispectral Remote Sensing Images: Object-
+Based Region Growing Integrating Edge Detection,” Remote Sensing,
+vol. 5, no. 9, pp.4470–4487, 2013.
+[8] . R. Akta, G. Can and F. T. Y. Vural, ”Edge-aware segmentation
+in satellite imagery: A case study of shoreline detection,” in Pattern
+Recognition in Remote Sensing, 2012, pp. 1–4.
+[9] R. Aedla, G. S. Dwarakish, and D. V. Reddy, ”Automatic Shoreline De-
+tection and Change Detection Analysis of Netravati-GurpurRivermouth
+Using Histogram Equalization and Adaptive Thresholding Techniques,”
+Aquatic Procedia, vol. 4, no. nr 2, pp. 563–570, 2015.
+[10] X. You and W. Li, ”A sea-land segmentation scheme based on statistical
+model of sea,” in International Congress on Image and Signal Process-
+ing, 2011, pp. 1155–1159.
+[11] C.Zhu, H. Zhou, R. Wang and J. Guo, ”A Novel Hierarchical Method
+of Ship Detection from Spaceborne Optical Image Based on Shape and
+Texture Features,” IEEE Transactions on Geoscience & Remote Sensing,
+vol. 48, no. 9, pp. 3446–3456, 2010.
+[12] Y. Xia, S. Wan, P. Jin and L.Yue, ”A Novel Sea-Land Segmentation
+Algorithm Based on Local Binary Patterns for Ship Detection,” Inter-
+national Journal of Signal Processing Image Processing & P, vol. 7,
+2014.
+[13] D. Cheng, G. Meng, S.Xiang and C. Pan, ”Efficient SeaLand Segmenta-
+tion Using Seeds Learning and Edge Directed Graph Cut,” Neurocom-
+puting, vol. 207, pp. 36–47, 2016.
+[14] H.Lin, Z. Shi and Z. Zou, ”Maritime Semantic Labeling of Optical
+Remote Sensing Images with Multi-Scale Fully Convolutional Network,”
+Remote Sensing, vol. 9, no. 5, p. 480, 2017.
+[15] E. Shelhamer, J. Long and T. Darrell, ”Fully Convolutional Networks
+for Semantic Segmentation,” IEEE Transactions on Pattern Analysis &
+Machine Intelligence, vol. 39, no. 4, p. 640, 2014.
+[16] F. Yu and V. Koltun, ”Multi-Scale Context Aggregation by Dilated
+Convolutions,” 2015.
+[17] L. C. Chen, G. Papandreou, I. Kokkinos, K. Murphy and A. L. Yuille,
+”Semantic Image Segmentation with Deep Convolutional Nets and Fully
+Connected CRFs,” Computer Science, no. 4, pp. 357–361, 2014.
+[18] L. C. Chen, G. Papandreou, I. Kokkinos, K. Murphy and A. L.
+Yuille,”DeepLab: Semantic Image Segmentation with Deep Convolu-
+tional Nets, Atrous Convolution, and Fully Connected CRFs,” IEEE
+Transactions on Pattern Analysis and Machine Intelligence, vol. PP, no.
+99, pp. 1–1, 2017.
+[19] V. Badrinarayanan, A. Kendall and R. Cipolla, ”SegNet: A Deep
+Convolutional Encoder-Decoder Architecture for Scene Segmentation,”
+IEEE Transactions on Pattern Analysis & Machine Intelligence, vol. PP,
+no. 99, pp. 1–1, 2017.
+[20] O. Ronneberger, P. Fischer and T. Brox, ”U-Net: Convolutional Net-
+works for Biomedical Image Segmentation,” in International Conference
+on Medical Image Computing and Computer-Assisted Intervention,
+2015, pp.234–241.
+[21] T. Chen, M. Li, Y. Li, M. Lin, N. Wang, M. Wang, T. Xiao, B. Xu,
+C. Zhang and Z. Zhang, ”MXNet: A Flexible and Efficient Machine
+Learning Library for Heterogeneous Distributed Systems,” Statistics,
+2015.

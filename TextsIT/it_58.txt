@@ -1,0 +1,778 @@
+ar
+X
+iv
+:1
+70
+9.
+01
+47
+4v
+1 
+ [
+cs
+.I
+T
+] 
+ 5
+ S
+ep
+ 2
+01
+7
+Sparsity-Aware Joint Frame Synchronization and
+Channel Estimation: Algorithm and USRP
+Implementation
+O?zgu?r O?zdemir?, Ridha Hamila†, Naofal Al-Dhahir‡, and I?smail Gu?venc??
+?Department of Electrical & Computer Engineering, North Caralina State University, Raleigh, NC
+†Department of Electrical Engineering, Qatar University, Doha, Qatar
+‡ Electrical Engineering Department, The University of Texas at Dallas, Richardson, TX
+Email: {oozdemi, iguvenc}@ncsu.edu, hamila@qu.edu.qa, aldhahir@utdallas.edu
+Abstract—Conventional correlation-based frame synchroniza-
+tion techniques can suffer significant performance degradation
+over multi-path frequency-selective channels. As a remedy, in
+this paper we consider joint frame synchronization and channel
+estimation. This, however, increases the length of the resulting
+combined channel and its estimation becomes more challenging.
+On the other hand, since the combined channel is a sparse vector,
+sparse channel estimation methods can be applied. We propose a
+joint frame synchronization and channel estimation method using
+the orthogonal matching pursuit (OMP) algorithm which exploits
+the sparsity of the combined channel vector. Subsequently, the
+channel estimate is used to design the equalizer. Our simulation
+results and experimental outcomes using software defined radios
+show that the proposed approach improves the overall system
+performance in terms of the mean square error (MSE) between
+the transmitted and the equalized symbols compared to the
+conventional method.
+Index Terms—Equalization, frame synchronization, MSE,
+OMP, SDR, sparse channel estimation, USRP.
+I. INTRODUCTION
+In communication systems where the information symbols
+are transmitted in frames, it is essential to determine the
+frame boundary correctly to avoid performance degradation. In
+conventional systems, frame synchronization is performed by
+correlating a known training sequence with the received data
+and the point which gives the highest correlation is selected
+as the frame boundary [1]. In multi-path fading environments
+where the delay spread is larger than the symbol duration,
+the correlation peak gets widened and it becomes difficult to
+identify the exact frame boundary. Moreover, if the location of
+the dominant multi-path component happens to be somewhere
+other than the first tap, this location will give the highest
+correlation and an incorrect frame boundary will be chosen.
+Equalization aims to convert the multi-path channel into
+a single-tap flat-fading channel which would improve the
+accuracy of the frame synchronization. However, the channel
+estimate required for equalization is often calculated using the
+training symbols, with the knowledge of the frame boundary
+This publication was made possible by NPRP grant # NPRP 6-070-2-024
+from the Qatar National Research Fund (a member of Qatar Foundation). The
+statements made herein are solely the responsibility of the authors.
+itself. Therefore, a joint synchronization and channel estima-
+tion approach is desirable for simultaneously obtaining the
+channel estimates and the frame boundary.
+In order to tackle this problem, we model the frame bound-
+ary offset as an unknown delay introduced to the channel
+which we call the combined channel. This combined channel is
+estimated and the equalizer is designed based on this estimate.
+The disadvantage of this approach is that the length of the
+channel impulse response (CIR) may increase by an amount
+as large as the duration of the frame length and the channel
+estimation becomes more complex. However, we note that
+introducing delay into the channel is equivalent to padding
+the CIR with zeros. Therefore, the number of non-zero CIR
+elements that needs to be estimated does not increase and the
+combined channel vector becomes sparse. As a result, sparse
+channel estimation methods can be used to reduce complexity.
+Sparse channel estimation has been considered in [2] using
+a matching pursuit (MP) algorithm [3], [4] while a technique
+based on least mean squares (LMS) is proposed in [5]. Neither
+of the methods in [2]–[5] consider frame synchronization.
+Earlier work on joint frame synchronization and channel
+estimation includes [6] for OFDM systems, [7] and [8] for
+CDMA systems, and [9] for optical communication systems.
+However none of them exploit the sparsity of the combined
+channel vector. To the best of our knowledge, joint frame
+synchronization and channel estimation using sparse methods
+has not been studied in the literature.
+In this paper, we propose a joint frame synchronization
+and channel estimation method using the orthogonal matching
+pursuit (OMP) algorithm which exploits the sparsity of the
+combined CIR vector. An equalizer is designed using the
+estimated channel. Subsequently, the mean square error (MSE)
+between the equalizer output and the transmitted symbols is
+used to illustrate the performance of the proposed method.
+Both simulation results and the experimental results using
+universal software radio peripherals (USRPs) demonstrate the
+performance improvements using the proposed method.
+The rest of this paper is organized as follows. Section II
+describes the system model. In Section III, the proposed
+joint frame synchronization and channel estimation method
+y(n) y(n+ D? ? 1) y(n+ D?) y(n+M ? 1)
+D? samples from
+previous frame
+M ? D? samples from
+current frame
+· · · · · ·
+Frame Boundary
+Fig. 1. The received samples and the illustration of frame boundary D? for a
+data frame.
+is explained. An equalizer design using the channel estimate
+obtained in Section III is discussed in Section IV. Simulation
+and experimental testbed results in Section V verify the
+performance improvements when the proposed method is used.
+The paper is concluded in Section VI.
+Notation: Vectors are represented by lower-case boldface
+letters. Matrices are represented by upper-case boldface letters.
+The transpose is denoted by (.)T and E [.] is the expectation
+operator.
+II. SYSTEM MODEL
+We consider a frame-based communication system over
+a multi-path frequency-selective channel. The information
+symbols are transmitted in frames and the receiver must
+estimate the frame boundary, which is referred to as frame
+synchronization, and perform channel estimation. The channel
+estimate is used for channel equalization and demodulation to
+recover the information symbols at the receiver. The multi-path
+CIR is denoted by the vector h = [h0, h1, · · · , hL]
+T
+where
+L is the CIR memory. If frame synchronization is performed
+prior to the channel estimation, then, assuming symbol-spaced
+sampling at the receiver, the n-th received symbol after frame
+synchronization can be written as follows
+y(n) =
+L?
+l=0
+x(n? l)hl + z(n) = x(n)h0 + · · ·+ z(n), (1)
+where x(n) is the transmitted symbol and z(n) is the additive
+white Gaussian noise (AWGN) symbol at time n. Note that, in
+constructing y(n), x(n) is multiplied by h0. On the other hand
+if frame synchronization is not performed prior to channel
+estimation then the received signal becomes
+y(n) =
+L?
+l=0
+x(n?D ? l)hl + z(n), (2)
+where D is the delay, in symbol periods, between the trans-
+mitter and the receiver. Note that, in this case x(n ? D) is
+multiplied by h0. Suppose that the transmitted frames contain
+M received samples and that we arbitrarily collect M samples
+{y(n), · · · , y(n+M?1)} without the knowledge of the frame
+boundary denoted by D?. The frame boundary, D?, is a random
+number between 0 and M ? 1. If the frame boundary is equal
+to zero, then all of the M received samples correspond to the
+same frame. Otherwise, some initial samples actually belong
+to the previous frame, as illustrated in Fig. 1. The delay D
+in (2) and the frame boundary D? are related by
+D = mM + D?, (3)
+h
+h?
+delay by D?
+x(n)
+z(n)
+y(n)
+Fig. 2. The system model that takes the multi-path channel and delay into
+consideration.
+DataTraining
+· · ·
+· · ·
+M? samples M samples
+Frame Frame
+Data
+Frame
+Data
+Frame
+Training
+Frame
+Data
+Frame
+Data
+Frame
+Data
+Frame
+Fig. 3. The frame structure we assume to perform joint channel estimation and
+frame synchronization. One training frame is transmitted every P frames. This
+figure assumes P = 4. The value of P is determined based on the channel
+coherence time. The size of the training frame is M? samples and the size of
+the data frame is M samples.
+where m = 0, 1, · · · is an integer. To divide the received
+samples into frames, the knowledge of m is not required as
+shown in Fig. 1. Therefore, we only investigate finding D? for
+frame synchronization.
+Although it is possible to perform frame synchronization
+and channel estimation separately, we may treat them jointly
+as well by defining the following delayed and zero-padded
+combined CIR vector h?
+h? = [0, 0, · · · , 0
+? ?? ?
+D? zeros
+h0, h1, · · · , hL
+? ?? ?
+hT
+, 0, 0, · · · , 0
+? ?? ?
+M?D??1 zeros
+]T . (4)
+The system model that takes the multi-path channel and delay
+into consideration is illustrated in Fig. 2. In (4), the M?D??1
+zeros at the end do not have any effect as far as the input and
+output of the delayed and zero padded CIR h? is concerned.
+However, they ensure that the length of h? is M +L which is
+independent of the value of D?. Note that, as long as M ? 1,
+h? is a sparse vector regardless of h being sparse or not.
+III. JOINT SPARSE CHANNEL ESTIMATION AND FRAME
+SYNCHRONIZATION
+In order to perform joint channel estimation and frame
+synchronization, we assume that a known training frame with
+size M? > M is transmitted periodically as shown in Fig. 3.
+The size of the training frame needs to be larger than the
+size of the data frame for reasons that will be explained later.
+The estimate of h? is calculated using the training frame and
+it is used to equalize and decode the data frames until the
+next h? estimate is calculated when the next training frame is
+transmitted again after P frames. The period P is determined
+according to the channel coherence time. The input-output
+relation of the system model illustrated in Fig. 2 is
+y(n) =
+M+L?1?
+l=0
+x(n? l)h?l + z(n), (5)
+where h?l is the l-th element of h?.
+Since data frames are assumed to contain M samples, the
+receiver will collect M samples as in Fig. 1 when the current
+frame is a data frame. On the other hand, when the current
+frame is a training frame with size M? , the receiver collects
+M? samples {y(n), · · · , y(n+ M? ? 1)}. Note that, because D?
+is an integer in [0,M ? 1], in the worst case, D = M ? 1 and
+the samples y(n+M), y(n+M +1), · · · , y(n+ M? ? 1) are
+guaranteed to be in the training frame rather than in the frame
+preceding the training frame. In joint channel estimation and
+frame synchronization a subset of these samples y(n+ M? ?
+NE), y(n+ M? ?NE +1), · · · , y(n+ M? ? 1) are used where
+NE is the number of equations. Using (5) and the sample
+y(n+ M? ? 1) the first equation is given by
+y(n+ M? ? 1) =
+M+L?1?
+l=0
+x
+t,M??1?lh?l + z(n+ M? ? 1), (6)
+where xt,0, · · · , xt,M??1 are the known transmitted symbols in
+the training frame. Similarly, the last equation becomes
+y(n+M??NE) =
+M+L?1?
+l=0
+xt,M??NE?lh?l+z(n+M??NE). (7)
+In (7) when l = M + L ? 1, we have xt,M??NE?l =
+xt,M??NE?M?L+1. Therefore, in order to guarantee that
+xt,M??NE?l is a valid training symbol the following needs to
+be satisfied:
+M? ?M ? L?NE + 1 ? 0. (8)
+Therefore, M? ? M + L + NE ? 1. Choosing M? = M +
+L+NE?1 (to reduce the training overhead) and stacking NE
+received samples in a column vector we get
+y = X?th?+ z, (9)
+where
+y =
+[
+y(n+ M? ? 1), y(n+ M? ? 2), · · · , y(n+ M? ?NE)
+]
+T
+(10)
+is the known received vector of size NE,
+X?t =
+?
+?
+?
+?
+?
+?
+xt,M??1 xt,M??2 · · · xt,NE?1
+xt,M??2 xt,M??3
+...
+...
+. . .
+xt,M??NE · · · xt,0
+?
+?
+?
+?
+?
+?
+(11)
+is the NE × (M + L) measurement matrix constructed from
+known training symbols, and z is the noise vector
+z=
+[
+z(n+ M? ? 1), z(n+ M? ? 2), · · · , z(n+ M? ?NE)
+]
+T
+.
+(12)
+A. Classical Solution
+The system of equations in (9) can be solved to estimate the
+combined CIR vector h?. The classical solution of this problem
+(which does not exploit the sparsity of h?) is given by
+ˆ?
+hclassical = X?
+†
+ty, (13)
+where X?
+†
+t is the pseudo-inverse of X?t and this solution is
+called the least-squares solution if the measurement matrix X?t
+is a tall matrix and it is called the minimum-norm solution if
+X?t is a fat matrix. The problems with this classical solution
+are as follows:
+1) To obtain an accurate estimate of h?, the number of
+equations NE may be prohibitively large which increases
+the computational complexity.
+2) The solution is not guaranteed to be a sparse solution
+although we know that h? is a sparse vector.
+B. Proposed Sparsity-Aware Approach
+Since h? is a sparse vector, the problem in (9) can be viewed
+as a sparse signal recovery problem which can be formulated
+as follows
+argmin
+h??CM+L
+?h??0, s.t. ?y ? X?th??
+2
+2 ? ?, (14)
+where ?h??0 is the number of non-zero elements in h?. The
+notation ?  ?2 denotes the ?2-norm and ? can be chosen as a
+function of the noise variance.
+To reduce the computational complexity of the Np-hard
+problem in (14), the ?0-norm minimization is relaxed to an
+?1-norm minimization problem and solved using the computa-
+tionally efficient orthogonal matching pursuit (OMP) method.
+This solution is denoted by
+ˆ?
+homp = OMP(y, X?t, stopping criterion), (15)
+where the stopping criterion can be a predefined sparsity level
+on ?h??0.
+C. Conventional Approach
+The conventional approach for frame synchronization and
+channel estimation is performing them separately. First, by
+cross-correlating the received data symbols with the training
+symbols, an estimate of the frame boundary, ˆ?D in [0,M ?
+1] is obtained1. Then, the equations in (9) can be expressed
+compactly as follows
+y = Xth+ z, (16)
+where
+Xt =
+?
+?
+?
+?
+?
+?
+?
+x
+t,M?? ˆ?D?1
+x
+t,M?? ˆ?D?2
+· · · x
+t,M?? ˆ?D?L?1
+x
+t,M?? ˆ?D?2
+x
+t,M?? ˆ?D?3
+...
+...
+. . .
+x
+t,M?? ˆ?D?NE
+· · · x
+t,M?? ˆ?D?L?NE
+?
+?
+?
+?
+?
+?
+?
+(17)
+is the NE × (L + 1) measurement matrix constructed from
+known training symbols.
+To gain some insight from (16), the following observations
+are in order:
+1) The first equation defined by the first row of Xt is given
+in (6) where D? is replaced by ˆ?D.
+1The cross-correlation method is optimal for frequency-flat channels and
+becomes suboptimal for multipath frequency-selective channels.
+h?
+x(n)
+z(n)
+y(n)
+Channel
+Estimator
+ˆ?
+h
+Sparse FIR
+Linear Equalizer x?(n??) x?(n??)
+Fig. 4. The complete system model illustrating the combined channel, channel
+estimator and the equalizer.
+2) Xt is a sub-matrix of X?t. For example if
+ˆ?D = 0, then Xt
+consists of the first L+1 columns of X?t. If
+ˆ?D = M?1,
+then Xt consists of the last L+ 1 columns of X?t.
+3) Unlike h? which will always be a sparse vector, h may
+or may not be a sparse vector.
+If h is not sparse, then the classical least-squares solution
+h? = X†ty is a reasonable low complexity approach to solve
+this problem although sparse methods can still be applied if
+h is a sparse CIR vector. Once h? is obtained, the combined
+CIR vector estimate becomes
+ˆ?
+hconv = [0, 0, · · · , 0
+? ?? ?
+ˆ?D zeros
+h?T , 0, 0, · · · , 0
+? ?? ?
+M? ˆ?D?1 zeros
+]T . (18)
+IV. EQUALIZER DESIGN BASED ON CHANNEL ESTIMATES
+The multi-path channel introduces inter-symbol interference
+which should be equalized before the decisions on the symbols
+are made. The complete system model is illutrated in Fig. 4.
+Here, the channel estimate from the previous section is used
+to design the equalizer. The performance of the equalizer will
+depend on the accuracy of the channel estimate. Therefore,
+the performance of different channel estimators from the
+previous section can be compared by evaluating the equalizer
+performance. To reduce the complexity of the equalizer, we
+implement the sparse FIR linear equalizer design of [10],
+[11]. The output of the equalizer is the soft estimate of the
+transmitted symbol x(n) and can be expressed as x?(n) =
+?N?1
+k=0 y(n ? k)wk, where wk is the k-th element of the
+equalizer vector w and N is the length of the equalizer. The
+performance metric adopted is the MSE defined as follows
+MSE = E
+[
+|x?(n)? x(n??)|2
+]
+, (19)
+where ? is the equalizer delay which is optimized to reduce
+the MSE. Finally, the transmitted symbols’ estimates are
+calculated using a decision device based on the type of signal
+constellation used.
+V. SIMULATION AND EXPERIMENTAL RESULTS
+A. Simulation Results
+The CIR that we assume in the simulation is similar to
+the channel in [2] and is shown in Fig. 5. This CIR has
+L+1 = 101 taps with 10 non-zero taps given by: h0 = ?0.5,
+h7 = 0.1, h14 = 0.9, h33 = ?0.3, h49 = 0.5, h51 = ?0.25,
+h69 = ?0.3, h73 = 0.3, h89 = 0.4, and h100 = ?0.1. The data
+frame length is M = 1000. For channel estimation, NE = 148
+-0.5
+0
+0.5
+1
+A
+m
+pl
+itu
+de
+0 10 20 30 40 50 60 70 80 90 100
+Channel Tap
+Fig. 5. The CIR h used in the simulations.
+equations are used. The length of the training frame is M? =
+M+L+NE?1 = 1247. We set the frame boundary D? = 500.
+We assume that we do not know the number of non-zero
+taps in the CIR and we can only have an upper bound on it
+which we set as 20. For the conventional approach, the least
+squares solution is used. The channel estimates obtained using
+the methods introduced in Section III are shown in Fig. 6
+where BPSK modulation is used and SNR is set to 20 dB.
+For the conventional method, we also show the genie-
+assisted results where the receiver knows the correct frame
+boundary D? = 500. Otherwise, when ˆ?D is obtained using
+cross-correlation of the received data with the transmitted
+training frame, ˆ?D = 514 is obtained which corresponds to
+the location of the strongest multi-path component. By visual
+inspection of the estimates, we see that the classical approach
+performs poorly compared to all other approaches. The joint
+sparse estimate and the genie-assisted conventional method
+have similar performance. Note that the conventional method
+without genie assistance is unable to estimate the 2 taps before
+the strongest tap at time index 514.
+Using the channel estimates from different methods and
+the ideal channel to design the equalizer, we illustrate the
+MSE performance in Fig. 7. The sparse FIR equalizer based
+on [10] has 1200 taps with only 200 active taps. We observe
+that the proposed joint sparse method outperforms the genie-
+assisted conventional method for SNR larger than 5 dB. Fur-
+thermore, for SNR greater than 20 dB, the joint sparse method
+achieves same performance as in perfect channel knowledge
+with perfect frame synchronization. The performance of the
+conventional method is not satisfactory due to the errors in
+identifying the frame boundary.
+B. Experimental Results with USRPs
+The performance of the proposed method was also evaluated
+using our wireless testbed at Qatar University consisting of
+a transmitter and a receiver where the transmitter and the
+receiver are composed of one laptop computer connected to
+a USRP N210 device [12] as shown in Fig. 8. Baseband
+processing of the signals as well as the communication with
+the USRP devices are done in MATLAB.
+-1
+-0.5
+0
+0.5
+1
+A
+m
+pl
+itu
+de
+0 100 200 300 400 500 600 700 800 900 1000 1100
+Combined Channel Tap
+Actual Channel
+Joint Classical Estimate
+-1
+-0.5
+0
+0.5
+1
+A
+m
+pl
+itu
+de
+0 100 200 300 400 500 600 700 800 900 1000 1100
+Combined Channel Tap
+Actual Channel
+Joint Sparse Estimate
+-1
+-0.5
+0
+0.5
+1
+A
+m
+pl
+itu
+de
+450 500 550 600 650
+Combined Channel Tap
+Actual Channel
+Genie-Assisted Conv. Est.
+Conventional Estimate
+Fig. 6. The channel estimates obtained from classical method, joint sparse method, and conventional method with and without genie assistance. The last
+subplot showing conventional method has been zoomed in so that no estimate remains outside of the plot for better viewing.
+0 5 10 15 20 25 30 35 40
+SNR (dB)
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+M
+S
+E
+Joint Classical Method
+Conventional Method
+Genie-Assisted Conventional Method
+Proposed Joint Sparse Method
+Perfect Combined Channel Knowledge
+Fig. 7. Equalizer MSE performance of different methods using simulations.
+Transmitter
+USRP USRP
+Receiver
+Fig. 8. System model for USRP experiments
+The testbed is based on QPSK transmitter [13] and re-
+ceiver [14] examples in MATLAB. We select a training frame
+period P = 10. Data frames contain M = 100 QPSK symbols
+whereas the training frame contains M? = 147 QPSK symbols.
+The symbols are up-sampled by 4 and passed through a raised
+cosine transmit filter. These samples are transmitted in the 2.4
+GHz ISM band at a sampling rate fs = 200 kHz. The same
+sampling rate is used at the receiver as well. The received
+samples go through automatic gain control (AGC) and a raised
+cosine receive filter. At the output of this filter, the over-
+sampling factor is reduced to 2. After coarse frequency com-
+pensation and fine frequency compensation, timing recovery is
+performed. During timing recovery over-sampling is reduced
+to 1 and the receiver clock is synchronized to the transmitter
+clock. However, the frame boundary is not determined yet.
+The channel needs to be equalized as well. At this point we
+can apply the different methods presented in this paper for
+frame synchronization and channel estimation.
+In our USRP-based experiments, the multi-path symbol-
+spaced CIR used to generate the received samples was
+h = [1 0.7]T . Fig. 9 shows the channel estimates using
+NE = 43 equations where the real and imaginary parts of
+the channel estimates are drawn seperately. The channel is
+assumed to contain L + 1 = 6 non-zero taps. At the top
+of the figure we have the joint classical method where the
+channel is estimated using (13). Next, the channel estimate
+obtained using the proposed method is shown where the sparse
+OMP algorithm in (15) is used for channel estimation. The
+conventional method where the frame synchronization and
+channel estimation are performed separately, is at the bottom
+of Fig. 9. We note that both methods seem to locate the frame
+boundary; however, it is obvious that the classical method
+performs the worst as its estimate is spread across the frame.
+To assess the performance of each method, we perform
+the sparse FIR linear equalization of [10] as explained in
+Section IV. The equalization is performed for data frames
+using the channel estimates obtained during the training frame.
+Fig. 10 shows the MSE results as a function of the number
+of active taps used in the equalizer out of a total of 200 taps.
+Note that the proposed method outperforms the conventional
+and the joint classical methods. Because the joint classical
+method results in an inaccurate channel estimate, the MSE
+increases as the number of active taps increases. We also note
+-0.5
+0
+0.5
+A
+m
+pl
+itu
+de
+0 10 20 30 40 50 60 70 80 90 100
+Tap
+Joint Classical Estimate-Real Part
+-0.5
+0
+0.5
+A
+m
+pl
+itu
+de
+0 10 20 30 40 50 60 70 80 90 100
+Tap
+Joint Classical Estimate-Imaginary Part
+-0.5
+0
+0.5
+A
+m
+pl
+itu
+de
+0 10 20 30 40 50 60 70 80 90 100
+Tap
+Joint Sparse Estimate-Real Part
+-0.5
+0
+0.5
+A
+m
+pl
+itu
+de
+0 10 20 30 40 50 60 70 80 90 100
+Tap
+Joint Sparse Estimate-Imaginary Part
+-0.5
+0
+0.5
+A
+m
+pl
+itu
+de
+0 10 20 30 40 50 60 70 80 90 100
+Tap
+Conventional Estimate-Real Part
+-0.5
+0
+0.5
+A
+m
+pl
+itu
+de
+0 10 20 30 40 50 60 70 80 90 100
+Tap
+Conventional Estimate-Imaginary Part
+Fig. 9. The channel estimates obtained from classical method, joint sparse method, and conventional method with and without genie assistance.
+that around 10 active taps are sufficient for the equalizer to
+converge to the optimum performance.
+0 20 40 60 80 100 120 140 160 180 200
+Number of Active Tabs
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0.35
+0.4
+M
+S
+E
+Joint Classical Method
+Conventional Method
+Proposed Joint Sparse Method
+Fig. 10. MSE performance of different methods as a function of the number
+of active equalization taps.
+VI. CONCLUSION
+In this paper, we proposed a joint frame synchronization
+and channel estimation method for frame-based communi-
+cation systems. The proposed sparsity-aware method attains
+superior performance compared to the conventional method
+where frame synchronization and channel estimation are done
+separately. A full frame is dedicated to training; however, the
+overhead due to training can be minimized by increasing the
+period of the training frame by taking the coherence time of the
+channel into consideration. Future research includes extensions
+to multi-antenna and multi-user systems and investigating
+more sophisticated sparse recovery algorithms than the simple
+OMP considered in this paper.
+REFERENCES
+[1] J. Massey, “Optimum frame synchronization,” IEEE Transactions on
+Communications, vol. 20, no. 2, pp. 115–119, Apr. 1972.
+[2] S. F. Cotter and B. D. Rao, “Sparse channel estimation via matching
+pursuit with application to equalization,” IEEE Transactions on Com-
+munications, vol. 50, no. 3, pp. 374–377, Mar 2002.
+[3] S. G. Mallat and Z. Zhang, “Matching pursuits with time-frequency
+dictionaries,” IEEE Trans. on Sig. Proc., vol. 41, no. 12, pp. 3397–3415,
+Dec. 1993.
+[4] S. F. Cotter, R. Adler, R. D. Rao, and K. Kreutz-Delgado, “Forward
+sequential algorithms for best basis selection,” IEE Proceedings - Vision,
+Image and Signal Processing, vol. 146, no. 5, pp. 235–244, Oct. 1999.
+[5] G. Gui, W. Peng, and F. Adachi, “Improved adaptive sparse channel
+estimation based on the least mean square algorithm,” in Proc. IEEE
+Wireless Commun. and Netw. Conf. (WCNC), Apr. 2013, pp. 3105–3109.
+[6] J. H. Wen, G. R. Lee, J. W. Liu, and T. L. Kung, “Joint frame
+synchronization and channel estimation scheme using regression method
+in OFDM systems,” in Proc. IEEE International Conference on Wireless
+Commun., Netw. and Mobile Comp., Sept. 2007, pp. 164–167.
+[7] M. Marey, M. Guenach, F. Simoens, and H. Steendam, “Soft information
+aided ML joint frame synchronization and channel estimation for
+downlink MC-CDMA in the presence of narrowband interference,” in
+Proc. IEEE Vehic. Technol. Conf. (VTC), Apr. 2007, pp. 2180–2184.
+[8] M. Marey, M. Guenach, and H. Steendam, “Code aided joint frame
+synchronization and channel estimation for uplink MC-CDMA in the
+presence of narrowband interference,” in Proc. IEEE Vehic. Technol.
+Conf. (VTC), Sept. 2008, pp. 1–5.
+[9] Y. Cheng, J. Tan, L. Liu, J. He, J. Tang, L. Chen, J. Zhang, Q. Li, and
+M. Xiao, “Method of joint frame synchronization and data-aided channel
+estimation for 100-Gb/s polarization-division multiplexing-single carrier
+frequency domain equalization coherent optical transmission systems,”
+Optical Engineering, vol. 55, no. 2, Feb. 2016.
+[10] A. O. Al-Abbasi, R. Hamila, W. U. Bajwa, and N. Al-Dhahir, “A general
+framework for the design and analysis of sparse FIR linear equalizers,”
+in Proc. IEEE Global Conference on Signal and Information Processing
+(GlobalSIP), Dec. 2015, pp. 834–838.
+[11] ——, “Design and analysis of sparsifying dictionaries for FIR MIMO
+equalizers,” IEEE Transactions on Wireless Communications, vol. 16,
+no. 4, pp. 2576–2586, April 2017.
+[12] Ettus Research LLC. [Online]. Available: http://www.ettus.com
+[13] QPSK Transmitter with USRP Hardware. [Online]. Available:
+http://www.mathworks.com/help/supportpkg/usrpradio/examples/qpsk-transmitter-with-usrp-r-hardware-1.html
+[14] QPSK Receiver with USRP Hardware. [Online]. Available:
+http://www.mathworks.com/help/supportpkg/usrpradio/examples/qpsk-receiver-with-usrp-r-hardware-1.html

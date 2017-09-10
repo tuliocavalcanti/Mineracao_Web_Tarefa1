@@ -12,7 +12,7 @@ public class GetAnalyzer {
 	}
 	public static Analyzer stemmingAnalyzer(){
 		CharArraySet stopWords = new CharArraySet(0, true); 
-		return new StandardAnalyzer(stopWords);
+		return new EnglishAnalyzer(stopWords);
 	}
 	
 	public static Analyzer stopWordsAnalyzer(){

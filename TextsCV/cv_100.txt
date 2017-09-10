@@ -1,0 +1,944 @@
+SketchParse : Towards Rich Descriptions for Poorly
+Drawn Sketches using Multi-Task Hierarchical Deep
+Networks
+Ravi Kiran Sarvadevabhatla?
+ravika@gmail.com
+Isht Dwivedi
+isht.dwivedi@gmail.com
+Abhijat Biswas
+abhijatbiswas@gmail.com
+Sahil Manocha
+sahilmanocha1995@gmail.com
+R. Venkatesh Babu
+venky@cds.iisc.ac.in
+Abstract
+The ability to semantically interpret hand-drawn line sketches, although very chal-
+lenging, can pave way for novel applications in multimedia. We propose SKETCH-
+PARSE, the first deep-network architecture for fully automatic parsing of freehand
+object sketches. SKETCHPARSE is configured as a two-level fully convolutional
+network. The first level contains shared layers common to all object categories.
+The second level contains a number of expert sub-networks. Each expert special-
+izes in parsing sketches from object categories which contain structurally similar
+parts. Effectively, the two-level configuration enables our architecture to scale up
+efficiently as additional categories are added. We introduce a router layer which
+(i) relays sketch features from shared layers to the correct expert (ii) eliminates
+the need to manually specify object category during inference. To bypass labo-
+rious part-level annotation, we sketchify photos from semantic object-part im-
+age datasets and use them for training. Our architecture also incorporates ob-
+ject pose prediction as a novel auxiliary task which boosts overall performance
+while providing supplementary information regarding the sketch. We demonstrate
+SKETCHPARSE’s abilities (i) on two challenging large-scale sketch datasets (ii)
+in parsing unseen, semantically related object categories (iii) in improving fine-
+grained sketch-based image retrieval. As a novel application, we also outline how
+SKETCHPARSE’s output can be used to generate caption-style descriptions for
+hand-drawn sketches.
+1 Introduction
+Hand-drawn line sketches have long been employed to communicate ideas in a minimal yet under-
+standable manner. In this paper, we explore the problem of parsing sketched objects, i.e. given a
+freehand line sketch of an object, determine its salient attributes (e.g. category, semantic parts, pose).
+The ability to understand sketches in terms of local (e.g. parts) and global attributes (e.g. pose) can
+drive novel applications such as sketch captioning, storyboard animation [17] and automatic drawing
+assessment apps for art teachers. The onset of deep network era has resulted in architectures which
+can impressively recognize object sketches at a coarse (category) level [36, 39, 51]. Paralleling the
+?This author and co-authors are all affiliated with Video Analytics Lab, Indian Institute of Science, Banga-
+lore, INDIA 560012.
+1
+ar
+X
+iv
+:1
+70
+9.
+01
+29
+5v
+1 
+ [
+cs
+.C
+V
+] 
+ 5
+ S
+ep
+ 2
+01
+7
+advances in parsing of photographic objects [13, 21, 46] and scenes [4, 29, 8], the time is ripe for
+understanding sketches too at a fine-grained level [50, 20].
+A number of unique challenges need to be addressed for semantic sketch parsing. Unlike richly
+detailed color photos, line sketches are binary (black and white) and sparsely detailed. Sketches ex-
+hibit a large amount of appearance variations induced by the range of drawing skills among general
+public. The resulting distortions in object depiction pose a challenge to parsing approaches. In many
+instances, the sketch is not drawn with a ‘closed’ object boundary, complicating annotation, part-
+segmentation and pose estimation. Given all these challenges, it is no surprise that only a handful
+of works exist for sketch parsing [16, 38]. However, even these approaches have their own share of
+drawbacks (Section 2).
+To address these issues, we propose a novel architecture called SKETCHPARSE for fully automatic
+sketch object parsing. In our approach, we make three major design decisions:
+Design Decision #1 (Data): To bypass burdensome part-level sketch annotation, we leverage photo
+image datasets containing part-level annotations of objects [6]. Suppose I is an object image and CI
+is the corresponding part-level annotation. We subject I to a sketchification procedure (Section 3.2)
+and obtain SI . Thus, our training data consists of the sketchified image and corresponding part-level
+annotation pairs ({SI , CI}) for each category (Figure 1).
+Design Decision #2 (Model): Many structurally similar object categories tend to have common parts.
+For instance, ‘wings’ and ‘tail’ are common to both birds and airplanes. To exploit such shared se-
+mantic parts, we design our model as a two-level network of disjoint experts (see Figure 2). The first
+level contains shared layers common to all object categories. The second level contains a number
+of experts (sub-networks). Each expert is configured for parsing sketches from a super-category set
+comprising of categories with structurally similar parts1. Instead of training from scratch, we in-
+stantiate our model using two disjoint groups of pre-trained layers from a scene parsing net (Section
+4.1). We perform training using the sketchified data (Section 5.1) mentioned above. At test time,
+the input sketch is first processed by the shared layers to obtain intermediate features. In parallel,
+the sketch is also provided to a super-category sketch classifier. The label output of the classifier
+is used to automatically route the intermediate features to the appropriate super-category expert for
+final output i.e. part-level segmentation (Section 5.2).
+Design Decision #3 (Auxiliary Tasks): A popular paradigm to improve performance of the main task
+is to have additional yet related auxiliary targets in a multi-task setting [32, 1, 18, 26]. Motivated
+by this observation, we configure each expert network for the novel auxiliary task of 2-D pose
+estimation.
+At first glance, our approach seems infeasible. After all, sketchified training images resemble ac-
+tual sketches only in terms of stroke density (see Figure 1). They seem to lack the fluidity and
+unstructured feel of hand-drawn sketches. Moreover, SKETCHPARSE’s base model [5], originally
+designed for photo scene segmentation, seems an unlikely candidate for enabling transfer-learning
+based sketch object segmentation. Yet, as we shall see, our design choices result in an architec-
+ture which is able to successfully accomplish sketch parsing across multiple categories and sketch
+datasets.
+Contributions:
+• We propose SKETCHPARSE – the first deep hierarchical network for fully automatic parsing
+of hand-drawn object sketches (Section 4). Our architecture includes object pose estimation
+as a novel auxiliary task.
+• We provide the largest dataset of part-annotated object sketches across multiple categories
+and multiple sketch datasets. We also provide 2-D pose annotations for these sketches.
+• We demonstrate SKETCHPARSE’s abilities on two challenging large-scale sketch object
+datasets (Section 5.2), on unseen semantically related categories, (Section 6.1) and for
+improving fine-grained sketch-based image retrieval (Section 6.3).
+• We outline how SKETCHPARSE’s output can form the basis for novel applications such as
+automatic sketch description (Section 6.3).
+1For example, categories cat,dog,sheep comprise the super-category Small Animals.
+2
+I
+C
+I
+E
+I
+S
+I
+P
+I
+Figure 1: An illustration of our sketchification procedure (Section 3.2). The edge image EI , corresponding to
+the input photo I , is merged with the part and object contours PI derived from ground-truth labeling CI , to
+obtain the final sketchified image SI . We train SKETCHPARSE using SI instances as inputs and CI instances
+as the corresponding part-labelings.
+Please visit https://github.com/val-iisc/sketch-parse for pre-trained models,
+code and resources related to the work presented in this paper.
+2 Related Work
+Semantic Parsing (Photos): Existing deep-learning approaches for semantic parsing of photos can
+be categorized into two groups. The first group consists of approaches for scene-level semantic
+parsing (i.e. output an object label for each pixel in the scene) [5, 29, 8]. The second group of
+approaches attempt semantic parsing of objects (i.e. output a part label for each object pixel) [13, 21,
+46]. Compared to our choice (of a scene parsing net), this latter group of object-parsing approaches
+seemingly appear better candidates for the base architecture. However, they pose specific difficulties
+for adoption. For instance, the hypercolumns approach of Hariharan et al. [13] requires training
+separate part classifiers for each class. Also, the evaluation is confined to a small number of classes
+(animals and human beings). The approach of Liang et al. [21] consists of a complex multi-stage
+hybrid CNN-RNN architecture evaluated on only two animal categories (horse and cow). The
+approach of Xia et al. [46] fuses object part score evidence from scene, object and part level to
+obtain impressive results for two categories (human, large animals). However, it is not clear how
+their method can be adopted for our purpose.
+Semantic Object Parsing (Sketches): Only a handful of works exist for sketch parsing [16, 38].
+Existing approaches require a part-annotated dataset of sketch objects. Obtaining such part-level
+annotations is very laborious and cumbersome. Moreover, one-third of a dataset [16] evaluated by
+these approaches consists of sketches drawn by professional artists. Given the artists’ relatively
+better drawing skills, incorporating such sketches artificially reduces the complexity of the problem.
+On the architectural front, the approaches involve tweaking of multiple parameters in a hand-crafted
+segmentation pipeline. Existing approaches label individual sketch strokes as parts. This requires
+strokes within part interiors to be necessarily labelled, which can result in peculiar segmentation
+errors [38]. Our method, in contrast, labels object regions as parts. In many instances, the object
+region boundary consists of non-stroke pixels. Therefore, it is not possible to directly compare with
+existing approaches. Unlike our category-scalable and fully automatic approach, these methods
+assume object category is known and train a separate model per category (E.g. dog and cat require
+separate models). Existing implementations of these approaches also have prohibitive inference
+time – parsing an object sketch takes anywhere from 2 minutes [38] to 40 minutes [16], rendering
+them unsuitable for interactive sketch-based applications. In contrast, our model’s inference time is
+fraction of a second. Also, our scale of evaluation is significantly larger. For example, Schneider
+et al.’s method [38] is evaluated on 5 test sketches per category. Our model is evaluated on 100
+sketches per category. Finally, none of the previous approaches exploit the hierarchical category-
+3
+level groupings which arise naturally from structural similarities [54]. This renders them prone to
+drop in performance as additional categories (and their parts) are added.
+Sketch Recognition: The initial performance of handcrafted feature-based approaches [37] for
+sketch recognition has been surpassed in recent times by deep CNN architectures [51, 39]. The
+sketch router classifier in our architecture is a modified version of Yang et al.’s Sketch-a-Net [51].
+While the works mentioned above use sketches, Zhang et al. [53] use sketchified photos for training
+the CNN classifier which outputs class labels. We too use sketchified photos for training. However,
+the task in our case is parsing and not classification.
+Class-hierarchical CNNs: Our idea of having an initial coarse-category net which routes the input
+to finer-category experts can be found in some recent works as well [2, 48], albeit for object classifi-
+cation. In these works, coarse-category net is intimately tied to the main task (viz. classification). In
+our case, the coarse-category CNN classifier serves a secondary role, helping to route the output of
+a parallel, shared sub-network to the finer-category parsing experts. Also, unlike above works, the
+task of our secondary net (classification) is different from the task of experts (segmentation).
+Domain Adaptation/Transfer Learning: Our approach can be viewed as belonging to the cate-
+gory of domain adaptation techniques [34, 30, 3]. These techniques have proven to be success-
+ful for various problems, including image parsing [33, 15, 41]. However, unlike most approaches
+wherein image modality does not change, our domain-adaptation scenario is characterized by ex-
+treme modality-level variation between source (image) and target (freehand sketch). This drastically
+reduces the quantity and quality of data available for transfer learning, making our task more chal-
+lenging.
+Multi-task networks: The effectiveness of addressing auxiliary tasks in tandem with the main task
+has been shown for several challenging problems in vision [32, 1, 18, 26]. In particular, object
+classification [28], detection [8], geometric context [42], saliency [19] and adversarial loss [25]
+have been utilized as auxiliary tasks in deep network-based approaches for semantic parsing. The
+auxiliary task we employ – object viewpoint estimation – has been used in a multi-task setting but
+for object classification [55, 11]. For instance, Wong et al. [45] project the output of semantic
+scene segmentation onto a depth map and use a category-aware 3D model approach to enable 3-D
+pose-based grasping in robots. Zhao and Itti [55] utilize 3-D pose information from toy models
+of 10 categories as a target auxiliary task to improve object classification. Elhoseiny et al. [11]
+also introduce pose-estimation as an auxiliary task along with classification. To the best of our
+knowledge, we are the first ones to design a custom pose estimation architecture to assist semantic
+parsing.
+3 Data Preparation
+We first summarize salient details of two semantic object-part photo datasets.
+3.1 Object photo datasets
+PASCAL-Parts: This 10,103 image dataset [43] provides semantic part segmentation of
+objects from the 20 object categories from the PASCAL VOC2010 dataset. We se-
+lect 11 categories (aeroplane, bicycle, bus, car, cat, cow, dog, flying
+bird, horse, motorcycle, sheep) for our experiments. To obtain the cropped object
+images, we used object bounding box annotations from PASCAL-parts.
+CORE: The Cross-category Object REcognition (CORE) dataset [12] contains segmentation and
+attribute information for objects in 2800 images distributed across 28 categories of vehicles and an-
+imals. We select 8 categories from CORE dataset based on their semantic similarity with PASCAL-
+part categories (e.g. CORE category crow is selected since it is semantically similar to the
+PASCAL-part category bird).
+To enable estimation of object pose as an auxiliary objective, we annotated all the images from
+PASCAL-Parts and CORE datasets with 2-D pose information based on the object’s orientation
+with respect to the viewing plane. Specifically, each image is labeled with one of the cardinal
+(‘North’,‘East’, ‘West’,‘South’) and intercardinal directions (‘NE’,’NW’,‘SE’,‘SW’) [44]. We plan
+to release these pose annotations publicly for the benefit of multimedia community.
+4
+Next, we shall describe the procedure for obtaining sketchified versions of photos sourced from
+these datasets.
+3.2 Obtaining sketchified images
+Suppose I is an object image. As the first step, we use a Canny edge detector tuned to produce
+only the most prominent object edges. Visually, we found the resulting image EI to contain edge
+structures which perceptually resemble human sketch strokes compared to those produced by alter-
+natives such as Sketch Tokens [23] and SCG [47]. We augment EI with part contours and object
+contours from the part-annotation data of I and perform morphological dilation to thicken edge seg-
+ments (using a square structured element of side 3) to obtain the sketchified image SI (see Figure
+1). To augment data available for training the segmentation model, we apply a series of rotations
+(±10,±20,±30 degrees) and mirroring about the vertical axis to SI . Overall, this procedure results
+in 14 augmented images per each original, sketchified image. To ensure a good coverage of parts
+and eliminate inconsistent labelings, we manually curated 1532 object images from PASCAL-Parts
+and CORE datasets. Given the varying semantic granularity of part labels across these datasets,
+we manually curated the parts considered for each category [43]. Finally, we obtain the training
+dataset consisting of 1532 × 14 = 21,448 paired sketchified images and corresponding part-level
+annotations, distributed across 11 object categories.
+We evaluate our model’s performance on freehand line sketches from two large-scale datasets. We
+describe these datasets and associated data preparation procedures next.
+3.3 Sketch datasets and augmentation
+TU-Berlin: The TU-Berlin sketch database [10] contains 20,000 hand drawn sketches spanning 250
+common object categories, with 80 sketches per object. For this dataset, only the category name was
+provided to the sketchers during the drawing phase.
+Sketchy: The Sketchy database [35] contains 75,471 sketches spanning 125 object categories, with
+500 ? 700 sketches per category. To collect this dataset, photo images of objects were initially
+shown to human subjects. After a gap of 2 seconds, the image was replaced by a gray screen and
+subjects were asked to sketch the object from memory. Compared to the draw-from-category-name-
+only approach employed for TU-Berlin dataset [10], this memory-based approach provides a larger
+variety in terms of multiple viewpoints and object detail in sketches. On an average, each object
+photo is typically associated with 5? 8 different sketches.
+From both the datasets, we use sketches from only those object categories which overlap with the
+11 categories from PASCAL-Parts mentioned in Section 3.1. For augmentation, we first apply
+morphological dilation (using a square structured element of side 3) to each sketch. This operation
+helps minimize the impact of loss in stroke continuity when the sketch is processed by deeper layers
+of the network. Subsequently, we apply a series of rotations (±10,±20,±30 degrees) and mirroring
+about the vertical axis on the dilated sketch. This produces 14 augmented variants per original sketch
+for use during training.
+4 Our model (SKETCHPARSE)
+4.1 Instantiating SKETCHPARSE levels
+We design a two-level deep network architecture for SKETCHPARSE (see Figure 2). The first level is
+intended to capture category-agnostic low-level information and contains shared layers L0 common
+to all N object categories. We instantiate first-level layers with the shallower, initial layers from
+a scene parsing net [5]. Specifically, we use multi-scale version of ResNet-101 [14] variant of
+DeepLab [5], a well-known architecture designed for semantic scene parsing. In this context, we
+wish to emphasize that our design is general and can accommodate any fully convolutional scene
+parsing network.
+The categories are grouped into K smaller (< N), disjoint super-category subsets using meronym
+(i.e. part-of relation)-based similarities between objects [40]. To obtain super-categories, we start
+with given categories and cluster them based on the fraction of common meronyms (part-names).
+5
+L0
+L2 
+(Small 
+Animals)
+L3
+(Four 
+wheelers)
+L4
+(Two 
+wheelers)
+L5
+(Flying 
+Things)
+L1 
+(Large 
+Animals)
+Sketch Router 
+Classifier
+Router 
+Layer
+“Flying Things”
+(Test sketch /
+ Sketchified image)
+I
+SKETCHPARSE
+FC                  [8]Pre-softmax activations 3x3/2/2       [64]3x3/2/2     [128]Pixel-wise Softmax 11x11/1/1   [32]Softmax        [8]Figure 2: The first level L0 of SKETCHPARSE (shaded purple) is instantiated with shallower layers of a sceneparsing net. The second level consists of K expert super-category nets L1, L2, . . . LK (shaded yellow) andis instantiated with deeper layers of the scene parsing net. Given the test sketch I , the Router Layer (shadedgreen) relays intermediate features produced by shared layers L0 to the target expert (L5). The pre-softmaxactivations (blue oval) generated in L5 are used to obtain the part parsing. These activations are also used byour novel pose estimation auxiliary net (shaded light-pink). The architecture of the pose net can be seen withinthe brown dotted line box in top-right. Within the pose net, convolutional layers are specified in the formatdimensions/stride/dilation [number of filters]. FC = Fully-Connected layer. The dash-dotted line connected tothe router classifier is used to indicate that Router Layer is utilized only during inference.For example, ‘flying bird’ and ‘airplane’ have the largest common set of part-names between them-selves compared to any other categories and therefore form a single cluster. This procedure can also
+be used when a new category C is introduced – we assign C to the super-category with which it
+shares largest common set of part-names.
+The second level consists of K expert sub-networks L1, L2, . . . LK , each of which is specialized for
+parsing sketches associated with a super-category. We initialize these K experts using the deeper,
+latter layers from the scene parsing model. Suppose the total number of parts across all object
+categories within the i-th super-category is ni, 1 6 i 6 K. We modify the final layer for each expert
+network Li such that it outputs ni part-label predictions. In our current version of the architecture,
+K = 5 and N = 11. We performed ablative experiments to determine optimal location for splitting
+the layers of semantic scene parsing net into two groups. Based on these experiments, we use all the
+layers up to the res5b block as shared layers.
+4.2 Router Layer
+From the above description (Section 4.1), SKETCHPARSE’s design so far consists of a single shared
+sub-network and K expert nets. We require a mechanism for routing the intermediate features
+produced by shared layers to the target expert network. In addition, we require a mechanism for
+backpropagating error gradients from the K expert nets and update the weights of the shared layer
+sub-network during training. To meet such requirements, we design a Router Layer (shaded green in
+Figure 2). During the training phase, routing of features from the shared layer is dictated by ground-
+truth category and by extension, the super-category it is associated with. A branch index array is
+maintained for each training mini-batch. Since the ground-truth super-category for each training
+example is available, creation of branch index array requires only knowledge of the mini-batch label
+composition. The array entries are referenced during backward propagation to (a) recombine the
+gradient tensors in the same order as that of the mini-batch and (b) route error gradient from the
+appropriate branch to the shared layers during backpropagation.
+To accomplish routing during test time, we use a K-way classifier (shaded red in Figure 2) whose
+output label corresponds to one of the K expert networks L1, L2, . . . LK . In this regard, we exper-
+imented with a variety of deep CNN architectures. We examined previous custom architectures for
+sketch recognition by Seddati et al. [39] and Yang et al. [51]. In addition to custom nets, we explored
+architectures which involved fine-tuning image object classification networks such as AlexNet and
+6
+GoogleNet. Table 1 lists some of the architectures explored along with their classification perfor-
+mance. We briefly describe the architectures next.
+• [SKETCHPARSE-pool5][GAP][FC64][DO 0.5][FC5], using sketchified images - We
+first train SKETCHPARSE and then take global average pooled output after pool5. All the
+layers of SKETCHPARSE are frozen, only the fully connected layers are learnt. 0.5 dropout
+is used for the fully connected layer.
+• [SKETCHPARSE-pool5][FC64][DO 0.5][FC64][DO 0.5][FC5], using sketchified im-
+ages - This experiment is similar to the above experiment. Here we use 3 fully connected
+layers after the global average pool output of pool5. 0.5 dropout is used for the fully con-
+nected layers.
+• Google net [GAP][FC5], using sketches - The last fully connected layer of the Google
+net is removed and it is replaced by a global average pool layer and a fully connected layer
+for classification. This model is then fine-tuned for sketch classification.
+• Custom net (used), using sketches - This is the custom net, described in Table 2. It
+was found that on increasing the number of layers in all Conv layers of this architecture
+improves performance.
+• Alex net [GAP][FC5], using sketches - In this experiment, we replaced the last 3 fully
+connected layers of Alex net with a global average pool layer and a fully connected layer
+for classification. This new architecture was then fine-tuned.
+Architecture training data performance
+[SKETCHPARSE-pool5][GAP][FC64][DO 0.5][FC5] sketchified images 67.0
+[SKETCHPARSE-pool5][FC64][DO 0.5][FC64][DO 0.5][FC5] sketchified images 64.0
+Google net [GAP][FC5] sketch images 90.0
+Custom net(used) sketch images 91.3
+Alex net [GAP][FC5] sketch images 89.8
+Table 1: Some of the architectures explored to find the best classifier and their performance numbers.
+We found that a customized version of Yang et al.’s SketchCNN architecture, with a normal (non-
+sketchified) input, provided the best performance. Specifically, we found that (1) systematically
+increasing the number of filters in all the conv layers and (2) using a larger size kernel in last layer,
+results in better performance. We use a very high dropout rate of 70% in our network to combat
+over-fitting and to compensate for lower amount of training data. Table 2 depicts the architecture of
+our router classifier.
+We also wish to point out that our initial attempts involved training custom CNNs solely on sketchi-
+fied images or their deep feature variants. However, the classification performance was subpar.
+Therefore, we resorted to training the classifier using actual sketches.
+index Type Filter size no. of filters stride
+1 Conv 15x15 64 3
+2 ReLu - - -
+3 Maxpool 3x3 - 2
+4 Conv 5x5 128 1
+5 ReLu - - -
+6 Maxpool 3x3 - 2
+7 Conv 3x3 256 1
+8 ReLu - - -
+9 Conv 3x3 256 1
+10 ReLu - - -
+11 Conv 3x3 256 1
+12 ReLu - - -
+13 Maxpool 3x3 - 2
+14 Conv 1x1 512 -
+15 ReLu - - -
+16 Dropout(0.7) - - -
+17 Conv 1x1 5 -
+Table 2: The architecture of the sketch router classifier used by SKETCHPARSE.
+7
+4.2.1 Confusion Matrix
+A highly accurate sketch classifier is a crucial requirement for proper routing and overall perfor-
+mance of our approach. Table 3 shows the confusion matrix of the classifier used by our model
+on the test set. We note that most of the misclassification occurs due to confusion between Small
+Animal and Large Animal super-categories because these sketches tend to be very similar.
+Large Anim. Small Anim. 4 wheel. 2 wheel. Flying.
+Large Anim. 80.05 9.40 0 0 1
+Small Anim. 18.9 88.35 0.15 0.15 3.15
+4 wheel. 0.08 0.25 98.80 0 2.0
+2 wheel. 0.4 0.89 0.5 99.15 0.4
+Flying. 0.5 0.94 0.50 0.65 93.25
+Table 3: The confusion matrix of the classifier used by our model on the test set.
+4.3 Auxiliary (Pose Estimation) Task Network
+The architecture for estimating the 2-D pose of the sketch (shaded pink and shown within the top-
+right brown dotted line box in Figure 2) is motivated by the following observations:
+First, the part-level parsing of the object typically provides clues regarding object pose. For exam-
+ple, if we view the panel for Two Wheelers in Figure 3, it is evident that the relative location and
+spatial extent of ‘handlebar’ part for a bicycle is a good indicator of pose. Therefore, to enable
+pose estimation from part-level information, the input to the pose net is the tensor of pre-softmax
+pixelwise activations2 generated within the expert part-parsing network. To capture the large varia-
+tion in part appearances, locations and combinations thereof, the first two layers in the pose network
+contain dilated convolutional filters [49], each having rate r = 2 and stride s = 2 with kernel width
+k = 3. Each convolutional layer is followed by a ReLU non-linearity [27].
+Second, 2-D pose is a global attribute of an object sketch. Therefore, to provide the network with
+sufficient global context, we configure the last convolutional layer with r = s = 1 and k = 11,
+effectively learning a large spatial template filter. The part combinations captured by initial layers
+also mitigate the need to learn many such templates – we use 32 in our implementation. The resulting
+template-based feature representations are combined via a fully-connected layer and fed to a 8-way
+softmax layer which outputs 2-D pose labels corresponding to cardinal and intercardinal directions.
+Note also that each super-category expert has its own pose estimation auxiliary net.
+Having described the overall framework for SKETCHPARSE, we next describe major implementation
+details of our training and inference procedure.
+5 Implementation Details
+5.1 Training
+SKETCHPARSE: Before commencing SKETCHPARSE training, the initial learning rate for all but
+the final convolutional layers is set to 5 × 10?4. The rate for the final convolutional layer in each
+sub-networks is set to 5 × 10?3. Batch-norm parameters are kept fixed during the entire training
+process. The architecture is trained end-to-end using a per-pixel cross-entropy loss as the objec-
+tive function. For optimization, we employ stochastic gradient descent with a mini-batch size of 1
+sketchified image, momentum of 0.9 and polynomial weight decay policy. We stop training after
+20000 iterations. The training takes 3.5 hours on a NVIDIA Titan X GPU.
+A large variation can exist between part sizes for a given super-category (e.g. number of ‘tail’
+pixels is smaller than ‘body’ pixels in Large Animals). To accommodate this variation, we use a
+class-balancing scheme which weighs per-pixel loss differently based on relative presence of corre-
+sponding ground-truth part [9]. Suppose a pixel’s ground-truth part label is c. Suppose c is present
+in Nc training images and suppose the total number of pixels with label c across these images is pc.
+2Shown as a blue oval in Figure 2.
+8
+Architecture aIOU %
+Baseline (B) 66.99
+B + Class-Balanced Loss Weighting (C) 69.56
+B + C + Pose Auxiliary Task (P) 70.26
+Table 4: Performance for architectural additions to a single super-category (‘Large Animals’) version of
+SKETCHPARSE.
+We weight the corresponding loss by ?c =M/fc where fc = pc/Nc and M is the median over the
+set of fcs. In effect, losses for pixels of smaller parts get weighted to a larger extent and vice-versa.
+Pose Auxiliary Net: The pose auxiliary network is trained end-to-end with the rest of SKETCH-
+PARSE, using an 8-way cross-entropy loss. The learning rate for the pose module is set to 2.5×10?2.
+All other settings remain the same as above.
+Sketch classifier: For training the K-way sketch router classifier, we randomly sample 40% of
+sketches per category from TU-Berlin and Sketchy datasets3. We augment data with flip about
+vertical axis, series of rotations (±4,±8,±12 degrees) and sketch-scale augmentations (±3%,±7%
+of image height). For training, the initial learning rate is set to 7 × 10?4. The classifier is trained
+using stochastic gradient descent with a mini-batch size of 600 sketches, momentum of 0.9 and a
+polynomial weight decay policy. We stop training after 20000 iterations. The training takes 4 hours
+on a NVIDIA Titan X GPU.
+5.2 Inference
+For evaluation, we used equal number of sketches (48) per category from TU-Berlin and Sketchy
+datasets except for bus category which is present only in TU-Berlin dataset. Thus, we have a
+total of (48× 2× 10) + 48 = 1008 sketches for testing. For sketch router classifier, we follow the
+conventional approach [39] of pooling score outputs corresponding to cropped (four corner crops and
+one center crop) and white-padded versions of the original sketch and its vertically mirrored version.
+Overall, the time to obtain part-level segmentation and pose for an input sketch is 0.25 seconds on
+average. Thus, SKETCHPARSE is an extremely suitable candidate for developing applications which
+require real-time sketch understanding.
+6 Experiments
+To enable quantitative evaluation, we crowdsourced part-level annotations for all the sketches across
+11 categories, in effect creating the largest part-annotated dataset for sketch object parsing.
+Evaluation procedure: For quantitative evaluation, we adopt the average IOU measure widely
+reported in photo-based scene and object parsing literature [24]. Consider a fixed test sketch. Let
+the number of unique part labels in the sketch be np. Let nij be the number of pixels of part-label
+i predicted as part-label j. Let ti =
+?
+j nij be the total number of pixels whose ground-truth label
+is i. We first define part-wise Intersection Over Union for part-label i as pwIOUi = niiti+
+?
+j nji?nii
+.
+Then, we define sketch-average IOU (sIOU) =
+?
+i
+pwIOUi
+np
+. For a given category, we compute sIOU
+for each of its sketches individually and average the resulting values to obtain the category’s average
+IOU (aIOU) score.
+Significance of class-balanced loss and auxiliary task: To determine whether to incorporate class-
+balanced loss weighting and 2-D pose as auxiliary task, we conducted ablative experiments on a
+baseline version of SKETCHPARSE configured for a single super-category (‘Large Animals’). As
+the results in Table 4 indicate, class-balanced loss weighting and inclusion of 2-D pose as auxiliary
+task contribute to improved performance over the baseline model.
+Determining split point in base model: A number of candidate split points exist which divide
+layers of the base scene parsing net [5] into two disjoint groups. We experimented with different
+3This translates to 26 sketches from TU-Berlin and 170 sketches from Sketchy for training, 6 and 30
+sketches for validation.
+9
+Branch point/ aIOU %
+# layers specialized for a super category
+res5c / classifier block 58.94
+res5b / 1 res block + classifier block 60.19
+res5a / 2 res blocks + classifier block 59.24
+res4b22 / 3 res blocks + classifier block 59.20
+res4b17 / 8 res blocks + classifier block 59.17
+Table 5: Performance for various split locations within the scene parsing net [5]. As suggested by the results,
+we use the layers upto res5b to instantiate the first level in SKETCHPARSE. The subsequent layers are used to
+instantiate expert super-category nets in the second level.
+Large Animals Small Animals 4-Wheelers 2-Wheelers Flying Things
+Model #parameters(M = millions) cow horse cat dog sheep bus car bicycle motorbike airplane bird AVG.
+B-R5 88.4M 66.52 69.39 62.62 65.92 67.65 54.42 63.46 59.27 50.10 50.44 44.73 60.19
+BC-R5 88.4M 67.69 70.02 64.57 68.54 70.02 66.79 66.96 63.74 53.15 55.50 47.72 62.90
+BCP-R-1b 65.4M 60.47 22.09 24.38 22.76 23.87 19.96 20.55 18.21 19.50 21.94 20.13 25.78
+BCP-R-11b 138.5M 64.87 65.69 63.78 65.24 65.69 64.91 62.50 57.44 48.71 51.47 43.84 59.17
+BCP-R5 89M 68.10 69.45 65.47 68.37 70.74 67.17 66.48 62.66 54.49 55.47 48.77 63.17
+BCP-R5 (100% router) 89M 68.78 69.35 69.60 71.18 70.81 68.00 67.35 62.66 55.04 57.34 50.89 64.45
+Table 6: Comparing the full 5 super-category version of SKETCHPARSE (denoted BCP-R5) with baseline
+architectures.
+split points within the scene parsing net. For each split point, we trained a full 5 super-category
+version of SKETCHPARSE model. Based on the results (see Table 5), we used the split point (res5b)
+which generated best performance for the final version viz. the SKETCHPARSE model with class-
+balanced loss weighting and pose estimation included for all super-categories. Note that we do
+not utilize the sketch router for determining the split point. From our experiments, we found the
+optimal split point results in shallow expert networks. This imparts SKETCHPARSE with better
+scalability. In other words, additional new categories and super-categories can be included without
+a large accompanying increase in number of parameters.
+Relative Loss weighting: The ‘parsing’ and ‘pose estimation’ tasks are trained simultaneously. We
+weigh the losses individually and perform a grid search on the values of ? and learning rate. Hence,
+total loss, Ltot is
+Ltot = Lseg + ? ? Lpose (1)
+The grid search is performed on the super category Large-Animals and the optimal ? and learning
+rate value (? = 1, lr = 5× 10?4) (see Table 7) are used for each branch in the final 5 route network.
+? learning rate aIOU %
+0.1 1× 10?4 60.3
+0.1 2.5× 10?4 61.17
+0.1 5× 10?4 61.6
+1 5× 10?4 63.50
+Table 7: Grid search over ? and learning rate
+Full version net and baselines: We compare the final 5 super-category version (BCP-R5) of
+SKETCHPARSE (containing class-balanced loss weighting and pose estimation auxiliary task) with
+certain baseline variations – (i) B-R5: No additional components included (ii) BC-R5: Class-
+balanced loss weighting included in B-R5 (iii) BCP-R-1b: All categories are grouped into a single
+branch (iv) BCP-R-11b: A variant of the final version with a dedicated expert network for each
+category (i.e. one branch per category).
+From the results (Table 6), we make the following observations: (1) Despite the challenges posed
+by hand-drawn sketches, our model performs reasonably well across a variety of categories (last but
+one row in Table 6). (2) Sketches from Large Animals are parsed the best while those from Flying
+Things do not perform as well. On closer scrutiny, we found that bird category elicited inconsistent
+sketch annotations given the relatively higher degree of abstraction in the corresponding sketches.
+(4) In addition to confirming the utility of class-balanced loss weighting and pose estimation, the
+10
+Large Animals
+Small Animals
+ Leg
+ Body
+ Head
+ Tail
+ Body
+ Head
+ Leg
+ Tail
+ Body
+ Seat
+ Handlebar 
+ Wheel
+ Body
+ Mirror
+ Window
+ Wheel
+ Headlight
+ Door
+ Body
+ Head
+ Wing
+ Tail
+ Engine
+ Leg
+ Wheel
+Four Wheelers
+Two Wheelers
+Flying Things
+Figure 3: Qualitative part-parsing results across super-categories. Each row contains four panels of three
+images. In each panel, the test sketch is left-most, corresponding part-level ground-truth in the center and
+SKETCHPARSE’s output on the right. The four panels are chosen from the 100th, 75th, 50th, 25th percentile of
+each super-category’s test sketches sorted by their average IOU. The background is color-coded black in all the
+cases.
+baseline performances demonstrate that part (and parameter) sharing at category level is a crucial
+design choice, leading to better overall performance. In particular, note that having 1 category per
+branch (BCP-R-11b) almost doubles the number of parameters, indicating poor category scalability.
+To examine the effect of the router, we computed IOU by assuming a completely accurate router
+for BCP-R5 (last row). This improves average IOU performance by 1.28. The small magnitude of
+improvement also shows that our router is quite reliable. The largest improvements are found among
+Small Animals (‘cat’,‘dog’). This is also supported by the router classifiers confusion matrix (see
+Table 3).
+Directions Large Small 4-Wheelers 2-Wheelers Flying AVG.
+Animals Animals Things
+8 80.32 53.92 54.92 59.89 44.73 58.45
+4 92.07 76.78 69.72 87.16 75.79 80.44
+Table 8: Performance of our best SKETCHPARSE model (BCP-R5) on the pose auxiliary task.
+The performance of pose classifier can be viewed in Table 8. Note that simplifying the canonical
+pose directions (merging non-canonical directional labels with canonical directions) lends a dra-
+matic improvement in accuracy. In addition, the most confusion among predictions is between the
+left-right directions and their corresponding perspective views (see Table 16). Depending on the
+granularity of pose information required we may merge the perspective directions as appropriate.
+Qualitative evaluation: Rather than cherry-pick results, we use a principled approach to obtain a
+qualitative perspective. We first sort the test sketches in each super-category by their aIOU (average
+IOU) values in decreasing order. We then select 4 sketches located at 100-th, 75-th, 50-th, and 25-th
+percentile in the sorted order. These sketches can be viewed in Figure 3. The part-level parsing
+results reinforce the observations made previously in the context of quantitative evaluation.
+11
+N E S W
+N 0 6 5 3
+E 0 329 24 47
+S 0 12 55 15
+W 0 62 19 410
+Table 9: Overall pose confusion matrix (4 directions)
+6.1 Parsing semantically related categories
+We also examine the performance of our model for sketches belonging to categories our model
+is not trained on but happen to be semantically similar to at least one of the existing categories.
+Since segmentation information is unavailable for these sketches, we show two representative pars-
+ing outputs per class. We include the classes monkey, tiger, teddy-bear, camel, bear,
+giraffe, elephant, race car and tractor which are semantically similar to categories
+already considered in our formulation. As the results demonstrate (Figure 4), SKETCHPARSE ac-
+curately recognizes parts it has seen before (‘head’, ‘body’, ‘leg’ and ‘tail’). It also exhibits a
+best-guess behaviour to explain parts it is unaware of. For instance, it marks elephant ‘trunk’ as
+either ‘legs’ or ‘tails’ which is a semantically reasonable error given the spatial location of the part.
+These experiments demonstrate the scability of our model in terms of category coverage. In other
+words, our architecture can integrate new, hitherto unseen categories without too much effort.
+monkey
+race car
+giraffe
+tiger teddy
+tractor
+camel
+elephant
+bear
+Figure 4: Part-parsing results for sketches from categories which are semantically similar to categories on
+which SKETCHPARSE is originally trained.
+6.2 Evaluating category-level scalability
+As an additional experiment to evaluate performance scalability when categories are added incre-
+mentally, we performed the following experiment: (1) Train the BCP-R5 network with all categories,
+except the categories (‘dog’,‘sheep’) from Small Animals super-category. (2) Freeze shared layers
+and fine-tune Small Animals branch with ‘dog’ data added. (3) Freeze shared layers and fine-tune
+the trained model from Step-(2) with ‘sheep’ data added.
+Large Animals Small Animals 4-Wheelers 2-Wheelers Flying Things
+Model cow horse cat dog sheep bus car bicycle motorbike airplane bird AVG.
+Row-1 67.20 68.97 65.67 66.97 66.13 62.48 51.23 56.12 50.35 61.68
+Row-2 66.87 68.72 64.14 66.77 65.86 66.20 62.48 52.05 56.37 50.65 62.01
+Row-3 66.98 68.68 64.10 65.03 69.14 66.29 65.64 62.77 52.64 56.10 49.01 62.18
+Row-4 68.10 69.45 65.47 68.37 70.74 67.17 66.48 62.66 54.49 55.47 48.77 63.17
+Table 10: Comparing the full 5 super-category version of SKETCHPARSE (denoted BCP-R5) with baseline
+architectures (Row-1: Model trained without ‘sheep’,‘dog’ categories, Row-2: Previous model (Row-1’s) fine-
+tuned with only ‘dog’ data added, Row-3: Fine-tune previous (i.e. ‘dog’ fine-tuned) model with ‘sheep’ data
+added, Row-4: Original result (where all categories are present from the beginning – same as last but one row
+of Table 6)).
+We observe (Table 10) that the average IOU (last column) progressively improves as additional
+categories are added. In other words, overall performance does not drop even though shared layers
+are frozen. This shows the scalable nature of our architecture. Of course, the IOU values are slightly
+12
+smaller compared to the original result (last row) where all categories are present from the beginning,
+but that is a consequence of freezing shared layers.
+6.3 Fine-grained retrieval
+In another experiment, we determine whether part-level parsing of sketches can improve perfor-
+mance for existing sketch-based image retrieval approaches which use global image-level features.
+We use the PASCAL parts dataset [6], consisting of 9620 photo images across 10 categories, as
+the retrieval database. As a starting point, we consider the sketch-based image retrieval system of
+Sangkloy et al. [35]. The system consists of a trained Siamese Network model which projects both
+sketches and photos into a shared latent space. We begin by supplying the query sketch I from our
+dataset [10] and obtain the sequence of retrieved PASCAL parts images D1, D2, . . . DT . Suppose
+the part-segmented version of I is Ip. We use a customized Attribute-Graph approach [31] and con-
+struct a graphGI from Ip. The attribute graph is designed to capture the spatial and semantic aspects
+of the part-level information at local and global scales. We use annotations from the PASCAL parts
+dataset to obtain part-segmented versions of retrieved images, which in turn are used to construct
+corresponding attribute graphs GD1 , GD2 , . . . GDT .
+Each graph has two kinds of nodes: a single global node and a local node for each non-contiguous in-
+stance of a part present in the segmentation output from SKETCHPARSE. The global node attributes
+include:
+• a histogram that keeps a count of each type of part present in the image
+• the non-background area in the image as a fraction of total area
+A local node is instantiated at every non-contiguous part present in the segmentation output. We
+drop nodes for which the corresponding part area is less than 0.1% of the total non-background area
+with the assumption that these are artifacts in the segmentation output. Each local node has the
+following attributes:
+• angle subtended by the part at the centre of the sketch
+• centre of the part
+Edges are present between local nodes corresponding to parts that have a common boundary. Each
+such edge encodes the relative position of both parts using a polar coordinate system.
+Every local node is also connected to the global node. These edges encode the absolute position
+of the part in the image. Again, the area of each part is used as a multiplicative weight for each
+similarity computation it’s corresponding node participates in.
+For re-ranking the retrieved images, we use Reweighted Random Walks Graph Matching [7] to
+compute similarity scores between GI and GDi , 1 6 i 6 T , although any other graph matching
+algorithm that allows incorporating constraints may be used. During the graph matching process we
+enforce two constraints:
+• A global node can only be matched to a global node of the other graph.
+• Local nodes can only be matched if they correspond to the same type of part (e.g. local
+nodes corresponding to legs can only be matched to other legs and cannot be matched to
+other body parts)
+For our experiments, we examine our re-ranking procedure for top-50 (out of 9620 images) of
+Sketchy model’s retrieval results. In Figure 5, each panel corresponds to top-5 retrieval results
+for a particular sketch. The sketch and its parsing are displayed alongside the 5 nearest neighbors
+in latent space of Sketchy model (top row) and the top 5 re-ranked retrievals using our part-graphs
+(bottom row). The results show that our formulation exploits the category, part-level parsing and
+pose information to obtain an improved ranking.
+6.4 Describing sketches in detail
+Armed with the information provided by our model, we can go beyond describing a hand-drawn
+sketch by a single category label. For a given sketch, our model automatically provides its cate-
+gory, associated super-category, part-labels and their counts and 2-D pose information. From this
+information, we use a template-filling approach to generate descriptions – examples can be seen
+13
+Figure 5: Five sketch-based image retrieval panels are shown. In each panel, the top-left figure is the query
+sketch. Its part parsing is located immediately below. Each panel has two sets of retrieval results for the
+presented sketch. The first row corresponds to Sangkloy et al.’s [35] retrieval results and the second contains
+our re-ranked retrievals based on part-graphs (Section 6.3).
+14
+This sketch is a Bus and it is a Four-Wheeler. It has 
+been drawn facing South-West. It has been drawn 
+showing headlights, three wheels, a body, a door 
+and windows.
+This sketch is a Airplane and it is a Flying Thing. It 
+has been drawn facing South-East. It has been 
+drawn showing a tail, two wings and a body.
+This sketch is a Car and it is a Four-Wheeler. It has 
+been drawn facing South. It has been drawn 
+showing headlights, two side-mirrors, a body and 
+windows.
+This sketch is a Horse and it is a Large Animal. It 
+has been drawn facing East. It has been drawn 
+showing a head, two pairs of legs, a body and a tail.
+Figure 6: Some examples of fine-grained sketch descriptions. Each panel above shows a test sketch (left),
+corresponding part-parsing (center) and the description (last column). Note that in addition to parsing output,
+we also use the outputs of auxiliary pose network and router classifier to generate the description. The color-
+coding of part-name related information in the description aligns with the part color-coding in the parsing
+output. See Section 6.4 for additional details.
+15
+alongside our qualitative results in Figure 6. A fascinating application, inspired by the work of
+Zhang et al. [52], would be to use such descriptions to generate freehand sketches using a Genera-
+tive Adversarial Network approach.
+7 Conclusion
+Given the generally poor drawing skills of humans and sparsity of detail, it is very challenging to
+simultaneously recognize and parse sketches across multiple groups of categories. In this paper, we
+have presented SKETCHPARSE, the first deep-network architecture for fully automatic parsing of
+freehand object sketches. The originality of our approach lies in successfully repurposing a photo
+scene-segmentation net into a category-hierarchical sketch object-parsing architecture. The general
+nature of our transfer-learning approach also allows us to leverage advances in fully convolutional
+network-based scene parsing approaches, thus continuously improving performance. Another nov-
+elty lies in obtaining labelled training data for free by sketchifying photos from object-part datasets,
+thus bypassing burdensome annotation step. Our work stands out from existing approaches in the
+complexity of sketches, number of categories considered and semantic variety in categories. While
+existing works focus on one or two super-categories and build separate models for each, our scalable
+architecture can handle a larger number of super-categories, all with a single, unified model. Finally,
+the utility of SKETCHPARSE’s novel multi-task architecture is underscored by its ability to enable
+applications such as fine-grained sketch description and improving sketch-based image retrieval.
+Please visit https://github.com/val-iisc/sketch-parse for pre-trained models,
+code and resources related to the work presented in this paper.
+For future exploration, it would be interesting to explore additional auxiliary tasks such as adversar-
+ial loss [25] and part-histogram loss [22] to further boost part-parsing performance. Another natural
+direction to pursue would be the viability of SKETCHPARSE’s architecture for semantic parsing of
+photo objects.
+References
+[1] A. H. Abdulnabi, G. Wang, J. Lu, and K. Jia. Multi-task cnn model for attribute prediction.
+IEEE Transactions on Multimedia, 17(11):1949–1959, 2015. 2, 4
+[2] K. Ahmed, M. H. Baig, and L. Torresani. Network of experts for large-scale image categoriza-
+tion. In 14th European Conference on Computer Vision (Part-VII), pages 516–532. Springer
+International Publishing, 2016. 4
+[3] A. Bergamo and L. Torresani. Exploiting weakly-labeled web images to improve object clas-
+sification: a domain adaptation approach. In NIPS, pages 181–189, 2010. 4
+[4] L.-C. Chen, G. Papandreou, I. Kokkinos, K. Murphy, and A. L. Yuille. Semantic image seg-
+mentation with deep convolutional nets and fully connected CRFs. In ICLR, 2015. 2
+[5] L.-C. Chen, G. Papandreou, I. Kokkinos, K. Murphy, and A. L. Yuille. Deeplab: Semantic
+image segmentation with deep convolutional nets, atrous convolution, and fully connected
+CRFs. arXiv preprint arXiv:1606.00915, 2016. 2, 3, 5, 9, 10
+[6] X. Chen, R. Mottaghi, X. Liu, S. Fidler, R. Urtasun, and A. Yuille. Detect what you can:
+Detecting and representing objects using holistic models and body parts. In CVPR, 2014. 2,
+13
+[7] M. Cho, J. Lee, and K. M. Lee. Reweighted random walks for graph matching. In ECCV,
+pages 492–505. Springer-Verlag, 2010. 13
+[8] J. Dai, K. He, and J. Sun. Instance-aware semantic segmentation via multi-task network cas-
+cades. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), June
+2016. 2, 3, 4
+[9] D. Eigen and R. Fergus. Predicting depth, surface normals and semantic labels with a common
+multi-scale convolutional architecture. In Proceedings of IEEE ICCV, pages 2650–2658, 2015.
+8
+[10] M. Eitz, J. Hays, and M. Alexa. How do humans sketch objects? ACM Transactions on
+Graphics (TOG), 31(4):44, 2012. 5, 13
+16
+[11] M. Elhoseiny, T. El-Gaaly, A. Bakry, and A. Elgammal. A comparative analysis and study of
+multiview cnn models for joint object categorization and pose estimation. In Proceedings of
+ICML, volume 48, pages 888–897. JMLR.org, 2016. 4
+[12] A. Farhadi, I. Endres, and D. Hoiem. Attribute-centric recognition for cross-category general-
+ization. In IEEE CVPR, pages 2352–2359. IEEE, 2010. 4
+[13] B. Hariharan, P. Arbela?ez, R. Girshick, and J. Malik. Hypercolumns for object segmentation
+and fine-grained localization. In Proceedings of the IEEE CVPR, pages 447–456, 2015. 2, 3
+[14] K. He, X. Zhang, S. Ren, and J. Sun. Deep residual learning for image recognition. In IEEE
+CVPR, 2016. 5
+[15] S. Hong, J. Oh, H. Lee, and B. Han. Learning transferrable knowledge for semantic segmen-
+tation with deep convolutional neural network. In Proceedings of the IEEE CVPR, 2016. 4
+[16] Z. Huang, H. Fu, and R. W. H. Lau. Data-driven segmentation and labeling of freehand
+sketches. Proceedings of SIGGRAPH Asia, 2014. 2, 3
+[17] R. H. Kazi, F. Chevalier, T. Grossman, S. Zhao, and G. Fitzmaurice. Draco: bringing life
+to illustrations with kinetic textures. In Proceedings of the SIGCHI Conference on Human
+Factors in Computing Systems, pages 351–360. ACM, 2014. 1
+[18] M. Lapin, B. Schiele, and M. Hein. Scalable multitask representation learning for scene clas-
+sification. In Proceedings of the IEEE CVPR, pages 1434–1441, 2014. 2, 4
+[19] X. Li, L. Zhao, L. Wei, M.-H. Yang, F. Wu, Y. Zhuang, H. Ling, and J. Wang. Deepsaliency:
+Multi-task deep neural network model for salient object detection. IEEE Transactions on
+Image Processing, 25(8):3919–3930, 2016. 4
+[20] Y. Li, T. M. Hospedales, Y.-Z. Song, and S. Gong. Fine-grained sketch-based image retrieval
+by matching deformable part models. In BMVC, 2014. 2
+[21] X. Liang, X. Shen, D. Xiang, J. Feng, L. Lin, and S. Yan. Semantic object parsing with local-
+global long short-term memory. In The IEEE CVPR, June 2016. 2, 3
+[22] X. Liang, Y. Wei, X. Shen, J. Yang, L. Lin, and S. Yan. Proposal-free network for instance-level
+object segmentation. arXiv preprint arXiv:1509.02636, 2015. 16
+[23] J. J. Lim, C. L. Zitnick, and P. Dolla?r. Sketch tokens: A learned mid-level representation for
+contour and object detection. In Proceedings of the IEEE Conference on Computer Vision and
+Pattern Recognition, pages 3158–3165, 2013. 5
+[24] J. Long, E. Shelhamer, and T. Darrell. Fully convolutional networks for semantic segmentation.
+In Proceedings of the IEEE CVPR, pages 3431–3440, 2015. 9
+[25] P. Luc, C. Couprie, S. Chintala, and J. Verbeek. Semantic segmentation using adversarial
+networks. In NIPS Workshop on Adversarial Training, 2016. 4, 16
+[26] B. Mahasseni and S. Todorovic. Latent multitask learning for view-invariant action recogni-
+tion. In Proceedings of the IEEE ICCV, pages 3128–3135, 2013. 2, 4
+[27] V. Nair and G. E. Hinton. Rectified linear units improve restricted boltzmann machines. In
+ICML, pages 807–814, 2010. 8
+[28] V. Nekrasov, J. Ju, and J. Choi. Global deconvolutional networks for semantic segmentation.
+CoRR, abs/1602.03930, 2016. 4
+[29] H. Noh, S. Hong, and B. Han. Learning deconvolution network for semantic segmentation. In
+Proceedings of the IEEE ICCV, pages 1520–1528, 2015. 2, 3
+[30] V. M. Patel, R. Gopalan, R. Li, and R. Chellappa. Visual domain adaptation: A survey of
+recent advances. IEEE signal processing magazine, 32(3):53–69, 2015. 4
+[31] N. Prabhu and R. Venkatesh Babu. Attribute-graph: A graph based approach to image ranking.
+In Proceedings of the IEEE ICCV, pages 1071–1079, 2015. 13
+[32] R. Ranjan, V. M. Patel, and R. Chellappa. Hyperface: A deep multi-task learning frame-
+work for face detection, landmark localization, pose estimation, and gender recognition. arXiv
+preprint arXiv:1603.01249, 2016. 2, 4
+[33] G. Ros, L. Sellart, J. Materzynska, D. Vazquez, and A. M. Lopez. The synthia dataset: A large
+collection of synthetic images for semantic segmentation of urban scenes. In Proceedings of
+the IEEE CVPR, pages 3234–3243, 2016. 4
+[34] K. Saenko, B. Kulis, M. Fritz, and T. Darrell. Adapting visual category models to new domains.
+In ECCV, pages 213–226. Springer, 2010. 4
+[35] P. Sangkloy, N. Burnell, C. Ham, and J. Hays. The sketchy database: Learning to retrieve
+badly drawn bunnies. ACM Trans. Graph., 35(4):119:1–119:12, July 2016. 5, 13, 14
+17
+[36] R. K. Sarvadevabhatla, J. Kundu, and R. V. Babu. Enabling my robot to play pictionary:
+Recurrent neural networks for sketch recognition. In Proceedings of the ACMMM, pages 247–
+251, 2016. 1
+[37] R. G. Schneider and T. Tuytelaars. Sketch classification and classification-driven analysis using
+fisher vectors. ACM Trans. Graph., 33(6):174:1–174:9, Nov. 2014. 4
+[38] R. G. Schneider and T. Tuytelaars. Example-based sketch segmentation and labeling using
+crfs. ACM Trans. Graph., 35(5):151:1–151:9, July 2016. 2, 3
+[39] O. Seddati, S. Dupont, and S. Mahmoudi. Deepsketch: deep convolutional neural networks for
+sketch recognition and similarity search. In 13th International Workshop on Content-Based
+Multimedia Indexing (CBMI), pages 1–6. IEEE, 2015. 1, 4, 6, 9
+[40] A. Theobald. An ontology for domain-oriented semantic similarity search on XML data. In
+BTW 2003, Datenbanksysteme fu?r Business, Technologie und Web, Tagungsband der 10. BTW-
+Konferenz, 26.-28. Februar 2003, Leipzig, pages 217–226, 2003. 5
+[41] A. van Opbroek, M. A. Ikram, M. W. Vernooij, and M. De Bruijne. Transfer learning improves
+supervised image segmentation across imaging protocols. IEEE transactions on medical imag-
+ing, 34(5):1018–1030, 2015. 4
+[42] A. Vezhnevets and J. M. Buhmann. Towards weakly supervised semantic segmentation by
+means of multiple instance and multitask learning. In IEEE CVPR, pages 3249–3256. IEEE,
+2010. 4
+[43] P. Wang, X. Shen, Z. Lin, S. Cohen, B. Price, and A. L. Yuille. Joint object and part segmenta-
+tion using deep learned potentials. In Proceedings of the IEEE ICCV, pages 1573–1581, 2015.
+4, 5
+[44] Wikipedia. Cardinal direction — Wikipedia, the free encyclopedia. https://en.
+wikipedia.org/wiki/Cardinal_direction, 2017. 4
+[45] J. M. Wong, V. Kee, T. Le, S. Wagner, G.-L. Mariottini, A. Schneider, L. Hamilton,
+R. Chipalkatty, M. Hebert, D. Johnson, et al. Segicp: Integrated deep semantic segmenta-
+tion and pose estimation. arXiv preprint arXiv:1703.01661, 2017. 4
+[46] F. Xia, P. Wang, L.-C. Chen, and A. L. Yuille. Zoom better to see clearer: Human and object
+parsing with hierarchical auto-zoom net. In Proceedings of 14th European Conference in
+Computer Vision: Part V, pages 648–663, 2016. 2, 3
+[47] R. Xiaofeng and L. Bo. Discriminatively trained sparse code gradients for contour detection.
+In Advances in neural information processing systems, pages 584–592, 2012. 5
+[48] Z. Yan, H. Zhang, R. Piramuthu, V. Jagadeesh, D. DeCoste, W. Di, and Y. Yu. Hd-CNN: hier-
+archical deep convolutional neural networks for large scale visual recognition. In Proceedings
+of the IEEE ICCV, pages 2740–2748, 2015. 4
+[49] F. Yu and V. Koltun. Multi-scale context aggregation by dilated convolutions. arXiv preprint
+arXiv:1511.07122, 2015. 8
+[50] Q. Yu, F. Liu, Y.-Z. Song, T. Xiang, T. M. Hospedales, and C.-C. Loy. Sketch me that shoe. In
+The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), June 2016. 2
+[51] Q. Yu, Y. Yang, Y.-Z. Song, T. Xiang, and T. Hospedales. Sketch-a-net that beats humans.
+BMVC, 2015. 1, 4, 6
+[52] H. Zhang, T. Xu, H. Li, S. Zhang, X. Huang, X. Wang, and D. Metaxas. Stackgan: Text to
+photo-realistic image synthesis with stacked generative adversarial networks. arXiv preprint
+arXiv:1612.03242, 2016. 16
+[53] Y. Zhang, Y. Zhang, and X. Qian. Deep neural networks for free-hand sketch recognition. In
+17th Pacific-Rim Conference on Multimedia, Xi’an, China, September 15-16, 2016, 2016. 4
+[54] B. Zhao, F. Li, and E. P. Xing. Large-scale category structure aware image categorization. In
+NIPS, pages 1251–1259, 2011. 3
+[55] J. Zhao and L. Itti. Improved deep learning of object category using pose information. CoRR,
+abs/1607.05836, 2016. 4
+Confusion Matrices for Pose
+18
+N NE E SE S SW W NW
+N 0 0 0 2 0 0 0 0
+NE 0 0 1 1 0 0 0 0
+E 0 0 50 2 0 0 2 0
+SE 0 0 3 6 0 0 0 0
+S 0 0 1 1 7 4 0 0
+SW 0 0 0 0 3 9 5 0
+W 0 0 0 0 2 9 79 0
+NW 0 0 0 0 0 1 0 0
+Table 11: Pose confusion matrix for Large Animals
+N NE E SE S SW W NW
+N 0 0 0 0 1 0 1 0
+NE 0 0 5 4 3 0 0 0
+E 0 0 30 12 7 1 4 0
+SE 0 0 5 8 10 1 0 1
+S 0 0 2 2 44 6 3 0
+SW 0 0 2 0 2 5 10 0
+W 0 0 4 3 8 20 64 0
+NW 0 0 1 2 1 0 8 0
+Table 12: Pose confusion matrix for Small Animals
+N NE E SE S SW W NW
+N 0 0 0 1 1 0 0 0
+NE 0 0 0 0 0 2 1 0
+E 0 2 27 7 0 1 16 0
+SE 0 1 2 14 1 0 0 0
+S 0 0 0 0 2 0 1 0
+SW 0 0 0 0 0 12 2 0
+W 0 1 14 3 0 7 23 0
+NW 0 0 0 1 0 0 0 0
+Table 13: Pose confusion matrix for 4 Wheelers
+N NE E SE S SW W NW
+N 0 0 0 0 0 0 1 0
+NE 0 0 8 0 0 0 0 0
+E 0 3 57 1 0 1 8 0
+SE 0 0 5 5 0 0 2 0
+S 0 0 0 1 0 1 0 0
+SW 0 0 0 0 0 6 5 0
+W 0 0 11 0 0 21 43 3
+NW 0 0 0 0 0 3 2 1
+Table 14: Pose confusion matrix for 2 Wheelers
+N NE E SE S SW W NW
+N 0 0 2 1 3 1 1 0
+NE 0 0 10 5 0 1 2 0
+E 0 1 41 5 2 1 1 0
+SE 0 0 3 5 1 2 0 0
+S 0 0 3 2 2 0 0 0
+SW 0 0 2 1 0 6 5 0
+W 0 0 5 8 1 25 31 0
+NW 0 0 2 2 2 3 2
+Table 15: Pose confusion matrix for Flying Things
+19
+N NE E SE S SW W NW
+N 0 0 2 4 5 1 2 0
+NE 0 0 24 10 3 3 3 0
+E 0 6 205 27 9 4 31 0
+SE 0 1 18 38 12 3 2 1
+S 0 0 6 6 55 11 4 0
+SW 0 0 4 1 5 38 27 0
+W 0 1 34 14 11 82 240 3
+NW 0 0 3 5 3 7 12 1
+Table 16: Overall pose confusion matrix
+20

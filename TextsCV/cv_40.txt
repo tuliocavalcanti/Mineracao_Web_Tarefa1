@@ -1,0 +1,725 @@
+Dynamic Multiscale Tree Learning Using Ensemble Strong Classifiers for
+Multi-label Segmentation of Medical Images with Lesions
+Samya Amiri1,2, Mohamed Ali Mahjoub1 and Islem Rekik? 2
+1LATIS lab, ENISo – National Engineering School of Sousse, Tunisia
+2BASIRA lab, CVIP group, School of Science and Engineering, Computing, University of Dundee, UK
+Abstract
+We introduce a dynamic multiscale tree (DMT) architec-
+ture that learns how to leverage the strengths of different
+state-of-the-art classifiers for supervised multi-label image
+segmentation. Unlike previous works that simply aggre-
+gate or cascade classifiers for addressing image segmen-
+tation and labeling tasks, we propose to embed strong clas-
+sifiers into a tree structure that allows bi-directional flow
+of information between its classifier nodes to gradually im-
+prove their performances. Our DMT is a generic clas-
+sification model that inherently embeds different cascades
+of classifiers while enhancing learning transfer between
+them to boost up their classification accuracies. Specifi-
+cally, each node in our DMT can nest a Structured Random
+Forest (SRF) classifier or a Bayesian Network (BN) clas-
+sifier. The proposed SRF-BN DMT architecture has sev-
+eral appealing properties. First, while SRF operates at
+a patch-level (regular image region), BN operates at the
+super-pixel level (irregular image region), thereby enabling
+the DMT to integrate multi-level image knowledge in the
+learning process. Second, although BN is powerful in mod-
+eling dependencies between image elements (superpixels,
+edges) and their features, the learning of its structure and
+parameters is challenging. On the other hand, SRF may
+fail to accurately detect very irregular object boundaries.
+The proposed DMT robustly overcomes these limitations
+for both classifiers through the ascending and descending
+flow of contextual information between each parent node
+and its children nodes. Third, we train DMT using different
+scales for input patches and superpixels. Basically, as we
+go deeper along the tree edges nearing its leaf nodes, we
+progressively decrease the patch and superpixel sizes, pro-
+ducing segmentation maps that capture a coarse-to-fine im-
+age details. Last, DMT demonstrates its outperformance in
+?Corresponding author: irekik@dundee.ac.uk, www.basira-lab.
+com
+comparison to several state-of-the-art segmentation meth-
+ods for multi-labeling of brain images with gliomas.
+1. Introduction
+Accurate multi-label image segmentation is one of the
+top challenges in both computer vision and medical image
+analysis. Specifically, in computer-aided healthcare appli-
+cations, medical image segmentation constitutes a critical
+step for tracking the evolution of anatomical structures and
+lesions in the brain using neuroimaging, as well as quantita-
+tively measuring group structural difference between image
+populations [5, 17, 3, 18, 10]. Multi-label image segmenta-
+tion is widely addressed as a classification problem. Previ-
+ous works [9, 19] used individual classifiers such as support
+vector machine (SVM) to segment each label class indepen-
+dently, then fuse the different label maps into a multi-label
+map. However, prior to the fusion step, the produced label
+maps may largely overlap one another, which might yield
+to biased fused label map. Alternatively, the integration
+of multiple classifiers within the same segmentation frame-
+work would help reduce this bias and improve the overall
+multi-label classification performance since M heads are
+better than one as reported in [8]. Broadly, one can catego-
+rize the segmentation methods that combine multiple classi-
+fiers into two groups:(1) cascaded classifiers, and(2) ensem-
+ble classifiers. In the first group, classifiers are chained such
+that the output of each classifier is fed into the next classi-
+fier in the cascade to generate the final segmentation result
+at the end of the cascade. Such architecture can be adopted
+for two different goals. First, cascaded classifiers take into
+account contextual information, encoded in the segmenta-
+tion map outputted from the previous classifier, thereby en-
+forcing spatial consistency between neighboring image el-
+ements (e.g., patches, superpixels) in the spirit of an auto-
+context model [5, 16, 14, 25, 10]. Second, this allows to
+combine classifiers hierarchically, where each classifier in
+1
+ar
+X
+iv
+:1
+70
+9.
+01
+60
+2v
+1 
+ [
+cs
+.C
+V
+] 
+ 5
+ S
+ep
+ 2
+01
+7
+Figure 1: Proposed Dynamic Multi-scale Tree (DMT) learning architecture for multi-label classification (training stage).
+DMT embeds SRF and BN classifiers into a binary tree architecture, where a depth-specific bidirectional flow occurs between
+parent and children nodes making the tree learning dynamic. During training, SRF learns a mapping between feature patches
+extracted from three MRI modalities and their corresponding label patches for each training subject; whereas, BN classifier
+learns conditional probabilities from the superpixels of the oversegmented multimodal MR images and the label map.
+the cascade is assigned to a more specific segmentation task
+(or a sub-task), as it further sub-labels the output label map
+of its antecedent classifier [4, 17, 3, 18]. Although these
+methods produced promising results, and clearly outper-
+formed the use of single (non-cascaded) classifiers in dif-
+ferent image segmentation applications, cascading classi-
+fiers only allows a unidirectional learning transfer, where
+the learned mapping from the previous classifier is some-
+how ‘communicated’ to the next classifier in the chain for
+instance through the output segmentation map. The sec-
+ond group represents ensemble classifiers based methods,
+which train individual classifiers, then aggregate their seg-
+mentation results [15]. Specifically, such frameworks com-
+bine a set of independently trained classifiers on the same
+labeling problem and generates the final segmentation re-
+sult by fusing the individual segmentation results using a
+fusion method, which is typically weighted or unweighted
+voting [6]. Hence, it constructs a strong classifier that out-
+performs each individual ‘weak’ classifier (or base classi-
+fier) [8]. For instance, Random Forest (RF) classification
+algorithm, independently trains weak decision trees using
+bootstrap samples generated from the training data to learn
+a mapping between the feature and the label sets [2]. The
+segmentation map of a new input image is the aggregation
+of the trees’ decisions by major voting. RF demonstrated its
+efficiency in solving different image classification problems
+[14, 25], which reflects the power of the ensemble classi-
+fiers technique. In addition to significantly improving the
+segmentation results when compared with single classifiers,
+ensemble classifiers based methods are powerful in address-
+2
+ing several known classification problems such as imbal-
+anced correlation and over-fitting [21]. However, such com-
+bination technique is not enough to fully exploit the train-
+ing of classifiers and leverage their strengths. Indeed, the
+base classifiers perform segmentation independently with-
+out any cooperation to solve the target classification prob-
+lem. Moreover, the learning of each classifier in the ensem-
+ble is performed in one-step, as opposed to multi-step clas-
+sifier training, where the learning of each classifier gradu-
+ally improves from one step to the next one. We note that
+this differs from cascaded classifiers, where each classifier
+is ‘visited’ or trained once through combining the contex-
+tual segmentation map of the previous classifier along with
+the original input image.
+To address the aforementioned limitations of both cat-
+egories, we propose a Dynamic Multi-scale Tree (DMT)
+architecture for multi-label image segmentation. DMT is
+a binary tree, where each node nests a classifier, and each
+traversed path from the root node to a leaf node encodes
+a cascade of classifiers (i.e., nodes on the path). Our pro-
+posed DMT architecture allows a bidirectional information
+flow between two successive nodes in the tree (from par-
+ent node to child node and from child node back to parent
+node). Thus, DMT is based on ascending and descending
+feedbacks between each parent node and its children nodes.
+This allows to gradually refine the learning of each node
+classifier, while benefitting from the learning of its immedi-
+ate neighboring nodes. To generate the final segmentation
+results, we combine the elementary segmentation results
+produced at the leaf nodes using majority voting strategy.
+The proposed architecture integrates different possible com-
+binations of different classifiers, while taking advantage of
+their strengths and overcoming their limitations through the
+bidirectional learning transfer between them, which defines
+the dynamic aspect of the proposed architecture. Further-
+more, the DMT inherently integrates contextual informa-
+tion in the classification task, since each classifier inputs
+the segmentation result of its parent node or children nodes
+classifiers. Additionally, to capture a coarse-to-fine image
+details for accurate segmentation, the DMT is designed to
+consider different scale at each level in the tree in a way that
+the adopted scale decreases as we go deeper along the tree
+edges nearing its leaf nodes.
+In this work, we define our DMT classification model us-
+ing two strong classifiers: Structured Random Forest (SRF)
+and Bayesian Network (BN). SRF is an improved version
+of Random Forest [7]. In addition of being fast, resistant
+to over-fitting and having a good performance in classify-
+ing high-dimensional data, SRF handles structural informa-
+tionand integrates spatial information. It has shown good
+performance in several classification tasks especially muli-
+label image segmentation [7, 22]. On the other hand, BN is
+a learning graphical model that statistically represents the
+dependencies between the image elements and their fea-
+tures. It is suitable for multi-label segmentation for its
+effectiveness in fusing complex relationships between im-
+age features of different natures and handling noisy as well
+as missing signals in images [23, 12, 24, 20]. Embedding
+SRF and BN within our DMT leverages their strengths and
+helps overcome their limitations (i.e. not accurately clas-
+sifying transitions between label classes for SRF and the
+problem of parameters learning such as prior probabilities
+for BN). Moreover, the SRF-BN bidirectional cooperation
+during learning and testing stages enables the integration
+of multi-level image knowledge through the combination of
+regular and irregular image elements (i.e. patch-level clas-
+sification produced by SRF and superpixel-level classifica-
+tion produced by BN). To sum up, our SRF-BN DMT has
+promise for multi-label image segmentation as it:
+• Gradually improves the classification accuracy
+through the bidirectional flow between parents and
+children nodes, each nesting a BN or SRF classifier
+• Simultaneously integrates multi-level and multi-scale
+knowledge from training images, thereby examining
+in depth the different inherent image characteristics
+• Overcomes SRF and BN limitations when used inde-
+pendently through multiple cascades (or tree paths)
+composed of different combinations of BN and SRF
+classifiers.
+2. Base classifiers
+In this section we briefly introduce the SRF and BN clas-
+sifiers, that are embedded as nodes in our DMT classifica-
+tion framework. Then,we explain in detail how we define
+our DMT architecture and elaborate on how to perform the
+training and testing stages on an image dataset for multi-
+label image segmentation.
+2.1. Structured Random Forest
+SRF is a variant of the traditional Random Forest classi-
+fier, which better handles and preserves the structure of dif-
+ferent labels in the image [7]. While, standard RF maps an
+intensity feature vector extracted from a 2D patch centered
+at pixel x to the label of its center pixel x (i.e., patch-to-
+pixel mapping), SRF maps the intensity feature vector to a
+2D label patch centered at x (patch-to-patch mapping). This
+is achieved at each node in the SRF tree, where the func-
+tion that splits patch features between right and left children
+nodes depends on the joint distribution of two labels: a first
+label at the patch center and a second label selected at a ran-
+dom position within the training patch [7]. We also note that
+in SRF, both feature space and label space nest patches that
+might have different dimensions. Despite its elegant and
+3
+solid mathematical foundation as well as its improved per-
+formance in image segmentation compared with RF, SRF
+might perform poorly at irregular boundaries between dif-
+ferent label classes since it is trained using regularly struc-
+tured patches [7]. Besides, it does not include contextual
+information to enforce spatial consistency between neigh-
+boring label patches. To address these limitations, we first
+propose to embed SRF as a classifier node into our DMT
+architecture, where the contextual information is provided
+as a segmentation map by its parent and children nodes.
+Second, we improve its training around irregular boundaries
+through leveraging the strength of one or more its neighbor-
+ing BN classifiers, which learns to segment the image at the
+superpixel level, thereby better capturing irregular bound-
+aries in the image.
+2.2. Bayesian network
+Various BN-based models have been proposed for im-
+age segmentation [23, 12, 24]. In our work, we adopt the
+BN architecture proposed in [24]. As a preprocessing step,
+we first generate the edge maps from the input MR image
+modalities Fig1. This edge map consists of a set of super-
+pixels Spi ; i = 1 . . . N (or regional blobs) and edge seg-
+ments Ej ; j = 1 . . . L.
+We define our BN as a four-layer network, where each
+node in the first layer stores a superpixel. The second layer
+is composed of nodes, each storing a single edge from the
+edge map. The two remaining layers store the extracted
+superpixel features and edge features, respectively. Dur-
+ing the training stage, to set BN parameters, we define the
+prior probability P (Spi) of Spi as a uniform distribution
+and then learn the conditional probability representing the
+relationship between the superpixels’ features and their cor-
+responding labels using a mixture of Gaussians model. In
+addition, we empirically define the conditional probabil-
+ity modeling the relationship between each superpixel label
+and each edge state (i.e., true or false edge) P (Ej |pa(Ej)),
+where pa(Ej) denotes the parent superpixel nodes of Ej .
+During the testing stage, we learn the BN structure
+through encoding the semantic relationships between su-
+perpixels and edge segments. Specifically, each edge node
+has for parent nodes the two superpixel nodes that are sepa-
+rated by this edge. In other words, each superpixel provides
+contextual information to judge whether the edge is on the
+object boundary or not. If two superpixels have different
+labels, it is more likely that there is a true object boundary
+between them, i.e. Ej = 1, otherwise Ej = 0 .
+Although automatic segmentation methods based on BN
+have shown great results in the state-of-the-art, they might
+perform poorly in segmenting low-contrast image regions
+and different regions with similar features [24]. To further
+improve the segmentation accuracy of BN, we propose to
+include additional information through embedding BN clas-
+sifier into our proposed DMT learning architecture.
+3. Proposed Multi-scale Dynamic Tree Learn-
+ing
+In this section, we present the main steps in devising our
+Multi-scale Dynamic Tree segmentation framework, which
+aims to boost up the performance of classifiers nested in
+its nodes. Fig1 illustrates the proposed binary tree archi-
+tecture composed of classifier nodes, where each classi-
+fier ultimately communicates the output of its learning (i.e.,
+semantic context or probability segmentation maps) to its
+parent and children nodes. Therefore, the learning of the
+tree is dynamic as it is based on ascending and descend-
+ing feedbacks between each parent node and its children
+nodes. Specifically, each node output is fed to the chil-
+dren nodes as semantic context, in turn the children nodes
+transfer their learning (i.e. probability maps) to their com-
+mon parent node. Then, after merging these transferred
+probability maps from children nodes, the parent node uses
+the merged maps as a contextual information to generate a
+new segmentation result that will be subsequently commu-
+nicated again to its children nodes. This gradually improves
+the learning of its classifier nodes at each depth level of the
+tree. In the following sections, we further detail the DMT
+architecture.
+3.1. Dynamic Tree Learning
+We define a binary tree T(V,E), where V denotes the
+set of nodes in T and E represents the set of edges in T.
+Each node i in T represents a classifier ci and each edge
+eij connecting two nodes i and j carries bidirectional con-
+textual information flow between the classifiers ci and cj
+that are always inputting the original image characteristics
+(i.e. the features for SRF, superpixel features and input im-
+age edge map for BN). Specifically, we define bidirectional
+feedbacks between two neighboring classifier nodes i and j,
+encoding two flows: a descending flow Fi?j that represents
+the transfer of the probability maps generated by parent
+classifier node ci to its child classifier node cj as contextual
+information and an ascending flow Fj?i that models the
+transfer of the probability maps generated by a child node
+cj back to its parent node ci (Fig. 2). This depth-wise bidi-
+rectional learning transfer occurs locally along each edge
+between a parent node and its child node, thereby defining
+the dynamics of the tree.
+In addition, as our Dynamic Tree (DT) grows exponen-
+tially, it integrates various combinations of classifiers. Thus,
+each path of the tree implements a unique cascade of classi-
+fiers. To generate the final segmentation result we aggregate
+the segmentation maps produced at each leaf node in the bi-
+nary tree by applying the majority voting.
+Inherent implicit and explicit transfer learning be-
+tween nodes in DT architecture. We note that the bidi-
+4
+Figure 2: Implicit and explicitlearning transfer in the pro-
+posed dynamic multi-scale tree-based classification archi-
+tecture.. The dashed gray arrows denote the descending
+flows from the parent classifier ci to its children cj and c?j
+(iteration k), while the dashed red arrows denote the ascend-
+ing flows derived from the children nodes to their parent
+node. Both ascending flows are fused for the parent node to
+integrate them in generating a new segmentation map that
+will be communicated to its two children classifier nodes
+(iteration k + 1).
+rectional flow between parent nodes and their correspond-
+ing children nodes defines a new traversing strategy of the
+tree nodes, that in addition to the dynamic learning aspect,
+encodes two different types of learning transfer: explicit
+and implicit. Indeed, the ascending and descending flows
+between parent nodes and their children through the direct
+transfer of their generated probability maps is an explicit
+learning transfer. However, in our binary tree, when a par-
+ent node i receives the ascending flows (F k(j ? i) and
+F k(j? ? i) from its left and right children nodes j and j’,
+they are fused before being passed on, in a second round, as
+contextual information (F k+1(i ? j) and F k+1(i ? j?))
+to the children nodes (Fig. 2). The probability maps fusion
+at the parent node level is performed through simple aver-
+aging. In particular, the parent node concatenates the fused
+probability map with the original input features to generate
+a new segmentation probability map result that will be com-
+municated to its two children classifier nodes. Hence, the
+children nodes of the same parent node explicitly cooperate
+to improve their parent learning, and implicitly cooperate to
+improve their own learning while using their parent node as
+a proxy.
+SRF-BN Dynamic Tree. In this work, each classifier
+node is assigned a SRF or a BN model, previously described
+in Section 2, to define our Dynamic Tree architecture. The
+transferred information between classifiers through the de-
+scending and ascending flows is used in addition to the
+testing image features as contextual information, while BN
+classifier uses this information as prior knowledge (i.e prior
+probability) to perform the multi-label segmentation task.
+The combination of SRF and BN classifiers is compelling
+for the following reasons. First, it enhances the performance
+of BN by taking the posterior probability generated by SRF
+as prior probability. This justifies our choice of the root
+node of our DT as a SRF. Second, it improves SRF per-
+formance around irregular between-class boundaries since
+SRF benefits from BN structure learning, which is based on
+image over-segmentation that is guided by object bound-
+aries. Third, as the SRF maps image information at the
+patch level, while BN models knowledge at the superpixel
+level, their combination allows the aggregation of regular
+(i.e. patch) and irregular (i.e. superpixel) structures in the
+image for our target multi-label segmentation task.
+3.2. Dynamic Multi-scale Tree Learning
+To further boost the performance of our multi-label seg-
+mentation framework and enhance the segmentation accu-
+racy, we introduce a multi-scale learning strategy in our
+dynamic tree architecture by varying the size of the input
+patches and superpixels used to grow the SRF and construct
+the BN classifier. Specifically, we use a different scale at
+each depth level such as we go deeper along the tree edges
+nearing its leaf nodes, we progressively decrease the size
+of both patches and superpixels in the training and test-
+ing stages. In addition to capturing coarse-to-fine details
+of the image anatomical structure, the application of the
+multi-scale strategy to the proposed DT allows to capture
+fine-to-coarse information. Indeed, DMT learning semanti-
+cally divides the image into different patterns (e.g., different
+patches and superpixels at each depth of the tree) in both
+intensity and label domains at different scales. However,
+thanks to the bidirectional dynamic flow, the scale defined
+at each depth influences the performance of parent nodes
+(in previous level) and children nodes (in next level), which
+allows to simultaneously perform coarse-to-fine and fine-
+to-coarse information integration in the multi-label classi-
+fication task. Moreover, a depth-wise multi-scale feature
+representation adaptively encodes image features at differ-
+ent scales for each image pixel in the image element (super-
+pixel or patch).
+3.3. Statistical superpixel-based and patch-based
+feature extraction
+To train each classifier node in the tree, we extract the
+following statistical features at the superpixel level (for BN)
+and 2D patch level (for SRF): first order operators (mean,
+standard deviation, max, min, median, Sobel, gradient);
+higher order operators (Laplacian, difference of Gaussian,
+entropy, curvatures, kurtosis, skewness), texture features
+(Gabor filter), and spatial context features (symmetry, pro-
+jection, neighborhoods) [13].
+5
+4. Results and Discussion
+Dataset and parameters. We evaluate our proposed
+brain tumor segmentation framework on 50 subjects with
+high-grade gliomas, randomly selected from the Brain Tu-
+mor Image Segmentation Challenge (BRATS 2015) dataset
+[11]. For each patient, we use three MRI modalities
+(FLAIR, T2-w, T1-c) along with the corresponding man-
+ually segmented glioma lesions. They are rigidly co-
+registered and resampled to a common resolution to es-
+tablish patch-to-patch correspondence across modalities.
+Then, we apply N4 filter for inhomogeneity correction, and
+use histogram linear transformation for intensity normaliza-
+tion.
+For the baseline methods training we adopt the follow-
+ing parameters:(1) Edgemap generation: we use the SLICE
+oversegmentation algorithm with a superpixel number fixed
+to 1000 and compactness fixed to 10 [1]. To establish
+superpixel-to-superpixel correspondence across modalities
+for each subject, we first oversegment the FLAIR MRI,
+then we apply the generated edgemap (i.e., superpixel par-
+tition) to the corresponding T1-c and T2-w MR images.
+(2) SRF training: we grow 15 trees using intensity fea-
+ture patches of size 10x10 and label patches of size 7x7.
+(3) BN construction: the BN model is built using the gen-
+erated edgemap as detailed in Section 2; the conditional
+probabilities modeling the relationships between the super-
+pixel labeling and the edge state are defined as follows:
+P (Ej = 1|pa(Ej)) = 0.8 if the parent region nodes have
+different labels, and P (Ej = 1|pa(Ej)) = 0.2 otherwise.
+Evaluation and comparison methods. For comparison,
+as baseline methods we use: (1) SRF: the Random For-
+est version that exploits structural information described in
+Section 2, (2) BN: the classification algorithm described in
+Section 2 where the prior probability of superpixels is set
+as a uniform distribution, (3) SRF-SRF denotes the auto-
+context Structured Random Forest, (4) BN-BN denotes the
+auto-context Bayesian Network, where the first BN prior
+probability is set as a uniform distribution while the sec-
+ond classifier use the posterior probability of its previous
+as prior probability. Of note, by conventional auto-context
+classifier, we mean a uni-directional contextual flow from
+one classifier to the next one. The segmentation frameworks
+were trained using leave-one-patient cross-validation exper-
+iments. For evaluation, we use the Dice score between the
+ground truth region area Agt and the segmented region area
+As as follows D = (Agt
+?
+As)/2(Agt +As).
+Next, we investigate the influence of the tree depth as
+well as the multi-scale tree learning strategy on the perfor-
+mance of the proposed architecture.
+Varying tree architectures. In this experiment, we eval-
+uate two different tree architectures to examine the im-
+pact of the tree depth on the framework performance. Ta-
+ble. 1 shows the segmentation results for 2-level tree (i.e.
+depth=2) and 1-level tree (i.e. depth=1) for tumor lesion
+multi-label segmentation with and without multiscale vari-
+ant. Although the average Dice Score has improved from
+depth 1 to 2, the improvement wasn’t statistically signifi-
+cant. We did not explore larger depths (d>2), since as the
+binary tree grows exponentially, its computational time dra-
+matically increases and becomes demanding in terms of re-
+sources (especially memory).
+Multi-scale tree architecture. To examine the influ-
+ence of the multiscale DT learning strategy, we compare
+the conventional DT architecture (at a fixed-scale) to MDT
+architecture. For the fixed-scale architecture, all tree nodes
+nest either an SRF classifier trained using intensity feature
+patches of size 10x10 and label patches of size 7x7 or a BN
+classifier constructed using an edgemap of 1000 superpix-
+els generated with a compactness of 10. In the multiscale
+architecture, we keep the same parameters of the fixed-scale
+architecture at the first level of the tree while the classifiers
+of the second level are trained with different parameters.
+Specifically, we use smaller intensity patches (of size 8x8)
+and label patches (of size 5x5) for the SRF training, and a
+smaller number of superpixels for BN construction (1200
+superpixels).
+Clearly, the quantitative results show the outperformance
+(improvement of 7%) of both proposed DT and DMT archi-
+tectures in comparison with several baseline methods for
+multi-label tumor lesion segmentation with statistical sig-
+nificance (p < 0.05) . This indicates that a deeper combina-
+tion of different learning models helps increase the segmen-
+tation accuracy. When comparing the results of the SRF and
+BN we found that SRF outperforms BN in segmenting the
+three classes: wHole Tumor (HT), Core Tumor (CT) and
+Enhancing Tumor (ET) Table. 1 . This is due to the fact that
+BN have difficulties in segmenting low-contrast images and
+identifying different superpixels having similar characteris-
+tics, especially with the lack of any prior knowledge on the
+anatomical structure of the testing image. Although BN has
+a low Dice score compared to SRF, in Fig. 3 we can note
+that it has better performance in detecting the boundaries
+between different classes. This shows the impact of the ir-
+regular structure of superpixels used during BN training and
+testing, which gives BN the ability to be more accurate in
+detecting object boundaries compared to SRF that considers
+regular image patches. Notably, BN structure is individual-
+ized during the testing stage for each testing subject since it
+is based on the testing image oversegmentation map. Thus,
+SRF and BN classifiers are complementary. First, they per-
+form segmentation at regular and irregular structures of the
+image. Second, one (SRF) learns image knowledge during
+the training stage, while the other (BN) is structured us-
+ing the input testing image during the testing stage through
+modeling the testing image structure. Further, the results
+of SRF-SRF and BN-BN models that implement the auto-
+6
+Methods HT CT ET
+Dynamic Multiscale Tree-Learning (depth =2) 89.64 82.3 80
+Dynamic Multiscale Tree-Learning (depth =1) 88.93 79.7 78.09
+Dynamic Tree-Learning (depth =2) 89.56 80.43 79
+Dynamic Tree-Learning (depth =1) 88.07 78.7 77.94
+SRF-BN 82.5 72.6 70
+SRF-SRF 80 70.05 37.12
+BN-BN 79.82 71 56. 14
+SRF 75 60 35
+BN 70.8 45 32
+Table 1: Segmentation results of the proposed framework and comparison methods averaged across 50 patients. (HT: whole
+Tumor; CT: Core Tumor; ET: Enhanced Tumor; depth of the tree; * indicates outperformed methods with p?value ? 0.05).
+Figure 3: Qualitative segmentation results for all the baseline methods applied on 5 subjects: (a) BN segmentation result.
+(b) SRF segmentation result. (c) Auto-context BN. (d) Auto-context SRF. (e) SRF+BN segmentation result. (f) DMT
+segmentation result. (depth=2). (g) Ground truth label map.
+context approach show an improvement of the segmenta-
+tion results at both qualitative and quantitative levels when
+compared with baseline SRF and BN models. More impor-
+tantly, we note that BN-BN cascade outperforms SRF-SRF
+cascade when segmenting the Core Tumor and Enhancing
+Tumor (ET) lesions. This can be explained by the fine and
+irregular anatomical details of these image structures when
+compared to the whole tumor lesion. Since BN is trained
+using irregular superpixels, it produced more accurate seg-
+mentations for these classes (e.g., BN-BN:56.14 vs SRF-
+SRF: 37.12 for ET). Through further cascading both SRF
+and BN classifiers, we note that the heterogenoues SRF-BN
+cascade produced much better results compared to both au-
+tocontext SRF and autocontext BN for two main reasons.
+First SRF aids in defining BN prior based on the testing im-
+age structure, while BN enhances the performance of SRF
+at the boundaries level. This further highlights the impor-
+tance of integrating both regular and irregular image ele-
+7
+ments for training classifiers that capture different image
+structures. The outperformance of the proposed DMT ar-
+chitecture also lays ground for our assumption that embed-
+ding SRF and BN into our a unified dynamic architecture
+where they mutually benefit from their learning boosts up
+the multi-label segmentation accuracy. In addition to the
+previously mentionned advantages of combining SRF and
+BN, it is important to note that the integration of variant cas-
+cades of SRF and BN endows our architecture with a an ef-
+ficient learning ability, where it incorporates in a deep man-
+ner the knowledge of SRF based on modeling the dataset
+during the training step and the individualized learning of
+BN based on the testing image during the testing step. No-
+tably, our DMT architecture has a few limitations. First,
+it becomes more demanding in terms of computational and
+memory resources, as the tree grows exponentially (in the
+order of O(2n)). The more nodes we add to the binary tree,
+the slower the algorithm converges. Second, the patch and
+superpixel sizes in the multi-scale learning strategy can be
+further learned, instead of empirically fixing them through
+inner cross-validation. Third, the bidirectional flow is cur-
+rently restricted between neighboring parent and children
+nodes at a fixed tree depth. This can be extended to further
+nodes (e.g., root node), where the semantic context progres-
+sively diffuses from each node i along tree paths to far-away
+nodes.
+5. Conclusion
+We proposed a Dynamic Multi-scale Tree (DMT) learn-
+ing architecture that both cascades and aggregates classi-
+fiers for multi-label medical image segmentation. Specifi-
+cally, our DMT embeds classifiers into a binary tree archi-
+tecture, where each node nests a classifier and each edge
+encodes a learning transfer between the classifiers. A new
+tree traversal strategy is proposed where a depth-wise bidi-
+rectional feedbacks are performed along each edge between
+a parent node and its child node. This allows explicit learn-
+ing between parent and children nodes and implicit learning
+transfer between children of the same parent. Moreover, we
+train DMT using different scales for input patches and su-
+perpixels to capture a coarse-to-fine image details as well
+as a fine-to-coarse image structures through the depth-wise
+bidirectional flow. To sum up, our DMT integrates com-
+pound and complementary aspects: deep learning, coop-
+erative learning, dynamic learning, coarse-to-fine and fine-
+to-coarse learning. In our future work, we will devise a
+more comprehensive tree traversal strategy where the learn-
+ing transfer starts from the root node, descending all the
+way down to the leaf nodes and then ascending all the way
+up to the root node. We will also evaluate our DMT seman-
+tic segmentation architecture on different large datasets.
+References
+[1] R. Achanta, A. Shaji, K. Smith, A. Lucchi, P. Fua, and
+S. Süsstrunk. Slic superpixels. Technical report, 2010. 6
+[2] L. Breiman. Random forests. Machine learning, 45(1):5–32,
+2001. 2
+[3] P. F. Christ, F. Ettlinger, F. Grün, M. E. A. Elshaera, J. Lip-
+kova, S. Schlecht, F. Ahmaddy, S. Tatavarty, M. Bickel,
+P. Bilic, et al. Automatic liver and tumor segmentation of
+ct and mri volumes using cascaded fully convolutional neu-
+ral networks. arXiv preprint arXiv:1702.05970, 2017. 1, 2
+[4] J. Dai, K. He, and J. Sun. Instance-aware semantic segmen-
+tation via multi-task network cascades. In Proceedings of the
+IEEE Conference on Computer Vision and Pattern Recogni-
+tion, pages 3150–3158, 2016. 2
+[5] M. Havaei, A. Davy, D. Warde-Farley, A. Biard,
+A. Courville, Y. Bengio, C. Pal, P.-M. Jodoin, and
+H. Larochelle. Brain tumor segmentation with deep neural
+networks. Medical image analysis, 35:18–31, 2017. 1
+[6] H. Kim, J. Thiagarajan, J. Jayaraman, and P.-T. Bremer. A
+randomized ensemble approach to industrial ct segmenta-
+tion. In Proceedings of the IEEE International Conference
+on Computer Vision, pages 1707–1715, 2015. 2
+[7] P. Kontschieder, S. R. Bulo, H. Bischof, and M. Pelillo.
+Structured class-labels in random forests for semantic image
+labelling. In Computer Vision (ICCV), 2011 IEEE Interna-
+tional Conference on, pages 2190–2197. IEEE, 2011. 3, 4
+[8] S. Lee, S. Purushwalkam, M. Cogswell, D. Crandall, and
+D. Batra. Why m heads are better than one: Train-
+ing a diverse ensemble of deep networks. arXiv preprint
+arXiv:1511.06314, 2015. 1, 2
+[9] X. Li, L. Wang, and E. Sung. Multilabel svm active learn-
+ing for image classification. In Image Processing, 2004.
+ICIP’04. 2004 International Conference on, volume 4, pages
+2207–2210. IEEE, 2004. 1
+[10] L. F. Loic, V. N. Aditya, A.-V. Javier, L. Richard, and
+C. Antonio. Segmentation of brain tumors via cascades of
+lifted decision forests. In Proceedings of BRATS Challenge-
+MICCAI, 2016. 1
+[11] B. H. Menze, A. Jakab, S. Bauer, J. Kalpathy-Cramer,
+K. Farahani, J. Kirby, Y. Burren, N. Porz, J. Slotboom,
+R. Wiest, et al. The multimodal brain tumor image seg-
+mentation benchmark (brats). IEEE transactions on medical
+imaging, 34(10):1993–2024, 2015. 6
+[12] C. Panagiotakis, I. Grinias, and G. Tziritas. Natural image
+segmentation based on tree equipartition, bayesian flooding
+and region merging. IEEE Transactions on Image Process-
+ing, 20(8):2276–2287, 2011. 3, 4
+[13] M. Prastawa, E. Bullitt, S. Ho, and G. Gerig. A brain tumor
+segmentation framework based on outlier detection. Medical
+image analysis, 8(3):275–283, 2004. 5
+[14] C. Qian, L. Wang, Y. Gao, A. Yousuf, X. Yang, A. Oto, and
+D. Shen. In vivo mri based prostate cancer localization with
+random forests and auto-context model. Computerized Med-
+ical Imaging and Graphics, 52:44–57, 2016. 1, 2
+[15] A. Rahman and S. Tasnim. Ensemble classifiers and their ap-
+plications: A review. arXiv preprint arXiv:1404.4088, 2014.
+2
+8
+[16] Z. Tu and X. Bai. Auto-context and its application to high-
+level vision tasks and 3d brain image segmentation. IEEE
+Transactions on Pattern Analysis and Machine Intelligence,
+32(10):1744–1757, 2010. 1
+[17] S. Valverde, M. Cabezas, E. Roura, S. González-Villà,
+D. Pareto, J.-C. Vilanova, L. Ramió-Torrentà, À. Rovira,
+A. Oliver, and X. Lladó. Improving automated multiple scle-
+rosis lesion segmentation with a cascaded 3d convolutional
+neural network approach. arXiv preprint arXiv:1702.04869,
+2017. 1, 2
+[18] L. Wang, P. Pedersen, E. Agu, D. Strong, and B. Tulu. Area
+determination of diabetic foot ulcer images using a cascaded
+two-stage svm based classification. IEEE Transactions on
+Biomedical Engineering, 2016. 1, 2
+[19] Y. Wei, W. Xia, J. Huang, B. Ni, J. Dong, Y. Zhao, and
+S. Yan. Cnn: Single-label to multi-label. arXiv preprint
+arXiv:1406.5726, 2014. 1
+[20] S. Yang, C. Yuan, B. Wu, W. Hu, and F. Wang. Multi-feature
+max-margin hierarchical bayesian model for action recogni-
+tion. In Proceedings of the IEEE Conference on Computer
+Vision and Pattern Recognition, pages 1610–1618, 2015. 3
+[21] L. Yijing, G. Haixiang, L. Xiao, L. Yanan, and L. Jinling.
+Adapted ensemble classification algorithm based on multiple
+classifier system and feature selection for classifying multi-
+class imbalanced data. Knowledge-Based Systems, 94:88–
+104, 2016. 3
+[22] J. Zhang, Y. Gao, S. H. Park, X. Zong, W. Lin, and D. Shen.
+Segmentation of perivascular spaces using vascular features
+and structured random forest from 7t mr image. In Interna-
+tional Workshop on Machine Learning in Medical Imaging,
+pages 61–68. Springer, 2016. 3
+[23] L. Zhang and Q. Ji. Integration of multiple contextual infor-
+mation for image segmentation using a bayesian network. In
+Computer Vision and Pattern Recognition Workshops, 2008.
+CVPRW’08. IEEE Computer Society Conference on, pages
+1–6. IEEE, 2008. 3, 4
+[24] L. Zhang and Q. Ji. A bayesian network model for automatic
+and interactive image segmentation. IEEE Transactions on
+Image Processing, 20(9):2582–2593, 2011. 3, 4
+[25] L. Zhang, Q. Wang, Y. Gao, H. Li, G. Wu, and D. Shen. Con-
+catenated spatially-localized random forests for hippocam-
+pus labeling in adult and infant mr brain images. Neurocom-
+puting, 2016. 1, 2
+9

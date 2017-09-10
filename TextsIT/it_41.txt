@@ -1,0 +1,1816 @@
+TO APPEAR IN IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS I: REGULAR PAPERS 1
+Non-Uniform Wavelet Sampling for
+RF Analog-to-Information Conversion
+Michaël Pelissier and Christoph Studer
+Abstract—Feature extraction, such as spectral occupancy, in-
+terferer energy and type, or direction-of-arrival, from wideband
+radio-frequency (RF) signals finds use in a growing number of
+applications as it enhances RF transceivers with cognitive abilities
+and enables parameter tuning of traditional RF chains. In power
+and cost limited applications, e.g., for sensor nodes in the Internet
+of Things, wideband RF feature extraction with conventional,
+Nyquist-rate analog-to-digital converters is infeasible. However,
+the structure of many RF features (such as signal sparsity)
+enables the use of compressive sensing (CS) techniques that
+acquire such signals at sub-Nyquist rates. While such CS-based
+analog-to-information (A2I) converters have the potential to
+enable low-cost and energy-efficient wideband RF sensing, they
+suffer from a variety of real-world limitations, such as noise
+folding, low sensitivity, aliasing, and limited flexibility.
+This paper proposes a novel CS-based A2I architecture called
+non-uniform wavelet sampling (NUWS). Our solution extracts a
+carefully-selected subset of wavelet coefficients directly in the
+RF domain, which mitigates the main issues of existing A2I
+converter architectures. For multi-band RF signals, we propose
+a specialized variant called non-uniform wavelet bandpass sam-
+pling (NUWBS), which further improves sensitivity and reduces
+hardware complexity by leveraging the multi-band signal struc-
+ture. We use simulations to demonstrate that NUWBS approaches
+the theoretical performance limits of `1-norm-based sparse signal
+recovery. We investigate hardware-design aspects and show ASIC
+measurement results for the wavelet generation stage, which
+highlight the efficacy of NUWBS for a broad range of RF feature
+extraction tasks in cost- and power-limited applications.
+Index Terms—Analog-to-information (A2I) conversion, cogni-
+tive radio, compressive sensing, Internet of Things (IoT), radio-
+frequency (RF) signal acquisition, wavelets, spectrum sensing.
+I. INTRODUCTION
+FOR nearly a century, the cornerstone of digital signalprocessing has been the Shannon–Nyquist–Whittaker
+sampling theorem [1]. This result states that signals of finite
+energy and bandwidth are perfectly represented by a set of
+uniformly-spaced samples at a rate higher than twice the
+maximal frequency. It is, however, well-known that signals
+with certain structure can be sampled well-below the Nyquist
+rate. For example, Landau established in 1967 that multi-
+band signals occupying N non-contiguous frequency bands of
+bandwidth B can be represented using an average sampling rate
+no lower than twice the sum of the bandwidths (i.e., 2NB) [2].
+In 2006, Landau’s concept has been generalized by Candès,
+Donoho, Romberg, and Tao in [3], [4] to sparse signals, i.e.,
+M. Pelissier was a visiting researcher at the School of Electrical and
+Computer Engineering (ECE), Cornell University, Ithaca, NY, from CEA
+Univ. Grenoble Alpes, CEA, LETI, F-38000 Grenoble , France (e-mail:
+michael.pelissier@cea.fr).
+C. Studer is with the School of ECE, Cornell University, Ithaca, NY (e-mail:
+studer@cornell.edu). Website: vip.ece.cornell.edu
+signals that have only a few nonzero entries in a given transform
+basis, e.g., the discrete Fourier transform (DFT). These results
+are known as compressive sensing (CS) and find potential use
+in a broad range of sampling-critical applications [5].
+In essence, CS fuses sampling and compression: instead of
+sampling signals at the Nyquist rate followed by conventional
+data compression, CS acquires “just enough” compressive
+measurements that guarantee the recovery of the signal of
+interest. Signal recovery then exploits the concept of sparsity, a
+structure that is present in most natural and man-made signals.
+CS has the potential to acquire signals with sampling rates well-
+below the Nyquist frequency, which may lead to significant
+reductions in the sampling costs and/or power consumption,
+or enable an increase the bandwidth of signal acquisition
+beyond the physical limits of analog-to-digital converters
+(ADCs) [6]. As a consequence, CS is commonly believed
+to be a panacea for wideband radio-frequency (RF) spectrum
+awareness applications [7]–[9].
+A. Challenges of Wideband Spectrum Awareness
+In RF communication, there is a growing need in providing
+radio transceivers with cognitive abilities that enable awareness
+and adaptability to the spectrum environment [9]. The main
+goals of suitable methods are to capture a variety of RF
+parameters (or features) to dynamically allocate spectral
+resources [10] and/or to tune traditional RF-chain circuitry
+with optimal parameter settings in real-time, e.g., to cancel out
+strong interferers using a tunable notch filter [11], [12]. The
+RF features to be acquired for these tasks are mainly related to
+wideband spectrum sensing [8] and include the estimation of
+frequency occupancy, signal energy, energy variation, signal-
+to-noise-ratio, direction-of-arrival, etc. [7], [13].
+For most wideband spectrum sensing tasks, one is typically
+interested in acquiring large bandwidths (e.g., several GHz)
+with a high dynamic range (e.g., 80 dB or more). However,
+achieving such specifications with a single analog-to-digital
+converter (ADC) is an elusive goal with current semiconductor
+technology [6]. A practicable solution is to scan the entire
+bandwidth in sequential manner. From a hardware perspective,
+this approach relies on traditional RF receivers as put forward
+by Armstrong in 1921 [14]. The idea is to mix the incoming
+RF signal with a complex sinusoid (whose frequency can be
+tuned) either to a lower (and fixed) frequency or directly to
+baseband. The signal is then sampled with an ADC operating
+at lower bandwidth. While such an approach enjoys widespread
+use—mainly due to its excellent spectral selectivity, sensitivity,
+and dynamic range—the associated hardware requirements
+ar
+X
+iv
+:1
+70
+9.
+00
+78
+1v
+1 
+ [
+cs
+.I
+T
+] 
+ 4
+ S
+ep
+ 2
+01
+7
+2 TO APPEAR IN IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS I: REGULAR PAPERS
+baseband
+data
+traditional 
+RF frontend
+DSP
+RF features
+RF
+signal
+A2I
+0100110
+Fig. 1. Overview of a cognitive radio receiver: A traditional RF front-end
+is enhanced with an analog-to-information (A2I) converter that extracts RF
+features directly from the incoming analog RF signals. The A2I converter
+enables parameter tuning to reduce design margins in the RF circuitry and
+assists spectrum awareness tasks in the digital signal processing (DSP) stage.
+(for wideband tunable oscillators and highly-selective filters)
+and sweeping time may not meet real-world application
+constraints [11]. This aspect is particularly important for the
+Internet of Things (IoT), in which devices must adhere to
+stringent power and cost constraints, while operating in a multi-
+standard environment (e.g., containing signals from 3GPP NB-
+IoT, IEEE 802.15.4g/15.4k/11.ah, SigFox, and LoRa). Hence,
+there is a pressing need for RF feature extraction methods that
+minimize the power and system costs, while offering flexibility
+to a variety of environments and standards.
+B. Analog-to-Information (A2I) Conversion
+A promising solution for such wideband spectrum sensing
+applications is to use CS-based analog-to-information (A2I)
+converters that leverage spectrum sparsity [8], [15]–[17].
+Indeed, one of the main advantages of CS is that it enables
+the acquisition of larger bandwidths with relaxed sampling-
+rate requirements, thus enabling less expensive, faster, and
+potentially more energy-efficient solutions. While a large
+number of CS-based A2I converters have been proposed for
+spectrum sensing tasks [8], [11], [15], [16], [18], the generally-
+poor noise sensitivity of traditional CS methods [19], [20]
+and the excessive complexity of the recovery stage [16], [21]
+prevents their straightforward use in low-power, cost-sensitive,
+and latency-critical applications, which are typical for the IoT.
+Fortunately, for a broad range of RF feature extraction
+tasks, recovery of the entire spectrum or signal may not be
+necessary. In fact, as it has been noted in [22], only a small
+number of measurements may be required if one is interested
+in certain signal features and not the signal itself. This key
+observation is crucial for a broad range of emerging energy or
+cost-constrained applications in the RF domain, such as sensors
+or actuators for the IoT, wake-up radio, spectrum sensing, and
+radar applications [7], [23]–[25]. In most of these applications,
+the information of interest has, informally speaking, a rate
+far below the physical bandwidth, which is a perfect fit for
+CS-based A2I converters that have the potential to acquire the
+relevant features directly in the RF (or analog) domain at low
+cost and low power.
+Figure 1 illustrates a cognitive radio receiver that is assisted
+with an A2I converter specifically designed for RF feature ex-
+traction. The A2I converter bypasses conventional RF circuitry
+and extracts a small set of features directly from the incoming
+RF signals in the analog domain. The acquired features can then
+be used by the RF front-end and/or a subsequent digital signal
+processing (DSP) stage. Such an A2I-assisted RF front-end
+enables one to optimally reconfigure the key parameters of a
+traditional RF chain according to the spectral environment. This
+capability can also be used to assist traditional RF transceivers
+by providing means to eliminate over-design margins through
+adaptation to the spectrum environment via radio link-quality
+estimation and interferer localization [9], which is relevant in
+power- and cost-limited IoT applications.
+C. Contributions
+This paper proposes a novel CS-based A2I converter archi-
+tecture for cognitive RF receivers. Our approach, referred to
+as non-uniform wavelet sampling (NUWS), combines wavelet
+preprocessing with non-uniform sampling in order to alleviate
+the main issues of existing A2I converter solutions, such as
+signal noise, aliasing, and stringent clocking constraints, which
+enables a broad range of RF feature extraction tasks. For RF
+multi-band signals, we propose a specialized variant called non-
+uniform wavelet bandpass sampling (NUWBS), which combines
+traditional bandpass sampling with NUWS. This solution builds
+upon (i) wavelet sample acquisition using highly over-complete
+and hardware-friendly Gabor frames or Morlet wavelets and
+(ii) a suitable measurement selection strategy that identifies
+the relevant wavelets required for RF feature extraction. We
+use system simulations to demonstrate the efficacy of NUWBS
+and show that it approaches the theoretical phase transition of
+`1-norm-based sparse signal recovery in typical multi-band RF
+applications. We investigate hardware-implementation aspects
+and validate the effective interference rejection capability of
+NUWBS. We conclude by showing ASIC measurement results
+for the wavelet generation stage in order to highlight the
+practical feasibility of the wavelet generator, which is at the
+heart of the proposed A2I converter architecture.
+D. Paper Outline
+The rest of the paper is organized as follows. Section II pro-
+vides an introduction to CS and discusses existing A2I converter
+architectures for sub-Nyquist RF signal acquisition. Section III
+presents our non-uniform wavelet sampling (NUWS) method
+and the specialized variant for multi-band signals called non-
+uniform wavelet bandpass sampling (NUWBS). Section IV
+discusses optimal measurement selection strategies and provides
+simulation results. Section V discusses hardware implementa-
+tion aspects of NUWBS. We conclude in Section VI.
+E. Notation
+Lowercase and uppercase boldface letters denote column
+vectors and matrices, respectively. For a matrix A, we repre-
+sent its transpose and Hermitian transpose by AT and AH ,
+respectively. The M ×M identity matrix is IM . The entry
+on the kth row and `th column of A is [A]k,` = Ak,` and
+the `th column is [A]:,` = a`; the kth entry of the vector a
+is [a]k = ak. We write R?A = [A]?,: and R?a? = [a]? to
+restrict the rows of a matrix A and the entries of a vector a
+to the index set ?, respectively. Continuous and discrete-time
+signals are denoted by x(t) and x[n], respectively.
+M. PELISSIER AND C. STUDER 3
+II. CS TECHNIQUES FOR RF SIGNAL ACQUISITION
+We start by introducing the basics of CS and then review
+the most prominent A2I converter architectures for RF signal
+acquisition, namely non-uniform sampling (NUS) [15], [16],
+[26]–[29], variable rate sub-Nyquist sampling [8], [30]–[32],
+and random modulation [33], [34], which includes the modu-
+lated wideband converter and Xampling [11], [35]–[37]. For
+each of these architectures, we briefly discuss the pros and cons
+from a RF spectrum sensing and hardware design standpoint.
+A. Compressive Sensing (CS) Basics
+Let x ? CN be a discrete-time, N -dimensional complex-
+valued signal vector that we wish to acquire. We assume that the
+signal x has a so-called K-sparse representation s ? CN , i.e.,
+the vector s has K dominant non-zero entries in a known
+(unitary) transform basis ? ? CN×N with x = ?s and
+?H? = IN . In spectrum sensing applications, one typically
+assumes sparsity in the DFT basis, i.e., ? = FH is the N -
+dimensional inverse DFT matrix. CS acquires M compressive
+measurements as yi = ??i, s? + ni for i = 1, 2, . . . ,M ,
+where ?i ? CN are the measurement vectors and ni models
+measurement noise. The CS measurement process can be
+written in compact matrix-vector form as follows:
+y = ?x + n = ?s + n. (1)
+Here, the vector y ? CM contains all M compressive
+measurements, the ith row of the sensing matrix ?M×N
+corresponds to the measurement vector ?i, the M×N effective
+sensing matrix ? = ?? models the joint effect of CS and the
+sparsifying transform, and n ? CM models mesurement noise.
+The main goal of CS is to acquire far fewer measurements
+than the ambient dimension N , i.e., we are interested in the case
+M  N ; this implies that the matrix ? maps K-sparse signals
+of dimension N to a small number of measurements M . Given
+a sufficient number of measurements, typically scaling as M ?
+K log(N), that satisfy certain incoherence properties between
+the measurement matrix ? and the sparsifying transform ?,
+one can use sparse signal recovery algorithms that generate
+robust estimates of the sparse representation s and hence, enable
+the recovery of the signal x = ?s from the measurements
+in y; see [5], [38] for more details on CS.
+B. A2I Converter Architectures
+While sparse signal recovery is typically carried out in soft-
+ware [39] or with dedicated digital circuitry [16], [21], the CS-
+based A2I conversion process modeled by (1) is implemented
+directly in the analog domain. The next paragraphs summarize
+the most prominent A2I converter architectures that perform
+CS measurement acquisition with mixed-signal circuitry.
+1) Non-Uniform Sampling: Non-uniform sampling (NUS)
+is one of the simplest instances of CS. In principle, the NUS
+strategy samples the incoming signal at irregularly spaced
+time intervals by taking a random subset of the samples of
+a conventional Nyquist ADC [15], [16]. For this scheme, the
+sensing matrix ? is given by the M ×N restriction operator
+R? = [IN ]?,: that contains of a subset ? the rows of the
+non-uniform clock
+low-rate
+ADC
+S&H
+Fig. 2. High-level architecture of non-uniform sampling (NUS). A sample-
+and-hold (S&H) stage acquires a random subset of Nyquist-rate samples of a
+wideband signal x(t) and converts each sample x[n] to the digital domain.
+identity matrix IN , where |?| = M is the cardinality of the
+sampling set. The effective sensing matrix ? = R?IN? in (1)
+contains the M rows of the sparsifying basis ? indexed by ?.
+More specifically, NUS can be modeled as
+y = R?INx + n = ?NUSs + n (2)
+with ?NUS = R?INFH , where we assume DFT sparsity. As
+shown in [38], randomly-subsampled Fourier matrices enable
+faithful signal recovery from M ? K log4(N) compressive
+measurements. Hence, NUS not only enables sampling rates
+close to the Landau rate [2], but is also conceptually simple.
+A high-level architecture of NUS, as depicted in Figure 2,
+consists of a sample-and-hold (S&H) stage and an ADC
+supporting the shortest sampling period used by the NUS [15],
+[16]. The main challenge of NUS is in the acquisition of a
+wideband analog input signal. While the average sampling rate
+can be decreased significantly, the ADC still needs to acquire
+samples from wideband signals with frequencies potentially
+reaching up the maximal input signal frequency. This key
+observation has two consequences: First, NUS requires a
+sampling clock operating at the time resolution of the order of
+the Nyquist rate, which is typically power expensive. Second,
+NUS is sensitive to timing jitter: informally speaking, if the
+input signal changes rapidly, a small error in the sampling time
+can result in a large error in the acquired sample.
+2) Variable Rate Sub-Nyquist Sampling: Variable-rate sub-
+Nyquist sampling builds upon the fundamentals of bandpass
+sampling [40]. In principle, this A2I conversion strategy
+undersamples the input signal with multiple branches (i.e.,
+a bank of parallel bandpass sampling stages) with sampling
+rates that differ from one branch to the other. There exist two
+main instances of this concept, namely multi-rate sampling
+(MRS) that uses a fixed set of sampling frequencies for each
+branch [8], [31], [32] and the Nyquist-folding receiver (NYFR)
+that modulates the sampling frequencies [41]. Both approaches
+rely on the fact that the signal of interest is aliased at a
+particular frequency when undersampled at a given rate on a
+given branch, but the same signal may experience aliasing at a
+different frequency when sampled at a different rate on another
+branch. Empirical results show that this approach enables signal
+recovery for a sufficiently large number of branches [30].
+From a hardware perspective, MRS is relatively simple as
+it avoids any randomness during the sampling stage and each
+branch performs conventional bandpass sampling. Nevertheless,
+MRS faces the same issues of traditional bandpass sam-
+pling [40]: it suffers from noise folding, i.e., wideband noise in
+4 TO APPEAR IN IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS I: REGULAR PAPERS
+the signal of interest is folded (or aliased) into the compressive
+measurements, which results in reduced sensitivity [19], [20].
+3) Random Modulation: Random modulation (RM) is used
+by a broad range of A2I converters. Existing architectures first
+multiply the analog input signal by a pseudo-random sequence,
+integrate the product over a finite time window, and sample
+the integration result. The random-modulation preintegrator
+(RMPI) [5], [34] and its single branch counterpart, the random
+demodulator (RD) [18], [33], are the most basic instances of this
+idea. However, modulating the signal with a (pseudo-)random
+sequence is only suitable for very specific signal classes, such as
+signals that are well-represented by a union of sub-spaces [37].
+In addition, the (pseudo-)random sequence generator must still
+run at Nyquist rate. The main advantage of the modulated
+wide-band converter (MWC) is to reduce the bandwidth of
+the S&H to run at sub-Nyquist rates [35], [37]. Indeed, the
+MWC avoids a fast sampling stage and, instead, requires a
+high-speed mixing stage which is typically more wideband. A
+recent solution that avoids some of the drawbacks of RM is
+the quadrature A2I converter (QAIC) [17]. This method relies
+on conventional down-conversion before RM, thus focusing
+on a small RF band rather than the entire bandwidth.
+C. Limitations of Existing A2I Converters
+While numerous A2I converter architectures have been
+proposed in the literature, their limited practical success is
+a result of many factors. From a theoretical perspective, one is
+generally interested in acquisition schemes that minimize the
+number of measurements while still enabling faithful recovery
+of a broad range of signal classes. From a hardware perspective,
+the key goals are to minimize the bandwidth requirements,
+the number of branches, and the power consumption, while
+being tunable to the application at hand. Finally, suitable A2I
+converters should exhibit high sensitivity and be robust to
+hardware impairments and imperfections. We now summarize
+the key limitations of existing A2I converter architectures as
+discussed in Section II-B with these desirables in mind.
+Most of the discussed A2I converters rely on random mixing
+or sampling. Such architectures either require large memories
+to store the random sequences or necessitate efficient means for
+generating pseudo-random sequences [42]. In addition, such
+unstructured sampling schemes prevent the use of fast linear
+transforms (such as the fast Fourier transform) in the recovery
+algorithm, which results in excessively high signal processing
+complexity and power consumption [16], [21]. From a hardware
+perspective, large parts of the analog circuitry of many A2I
+converters must still support bandwidths up to the Nyquist
+rate, even if the average sampling rate is significantly reduced.
+For example, NUS [15] and MRS [32] require S&H circuitry
+and ADCs designed for the full Nyquist bandwidth. Similarly,
+the RD and RMPI require sequence generators that run at
+the Nyquist rate. Another drawback of many A2I converters,
+especially for MRS or the MWC [11], [35]–[37], is that they
+require a large number of branches, which results in large
+silicon area and potentially high power consumption.
+A more fundamental issue of most CS-based A2I converter
+solutions for wideband RF sensing applications is noise
+non-uniform clock
+low-rate
+ADC
+S&H
+wavelet
+transform
+Fig. 3. High-level architecture of non-uniform wavelet sampling (NUWS):
+Conceptually, NUWS first performs a continuous wavelet transformWx(t) of
+the input signal x(t), followed by NUS as shown in Figure 2 to obtain wavelet
+samples x[n]. A practical hardware architecture is discussed in Section V.
+folding [19], [20], which prevents their use for applications
+requiring high sensitivity, such as activity detection of low-
+SNR signals. In addition, most A2I converters lack versatility
+or adaptability to the application at hand, i.e., most system
+parameters are fixed at design time and signal acquisition is non-
+adaptive (one cannot select the next-best sample based on the
+history of acquired samples). However, adaptive CS schemes
+have the potential to significantly reduce the acquisition time
+or the complexity of signal recovery [43].
+III. NON-UNIFORM WAVELET (BANDPASS) SAMPLING
+We now propose a novel CS-based A2I converter that
+mitigates some of the drawbacks of existing A2I converter
+solutions. Our approach is referred to as non-uniform wavelet
+sampling (NUWS) and essentially acquires wavelet coefficients
+directly in the analog domain. We first introduce the principle
+of NUWS and then adapt the method to multi-band signals,
+resulting in non-uniform wavelet bandpass sampling (NUWBS).
+We then highlight the advantages of NUWS and NUWBS
+compared to existing A2I converters for RF feature extraction.
+A. NUWS: Non-Uniform Wavelet Sampling
+The operating principle of NUWS is illustrated in Figure 3.
+In contrast to NUS (cf. Figure 2), NUWS first transforms the
+incoming analog signal x(t) into a wavelet frame Wx(t) (see
+Section IV-A for the basics on wavelets) and then performs
+NUS to acquire a small set of so-called wavelet samples x[n].
+As illustrated in Figure 4(a), NUS is equivalent to multiplying
+the input signal x(t) with a Dirac comb followed by the
+acquisition of a subset of samples (indicated by black arrows).
+In contrast, as shown in Figure 4(b), NUWS multiplies the
+input signal x(t) with wavelets, integrates over the support of
+each wavelet, and samples the resulting wavelet coefficients.
+From a high-level perspective, NUWS has the following ad-
+vantages over NUS. First, the continuous wavelet transform W
+reduces the bandwidth of the input signal x(t), which relaxes
+the bandwidth of the S&H circuit and the ADC (see Section IV
+for the details). Second, NUWS enables full control over a
+number of parameters, such as the sample time instants, wavelet
+bandwidth, and center frequency. In contrast, NUS has only
+one degree-of-freedom: the sample time instants.
+In discrete time, the sensing matrix ? for NUWS can be
+described by taking a small set ? of rows of a (possibly over-
+complete) wavelet frame WH ? CW×N , where WH contains
+a specific wavelet on each row and W ?M corresponds to
+the total number of wavelets. Hence, the sensing matrix of
+M. PELISSIER AND C. STUDER 5
+t
+Ts
+TNYQ
+t
+TNYQ
+t
+(a)
+(b)
+(c)
+TNYQ
+Fig. 4. Illustration of the sampling patterns of NUS, NUWS, and NUWBS.
+NUS multiplies the incoming signals with a punctured Dirac comb; NUWS
+multiplies the incoming signals with a series of carefully-selected wavelets;
+NUWBS uses a wavelet comb that is sub-sampled in time and with wavelets
+of variable central frequency in order to filter the sub-bands of interest.
+NUWS is ? = R?WH , where M = |?| is the number of
+wavelet samples. We can describe the NUWS process as
+y = R?W
+Hx + n = ?NUWSs + n (3)
+with the effective sensing matrix ?NUWS = R?WHFH where
+we, once again, assumed sparsity in the DFT domain.1 The
+necessary details on wavelets are provided in Section IV-A.
+By comparing (3) with (2), we see that NUS subsamples the
+inverse DFT matrix, whereas NUWS subsamples the (possibly
+overcomplete) matrix (FW)H , which is the Hermitian of the
+Fourier transform of the entire wavelet frame. We can write
+the acquisition of the frequency-sparse signal s as
+y = R?(FW)
+Hs + n, (4)
+which implies that each wavelet sample is equivalent to an inner
+product of the Fourier transform of the wavelet, i.e., w?i = Fwi,
+with the sparse representation s as yi = ?w?i, s?+ ni, i ? ?.
+As we will discuss in detail in Section IV-A, the considered
+wavelets essentially correspond to bandpass signals with a
+given center frequency, bandwidth, and phase (given by the
+sample time instant). Thus, each wavelet sample corresponds
+to pointwise multiplication of the sparse signal spectrum with
+the bandpass filter equivalent to the Fourier transform of
+the wavelet. Figure 5 illustrates this property and shows the
+absolute value of the matrix (FW)H for the complex-valued
+Morlet wavelet [44] with six scales. Evidently, each wavelet
+captures a different portion of the spectrum with a different
+phase (phase differences are not visible) and bandwidth. We
+note that for the Morlet wavelet, the bandwidth and center
+frequency of each wavelet depends on the scale.
+B. NUWBS: Non-Uniform Wavelet Bandpass Sampling
+Non-uniform wavelet bandpass sampling (NUWBS) is a
+special instance of NUWS optimized for multi-band RF signals.
+1Depending on the application, other sparsity bases ? than the inverse DFT
+matrix FH can be used; an investigation of other bases is ongoing work.
+Frequency
+H
+ig
+h
+e
+r 
+B
+a
+n
+d
+w
+it
+h
+ 
+H
+ig
+h
+e
+r s
+c
+a
+le
+Fig. 5. Absolute value of the product between the Hermitian of the complex-
+valued matrix and inverse DFT matrix |[WHFH ]k,`|. We see that each scale
+focuses on a different frequency band, whereas the bandwidth within each
+scale is fixed and the phase changes for different wavelets.
+The capability of handling such signals is of particular interest
+for non-contiguous carrier aggregation, a promising technology
+to enhance IoT throughput needs [45]. Figure 6(a) illustrates
+a typical multi-band scenario in which RF signals occupy
+multiple non-contiguous frequency bands that may be sparsely
+populated; in addition, there may be interferers outside the
+sub-bands of interest. A standard way to acquire multi-band
+signals is to use a filterbank with one dedicated filter and RF
+receiver per sub-band. Besides requiring high complexity and
+power, and suffering from lack of flexibility, such designs are
+typically unable to exploit signal sparsity within the sub-bands.
+Traditional bandpass sampling [40] or NUS [26]–[29] for
+multi-band signals would result in several issues. First and
+foremost, noise and interferers outside the sub-bands of interest
+will inevitably fold (or alias) into the measurements—a phe-
+nomenon known as noise folding [19], [20], [40]. Furthermore,
+for NUS, the a-priori information on the occupied sub-bands
+is generally not exploited during the acquisition process.
+In stark contrast to these methods, NUWBS exploits the
+multi-band structure and sparsity within each sub-band, while
+being resilient to interferers or noise outside of the bands of
+interest. As illustrated in Figure 4(c), NUWBS multiplies the
+incoming signals with a wavelet comb on a regular sampling
+grid, sub-sampled in time with respect to the Nyquist rate.
+Unlike NUWS, there are no overlaps between wavelets, which
+prevents the need for a large number of branches—typically
+one branch per sub-band is sufficient. Furthermore, the center
+frequencies of the wavelets can be focused on the sub-bands
+of interest, which renders this approach resilient to out-of-band
+noise and interferers, effectively reducing noise folding and
+aliasing without the need for a filter bank. Finally, as shown
+in Section IV-C, NUWBS is able to leverage CS and achieves
+near-optimal sampling rates, i.e., close to the Landau rate.
+The operating principle of NUWBS is illustrated in Figure 6.
+Every NUWBS measurement acts like a filter, which removes
+out-of-band noise and interference (see Figure 6(b)). Then, as
+6 TO APPEAR IN IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS I: REGULAR PAPERS
+fmax=fnyq /20
+?f fc1 fc2
+noise
+fc1 fc2
+Wavelet
+Band-Pass
+Non Uniform
+Sampling
+(a)
+(b) (c)
+Fig. 6. Illustration of a multi-band RF signal (a) consisting of two sparsely-
+populated sub-bands and an interferer (red). NUWBS first performs wavelet
+bandpass sampling to extract both sub-bands (b); then, NUS is used to minimize
+the number of wavelet samples, effectively reducing the sampling rate (c).
+shown in Figure 6(c), by taking a subset of wavelet samples
+(i.e., wavelet bandpass sampling), NUWBS reduces the average
+sampling rate. Traditional recovery methods for CS can then
+be used to recover the multi-band signals of interest. From a
+mathematical viewpoint, NUWBS can be modeled as in (3)
+with the differences that the subset of samples ? is adapted
+to the sub-bands of interest and the wavelet samples are on a
+regular sub-sampled grid with non-overlapping wavelets.
+C. Advantages of NUWS and NUWBS
+Wavelets find broad applicability in wireless communication
+systems, including source coding, modulation, interference
+mitigation, and signal de-noising [46], [47]. Nevertheless,
+CS-based methods that rely on wavelet sampling are rather
+unexplored, especially when dealing with RF signals. A notable
+exception is the paper [48], in which a multi-channel acquisition
+scheme based on Gabor frames is proposed that exploits
+the sparsity in the time-frequency domain. In contrast to
+NUBS/NUWBS, this approach relies on a parallel set of Gabor
+sampling branches, where each Gabor wavelet has a fixed
+bandwidth and the sampling rate is reduced using the MWC.
+We next summarize the benefits of wavelet sampling and
+the advantages of NUWS/NUWBS to RF applications.
+1) Tunability and Robust Feature Acquisition: Wavelets
+offer a broad range of parameters including time instant, center
+frequency, and bandwidth (see Section IV-A for the details).
+This flexibility can be exploited to adapt each measurement
+to the signal or feature class at hand or to improve robustness
+to out-of-band noise and interferers, or aliasing. For NUWBS,
+we take advantage of this property by focusing each wavelet
+sample on the occupied sub-bands, which yields improved
+sensitivity by mitigating noise folding and interference.
+2) Adaptive Feature Extraction: The tree structure of
+wavelets across scales [49] is a well-exploited property in
+data compression [50]. In RF applications, one can exploit
+this property to develop adaptive feature extraction schemes
+that first identify RF activity on a coarse scale (e.g., in a wide
+frequency band) and then, adaptively “zoom in” to sub-bands
+that exhibit activity for a more detailed analysis. This approach
+avoids traditional frequency scanning and has the potential to
+enable faster RF feature extraction than non-adaptive schemes.
+3) Structured Sampling: A broad range of CS-based A2I
+converter solutions focuses on randomized or unstructured
+sampling methods. Such methods typically require large storage
+(for the sampling matrices) and high complexity during signal
+recovery. In contrast, structured sensing approaches are known
+to avoid these drawbacks [51]. Wavelets exhibit a high degree
+of structure and their parametrization requires low storage.
+Furthermore, recovery algorithms that rely on fast (inverse)
+wavelet transforms are computationally efficient [52].
+4) Relaxed Hardware Constraints: From a hardware per-
+spective, random sequences or clock generation circuitry that
+operates at Nyquist rates can—in contrast to NUS and RD—
+be avoided due to the sub-Nyquist operation of NUWS and
+NUWBS. Hence, the associated clock synthesis and clock-
+tree management can be relaxed [53]. In addition, by sub-
+sampling the wavelet coefficients, we can further reduce the
+ADC sampling rates. Due to the signal correlation with the
+wavelet prior to sampling, the bandwidth requirements of the
+S&H circuit and the ADC are relaxed as well. In addition,
+NUWBS prevents overlapping wavelets, which enables the use
+of a small number of parallel sampling branches. This property
+reduces the circuit area and power consumption. As we will
+show in Section V, widely-tunable wavelets can be generated
+efficiently in analog hardware.
+IV. WAVELET DESIGN AND VALIDATION OF NUWBS
+This section summarizes the basics of wavelets and then,
+discusses wavelet selection and design for NUWS/NUWBS.
+We finally validate NUWBS for multi-band RF sensing.
+A. Wavelet Prerequisites
+For the sake of simplicity, we will use both continuous-time
+and discrete-time signal representations and often switch in
+between without making the discretization step explicit.
+1) Wavelet Basics: A wavelet is a continuous waveform that
+is effectively limited in time, has an average value of zero,
+and bounded L2-norm (often normalized to one). Wavelets for
+signal processing were introduced by Morlet [44] who showed
+that continuous-time functions x(t) in L2 can be represented by
+a so-called wavelet ?s,?(t) that is obtained by scaling s ? R+
+and shifting ? ? R a so-called mother wavelet ?(t). The scaling
+and shifting operations can be made formal as follows:
+?s,?(t) =
+1?
+s
+?
+(
+t? ?
+s
+)
+, s ? R+, ? ? R. (5)
+The so-called wavelet coefficient Wxs,? of a signal x(t) for
+a given wavelet ?s,?(t) at scale s and with time shift ?, is
+defined as the following inner product [54], [55]:
+Wxs,? = ?x, ?s,?? =
+?
+R
+x(t)
+1?
+s
+??
+(
+t? ?
+s
+)
+dt. (6)
+In words, each wavelet coefficient Wxs,? compares the
+signal x(t) to a shifted and scaled version ?s,?(t) of the
+M. PELISSIER AND C. STUDER 7
+Fig. 7. Real part of the product between the Hermitian of the Gabor and
+inverse DFT matrix A = <{WHFH} at a given center frequency and for
+various time shifts. Signals far away from the center frequency are attenuated,
+which effectively mitigates out-of-band noise, interference, and aliasing.
+mother wavelet ?(t). By comparing the signal to wavelets
+for various scales and time shifts, we arrive at the continuous
+wavelet transform (CWT) Wxs,?. The CWT represents one-
+dimensional signals in a highly-redundant manner, i.e., by two
+continuous parameters (s, ?). All possible scale-time atoms
+can be collected in an (overcomplete) frame given by
+D =
+{
+?s,?(t)
+?? ? ? R, s ? R+}.
+In practice, one is often interested in selecting a suitable
+subset of scales and shifts that enable an accurate (or exact)
+representation of original signal s(t) of interest. In what follows,
+we are particularly interested in wavelets that can be generated
+efficiently in hardware; such wavelets are discussed next.
+2) Gabor Frame: The Gabor transform is a well-known
+analysis tool to represent a signal simultaneously in time and
+frequency, similarly to the short-time Fourier transform (STFT).
+The set of Gabor functions (often called Gabor frame) is, strictly
+speaking, not a wavelet basis—the formalism, however, is very
+similar [56], [57]. Gabor frames consist of functions (or atoms)
+?fc? ,?k(t) = p(t? ?k)e
+j2?fc? t, (7)
+which are parametrized by the center frequencies f c? and time
+shifts ?k of a windowing function p(t), where ? = 1, 2, . . .
+and k = 1, 2, . . . are the indices of discrete frequency and
+time shifts, respectively. In practice, one often uses a Gaussian
+windowing function p(t) that is characterized by the width (or
+duration) parameter ? . Based on [56], the time and frequency
+representation of the unit `2-norm Gabor atoms with a Gaussian
+window are defined as follows:
+?fc? ,?k(t) =
+2
+1
+4
+?
+??
+1
+4
+ej2?f
+c
+? (t??k)e
+?
+(
+t??k
+?
+)2
+(8)
+?fc? ,?k(f) = (?
+?
+2?)
+1
+2 e?j2??kfe?(??(f?f
+c
+? ))
+2
+. (9)
+There exists a trade-off when choosing the width parameter ? :
+a large width increases the frequency resolution while lowering
+the time resolution, and vice versa. As it can be seen from (9),
+the Fourier representations of Gabor atoms decay exponentially
+fast, which is the reason for their excellent frequency-rejection
+properties, i.e., signals sufficiently far away of the center
+frequency f c? are strongly attenuated. This filtering effect of
+Gabor atoms is illustrated in Figure 7, which shows the real part
+of the matrix (FW)H for one particular center frequency f c?
+and various time shifts ?k. Clearly, signals that are sufficiently
+far apart from the center frequency f c? will be filtered.
+3) Complex-Valued Morlet Wavelet (C-Morlet): In contrast
+to the Gabor frame, the complex-valued Morlet (C-Morlet)
+wavelet uses windowing functions whose width parameter is
+linked to the central frequency (cf. Figure 5) [54], [55]. Recall
+from (5) that higher scales correspond to the most “stretched”
+Fig. 8. Frequency domain amplitude of C-Morlet wavelets for 6 scales as
+shown in Figure 5; the bandwidth of the wavelets increases with the central
+frequency, which is in contrast to Gabor atoms that have constant bandwidth.
+wavelets (in time) and hence, wavelets measure long time
+intervals for features containing low-frequency information and
+shorter intervals for high-frequency information. In fact, the
+width of a C-Morlet is linked to the central frequency so that
+there is a constant number of oscillations per effective wavelet
+duration. More formally, the C-Morlet shows a constant quality
+factor Q across scales. As a result, the C-Morlet wavelets coin-
+cide with (8) and satisfy the additional constraint accross scales
+that the central frequency f c? and the wavelet bandwidth BWp
+satisfy the following condition: Q = f c?/BWp = f
+c
+?????
+?
+2.
+Here, the parameter ? is 0.33 for a ?10 dB referred bandwidth.
+Figure 8 shows the spectrum amplitude for six scales of the
+C-Morlet wavelet family for a given quality factor—clearly
+the wavelet bandwidth is linked to the scale.
+B. Wavelet Selection for the Design of NUWBS
+We are, in principle, free in choosing the width, frequency,
+and time instant of each wavelet. In practice, however, we
+are interested in wavelets that can be generated efficiently in
+hardware, enable the use of a small number of branches, and
+extract the RF features of interest. We now outline how to
+select suitable wavelet parameters for NUWBS.
+1) Parameter Selection: As detailed in Section III-B,
+NUWBS first performs a projection of the input signal on a
+select set of wavelets (or atoms) and then, subsamples the
+wavelet coefficients. Since Gabor frames contain a highly
+redundant set of atoms, it may—at first—seem counter-intuitive
+to use an overcomplete frame expansion WH ? CW×N with
+W  N of the signal x as our ultimate goal is to reduce
+the number of measurements. It is thus critical to select a
+suitable subset ? of atoms that enables robust signal recovery
+or feature extraction with a minimum number of measurements
+M = |?|  N  W . As we will see, the high redundancy
+turns out to be beneficial as it allows us to select a potentially
+better subset of measurement, e.g., compared to NUS that can
+only select a subset of rows of the Fourier matrix.
+If we are interested in optimizing our set ? of wavelet
+samples for sparse signal recovery, which is the original
+8 TO APPEAR IN IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS I: REGULAR PAPERS
+motivation of CS, then we can minimize the so-called mutual
+coherence [5] between the sub-sampled sensing matrix R?WH
+and the sparsifying basis ? = FH , defined as
+µm(R?W
+H ,FH) = max
+i,k
+|?[R?W]i, [FH ]k?|. (10)
+The mutual coherence is related to the minimum number of
+measurements M that are required to guarantee recovery of
+K-sparse signals [5], [58]. Hence, we wish to find an optimal
+set ? of cardinality M that minimizes (10); unfortunately, this
+is a combinatorial optimization problem. We therefore resort
+to a qualitative analysis and heuristics to identify a suitable
+set of wavelets that enables the recovery of sparse signals.
+According to the closed-form expression in (8), the Gabor
+atoms are characterized by the width parameter ? . Our goal is
+to find the optimal width parameter ?? , depending on the input
+signal (e.g., its bandwidth). Intuitively, the width parameter ?
+should be linked to the bandwidth BWRF of the RF signal.
+In fact, the effective wavelet width should be designed so
+that each wavelet measurement yi, i = 1, 2, . . . ,M , collects
+enough information over the bandwidth of interest or, in other
+words, the pulse spectrum should be as flat as possible over the
+bandwidth of interest. We can make this intuition more formal
+by considering the so-called local mutual coherence [3], [59]
+µm(W
+H
+s ,F
+H
+? ) = max
+i,k
+|?[Ws]i, [FH? ]k?| (11)
+between the wavelet sampling matrix WHs at a particular
+scale s and the sparsifying basis limited to the subset of
+frequencies ? of interest (e.g., limited to the potentially active
+or occupied sub-bands).
+From the Gabor frame definition in (8), we can compute
+a closed form expression of the mutual coherence between a
+Gabor frame having a fixed width parameter ? and the Fourier
+basis. Assuming that the atom’s central frequency f c? is centered
+to the band of interest and is a multiple value of the frequency
+resolution ?f = fNyq/N , we can compute the local mutual
+coherence defined in (10) as follows:
+µm(W
+H
+s ,F
+H
+? ) = (?
+?
+2?)1/2
+Figure 9 shows the evolution of the mutual coherence as well
+as the theoretical lower bound (the purple horizontal line) given
+by 1/
+?
+N [42], [60]. The curves in this figure are obtained
+by setting the dimension to N = 256 and computing inner
+products between the rows of Gabor frame and the rows of the
+inverse discrete Fourier restricted to the band of interest FH? .
+The (local) mutual coherence is then computed according to
+(10) (and Eq. 11). The individual points on the curves are
+obtained by tuning the wavelet bandwidth BWp divided by
+the occupied RF bandwidth BWRF. Note that the shorter the
+atom (or wavelet) duration ? , the wider its bandwidth BWp
+is. As a result, the energy of the sensing vector is spread in
+the frequency domain and hence, captures information of all
+frequencies within the sub-band of interest. The limit ? ? 0
+corresponds to the Dirac comb (the bandwidth tends to infinity)
+for which the mutual coherence is known to reach the Welch
+lower bound [61]. The limit ? ?? corresponds to the case in
+which the sensing vectors are localized in the frequency domain,
+i.e., the measurements are maximally coherent with the Fourier
+Dirac Comb Sampling
+Wavelet Comb Sampling
+Fig. 9. Mutual coherence µm between the Gabor frame WH and the inverse
+DFT matrix FH as a function of the wavelet bandwidth (BWp) relative to the
+RF signal bandwidth BWp/BWRF.
+basis. Hence, for wavelet sampling, we can determine the width
+parameter ? to match the signal of interest. In practice, one
+can trade-off filtering performance (to mitigate noise folding
+and aliasing) versus measurement incoherence (to reduce the
+number of required CS measurements).
+2) Gabor Time-Shift Selection: Besides selecting the optimal
+width parameter ? of the Gabor atoms, we have to identify suit-
+able frequencies f c? and time shifts ?k. Consider, for example,
+the multi-band signal shown on the left side in Figure 10, where
+we assume that we know the coarse locations of the potentially
+active sub-bands (e.g., determined by a given standard), but
+not the locations of the non-zero frequencies within each sub-
+band (e.g., the frequency slots used for transmission). For
+simplicity, the axes have been normalized so that the y-axis
+stands for the frequency index ? and the x-axis stands for the
+time shift index k. We define the following parameters: the
+sub-sampling ratio ? = fNyq/BWRF is the ratio between the
+Nyquist frequency fNyq and the bandwidth of each sub-band
+BWRF; the aggregate bandwidth BWag is the total bandwidth of
+all occupied sub-bands, i.e., in our example BWag = 2BWRF.
+Equivalently, the aggregate bandwidth can be expressed by
+the cardinality of the occupied frequency indices |?| so that
+BWag = ?f |?|, where ?f is the bandwidth per frequency bin.
+Our proposed Gabor frequency and time shift selection
+strategy relies on two principles. First, in order to acquire
+information in a given sub-band, we consider a fixed central
+frequency centered in the sub-band of interest. Second, in the
+time domain we perform bandpass sampling with the goal of
+mixing the signal of interest to (or near to) baseband. This
+means that instead of sampling at all of the available time shifts
+defined by the Nyquist rate (shown by the vertical black dashed
+lines in Figure 10), we only acquire a subset defined by the
+sub-sampling factor ? (the red circles in Figure 10), effectively
+performing wavelet bandpass sampling. As a result two adjacent
+Gabor atoms will not overlap in time since, by construction,
+the sampling rate is inversely proportional to the pulse duration.
+In the case of two sub-bands the aggregate sampling rate is
+M. PELISSIER AND C. STUDER 9
+g
+?
+f
+Nyquist grid
+S
+u
+b
+b
+a
+n
+d
+ n
+°1
+S
+u
+b
+b
+a
+n
+d
+ n
+°2
+0
+|S
+|/
+2
+|S
+|/
+2
+fc
+2
+gg/2
+wavelet atom
+wavelet 
+sub-sampling grid
+Time index
+F
+re
+q
+u
+e
+n
+cy
+ in
+d
+e
+x
+fc
+1
+N
+..
+.
+..
+.
+1
+2
+N......12
+Fig. 10. Time-frequency grid of the Gabor atoms to be acquired via NUWBS;
+our approach makes use of a-priori knowledge of the occupied frequency
+bands; Atom selection relies on constant frequency and bandpass sampling in
+time for 2 sub-bands; the used parameters are BWag = 2×BWRF = 2×16?f ,
+? = 16, and N = 256 samples.
+set to 2fNyq/? equivalent to the aggregate bandwidth equal to
+2BWRF. We note that in addition to bandpass sampling, we
+can perform NUS on the acquired wavelet samples to further
+reduce the sampling rates. As shown next, this is typically
+feasible in the case where we know a-priori that the sub-bands
+are sparsely populated.
+C. Performance Validation of NUWBS
+We now demonstrate the efficacy of NUWBS for spectral
+activity detection in a multi-band RF application. In particular,
+we simulate an empirical phase transition [39], [62] that
+characterizes the probability of correct support recovery, i.e.,
+the rate of correctly recovering the true active frequency bins
+from NUWBS measurements. As a reference, we also include
+the theoretical phase transition of `1-norm based sparse signal
+recovery for a Gaussian measurement ensemble [62].
+We use N = 256 frequency bins and two active sub-bands
+with a total number of |?| = 32 potentially active frequency
+bins. The signals within these bins are assumed to be K ? |?|
+sparse. The NUWBS measurements are selected as discussed
+in Section IV-B and illustrated in Figure 10, i.e., we form
+the M × N matrix ?NUWBS = R?WHFH by fixing the
+frequency f c? at the center of each sub-band and use a sub-
+sampling ratio per branch of ? = 2N/|?| = 16. We generate
+measurement-sparsity pairs (M,K), and for each pair, we
+generate a synthetic K-sparse signal within the two allowed
+sub-bands; the K non-zero coefficients are complex-valued
+numbers of unit amplitude and random phases. For support
+recovery, we use orthogonal matching pursuit [60], restricted
+to the sub-bands of interest, i.e., we assume that the sub-band
+support ? is known a-priori but not the active coefficients
+within these sub-bands. We perform support set recovery for
+100 Monte–Carlo trials and report the average success rate.
+Figure 11 shows the empirical phase transition, where white
+areas indicate zero errors for support set recovery. The x-axis
+Fig. 11. Empirical phase transition graph of NUWBS for multi-band signal
+acquisition compared to the theoretical `1-norm phase transition for a Gaussian
+measurement ensemble (shown with the dashed purple line). NUWBS exhibits
+similar performance as the theoretical phase transition, which demonstrates
+that NUWBS enables near-optimal sample rates.
+shows the normalized compression ratio, i.e., the number of
+measurements compared to the total sub-band width M/|?|;
+the y-axis shows the normalized sparsity level, i.e., the fraction
+of non-zeros compared to the total sub-band width K/|?|.
+We see that NUWBS exhibits a similar success-rate profile as
+predicted by the theoretical phase transition (i.e., recovery will
+fail above and succeed below the dashed purple line), which is
+valid in the asymptotic limit for `1-norm based sparse-signal
+recovery from Gaussian measurements. This key observation
+implies that NUWBS in combination with the atom selection
+strategy discussed in Section IV-B exhibits near-optimal sample
+complexity in multi-band scenarios. We emphasize that even for
+the relatively small dimensionality of the simulated system (i.e.,
+N = 256), NUWBS is already in satisfactory agreement with
+the theoretical performance limits for sparse signal recovery.
+V. IMPLEMENTATION ASPECTS OF NON-UNIFORM
+WAVELET (BANDPASS) SAMPLING
+This section discusses hardware implementation aspects to
+highlight the practical feasibility of NUWS/NUWBS and their
+advantages over existing A2I converter solutions.
+A. Architecture Considerations of NUWBS
+Figure 12 shows the critical architecture details for NUWBS
+that uses Gabor frames or C-Morlet wavelets. The continuous-
+time input signal x(t) is first multiplied (or mixed) with a
+wavelet comb pc(t). The resulting signal is then integrated over
+a period Ts (for each wavelet) and subsampled at a rate fs.
+The rate fNyq of the input signal x = [x1, . . . , xN ]T reduces
+to a uniform sub-sampling rate fs of the measurements y =
+[y1, . . . , yM ]
+T such that NTNyq = MTs. For uniform sub-
+sampling at rate fs (i.e., we do not perform NUS of the wavelet
+samples), the compression ratio N/M is proportional to the
+sub-sampling ratio ? = fNyq/fs. If we randomly select a subset
+of samples of the sample stream (in addition to uniform sub-
+sampling), then we can further lower the (average) sampling
+10 TO APPEAR IN IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS I: REGULAR PAPERS
+ADC
+fs
+...
+x(t) ?[Ts]
+pc(t)
+[x1………………...….xN ]
+T
+y[1]
+Tacq=N.TNYQ
+y[2] y[M]
+Samples@fs
+Tacq=M.Ts
+t0
+0
+.
+5
+1
+1
+.
+5
+2
+2
+.
+5
+-
+1
+-
+0
+.
+8
+-
+0
+.
+6
+-
+0
+.
+4
+-
+0
+.
+2
+0
+.
+2
+0
+.
+4
+0
+.
+6
+0
+.
+8
+1
+0
+0
+.
+5
+1
+1
+.
+5
+2
+2
+.
+5
+-
+1
+-
+0
+.
+8
+-
+0
+.
+6
+-
+0
+.
+4
+-
+0
+.
+2
+0
+0
+.
+2
+0
+.
+4
+0
+.
+6
+0
+.
+8
+1
+0
+0
+.
+5
+1
+1
+.
+5
+2
+2
+.
+5
+-
+1
+-
+0
+.
+8
+-
+0
+.
+6
+-
+0
+.
+4
+-
+0
+.
+2
+0
+.
+2
+0
+.
+4
+0
+.
+6
+0
+.
+8
+1
+1/f
+c
+t 
+Ts
+t
+TNYQ
+Ts
+Fig. 12. Generic serial NUWBS architecture to acquire Gabor frame or wavelet
+samples. NUWBS first multiplies the input signal x(t) with a wavelet comb
+pc(t) at rate 1/Ts and integrates the result. One then takes a random set of
+wavelet samples and quantizes them using an ADC. A wavelet is defined by
+its central frequency fc and width parameter ? (the effective pulse duration).
+rate, effectively implementing CS. The sampling diversity of
+NUWBS comes from the wavelet parameters settings, namely
+the width parameter ? and the central frequency f c.
+While the architecture depicted in Figure 12 is purely serial,
+one can deploy multiple parallel branches to (i) further increase
+the diversity of the CS acquisition stage, (ii) reduce the ADC
+rate by interleaved processing, or (iii) sense multiple sub-
+bands. In addition, a multi-branch architecture can simplify the
+circuitry for each branch by fixing the center frequency, pulse
+width, delay, or pulse rate per branch. For such an architecture,
+each branch performs wavelet bandpass sampling at a given
+scale with fixed bandwidth and center frequency.
+B. Idealistic CWT Bandpass Sampling versus Realistic Serial
+Wavelet Bandpass Sampling
+This section discusses the commonalities and differences
+between idealistic CWT bandpass sampling and the serial
+wavelet bandpass sampling architecture shown in Figure 12.
+1) Analysis of CWT Bandpass Sampling: The wavelet
+coefficient Wxs,? of the signal x(t) at a scale s and time
+shift ? is defined in (6). Assume that the time-shift parameter ?
+is continuous so that CWT is a continuous function in ?. Then,
+the scalar product in (12) can be rewritten using the convolution
+operator ? as follows [54]:
+Wxs(?) = (x ? ??s)(?). (12)
+Here, ??s(u) = 1?s?
+?(?us ). We can now compute the Fourier
+transform F in the time-shift parameter ? to obtain
+F{Wxs(?)} = X(f)??s(f), (13)
+where ??s(f) is the Fourier transform of the wavelet ??s(u)
+given by
+??s(f) = F
+{
+??s(u)
+}
+=
+?
+s??(?sf) (14)
+and ?(f) is the Fourier transform of the mother wavelet ?(t).
+From (13), we see that the CWT Wxs(?) is equivalent
+to filtering the input signal X(f) with the transfer func-
+tion HCWT(f) = ??s(f). We can now analyze the result of
+bandpass sampling applied to the function Wxs(?). To this
+end, we assume a sampling rate fs well-below the Nyquist
+bandwidth of the input signal x(t) and below the bandwidth
+of the mother wavelet, i.e., fs ? BWp  fNyq.
+We have the following discrete-time output signal
+y[t = nTs] =
+n=+??
+n=??
+Wxs(nTs)?(t? nTs)
+sampled at fs = 1/Ts. The output signal y[t = nTs]
+corresponds to the bandpass sampled version of signal x(t)
+after filtering it with the transfer function HCWT(f) = ??s(f).
+In contrast to classical bandpass sampling, the initial CWT
+extracts a particular frequency band defined by the center
+frequency f c and the bandwidth BWp of the wavelets. In
+words, CWT bandpass sampling is an effective combination of
+filtering and mixing via bandpass sampling. It is important to
+realize that this scheme requires access to the continuous-time
+CWT of the signal prior to sub-sampling. In practice, however,
+we do not have access to the CWT—instead, we have to make
+use of the wavelet sampling architecture shown in Figure 12.
+Performing a CWT in hardware is infeasible and would
+require an excessively large number of branches, i.e., a dedi-
+cated branch per time shift ? or convolution result every TNyq
+second as the CWT atoms have infinite support. In contrast, the
+architecture proposed in Figure 12 performs a convolution of
+the input signal with the atom ??s(?) every Ts second (instead
+of TNyq) in a serial manner. While both approaches are similar,
+there are important differences in the filtering capabilities. To
+this end, we investigate the out-of-support ? (out-of-band
+interference) rejection performance for serial wavelet bandpass
+sampling that can be implemented (cf. Figure 12) and the
+idealistic CWT bandpass sampling approach.
+2) Analysis of Serial Wavelet Bandpass Sampling: Consider
+the case in which both the wavelet center frequency and
+bandwidth remains constant for the entire wavelet comb. This
+is the case of the Gabor frame projection reported on a single
+branch in Figure 10. We will use Figure 13, which illustrates
+the spectrum representation, to assist our discussion. The input
+signal x(t) in Figure 13(a) is first multiplied (mixed) with a
+wavelet comb pc(t) shown in Figure 13(b). The mixing result
+z(t) can be expressed as follows:
+z(t) = x(t)pc(t) = x(t)
+n=+??
+n=??
+p(t? nTs),
+where p(t) is the considered wavelet. The Fourier transform
+of the signal z(t) shown in Figure 13(c) is given by
+Z(f) = fsX(f) ? P (f)
+k=+??
+k=??
+?(f ? kfs), (15)
+which reveals that the spectrum of the mixed signal Z(f) is the
+convolution between the Fourier transform of the input signal
+X(f) (cf. Figure 13(a)) and a Dirac comb weighted by the
+Fourier transform of the wavelet P (f). According to (9) the
+Gaussian envelope of Gabor atoms or C-Morlet wavelets show
+M. PELISSIER AND C. STUDER 11
+...fs fNYQ/2
+fNYQ/20
+ (a) - X(f)
+...
+fNYQ/2
+LPF
+fNYQ/2
+-fs/2 0
+fu fi
+fs/2
+0
+fs0
+fs0
+ (b) - Pc(f)
+ (c) - Z(f)
+ (d) - Y(f)
+ (e) - Yd(f)
+ P(f)=?sY(sf) 
+Fig. 13. Illustration of the signal (useful fu and interferer fi) spectrum
+evolution along the serial wavelet bandpass sampling; The wavelet sampling
+rate is fs with constant wavelet parameters settings (?, fc). The input signal
+spectrum X(f) is convolved with weighted Dirac comb, filtered by a sinc
+low-pass filter, and decimated at rate fs.
+exponentially fast decay, which implies that the infinite sum
+can effectively be reduced to a small number of Dirac delta
+functions shown in Figure 13(b). Furthermore, we see that
+NUWBS effectively reduces noise folding by pre-filtering the
+spectrum with the pulse P (f) prior to band-pass sampling; this
+is contrast to conventional band-pass sampling in which noise
+from the entire Nyquist bandwidth folds into each sample [40].
+In order to match this approach with the bandpass CWT
+approach discussed in Section V-B1, we can see that p(t)
+corresponds to the wavelet atom at the scale s and time shift
+? = 0 with Fourier transform
+P (f) = F
+{
+1?
+s
+?
+(
+t
+s
+)}
+=
+?
+s?(sf). (16)
+By comparing (14) with (16), we see that one is the complex
+conjugate of the other. In the architecture shown in Figure 12,
+the mixing product z(t) is low-pass filtered. A typical filter
+that can be implemented corresponds to an integration over
+a rectangular window of duration Ts. The frequency-domain
+representation of this integrator corresponds to the cardinal
+sine (sinc) function. Hence, the Fourier transform Y (f) of the
+filtered and mixed signal Z(f) shown in Figure 13(d) is
+Y (f) = Z(f)Tssinc(Tsf), (17)
+where we define sinc(u) = sin(?u)/(?u). In the architecture
+shown in Figure 12, the signal y(t) is finally decimated by a
+factor ? such that ? = fNyq/fs, i.e., the entire Nyquist band
+is folded into the frequency range [?fs/2, fs/2]. Hence, the
+sample stream of the decimated signal is
+yd[nTs] = y[n??t] with ?t = 1/fNyq
+and the Fourier transform of the discrete signal yd[nTs] shown
+in Figure 13(e) is given by
+Yd[e
+2j?f ] =
+1
+?
+??1?
+r=0
+Y
+(
+e2j
+f?r
+?
+)
+. (18)
+According to this equation, the serial wavelet bandpass sam-
+pling method collapses all the sinc-filtered and Gaussian
+weighted convolution products into the band [?fs/2, fs/2]. As
+illustrated in Figure 13(e), because of the sub-sampling process,
+the output frequency location is folded to {fi/fs}fs with
+{fi/fs} the fractional part between the interference frequency
+fi and the wavelet repetition rate, equal in our case to the
+output sampling frequency fs. The equivalent filtering effect
+is given by
+HWBS(f) =
+?/2?1?
+k=??/2
+sinc(Ts(f ? kfs))P (kfs)
+=
+?/2?1?
+k=??/2
+sinc(Ts(f ? kfs))e?(??kfs)
+2
+. (19)
+The expression in (19) highlights the out-of-band rejection
+capabilities of the proposed (realistic) serial wavelet bandpass
+sampling approach in comparison with the (idealistic) CWT
+bandpass method computed in (13). We emphasize that the
+major differences between the serial wavelet bandpass sampling
+approach and the CWT baseband sampling comes from the fact
+that the equivalent filter transfer function differs from a mixture
+of sinc-shaped for the former (see Eq. 19) to a Gaussian shape
+(with infinite support) for the latter (see Eq. 14).
+3) Simulation Results: We now validate the serial wavelet
+bandpass sampling scheme and more specifically evaluate the
+out-of-band rejection capabilities. As illustrated in Figure 13(a),
+the input signal x(t) is complex-valued and builds upon a useful
+signal located at fu within the band of interest (we assume
+fs is a sub-multiple of fc) and an out-of-band interference
+signal at fi located ?fi apart from our signal of interest. The
+signal x(t) is sub-sampled by a uniform wavelet comb at rate
+fs = 1/(4?). We consider a sampling rate of fs = 1 GHz.
+The wavelet parameters, such as width parameter ? and central
+frequency f c, remain constant over the frame while the time
+shift is adjusting to the sampling position.
+As shown in (15) and illustrated in Figure 13(b), serial
+wavelet bandpass sampling is, in the frequency domain,
+equivalent to a Dirac comb whose amplitude is weighted by the
+wavelet (or pulse) envelope P (f). Since fs < BWp (because
+1/fs = Ts = 4? ) temporal overlapping among wavelets is
+avoided, several Dirac functions are included within the pulse
+envelope centered on carrier frequency fc. As illustrated in
+Figure 13(c), each convolution down-converts the useful signal
+to the origin and out-of-band interferences into baseband. Then,
+the integration over a time period Ts low-pass filters the signals
+that are close to baseband (see Figure 13(d)).
+Figure 14 summarizes the out-of-band rejection characteris-
+tics of the serial wavelet bandpass sampling approach HWBS(f)
+and provides a comparison with the idealistic CWT HCWT(f).
+This analysis quantifies the out-of-band alias rejection capability
+of NUWBS. Our analytical expressions from (19) and (14) are
+shown with continuous lines; simulation results are indicated
+with plus (+) markers, respectively, in blue for wavelet
+bandpass sampling and green for the idealistic CWT method.
+Evidently, our simulations coincide with the theoretical
+results in (19) and (14). We also observe that the filter
+characteristics of serial wavelet bandpass sampling is in-
+between the ideal equivalent Gaussian filter and the standard
+12 TO APPEAR IN IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS I: REGULAR PAPERS
+Fig. 14. Comparison between out-of-band interference rejection between the
+CWT and wavelet bandpass sampling in the case of wavelet sampling rate
+equal to four times the wavelet bandwidth (i.e., Ts = 4? = 1 ns).
+sinc filter associated to the Ts rectangular windows integration.
+As a result, we achieve a rejection of 50 dBc, which remains
+to be lower than the idealistic CWT rejection but (i) with more
+than 23 dB improvement with respect to the standard sinc filter
+and (ii) can, as shown next, be implemented in hardware.
+C. Wavelet Generator Circuit
+The key missing piece of the proposed NUWS and NUWBS
+approach is the tunable wavelet generator circuit. For RF
+applications, wavelet generation in the time domain can be
+realized by leveraging extensive prior work in the field of
+ultra-wideband (UWB) impulse technology [63]. For instance,
+in our previous work [64], we have demonstrated a circuit
+for low-power pulse generation at 8 GHz with variable pulse
+repetition rate. Here, we suggest to adapt the design in [64],
+for tunable and wideband wavelet generation. Figure 15 shows
+a corresponding circuit diagram. The core of the oscillator
+relies on a cross-coupled NMOS pair loaded by an RLC
+resonator highlighted, which is commonly used for voltage
+control oscillator (VCO) circuits. Wavelets are generated across
+the LC tank at RF frequency as soon as the bias current Ibias
+is applied to the cross-coupled pair.
+Figure 16 shows a typical chronogram of the proposed
+wavelet generation circuit. The bias current duration is ad-
+justed by a digital base-band pulse shaper to enable variable
+bandwidth. A clock signal running at rate fs is combined
+with a pseudo-random bit-sequence (PRBS) running at the low
+sub-sampling rate fs in order to switch the biasing source on
+and off. As a result a non-uniform pulse pattern is generated
+tailored to the NUWBS solution. Finally, a variable voltage
+applied to the varactor C0 in Figure 15 enables us to tune the
+center frequency to the RF sub-band of interest.
+In order to validate the wavelet generator circuitry for
+RF applications up to 8 GHz, physical measurements have
+been performed on an ASIC fabricated in a 130 nm CMOS
+technology. Figure 17 shows the power spectral density (PSD)
+of the wavelet depending on the bandwidth or central frequency.
+Measurements are provided at 28.125 Mp/s, 56.25 Mp/s, and
+L0
+R0
+C0
+gm gm
+Ibias
+Vcc
+OUTn
+Digital
+Base Band
+Wavelet 
+shaper
+OUTp
+RF
+Wavelet
+Frequency 
+control 
+signal
+PRBS@Ts
+Fig. 15. Circuit schematic of a wavelet pulse generator with variable bandwidth
+and central frequency capabilities. The circuit acts as a Voltage Control
+Oscillator (VCO) switched on according to a sub-Nyquist PRBS sequence.
+Ts
+t
+ 
+TNYQ
+Clock
+Frequency 
+control 
+signal V0
+V1
+0
+0
+1
+1
+PRBS
+Digital
+Base Band
+wavelet shaper
+t
+RF
+Wavelet 
+0
+t
+t
+t
+t
+Fig. 16. Signal chronogram involved in the control of the circuit schematic
+shown in Figure 15: The frequency control signal, the digital base band pulse
+shaper, and the clock and PRBS signals are running at sub-Nyquist rates.
+112.5 Mp/s with amplitude up to 160 mV for 50 ? impedance.
+The Tektronix TDS6124C high speed scope is set to 50 ?
+impedance to avoid any reflections with lab equipment that
+could alter the wavelet waveform. A high timing resolution
+mode with digital interpolation between the 25 ps real samples
+is selected to provide a 5 ps timing resolution. The ?10 dB
+wavelet bandwidth is tunable from 300 MHz to 1 GHz and the
+central frequency range from 7.3 GHz to 8.5 GHz. In addition
+to being flexible, the wavelet generation is power efficient, i.e.,
+only requires 60 pJ/pulse, and remains switched off in between
+two successive wavelet generation phases (i.e., this is duty-
+cycled solution). Our ASIC measurements results demonstrate
+a feasible wavelet function generator with a broad range of
+tuning capabilities in terms of central frequency, bandwidth,
+and repetition rate operating in the range of RF frequencies.
+These results pave the way for a complete NUWS/NUWBS
+integration including signal mixing and sampling stage.
+VI. CONCLUSIONS
+We have proposed a novel analog-to-information (A2I)
+conversion method for compressive-sensing (CS)-based RF
+M. PELISSIER AND C. STUDER 13
+28 Mp/s
+56 Mp/s
+112 Mp/s
+Fig. 17. ASIC measurement results: Illustration of variable wavelet rate
+generation (28/56/112 Mp/s); Zoom in on a single wavelet spectrum illustrating
+the wavelet central frequency and bandwidth tuning capabilities.
+feature extraction. Our approach, referred to as non-uniform
+wavelet sampling (NUWS), combines wavelet preprocessing
+with non-uniform sampling (NUS), which mitigates the main
+issues of existing analog-to-information (A2I) architectures,
+such as out-of-band noise, interference, aliasing, and flexibility.
+In addition, NUWS avoids circuitry that must adhere to Nyquist
+rate bandwidths. From an RF feature extraction standpoint,
+NUWS can be adapted to the signals of interest by tuning
+their duration, center frequency, and time instant per acquired
+wavelet sample.
+For multiband RF signals, we have developed a special-
+ized variant of NUWS called non-uniform wavelet bandpass
+sampling (NUWBS). For this method, we have discussed a
+wavelet selection strategy that enables adaptation to the a-
+priori knowledge of the sub-bands of interest. Using simulation
+results, we have shown that NUWBS achieves near-optimal
+sample complexity already for relatively small dimensions,
+i.e., NUWBS approaches the theoretical phase transition of `1-
+norm-based sparse signal recovery with Gaussian measurement
+ensembles. We have furthermore analyzed the rejection rate
+of NUWBS against out-of-band interferers. To demonstrate
+the practical feasibility of our A2I feature extractor, we have
+proposed a suitable wavelet generation circuit that enables the
+generation of tunable wavelet pulses in the GHz regime.
+The proposed NUWS and NUWBS methods are promising
+strategies for A2I converter architectures that overcome the
+traditional limitations of existing solutions in power and cost
+limited applications. Our solutions find potential broad use
+in a variety of RF receivers targeting spectrum awareness or
+assisting conventional RF chains with tuning parameters. Both
+of these advantages render our solutions useful for the Internet
+of Things, for which power and cost efficiency and RF feature
+extraction are of utmost importance.
+There are many avenues for future work. The design of a
+complete NUWS/NUWBS-based RF feature extractor ASIC is
+ongoing work. A theoretical analysis of the recovery properties
+for NUWS/ NUWBS is a challenging open research problem.
+Finally, a detailed exploration of other applications that may
+benefit of NUWS/NUWBS and are in need of low power and
+low cost feature extraction is left for future work.
+ACKNOWLEDGMENTS
+The work of M. Pelissier was supported by the Enhanced
+Eurotalents fellowships program & Carnot Institut. The work
+of C. Studer was supported by Xilinx, Inc. and by the US Na-
+tional Science Foundation under grants CCF-1535897, ECCS-
+1408006, and CAREER CCF-1652065. The authors thank
+O. Castañeda for his help with the manuscript preparation.
+REFERENCES
+[1] C. E. Shannon, “Communication in the presence of noise,” Proc. IRE,
+vol. 37, no. 1, pp. 10–21, Jan. 1949.
+[2] H. J. Landau, “Sampling, data transmission, and the Nyquist rate,” Proc.
+IEEE, vol. 55, no. 10, pp. 1701–1706, Oct. 1967.
+[3] E. J. Candès, J. Romberg, and T. Tao, “Robust uncertainty principles:
+exact signal reconstruction from highly incomplete frequency information,”
+IEEE Trans. Inf. Theory, vol. 52, no. 2, pp. 489–509, Feb. 2006.
+[4] D. L. Donoho, “Compressed sensing,” IEEE Trans. Inf. Theory, vol. 52,
+no. 4, pp. 1289–1306, Apr. 2006.
+[5] E. J. Candès and M. B. Wakin, “An introduction to compressive sampling,”
+IEEE Signal Process. Mag., vol. 25, no. 2, pp. 21–30, Mar. 2008.
+[6] B. Murmann, “ADC performance survey 1997–2016,” Jul. 2016.
+[Online]. Available: http://web.stanford.edu/~murmann/adcsurvey.html
+[7] S. K. Sharma, E. Lagunas, S. Chatzinotas, and B. Ottersten, “Application
+of compressive sensing in cognitive radio communications: a survey,”
+IEEE Commun. Surveys Tutorials, vol. 18, no. 3, pp. 1838–1860, Aug.
+2016.
+[8] H. Sun, A. Nallanathan, C.-X. Wang, and Y. Chen, “Wideband spectrum
+sensing for cognitive radio networks: a survey,” IEEE Wireless Commun.,
+vol. 20, no. 2, pp. 74–81, Apr. 2013.
+[9] N. Baccour, A. Koubâa, L. Mottola, M. A. Zúñiga, H. Youssef, C. A.
+Boano, and M. Alves, “Radio link quality estimation in wireless sensor
+networks: a survey,” ACM Trans. Sensor Netw. (TOSN), vol. 8, no. 4,
+pp. 34:1–34:33, Sep. 2012.
+[10] A. A. Khan, M. H. Rehmani, and M. Reisslein, “Cognitive radio for
+smart grids: survey of architectures, spectrum sensing mechanisms, and
+networking protocols,” IEEE Commun. Surveys Tutorials, vol. 18, no. 1,
+pp. 860–898, First quarter 2015.
+[11] R. T. Yazicigil, T. Haque, M. R. Whalen, J. Yuan, J. Wright, and
+P. R. Kinget, “19.4 A 2.7-to-3.7 GHz rapid interferer detector exploiting
+compressed sampling with a quadrature analog-to-information converter,”
+in Dig. Tech. Papers IEEE Int. Solid-State Circuits Conf. (ISSCC), Feb.
+2015, pp. 348–350.
+[12] D. Adams, Y. Eldar, and B. Murmann, “A mixer frontend for a four-
+channel modulated wideband converter with 62 dB blocker rejection,” in
+Proc. IEEE Radio Freq. Integr. Circuits Symp. (RFIC), May 2016, pp.
+286–289.
+[13] K. Hayashi, M. Nagahara, and T. Tanaka, “A user’s guide to compressed
+sensing for communications systems,” IEICE Trans. Commun., vol. E96-
+B, no. 3, pp. 685–712, Mar. 2013.
+[14] E. H. Armstrong, “A new system of short wave amplification,” Proc.
+Inst. of Radio Eng., vol. 9, no. 1, pp. 3–11, Feb. 1921.
+[15] M. Wakin, S. Becker, E. Nakamura, M. Grant, E. Sovero, D. Ching, J. Yoo,
+J. Romberg, A. Emami-Neyestanak, and E. Candès, “A nonuniform
+sampler for wideband spectrally-sparse environments,” IEEE J. Emerging
+Sel. Topics Circuits Syst., vol. 2, no. 3, pp. 516–529, Sep. 2012.
+[16] D. E. Bellasi, L. Bettini, C. Benkeser, T. Burger, Q. Huang, and C. Studer,
+“VLSI design of a monolithic compressive-sensing wideband analog-to-
+information converter,” IEEE J. Emerging Sel. Topics Circuits Syst.,
+vol. 3, no. 4, pp. 552–565, Dec. 2013.
+[17] R. T. Yazicigil, T. Haque, M. R. Whalen, J. Yuan, J. Wright, and
+P. R. Kinget, “Wideband rapid interferer detector exploiting compressed
+sampling with a quadrature analog-to-information converter,” IEEE J.
+Solid-State Circuits, vol. 50, no. 12, pp. 3047–3064, Dec. 2015.
+[18] X. Chen, Z. Yu, S. Hoyos, B. M. Sadler, and J. Silva-Martinez, “A sub-
+Nyquist rate sampling receiver exploiting compressive sensing,” IEEE
+Trans. Circuits Syst. I, vol. 58, no. 3, pp. 507–520, Mar. 2011.
+14 TO APPEAR IN IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS I: REGULAR PAPERS
+[19] M. A. Davenport, J. N. Laska, J. R. Treichler, and R. G. Baraniuk, “The
+pros and cons of compressive sensing for wideband signal acquisition:
+noise folding versus dynamic range,” IEEE Trans. Signal Process., vol. 60,
+no. 9, pp. 4628–4642, Sep. 2012.
+[20] E. Arias-Castro and Y. C. Eldar, “Noise folding in compressed sensing,”
+IEEE Signal Process. Lett., vol. 18, no. 8, pp. 478–481, Aug. 2011.
+[21] P. Maechler, C. Studer, D. E. Bellasi, A. Maleki, A. Burg, N. Felber,
+H. Kaeslin, and R. G. Baraniuk, “VLSI design of approximate message
+passing for signal restoration and compressive sensing,” IEEE J. Emerging
+Sel. Topics Circuits Syst., vol. 2, no. 3, pp. 579–590, Sep. 2012.
+[22] M. Verhelst and A. Bahai, “Where analog meets digital: analog-to-
+information conversion and beyond,” IEEE Solid-State Circuits Mag.,
+vol. 7, no. 3, pp. 67–80, Summer 2015.
+[23] J. Yoo, C. Turnes, E. B. Nakamura, C. K. Le, S. Becker, E. A. Sovero,
+M. B. Wakin, M. C. Grant, J. Romberg, A. Emami-Neyestanak, and
+E. Candès, “A compressed sensing parameter extraction platform for
+radar pulse signal acquisition,” IEEE J. Emerging Sel. Topics Circuits
+Syst., vol. 2, no. 3, pp. 626–638, Sep. 2012.
+[24] Z. Tian, Y. Tafesse, and B. M. Sadler, “Cyclic feature detection with
+sub-Nyquist sampling for wideband spectrum sensing,” IEEE J. Sel.
+Topics Signal Process., vol. 6, no. 1, pp. 58–69, Feb. 2012.
+[25] M. Magno, S. Marinkovic, B. Srbinovski, and E. Popovici, “Wake-up
+radio receiver based power minimization techniques for wireless sensor
+networks: a review,” Springer Microelectron. J., vol. 45, no. 12, pp.
+1627–1633, Dec. 2014.
+[26] R. Venkataramani and Y. Bresler, “Perfect reconstruction formulas
+and bounds on aliasing error in sub-Nyquist nonuniform sampling of
+multiband signals,” IEEE Trans. Inf. Theory, vol. 46, no. 6, pp. 2173–
+2183, Sep. 2000.
+[27] ——, “Optimal sub-Nyquist nonuniform sampling and reconstruction
+for multiband signals,” IEEE Trans. Signal Process., vol. 49, no. 10, pp.
+2301–2313, Aug. 2001.
+[28] A. A. Lazar and L. T. Tóth, “Perfect recovery and sensitivity analysis of
+time encoded bandlimited signals,” IEEE Trans. Circuits Syst. I, vol. 51,
+no. 10, pp. 2060–2073, Oct. 2004.
+[29] M. Mishali and Y. C. Eldar, “Blind multiband signal reconstruction:
+compressed sensing for analog signals,” IEEE Trans. Signal Process.,
+vol. 57, no. 3, pp. 993–1009, Mar. 2009.
+[30] M. Fleyer, A. Linden, M. Horowitz, and A. Rosenthal, “Multirate
+synchronous sampling of sparse multiband signals,” IEEE Trans. Signal
+Process., vol. 58, no. 3, pp. 1144–1156, Mar. 2010.
+[31] L. Bai and S. Roy, “Compressive spectrum sensing using a bandpass
+sampling architecture,” IEEE J. Emerging Sel. Topics Circuits Syst.,
+vol. 2, no. 3, pp. 433–442, Sep. 2012.
+[32] N. Tzou, D. Bhatta, B. J. Muldrey Jr., T. Moon, X. Wang, H. Choi, and
+A. Chatterjee, “Low cost sparse multiband signal characterization using
+asynchronous multi-rate sampling: algorithms and hardware,” Springer J.
+Electron. Test., vol. 31, no. 1, pp. 85–98, Feb. 2015.
+[33] J. A. Tropp, J. N. Laska, M. F. Duarte, J. K. Romberg, and R. G.
+Baraniuk, “Beyond Nyquist: Efficient sampling of sparse bandlimited
+signals,” IEEE Trans. Inf. Theory, vol. 56, no. 1, pp. 520–544, Jan. 2010.
+[34] F. Pareschi, P. Albertini, G. Frattini, M. Mangia, R. Rovatti, and G. Setti,
+“Hardware-algorithms co-design and implementation of an analog-to-
+information converter for biosignals based on compressed sensing,” IEEE
+Trans. Biomed. Circuits Syst., vol. 10, no. 1, pp. 149–162, Feb. 2016.
+[35] M. Mishali and Y. C. Eldar, “From theory to practice: sub-Nyquist
+sampling of sparse wideband analog signals,” IEEE J. Sel. Topics Signal
+Process., vol. 4, no. 2, pp. 375–391, Apr. 2010.
+[36] ——, “Sub-Nyquist sampling,” IEEE Signal Process. Mag., vol. 28, no. 6,
+pp. 98–124, Nov. 2011.
+[37] M. Mishali, Y. C. Eldar, and A. J. Elron, “Xampling: Signal acquisition
+and processing in union of subspaces,” IEEE Trans. Signal Process.,
+vol. 59, no. 10, pp. 4719–4734, Oct. 2011.
+[38] S. Foucart and H. Rauhut, A mathematical introduction to compressive
+sensing, 1st ed. Birkhäuser Basel, 2013.
+[39] A. Maleki and D. L. Donoho, “Optimally tuned iterative reconstruction
+algorithms for compressed sensing,” IEEE J. Sel. Topics Signal Process.,
+vol. 4, no. 2, pp. 330–341, Apr. 2010.
+[40] R. G. Vaughan, N. L. Scott, and D. R. White, “The theory of bandpass
+sampling,” IEEE Trans. Signal Process., vol. 39, no. 9, pp. 1973–1984,
+Sep. 1991.
+[41] R. Maleh, G. L. Fudge, F. A. Boyle, and P. E. Pace, “Analog-to-
+information and the Nyquist folding receiver,” IEEE J. Emerging Sel.
+Topics Circuits Syst., vol. 2, no. 3, pp. 564–578, Sep. 2012.
+[42] H. Rauhut, “Compressive sensing and structured random matrices,”
+Theoretical foundations and numerical methods for sparse recovery,
+vol. 9, pp. 1–92, 2010.
+[43] M. L. Malloy and R. D. Nowak, “Near-optimal adaptive compressed
+sensing,” IEEE Trans. Inf. Theory, vol. 60, no. 7, pp. 4001–4012, Jul
+2014.
+[44] J. Morlet, G. Arens, E. Fourgeau, and D. Glard, “Wave propagation and
+sampling theory-part I: complex signal and scattering in multilayered
+media,” Geophysics, vol. 47, no. 2, pp. 203–221, Feb. 1982.
+[45] G. Wunder, P. Jung, M. Kasparick, T. Wild, F. Schaich, Y. Chen, S. T.
+Brink, I. Gaspar, N. Michailow, A. Festag, L. Mendes, N. Cassiau,
+D. Ktenas, M. Dryjanski, S. Pietrzyk, B. Eged, P. Vago, and F. Wiedmann,
+“5GNOW: non-orthogonal, asynchronous waveforms for future mobile
+applications,” IEEE Commun. Mag., vol. 52, no. 2, pp. 97–105, Feb.
+2014.
+[46] M. K. Lakshmanan and H. Nikookar, “A review of wavelets for digital
+wireless communication,” Springer Wireless Personal Commun., vol. 37,
+no. 3, pp. 387–420, May 2006.
+[47] H. Nikookar, Wavelet radio: adaptive and reconfigurable wireless systems
+based on wavelets, 1st ed. Cambridge University Press, 2013.
+[48] E. Matusiak and Y. C. Eldar, “Sub-Nyquist sampling of short pulses,”
+IEEE Trans. Signal Process., vol. 60, no. 3, pp. 1134–1148, Mar. 2012.
+[49] D. D. Ariananda, M. K. Lakshmanan, and H. Nikookar, “A study on
+application of wavelets and filter banks for cognitive radio spectrum
+estimation,” in Proc. Eur. Wireless Technol. Conf. (EuWIT), Sep. 2009,
+pp. 218–221.
+[50] M. Boliek, C. Christopoulos, and E. Majani, “15444-1: Information
+technology – JPEG 2000 image coding system – Part 1: core coding
+system,” ISO/IEC JTC1/SC29 WG1, Tech. Rep., 2001.
+[51] M. F. Duarte and Y. C. Eldar, “Structured compressed sensing: from
+theory to applications,” IEEE Trans. Signal Process., vol. 59, no. 9, pp.
+4053–4085, Sep. 2011.
+[52] M. Soma, W. Haileselassie, and J. Yan, “Characterization of radio
+frequency (RF) signals using wavelet-based parameter extraction,” US
+Patent 7,340,381, Mar. 2008.
+[53] C. A. DeVries and R. D. Mason, “Subsampling architecture for low power
+receivers,” IEEE Trans. Circuits Syst. II, vol. 55, no. 4, pp. 304–308,
+Apr. 2008.
+[54] S. Mallat, A wavelet tour of signal processing, 1st ed. Academic press,
+1999.
+[55] I. Daubechies, Ten lectures on wavelets. SIAM, 1992.
+[56] J. J. Benedetto, C. Heil, and D. F. Walnut, “Gabor systems and the
+Balian-Low theorem,” in Gabor analysis and algorithms. Birkhäuser
+Basel, 1998, pp. 85–122.
+[57] O. Christensen, “Pairs of dual Gabor frame generators with compact
+support and desired frequency localization,” Appl. Comput. Harmon. A.,
+vol. 20, no. 3, pp. 403–410, May 2006.
+[58] E. Candès and J. Romberg, “Sparsity and incoherence in compressive
+sampling,” Inverse Prob., vol. 23, no. 3, pp. 969–985, Apr. 2007.
+[59] F. Krahmer and R. Ward, “Stable and robust sampling strategies for
+compressive imaging,” IEEE Trans. Image Process., vol. 23, no. 2, pp.
+612–622, Feb. 2014.
+[60] J. A. Tropp and A. C. Gilbert, “Signal recovery from random measure-
+ments via orthogonal matching pursuit,” IEEE Trans. Inf. Theory, vol. 53,
+no. 12, pp. 4655–4666, Dec. 2007.
+[61] C. Studer, P. Kuppinger, G. Pope, and H. Bolcskei, “Recovery of sparsely
+corrupted signals,” IEEE Trans. Inf. Theory, vol. 58, no. 5, pp. 3115–3130,
+May 2012.
+[62] D. L. Donoho, A. Maleki, and A. Montanari, “Message-passing algo-
+rithms for compressed sensing,” Proc. Natl. Academy Sciences, vol. 106,
+no. 45, pp. 18 914–18 919, Oct. 2009.
+[63] A. Apsel, X. Wang, and R. Dokania, Design of ultra-low power impulse
+radios. Springer Science & Business Media, 2013, vol. 124.
+[64] M. Pelissier, J. Jantunen, B. Gomez, J. Arponen, G. Masson, S. Dia,
+J. Varteva, and M. Gary, “A 112 Mb/s full duplex remotely-powered
+impulse-UWB RFID transceiver for wireless NV-memory applications,”
+IEEE J. Solid-State Circuits, vol. 46, no. 4, pp. 916–927, Mar. 2011.

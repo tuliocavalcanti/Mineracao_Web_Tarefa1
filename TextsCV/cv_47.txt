@@ -1,0 +1,1917 @@
+Article
+Extrinsic Parameter Calibration for Line Scanning
+Cameras on Ground Vehicles
+Alexander Wendel 1* and James Underwood 1
+Australian Centre for Field Robotics, The Rose Street Building J04, The University of Sydney, NSW 2006
+Australia; a.wendel@acfr.usyd.edu.au (A.W.); j.underwood@acfr.usyd.edu.au (J.U.)
+* Correspondence: a.wendel@acfr.usyd.edu.au
+Version September 5, 2017 submitted to Sensors
+Abstract: Line scanning cameras, which capture only a single line of pixels, have been increasingly
+used in ground based mobile or robotic platforms. In applications where it is advantageous to directly
+georeference the camera data to world coordinates, an accurate estimate of the camera’s 6D pose
+is required. This paper focuses on the common case where a mobile platform is equipped with a
+rigidly mounted line scanning camera, whose pose is unknown, and a navigation system providing
+vehicle body pose estimates. We propose a novel method that estimates the camera’s pose relative to
+the navigation system. The approach has several advantages over previous methods, and involves
+imaging a calibration pattern with distinctly identifiable points, triangulating these points from
+camera and navigation system data and reprojecting them in order to compute a likelihood, which
+is maximised to estimate the 6D camera pose. Additionally, a Markov Chain Monte Carlo (MCMC)
+algorithm is used to estimate the uncertainty of the offset. Tested on two different platforms, the
+method was able to estimate the pose to within 0.06 m / 1.05?and 0.18 m / 2.39?. We also propose
+several approaches to displaying and interpreting the 6D results in a human readable way.
+Keywords: line scan cameras; extrinsic calibration; camera pose; navigation system; GPS; ground
+vehicles; georeferencing
+1. Introduction
+Line scanning (also 1D or linear) cameras, which produce a single line of pixels for each exposure,
+have been used widely in areas such as remote sensing [1,2] and industrial inspection [3–5]. While 2D
+frame cameras offer the benefit of imaging a larger scene with each exposure, linescan cameras allow
+capturing of images at higher frame rates or spatial resolution [6]. One specific but common example
+is hyperspectral line scanning cameras, which provide both high spatial and spectral resolution. Many
+applications require accurate and direct determination of the real world coordinates of line scan image
+data, also known as georeferencing or mapping. This requires precise calibration of the sensor’s
+intrinsic (e.g. focal length and principal point) and extrinsic parameters (i.e. camera pose with respect
+to the vehicle body frame). In the remote sensing literature, determination of extrinsic parameters is
+known as lever arm (translation) and boresight (orientation) alignment. More recently line scanning
+cameras have also been studied for low altitude unmanned aerial vehicle (UAV) and mobile ground
+based applications [7–10], but there are fewer studies addressing the extrinsic calibration requirements
+that closer proximity to the scene implies. Requirements include obtaining a 6 degree of freedom (DOF)
+extrinsic parameter solution including translation, which has a greater influence on mapping when
+proximal; avoiding ground control points (GCPs), which need to be more accurately geolocated when
+viewed from nearby; and a need for smaller survey areas for calibration, because it is more difficult to
+obtain data over large areas with mobile ground vehicles. This paper addresses these requirements by
+providing a novel method to estimate line scanning camera pose with respect to the platform body
+frame, where the location and orientation of the platform is itself provided in world coordinates from
+a navigation system. The method uses the data from the navigation and line scanning camera only,
+avoiding the need for auxiliary sensors.
+ar
+X
+iv
+:1
+70
+9.
+00
+84
+6v
+1 
+ [
+cs
+.R
+O
+] 
+ 4
+ S
+ep
+ 2
+01
+7
+2 of 27
+Extrinsic calibration for 2D frame cameras has been studied extensively due to their ubiquitous
+use across many different fields, and established solutions exist [11–14]. Calibration of 1D cameras
+has not received as much attention. Methods can be loosely grouped into two categories: scan-based
+calibration and line-based calibration [6]. Scan-based calibration requires an accurate rig with a linear
+actuator that moves the camera orthogonally to the line scan at a constant speed over a calibration
+pattern, such as a checker board [15,16]. This method is suitable for industrial inspection applications
+in a controlled laboratory or factory setting, where a linear actuator, manipulator arm or other rig is
+capable of moving the sensor through a precisely specified trajectory. Line-based calibration methods,
+on the other hand, allow calibration from a single line scan of a 3D target with a carefully designed
+pattern of lines [17,18]. Line-based approaches require that the dimensions of the calibration pattern
+are known precisely, and that the whole pattern has been imaged in one exposure. Recently, a variation
+of this method using multiple line scans of a planar calibration pattern has been proposed [19], and
+the use of an additional auxiliary frame camera has also been explored [6,20]. All the aforementioned
+approaches are suitable for well controlled environments: for scan-based calibration the movement of
+the sensor needs to be accurately controlled, while for line-based methods, the position of the pattern
+with respect to the sensor is critical. However, in a mobile ground based field platform, where the
+camera is rigidly mounted in a particular position to the platform, it is difficult to meet either of those
+requirements.
+In previous methods, extrinsic parameters are usually determined with respect to the calibration
+pattern or an auxiliary frame camera. Therefore to determine the camera to navigation system
+transform either requires accurate knowledge of a pattern or points in world coordinates or an
+additional step such as "hand-eye" calibration [21]. Hand-eye calibration involves determining the
+transformation from a camera to an end effector (a robotic hand for instance), where these are rigidly
+linked, and is a thoroughly covered topic in the robotics literature. The problem is generally solved
+by imaging a calibration pattern from many different locations, where the transformations between
+the different end effector positions and camera to calibration pattern transformations are known
+using standard frame camera calibration techniques. Comparisons can be made with the problem in
+this paper, where the navigation system positions (and therefore any transformations between them)
+are known, and camera to calibration pattern transformations can be determined using any of the
+previously discussed methods.
+As remote sensing most commonly involves imaging from an aerial or satellite platform,
+translation (lever arm) offsets have a smaller effect on imaging accuracy, and can be measured manually
+[22,23]. Accurately geolocated GCPs are commonly used to determine boresight alignment [24], which
+can also be adopted for ground based applications [25]. Efforts have been made to avoid the use of
+GCPs, by detecting points of interest in separate scans of the same area and determining their 3D
+position using a known digital elevation model (DEM) [22]. Similarly, non-surveyed tie-points between
+overlapping acquisition runs have been used in combination with bundle adjustment to determine
+boresight parameters [26]. The use of GCPs has also been combined with DEMs to improve accuracy
+and allow self-calibration [27]. Frame cameras have been used to aid in determination of boresight
+misalignments [28], and additionally in combination with a DEM [29]. Frame camera images have
+also been used to improve the geometric characteristics of processed hyperspectral linescan images
+from a UAV [30].
+This paper provides a method for the determination of the relative 6 DOF pose of a rigidly
+mounted line scanning camera with respect to a navigation system on a ground based mobile platform.
+With this approach many of the previously outlined requirements and limitations are mitigated:
+• The dimensions of the calibration pattern do not need to be known, and so it does not need to be
+printed to any particular accuracy, nor even measured.
+• GCPs do not need to be surveyed.
+• Auxiliary sensors, such as 2D frame cameras, are not required to aid the calibration.
+• A single, compact calibration pattern can be used rather than widely distributed GCPs.
+3 of 27
+• Translational (lever arm) offsets are determined in addition to rotations (boresight), due to their
+increased significance when at close proximity to the scene.
+The remainder of the paper is organised as follows. In Section 2 the theory of the proposed method
+is outlined in detail. Then Section 3 provides practical implementation details and the experimental
+method. Experimental results using the Ladybird and Shrimp robotic platforms are produced and
+discussed in Sections 4 and 5.
+2. Overview of approach
+In this section, the theoretical approach used for estimating the camera pose with respect to
+the platform body is outlined in detail. Initially, an overview of the line scanning camera model is
+provided, which is an adaptation of the widely used pinhole model. This allows defining lines or rays
+in 3D space that intersect both the camera centre and a pixel on the sensor. When combined with the
+Cartesian coordinate transformations between camera, body and world frames, rays can be projected
+onto a surface, and conversely a world 3D point can be reprojected to a point on the 2D sensor. It is
+desirable to minimise any errors in the camera pose, as they directly affect mapping accuracy.
+We propose a method that estimates the relative camera pose using image and navigation system
+data. The data is obtained by moving the platform in order to observe a calibration pattern with
+multiple point targets from different perspectives. Starting from an initial hand measured camera pose,
+image pixel locations of the observed pattern points and corresponding platform poses are combined,
+and all of the resulting rays are used to triangulate the pattern point locations in world coordinates.
+These point estimates are then reprojected to the sensor frame for each observation. The reprojection
+error is calculated as the distance between each observed and reprojected pixel. The reprojection
+error uncertainty is calculated by propagating the input uncertainties through each calculation as
+variance-covariance matrices (henceforth referred to as covariance matrices for brevity). Assuming a
+normal distribution of the reprojection error over input parameters, the likelihood of the data given a
+relative camera pose hypothesis can be estimated. By maximising the likelihood, the six relative camera
+pose parameters can be optimised. Following this, a random sampling based procedure is provided to
+estimate the uncertainties of the optimal camera pose using Markov Chain Monte Carlo (MCMC).
+2.1. Line scanning camera model
+Using the pinhole camera model with homogeneous coordinates, a point pw = [x, y, z, 1]T in
+world coordinates is projected to the camera sensor at [u, v, 1]T with the following equation [31]:
+??? uv
+1
+??? s = P
+?????
+x
+y
+z
+1
+????? , (1)
+where s is a scale factor and P can be broken down into,
+P = KR?1c [I3×3| ? pwc ]. (2)
+Rc is the rotation matrix. Joined horizontally are I3×3 and pwc , which are the identity matrix and
+the world camera position (i.e. the camera centre [rwc,x, rwc,y, rwc,z]T) respectively. K is the intrinsic camera
+matrix:
+K =
+??? f 0 u00 f v0
+0 0 1
+??? , (3)
+where f , u0 and v0 are the focal length and principal points respectively (we neglect skew because
+there is only one spatial axis). For a line scanning camera, we assume that v0 = 0 and so it follows that
+4 of 27
+for a 3D world point to be visible in the 1D pixel array, it must be located near the plane that intersects
+the scan line on the sensor (i.e. where v = 0) and the camera centre (focal point). How closely a point
+must be located to that plane depends on the instantaneous field of view (IFOV) of and distance from
+the sensor. The IFOV is the angle over which each pixel is sensitive to radiation.
+Each pixel point [u, v, 1]T maps to a ray or line in 3D space, which connects the sensor pixel,
+camera centre and object being viewed. While that ray may be defined by any two points that lie on it,
+the following are mathematically convenient to obtain: the camera centre pwc and pws = P+[u, v, 1]T ,
+where P+ is the pseudo-inverse of P [31].
+2.2. Rotation and transform conventions
+In this paper, we use both Euler and axis-angle conventions to represent rotations compactly. The
+navigation system on the platforms used in this work provide platform pose estimates using the Euler
+zyx intrinsic convention (also known as Tait-Bryan or yaw-pitch-roll). A roll, pitch and yaw (?x, ?y
+and ?z) Euler rotation vector corresponds to the following rotation matrix [32]:
+R = RzRyRx, (4)
+where
+Rx =
+??? 1 0 00 cos(?x) ?sin(?x)
+0 sin(?x) cos(?x)
+??? (5)
+Ry =
+??? cos(?y) 0 sin(?y)0 1 0
+?sin(?y) 0 cos(?y)
+??? (6)
+Rz =
+??? cos(?z) ?sin(?z) 0sin(?z) cos(?z) 0
+0 0 1
+??? (7)
+While Euler angle representations are commonly used in robotics applications, they present the
+following ambiguities. Some different combinations of [?x ?y and ?z can represent the same rotation
+[33]. Similarly, a small freedom of rotation about a non-orthogonal axis can result in a large correlated
+degree of freedom spread over two Euler angles, which is difficult to interpret when estimating
+parameter uncertainty. For these reasons, while navigation and hand measured pose data is provided
+as Euler angles, we favour the axis-angle representation for all internal calculations and results. An
+axis-angle rotation is given as a unit length vector e and a rotation ? around it:
+(?, e) =
+????,
+???exey
+ez
+???
+??? (8)
+Since rotations only have three degrees of freedom, an axis-angle rotation may be expressed as a
+length three vector:
+?e =
+????ex?ey
+?ez
+??? (9)
+Axis-angle rotations may be converted to rotation matrices as follows [32]:
+R =
+[
+I3x3 + sin(?)Sn + (1? cos(?))S2n
+]
+, (10)
+5 of 27
+where
+Sn =
+??? 0 ?ez eyez 0 ?ex
+?ey ex 0
+??? . (11)
+A complete 6 DOF pose transform can be compactly represented with the three translation and
+three orientation parameters:
+t = [rx, ry, rz, ?x, ?y, ?z]T , (12)
+or
+t = [rx, ry, rz, ?ex, ?ey, ?ez]T , (13)
+depending on whether Euler or axis-angle conventions are used. The pose transforms of
+importance in this paper are the world to platform body transform twb , platform body to camera
+transform tbc , and, combining these, the world to camera transform twc (see Fig. 1). Note the sub- and
+superscripts: e.g. tbc denotes the translation and rotation of the camera axes with respect to the platform
+body.
+By splitting the world pose of the camera twc into a combination of the body pose twb and the
+camera relative pose tbc , P from Eq. 2 can be shown as a function of the platform body translation and
+rotation Rwb and p
+w
+b , and relative body to camera translation and rotation R
+b
+c and pbc :
+P = K
+(
+Rbc
+?1
+[I3×3| ? pbc ]
+) (
+Rwb
+?1[I3×3| ? pwb ]
+)
+. (14)
+In our case, Rwb and p
+w
+b are provided by the navigation system, and R
+b
+c and pbc are the relative
+camera pose parameters we would like to estimate.
+twc
+twb
+tbc
+World Frame
+Camera/Sensor Frame
+Body Frame
+Figure 1. Summary of transforms referenced in this paper.
+2.3. Estimation of calibration pattern points
+The proposed method starts with repeated imaging of points that can be uniquely identified.
+The use of a regular calibration pattern ensures points can be easily distinguished and is therefore
+recommended. The location of each pattern point pwk for k ? {0, 1, 2...M} is estimated from all of its
+6 of 27
+Estimate target 
+pattern point
+Project ray 
+from pixel observation
+Reproject ray from
+estimated point
+Compute reprojection 
+error
+1
+2
+3
+4
+Figure 2. Overview of the approach. First rays are are determined from pixel observations and camera
+poses. Target pattern points are then estimated from all rays, and subsequently reprojected to the
+camera sensor. A reprojection error can then be computed by calculating the difference between the
+reprojected point and the pixel observation.
+observation rays i ? {0, 1, 2...N}. There are M points on the calibration pattern and the whole pattern
+is viewed N times. For each point, we calculate the nearest points between all pairs of observation
+rays (i, j) and apply a weighted average. Nearest points between rays are calculated as follows [34]:
+pwk,ij =p
+w
+c,k,i+
+(pwc,k,j ? p
+w
+c,k,i) · nk,ij
+(pws,k,i ? p
+w
+c,k,i) · nk,ij
+(pws,k,i ? p
+w
+c,k,i),
+(15)
+where
+nk,ij =(p
+w
+s,k,j ? p
+w
+c,k,j)×
+[(pws,k,i ? p
+w
+c,k,i)× (p
+w
+s,k,j ? p
+w
+c,k,j)].
+(16)
+We could estimate pwk as the unweighted mean of all p
+w
+k,ij for a given pattern point k, but some
+estimates are more certain than others given the conditions of how they were measured. A more
+accurate estimate is obtained using a weighted average according to the uncertainty. The uncertainty
+of each point pwk,ij can be obtained by computing its Jacobian Jpwk,ij with respect to all input values.
+Also required are the uncertainties of the pixel and platform pose observations for each ray, expressed
+as covariance matrices, Quv,k,i, Qtwb,k,i , Quv,k,j and Qtwb,k,j , as well as intrinsic and extrinsic parameter
+covariances, Qint and Qtbc . Although line scan cameras have only one pixel coordinate (u), there is
+also uncertainty in the second coordinate v, because a point elicits a pixel response if it is located
+within the camera’s IFOV, not necessarily directly on the scan line. Qint and Qtbc contain variances and
+covariances of the intrinsic camera parameters and the relative camera pose respectively. All the input
+covariance matrices are combined into one matrix Qk,ij:
+7 of 27
+Qk,ij =
+??????????
+Quv,k,i 0 0 0 0 0
+0 Qtwb,k,i 0 0 0 0
+0 0 Quv,k,j 0 0 0
+0 0 0 Qtwb,k,j 0 0
+0 0 0 0 Qint 0
+0 0 0 0 0 Qtbc
+??????????
+. (17)
+No correlation between the navigation solutions of the two rays is assumed, which is reasonable
+if the two observations are sufficiently separated in time. Qk,ij and Jpwk,ij can now be used to compute
+the uncertainty of pwk,ij (Eq. 15) as covariance matrix ?pwk,ij :
+?pwk,ij
+= Jpwk,ij Qk,ijJ
+T
+pwk,ij
+. (18)
+Because we wish to estimate both tbc and Qtbc with respect to all error sources other than the camera
+pose, we set all elements of the 6× 6 covariance matrix Qtbc to zero temporarily [35,36]. Each point p
+w
+k
+on the calibration pattern can then be estimated by computing an average that is weighted according
+to the covariances [37]:
+Wk,ij = ?
+?1
+pwk,ij
+(19)
+?p?wk
+=
+(
+N
+?
+i
+Wk,ij
+)?1
+(20)
+p?wk = ?p?wk
+(
+N
+?
+i
+N
+?
+j
+Wk,ijp
+w
+k,ij
+)
+. (21)
+This ensures that the contribution of each closest point for each ray pair (pwk,ij) is weighted according to
+its certainty, taking into account navigation system uncertainty or challenging viewpoint geometry
+(such as a small angle between the two rays).
+2.4. Calculation of Reprojection Error and Likelihood
+For each observation i, p?wk can be reprojected according to Eq. 1, given a t
+b
+c and corresponding
+navigation system solution twb,k,i. The reprojection error is calculated as the Euclidean distance between
+the reprojected and observed pixel locations:
+ek,i =
+?
+(uk,i ? u?k,i)2 + (vk,i ? v?k,i)2. (22)
+The reprojection is two dimensional, because non-optimal tbc can result in reprojected pixels that
+deviate from the one dimensional scan line (v?k,i 6= 0), but vk,i is assumed to be 0. The variance of the
+reprojection error can also be computed using the input covariance matrix and Jacobian jek,i :
+?2ek,i = j
+T
+ek,i Qk,ijek,i , (23)
+where
+Qk,i =
+????????
+?p?wk,l
+0 0 0 0
+0 Quv,k,i 0 0 0
+0 0 Qtwb,k,i 0 0
+0 0 0 Qint 0
+0 0 0 0 Qtbc
+???????? . (24)
+8 of 27
+The Jacobian jek,i is lower case because it is only one dimensional in this instance, since ek,i is a
+scalar value. As in Eq. 17, we again set all elements of Qtbc to zero. The log likelihood of a transform t
+b
+c
+given the observations can then be estimated as,
+log? = ?
+M
+?
+k
+N
+?
+i
+e2k,i
+2?2ek,i
+(25)
+2.5. Optimisation
+The objective is to maximise log?, by varying the 6-DOF tbc vector. This can be achieved using
+standard optimisation methods to minimise the negative log likelihood:
+argmin
+tbc
+? log? = argmin
+tbc
+M
+?
+k
+N
+?
+i
+e2k,i
+2?2ek,i
+(26)
+2.6. Variance-Covariance Matrix Estimation
+Once the relative camera pose tbc has been determined, it is desirable to approximate the covariance
+matrix of the solution, which provides an estimate of how uncertain the six relative camera pose
+parameters are. In combination with covariances of other parameters, such as the navigation system
+solution, this also allows mapping accuracy to be quantified. In other words, the result provides values
+for Qtbc , completing the full covariance matrix (see Eq. 33 in Section 3.6). Note that all elements of Qtbc
+are set to zero for its estimation and optimisation, as previously mentioned in Sections 2.3 and 2.4.
+The proposed approach is based on similar work done with lidar sensors [35,36], but the details
+differ because 1D cameras do not directly provide depth information. We propose a random sampling
+based method, where a set of sample sensor to body transforms are selected using a MCMC algorithm
+[38], which differs from the Monte Carlo (MC) importance sampling approach in [35,36]. This provides
+greater sampling efficiency and avoids the need to manually define a sampling region. The algorithm
+is guided by the likelihood of each relative camera pose sample, which governs the selection of the
+next sample.
+There are several MCMC variations, but they all share the property that each sample is selected
+based on the previous. For a large number of samples, the distribution tends towards the probability
+distribution that is being sampled from (i.e. ? in this paper)[39]. For further details about MCMC
+sampling, the reader is referred to the numerous resources available on the topic [38,39]. The MCMC
+algorithm provides a list of samples {tbc,0, tbc,1...tbc,l ...t
+b
+c,r}, which are distributed according to ?, from
+which the covariance can be computed as:
+Qtbc * =
+1
+r? 1
+r
+?
+l=1
+(
+tbc,l ? t?
+b
+c
+) (
+tbc,l ? t?
+b
+c
+)T
+, (27)
+where
+t?bc =
+1
+r
+r
+?
+l=1
+tbc,l (28)
+3. Materials and methods
+This section outlines the equipment and methods used to obtain the data and analyse the results. A
+planar calibration pattern was placed in the environment and imaged from several different orientations
+using a line scanning camera mounted to two different ground based robotic platforms. A navigation
+system mounted to each platform recorded the 6 DOF position and orientation of the platforms (twb =
+[rwb,x, r
+w
+b,y, r
+w
+b,z, ?
+w
+b,x, ?
+w
+b,y, ?
+w
+b,z]) throughout the acquisition period. Image pixel locations of calibration
+pattern points and matching robot poses were then used to estimate the relative camera pose using an
+9 of 27
+iterative optimisation algorithm. Finally the uncertainty of the camera pose estimate in the form of a
+covariance matrix was approximated using MCMC.
+3.1. Mobile sensing platforms
+A line scanning hyperspectral camera was mounted to two different robotic platforms, Ladybird
+and Shrimp (Fig. 3). Both were designed and built at the Australian Centre for Field Robotics (ACFR) at
+The University of Sydney as flexible tools to support a range of research applications [40–45]. The sensor
+suite on both platforms includes a real time kinematic (RTK)/global positioning system (GPS)/inertial
+navigation system (INS), which provides platform pose and covariance estimates (details in Table 1).
+The GPS units on both platforms are identical, but the Shrimp platform uses a lower grade inertial
+measurement unit (IMU) than the Ladybird platform.
+Ladybird Autonomous
+Robotic Platform
+Resonon Pika II Hyperspectral CameraGPS
+INS
+Direction of travel
+(a) Ladybird robotic platform
+Resonon Pika II Hyperspectral Camera
+GPS
+INS
+Shrimp Autonomous
+Robotic Platform
+Direction of Travel:
+In and Out of Page
+(b) Shrimp robotic platform
+Figure 3. The Ladybird (a) and Shrimp (b) robotic platforms and sensor configurations.
+Table 1. Platform configurations
+Ladybird Shrimp
+Manually measured camera pose tbc
+rbc,x , rbc,y , rbc,z (m) 0.2, 0.0,?0.8 0.0,?0.2,?0.5
+?bc,x , ?bc,y , ?bc,z (?) ?56.0, 0.0,?90.0 0.0, 105.0,?90.0
+Camera lens details
+Manufacturer Schneider Schneider
+Model Cinegon 8 mm Cinegon 6 mm
+Focal length 8.2 mm 6.2 mm
+Approx. aperture f/2.5 f/3.0
+IFOV 1.88 mrad 2.5 mrad
+Navigation system details
+Manufacturer Novatel Novatel
+GPS receiver ProPak-G2plus ProPak-G2plus
+IMU Honeywell HG1700 IMU-CPT
+Line scan image data were acquired with a Resonon Pika II visible to near infrared (VNIR) line
+scanning camera that was mounted to the Ladybird and Shrimp robots in a push broom configuration.
+For the Ladybird, the camera was oriented such that the scan line is horizontal, pitched down for
+scanning the ground surface (Fig. 3a). On Shrimp, the camera was mounted such that the scan line
+is vertical, and pitched upwards slightly to allow scanning of upright objects (Fig. 3b). The camera
+10 of 27
+produces hyperspectral images of 648 spatial by 244 spectral pixels (spectral resolution of 2 nm from
+390.9-887.4 nm) at a rate of 133 frames per second and native bit depth of 12. For the purposes of this
+paper, the spectral dimension was averaged to produce 648 pixel monochrome scan lines. Apart from
+this averaging step, the method described in this paper is not particular to hyperspectral cameras and
+may be applied equally to other types of line scanning imagers. Schneider Cinegon 6 mm and 8 mm
+objective lenses were used for Shrimp and Ladybird respectively, and manually focused with a checker
+board at the typical distance to the scene. Hand measured pose estimates and manufacturer supplied
+lens details are shown in Table 1.
+Initial pose estimates were measured by hand with the mobile platforms on a level surface using
+measuring tape for translational offsets, and a digital inclinometer (SPI Pro 3600) for angular offsets
+around the robots’ horizontal x and y axes. Angular offsets around the robots’ vertical z axis were
+assumed to be the intended mounting orientations, which are in increments of 90?for both platforms.
+Note that if the camera is mounted at angles that are clearly not in 90?increments, referring to a CAD
+model is recommended.
+3.2. Data acquisition
+A calibration pattern with 15 points arranged in a 3x5 pattern was printed to an A1 size sheet
+of paper and mounted to a flat rigid plywood board (see Fig. 4c). The pattern was designed to
+maximise contrast for efficient extraction of pattern points. A corner shape was added to one side of
+the pattern to facilitate unique identification of each point. It is not necessary to know the pattern’s
+dimensions for recovery of the platform to camera pose, as each point is treated independently during
+the calibration. This also means that theoretically a single point with sufficient observations could be
+used for calibration. However, we added more pattern points since there is no significant practical
+cost, efficiently increasing the amount of data obtained.
+For the Ladybird platform, the pattern board was placed on relatively flat ground (see Fig. 4a). As
+shown in Fig. 5, the pattern was scanned from several directions around a circle with the calibration
+pattern in the centre. Two types of scans were performed, one with the robot’s wheels flat on the
+ground and one with one side of the robot elevated by driving over an aluminium channel (Fig. 5a).
+This raised two of the wheels by approximately 100 mm, inducing a roll of approximately 4?. For the
+Shrimp platform, the same calibration pattern was mounted to a ladder in an approximately vertical
+orientation (see Fig. 4b). In this case data were acquired next to a hill with various orientations and
+positions with respect the pattern, where the hill caused continuously variable roll and pitch, up to
+approx. 17?(see Fig. 5b). For both platforms, body orientation was intentionally varied as much
+as possible in an attempt to maximise observability of parameters [35]. The robots were manually
+operated throughout the acquisition period.
+All data was timestamped allowing association between individual scan lines and platform
+pose solutions. Localisation uncertainties reported by the navigation system are shown in Table 2
+as median standard deviations (i.e. square root of the diagonals of the covariance matrices only) for
+the acquisition runs, which illustrates that the navigation system in the Ladybird platform is able to
+provide body pose estimates with much greater certainty than the navigation system on Shrimp, due
+to the higher grade IMU.
+Table 2. Median navigation system uncertainties as 1 standard deviation
+Platform ?rwb,x
+(m) ?rwb,y
+(m) ?rwb,z
+(m) ??wb,x
+(?) ??wb,y
+(?) ??wb,z
+(?)
+Ladybird 1.052e-02 1.305e-02 1.118e-02 2.362e-01 2.636e-01 1.053e-01
+Shrimp 4.520e-02 4.369e-02 4.887e-02 7.534e-01 7.284e-01 8.416e-01
+11 of 27
+(a) Ladybird data acquisition (b) Shrimp data acquisition
+151.1 151.1151.1151.1
+166.9
+166.9
+(c) Calibration pattern
+Figure 4. Data acquisition configuration and location for Ladybird (a) and Shrimp (b). The calibration
+pattern used in both instances is shown in (c). Dimensions are in mm. The centre dots are 10 mm in
+diameter. The outer rings help with locating the points in the data for labelling, and are 75-120 mm,
+inner to outer diameter.
+Table 3. Summary of observations (?)
+Obs No. ?wb,x ?
+w
+b,y ?
+w
+b,z
+0 4.7 -0.5 112.1
+1 4.3 -0.4 111.3
+2 3.4 2.1 -159.4
+3 3.5 2.2 -159.0
+4 5.6 1.3 -67.6
+5 5.6 1.6 -69.5
+6 5.2 0.2 23.0
+7 0.0 -0.5 110.3
+8 0.5 -0.5 110.6
+9 -0.7 2.0 -158.3
+10 -0.8 1.9 -158.7
+11 1.4 1.3 -69.3
+12 1.4 1.2 -66.5
+13 0.8 -0.1 21.3
+14 1.2 -0.1 20.7
+15 0.1 -0.6 66.6
+16 -0.1 -0.7 64.8
+17 -1.7 0.6 158.6
+18 -1.2 0.5 161.5
+19 0.5 2.2 -103.1
+20 0.6 1.8 -102.1
+21 1.2 0.5 -28.5
+22 1.3 0.5 -26.9
+23 -0.6 2.2 -156.2
+24 0.2 -0.3 112.2
+(a) Ladybird
+Obs No. ?wb,x ?
+w
+b,y ?
+w
+b,z
+0 -0.9 -1.8 168.3
+1 -4.6 -2.0 171.4
+2 -10.0 -1.4 169.7
+3 -9.2 -1.8 168.7
+4 -13.7 -0.5 172.3
+5 -14.0 -1.0 170.8
+6 -16.7 -0.8 169.4
+7 -16.5 -1.9 169.2
+8 -3.2 1.1 -135.2
+9 -11.3 -7.4 145.7
+10 -0.2 -2.0 139.1
+11 -2.9 -2.8 159.8
+12 -1.6 -2.5 158.6
+13 -12.4 2.7 -169.2
+14 -3.9 1.5 -148.3
+15 -16.9 0.9 174.1
+16 -16.0 -1.2 166.3
+17 -8.8 3.3 -155.4
+18 -1.1 -2.2 166.0
+19 0.8 -1.7 119.6
+(b) Shrimp
+12 of 27
+60 62 64 66 68 70
+East (m) +3.329×105
+46
+48
+50
+52
+54
+56
+N
+or
+th
+(m
+)
++6.2485×106
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+(a) Ladybird
+1 2 3 4 5 6 7 8 9
+East (m) +4.3723×105
+48
+50
+52
+54
+56
+N
+or
+th
+(m
+)
++7.2188×106
+01
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+(b) Shrimp
+Figure 5. Top down view of platform positions (from navigation system) during each observation of
+the calibration pattern for Ladybird (a) and Shrimp (b). The calibration pattern points are indicated
+with red dots. The observation runs are numbered and corresponding platform orientation data can be
+found in Table 3. Note that in (b) the calibration pattern was upright (mounted to a ladder), which is
+why the points appear more closely clustered from the top-down perspective. Some of the observation
+runs appear very short in (b). This is because in these instances the platform scanned the pattern by
+rotating on the spot.
+13 of 27
+3.3. Pattern pixel extraction
+Approximate pixel locations of points on the calibration pattern were selected manually by
+appending successive line scans to form a rectangular image and selecting individual pattern points
+in order (see Fig. 6). Particular care was taken to ensure that point ID numbers were consistent for
+all observations of the calibration pattern. Pixel locations were then refined to sub pixel precision by
+extracting a 10× 10 patch around the selected points and resizing it to 100× 100 pixels using bi-cubic
+interpolation. The intensity peak closest to the centre was taken as the pattern point pixel location.
+Along-track, the closest time stamp was used to obtain the corresponding navigation solution. This
+provides pixel position uk,i and platform pose [rwb,x, r
+w
+b,y, r
+w
+b,z, ?
+w
+b,x, ?
+w
+b,y, ?
+w
+b,z]
+T , which are necessary for
+calibration according to Eq. 26.
+Along-track (successive line scans appended in time)
+Cross-track
+(single line scans)
+Numbered pattern point observations
+Figure 6. Example grey scale image obtained by appending successive line scans from Ladybird
+(without pose compensation), and calibration point locations (white crosses) with ID numbers. Each
+648 pixel line scan is vertical and concatenated horizontally. Care was taken to ensure the numbering
+scheme remained consistent for all observations of the pattern.
+3.4. Optimisation and uncertainty estimation
+Optimisation was performed using the Powell optimiser algorithm provided by the SciPy python
+package [46,47]. While other optimisers may be suitable for this task, as long as they minimize a
+scalar (negative log likelihood), while varying a vector (relative camera pose), the Powell algorithm
+achieved acceptable performance with the following tolerance values: tolx=1e-5 and ftol=1e-8.
+The objective function that was provided to the optimiser takes the relative camera pose parameters
+(tbc = [rbc,x, rbc,y, rbc,z, ?bc ebc,x, ?bc ebc,y, ?bc ebc,z]T) and computes the negative log likelihood ?log? (see Eq. 26)
+given all pixel locations and navigation system solutions. The optimiser repeatedly calls this function,
+updating tbc in order to find a relative camera pose tbc* that minimises ?log?.
+As described in Section 2.6 we use MCMC to estimate uncertainties in the form of a covariance
+matrix. MCMC was performed with the emcee python package [38], which was given a function that
+computes the log likelihood (Eq. 25). The algorithm was initialised with the previously optimised
+relative camera pose tbc*, and run with 250 walkers and 100 iterations, yielding 25000 samples. A burn
+in run was also performed with 100 iterations to allow the function to explore the local region prior to
+performing the actual sampling run. Each sample represents one hypothetical parameter vector tbc . The
+distribution of the samples generated by the MCMC algorithm correspond to log?, so the uncertainty
+of the relative camera pose estimate, Qtbc *, can be estimated by computing Eq. 27.
+For all calculations of log?, 6×6 covariances for the platform pose were provided by the
+navigation system at each time stamp. It was assumed that a u pixel point location could be estimated
+to within one standard deviation of 0.5 pixels (i.e. ?u = 0.5pixels). If a point is visible it must also
+be within the IFOV of the sensor (see 1), which is approximately 2 pixels for both platforms. We
+14 of 27
+assumed this to span two standard deviations (95%), and so one standard deviation is 0.5 pixels
+(?v = 0.5pixels). Principal point and focal length were assumed to have a standard deviation of 2
+pixels and 0.1 mm respectively. As previously mentioned, the uncertainty of the relative camera pose,
+Qtbc , was temporarily set to zero (see Sections 2.3 and 2.4).
+3.5. Outlier removal
+Unusually high reprojection errors were removed by an iterative process of outlier rejection. First
+optimisation was performed on all observations shown in Table 3 for each platform. Reprojection
+errors, ek,i were calculated for each observation i of each pattern point k (see Eq. 22). These were then
+averaged per observation:
+ei =
+?Mk ek,i
+M
+. (29)
+The observation i with the largest mean reprojection error was then removed from the data set and
+the process was repeated several times (i.e. optimise, calculate reprojection error, remove observation
+with largest reprojection error).
+3.6. Point projection
+To demonstrate mapping performance, rays were projected to a plane that was fitted to the
+estimated pattern point coordinates. Utilising the method in Section 2.3, the pattern points were first
+calculated given the data and relative camera pose . Using the general form of the equation of a plane
+ax + by + cz + d = 0, a best fit plane can be found in a linear least squares fashion (setting d = ?1):
+Ax =
+??????
+pw0
+T
+pw1
+T
+...
+pwM
+T
+??????
+???ab
+c
+??? = 1, (30)
+where the plane parameters x can be solved for by left multiplying 1 (length M vector of ones) with
+the pseudo-inverse of A, A+.
+The rays for observation i of pattern point k, defined by pwci,k and p
+w
+si,k as calculated in Section 2.1,
+can then be projected to the plane by computing their point of intersection:
+pwproji,k =
+([0, 0,?d/c]T ? pwci,k ) · [a, b, c]
+T
+(pwsi,k ? pwci,k ) · [a, b, c]T
+. (31)
+Knowing all input covariance matrices, including the covariance of the relative camera position
+and orientation, as obtained using MCMC (see Section 2.6), the uncertainty of each point projection
+pwproj,i,k may also be calculated. First the partial derivatives of Eq. 31 with respect to all inputs was
+computed to yield the Jacobian Jpproj,i,k of the x, y and z position of each point. The uncertainty of each
+projected point can then be calculated:
+?pwproji,k
+= Jpproji,k Qk,iJ
+T
+pproji,k
+, (32)
+where
+Qi =
+?????
+Quv,k,i 0 0 0
+0 Qtwb,k,i 0 0
+0 0 Qint 0
+0 0 0 Qtbc
+????? . (33)
+15 of 27
+For propagating uncertainty for hand measured pose parameters, translation parameters (rbc,x,
+rbc,x and rbc,x) were assumed to have a ? of 0.1 m and orientation parameters (?bc,x, ?bc,x and ?bc,x) were
+assumed to have a ? of 1?.
+3.7. Comparing poses
+To assess how close a solution is to the optimal, we require a distance metric between two different
+6 DOF pose transforms. As described in Section 2.2, each pose vector is composed of three translation
+and three orientation parameters. Given two unique poses t0 = [r0,x, r0,y, r0,z, ?0e0,x, ?0e0,y, ?0e0,z]T and
+t1 = [r1,x, r1,y, r1,z, ?1e1,x, ?1e1,y, ?1e1,z]T , we can compare the translation parts easily by computing their
+Euclidean distance:
+d0,1 =
+?
+(r1,x ? r0,x)2 + (r1,y ? r0,y)2 + (r1,z ? r0,z)2. (34)
+However, measuring the distance or difference between two rotations is more complicated, and
+the readers are referred to Huynh [33] for an in-depth analysis of the topic. Huynh [33] presents
+and recommends a number of metrics for comparing rotations. Of these, the geodesic on the unit
+sphere was chosen, because it represents the magnitude of the rotation angle required to align the two
+rotations, which was deemed to be an intuitive measure. It can be computed as follows:
+?0,1 = 2 arccos(|q0 · q1|), (35)
+where q0 and q1 are unit quaternion equivalents of [?0e0,x, ?0e0,y, ?0e0,z]T and [?1e1,x, ?1e1,y, ?1e1,z]T
+respectively, computed as:
+qi =ai + bii + cij + dik
+= cos
+(
+?i
+2
+)
++ ei,x sin
+(
+?i
+2
+)
+i+
+ei,y sin
+(
+?i
+2
+)
+j + ei,z sin
+(
+?i
+2
+)
+k.
+(36)
+?0,1 can also be interpreted to be equal to the absolute value of the angular magnitude ? (in the
+range [??, ?]) of the axis-angle rotation required to align the two orientations. For this reason, the
+metric will be simply referred to as the axis-angle difference. Combined, d0,1 and ?0,1 form a 2D pose
+distance that is convenient for visualisation.
+3.8. Basin of attraction
+To measures how far an initial hand measured camera pose can be from the optimum, while
+still resulting in correct global convergence, we test a set of starting conditions that are perturbed by
+different amounts, and measure how close the optimal result is from the known global optimum. Due
+to the high dimensionality of the search space, a random sub-sampling of initial poses is performed.
+Deviation of initial values from the known optimum is quantified in the two dimensional pose distance
+space defined in Section 3.7. The 2D space was sampled uniformly in a grid, and for each location a
+6D initial parameter vector was randomly generated at the corresponding Euclidean and axis-angle
+distance from the known optimal value.
+First an x, y and z translation vector was generated at random, uniformly distributed over an
+equal negative to positive range for all three parameters. The vector was normalised to unity and
+then multiplied by the Euclidean distance value of the corresponding grid position. The resulting
+vector was added to the optimised translation parameters, yielding the initial coordinates. Similarly,
+three axis-angle orientation values were randomly generated in the same way, normalised to unity
+and multiplied by the corresponding axis-angle difference value at the given grid location, yielding an
+16 of 27
+axis-angle rotation. The optimised orientation parameters were then rotated by this difference rotation,
+producing the initial orientation values.
+This yields a set of sparse random 6 DOF samples that are uniformly spaced in terms of pose
+distance from the known optimal camera pose, allowing the basin of attraction to be mapped.
+Optimisation was performed for each randomly generated initial camera pose on the grid. For
+each result, the Mahalanobis distance to the reference optimum was calculated, given the covariance
+matrix resulting from the MCMC uncertainty estimation on the optimised parameters.
+4. Results
+This section presents the results of line scan camera pose estimation for two different platforms
+and configurations, including outlier rejection, resulting camera pose and uncertainty, in-depth analysis
+of the uncertainty, the impact of platform pose diversity on the accuracy, and finally the combined
+mapping uncertainty.
+4.1. Outlier rejection
+The iterative results of outlier removal based on reprojection errors are shown in Fig. 7. Each
+row represents an outlier removal iteration, labelled by the number of remaining observations, where
+the top row includes all observations. Each column represents one of the observations from Table 3,
+where each observation is one view of all 15 points on the calibration pattern. The colour of each cell
+indicates the mean reprojection error of the 15 points within the single observation of the calibration
+pattern, for a particular outlier removal iteration. In each figure, the black rectangle highlights the
+row with the greatest number of observations that all have mean errors less than the 5 pixel threshold.
+Ladybird exhibited a greater number of outliers and higher worst-case reprojection errors than Shrimp,
+with 9 compared to 6 outliers respectively. This resulted in 16 inliers for Ladybird and 14 for Shrimp.
+0 2 4 6 8 10 12 14 16 18 20 22 24
+Observation ID No.
+25
+24
+23
+22
+21
+20
+19
+18
+17
+16
+15
+14
+13
+N
+o.
+of
+O
+bs
+er
+va
+tio
+ns
+0
+2
+4
+6
+8
+10
+12
+14
+16
+18
+(a) Ladybird
+0 2 4 6 8 10 12 14 16 18
+Observation ID No.
+20
+19
+18
+17
+16
+15
+14
+13
+12
+11
+10
+N
+o.
+of
+O
+bs
+er
+va
+tio
+ns
+0
+2
+4
+6
+8
+10
+12
+14
+16
+18
+(b) Shrimp
+Figure 7. Outlier removal and average reprojection errors for (a) Ladybird and (b) Shrimp. Each row
+represents an iteration as described in Section 3.5, labelled with the number of remaining observations,
+and each column represents an observation of the calibration pattern as per Table 3. White cells indicate
+that an observation has been removed for that iteration. Otherwise, the cell colour indicates the mean
+reprojection error in pixels for that particular observation of the calibration pattern at a given outlier
+removal iteration. For example, in (a), observation No. 11 exhibited the greatest mean reprojection error
+with 25 observations, and was therefore the first observation to be removed. The highlighted rectangle
+points to the row with the greatest number of remaining observations with a mean reprojection error of
+less than 5 pixels.
+17 of 27
+4.2. Pose and uncertainty results
+The relative camera pose transforms and associated uncertainties (one standard deviation) for
+both platforms are shown in Table 4 before and after outlier removal. The hand measured estimate is
+also shown for reference, where the tolerances reflect the difficulty of measurement. The results for the
+Shrimp platform exhibit greater uncertainty compared to the Ladybird platform.
+Table 4. tbc estimates and uncertainties (axis-angle rotations)
+rbc,x (m) rbc,y (m) rbc,z (m) ?bc ebc,x (rad) ?bc ebc,y (rad) ?bc ebc,z (rad)
+Ladybird
+All observations 0.147± 0.025 ?0.128± 0.045 ?0.630± 0.051 ?0.849± 0.013 0.768± 0.015 ?1.420± 0.008
+16 observations 0.189± 0.032 ?0.142± 0.054 ?0.794± 0.057 ?0.822± 0.016 0.738± 0.018 ?1.429± 0.009
+Hand measured 0.200± 0.100 0.000± 0.100 ?0.800± 0.100 ?0.762± 0.039 0.762± 0.039 ?1.433± 0.037
+Shrimp
+All observations 0.044± 0.031 ?0.133± 0.096 ?0.660± 0.158 1.409± 0.018 1.400± 0.027 ?1.078± 0.019
+14 observations ?0.010± 0.069 ?0.080± 0.141 ?0.579± 0.178 1.380± 0.030 1.427± 0.042 ?1.093± 0.026
+Hand measured 0.000± 0.100 ?0.200± 0.100 ?0.500± 0.100 1.399± 0.026 1.399± 0.088 ?1.074± 0.071
+Note: Hand measured orientation uncertainties are 2?for each parameter in Euler representation, converted to axis-angle representation
+by propagating the covariance matrix using the Jacobians of the conversion function.
+In Fig. 8 each outlier removal stage is plotted against each parameter’s standard deviation. As
+would be expected, increasing the number of observations decreases the uncertainty of the estimate.
+25242322212019181716151413
+Number of observations
+0.00
+0.01
+0.02
+0.03
+0.04
+0.05
+0.06
+0.07
+?
+(m
+)
+0.0000
+0.0025
+0.0050
+0.0075
+0.0100
+0.0125
+0.0150
+0.0175
+0.0200
+?
+(r
+ad
+)
+?
+rbc,x
+?
+rbc,y
+?
+rbc,z
+?
+?bc e
+b
+c,x
+?
+?bc e
+b
+c,y
+?
+?bc e
+b
+c,z
+(a) Ladybird
+2019181716151413121110
+Number of observations
+0.00
+0.05
+0.10
+0.15
+0.20
+?
+(m
+)
+0.00
+0.01
+0.02
+0.03
+0.04
+0.05
+?
+(r
+ad
+)
+?
+rbc,x
+?
+rbc,y
+?
+rbc,z
+?
+?bc e
+b
+c,x
+?
+?bc e
+b
+c,y
+?
+?bc e
+b
+c,z
+(b) Shrimp
+Figure 8. The number of observations vs. standard deviation for (a) Ladybird and (b) Shrimp
+respectively. The x axis mirrors the outlier removal stages shown in Fig. 7.
+The number of observations affects the number of computations and therefore has a significant
+effect on calibration and MCMC run time. For Ladybird, optimisation and MCMC took approx. 15
+min and 7 h respectively for all 25 observations. For 16 observation, this was reduced to just over 7
+min and 4 h. For Shrimp, the respective optimisation and MCMC times were reduced from approx.
+5.5 min and 5 h for all 20 observations to just over 2 min and 3 h with 14 observations.
+4.3. In-depth uncertainty analysis
+Examining uncertainty in more detail, MCMC samples are shown on a corner plot in Fig. 9
+[48]. Each sub-plot below the diagonal provides a 2D histogram, showing the MCMC sample density
+between two parameters (i.e. the marginal likelihood distribution for a parameter pair), and on the
+diagonal a 1D histogram, giving the sample density for the marginal likelihood distribution for each
+single parameter.
+For human interpretation of the uncertainty, in Figs. 10a and 10d the MCMC sample values for
+[?ebc,x, ?ebc,y, ?ebc,z]T are plotted on a sphere. For visualisation only, each point is coloured according to a
+kernel density estimate (KDE) performed on all MCMC samples to give an indication of the axis-angle
+18 of 27
+0.3
+0.2
+0.1
+0.0
+rb c
+,y
+ (m
+)
+1.0
+0.9
+0.8
+0.7
+0.6
+rb c
+,z
+ (m
+)
+0.8
+75
+0.8
+50
+0.8
+25
+0.8
+00
+0.7
+75
+b c
+eb c
+,x
+ (r
+ad
+)
+0.6
+9
+0.7
+2
+0.7
+5
+0.7
+8
+b c
+eb c
+,y
+ (r
+ad
+)
+0.1
+0
+0.1
+5
+0.2
+0
+0.2
+5
+0.3
+0
+rbc, x (m)
+1.4
+55
+1.4
+40
+1.4
+25
+1.4
+10
+1.3
+95
+b c
+eb c
+,z
+ (r
+ad
+)
+0.3 0.2 0.1 0.0
+rbc, y (m)
+1.0 0.9 0.8 0.7 0.6
+rbc, z (m)
+0.8
+75
+0.8
+50
+0.8
+25
+0.8
+00
+0.7
+75
+b
+c ebc, x (rad)
+0.6
+9
+0.7
+2
+0.7
+5
+0.7
+8
+b
+c ebc, y (rad)
+1.4
+55
+1.4
+40
+1.4
+25
+1.4
+10
+1.3
+95
+b
+c ebc, z (rad)
+(a) Ladybird
+0.5
+0
+0.2
+5
+0.0
+0
+0.2
+5
+rb c
+,y
+ (m
+)
+1.2
+0.9
+0.6
+0.3
+0.0
+rb c
+,z
+ (m
+)
+1.3
+0
+1.3
+5
+1.4
+0
+1.4
+5
+b c
+eb c
+,x
+ (r
+ad
+)
+1.2
+8
+1.3
+6
+1.4
+4
+1.5
+2
+b c
+eb c
+,y
+ (r
+ad
+)
+0.1
+5
+0.0
+0
+0.1
+5
+rbc, x (m)
+1.1
+6
+1.1
+2
+1.0
+8
+1.0
+4
+b c
+eb c
+,z
+ (r
+ad
+)
+0.5
+0
+0.2
+5
+0.0
+0
+0.2
+5
+rbc, y (m)
+1.2 0.9 0.6 0.3 0.0
+rbc, z (m)
+1.3
+0
+1.3
+5
+1.4
+0
+1.4
+5
+b
+c ebc, x (rad)
+1.2
+8
+1.3
+6
+1.4
+4
+1.5
+2
+b
+c ebc, y (rad)
+1.1
+6
+1.1
+2
+1.0
+8
+1.0
+4
+b
+c ebc, z (rad)
+(b) Shrimp
+Figure 9. Corner plots for (a) Ladybird and (b) Shrimp platforms for 16 and 14 observations respectively.
+Each sub-plot below the diagonal provides a 2D histogram of MCMC sample values for a pair of relative
+camera pose parameters. The sub-plots on the diagonal show 1D histograms for each parameter.
+vector marginal likelihood. Hand measured pose estimates are shown as red crosses. Likewise, in Figs.
+10c and 10f, values for ?bc are presented in a histogram, showing the marginal likelihood of the axis
+angle magnitude. While both figures indicate a clustering to within two degrees, the Shrimp platform’s
+distribution exhibits a more elongated elliptical shape, while for Ladybird, it is more uniformly spread
+in all directions. Also apparent for Ladybird is that the manual measurements are well outside the
+region of high likelihood, both in terms of the axis-angle unit vector and magnitude. Conversely, the
+hand measured pose for the Shrimp platform is highly likely given the data, suggesting the initial
+manual measurement may have been more accurate than for Ladybird.
+In Fig. 11, the distributions of MCMC samples is shown superimposed on the corresponding
+platform model. Translation parameters are presented as a 2D histogram, similar to Fig. 9,
+demonstrating the marginal density of the likelihood distribution from each orthogonal viewpoint. To
+present the orientation parameter distribution, line segments coincident with the camera’s viewing
+direction, and anchored to the optimized camera centre, are rotated by each MCMC rotation sample.
+Each line is semi-transparent, and so as all samples build up, the density distribution of the camera
+orientation is visualised. It is evident that there is greater variance in the MCMC samples for Shrimp
+when compared to the Ladybird platform, particularly for the translation parameters, as corroborated
+by the numerical results in Table 4.
+4.4. Effect of angular diversity
+To investigate how angular diversity of body poses in a dataset affects the certainty of the result,
+two experimental subsets were compiled from the outlier-rejected dataset with 16 observations for
+Ladybird. The first includes only ten observations with small roll angles ?wb,x < 1.9
+?. The second
+includes five observations with small roll ?wb,x and five with roll angles 3.3
+? < ?wb,x < 5.8
+?. Both datasets
+therefore contain ten total observations, representing low and high angular diversity. The results are
+shown in Table 5. Despite containing the same number of observations, the dataset with high angular
+diversity results in significantly lower uncertainty for the optimal camera pose, compared to the low
+diversity set.
+19 of 27
+0.0?
+9.0?
+18.0?
+27.0?
+36.0?
+45.0?
+54.0?
+63.0?
+72.0?
+81.0?
+90.0?
+102.0?
+120.0? 138.0? 156.0
+?
+174.0?
+(a) Ladybird sphere
+3.0?
+2.0?
+1.0?
+(b) Ladybird sphere close-up
+102 103 104 105
+? (degrees)
+0.0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+P
+ro
+ba
+bi
+lit
+y
+D
+en
+si
+ty
+µ?? +??2? +2??3? +3?
+(c) Ladybird AA magnitude
+0.0?
+9.0?
+18.0?
+27.0?
+36.0?
+45.0?
+54.0?
+63.0?
+72.0?
+81.0?
+90.0?
+12.0?
+30.0? 48.0? 66.0
+?
+84.0?
+(d) Shrimp sphere
+3.0?
+2.0?
+1.0?
+(e) Shrimp sphere close-up
+126 128 130 132 134
+? (degrees)
+0.00
+0.05
+0.10
+0.15
+0.20
+0.25
+0.30
+0.35
+P
+ro
+ba
+bi
+lit
+y
+D
+en
+si
+ty
+µ?? +??2? +2??3? +3?
+(f) Shrimp AA magnitude
+Figure 10. Ladybird and Shrimp platform MCMC axis-angle unit vector (ebs ) samples plotted on a
+sphere (a)/(d) and close-up, centred to a pole (b)(e) (using 16 and 14 observations for Ladybird and
+Shrimp respectively). Each point on the sphere is coloured according to a KDE to give an indication
+of the axis-angle vector marginal likelihood for visualisation purposes only. Points were randomly
+thinned by ten to facilitate plotting. A histogram of the magnitudes of the axis-angle rotation, ?bs , is
+shown in (c)/(f). The hand measured pose orientation is shown with red crosses in (a),(b),(d) and (e),
+and a vertical red line in (c) and (f).
+Table 5. Angular diversity comparison
+rbc,x (m) rbc,y (m) rbc,z (m) ?bc ebc,x (rad) ?bc ebc,y (rad) ?bc ebc,z (rad)
+High ang. diversity 0.166± 0.041 ?0.155± 0.083 ?0.717± 0.074 ?0.831± 0.023 0.744± 0.023 ?1.420± 0.015
+Low ang. diversity 0.147± 0.118 0.058± 0.107 ?0.269± 0.281 ?0.797± 0.051 0.796± 0.059 ?1.452± 0.026
+20 of 27
+(a) Ladybird - Side (b) Ladybird - Front
+(c) Shrimp - Side (d) Shrimp - Front
+Figure 11. Optimised camera pose and MCMC sample poses for Ladybird (a) and (b) and Shrimp (c)
+and (d). The optimised pose is shown as an xyz axis with black lines. The MCMC samples are shown
+as red, green and blue xyz axes, where greater colour intensity corresponds to greater sample density,
+approximating the marginal likelihood of the poses in the viewing direction. The body (i.e. navigation
+system) pose is also shown as a red, green and blue xyz axis.
+21 of 27
+4.5. Mapping accuracy
+Fig. 12 shows Ladybird’s and Shrimp’s observations, after outlier removal, projected to the best
+fit plane of predicted point locations before and after calibration (see Section 3.6). Figs. 12a and 12c
+give projections of all observations, while 12b and 12d only show the projections for one observation,
+but include uncertainty ellipses. Post calibration average pattern point estimates are also shown as
+green crosses.
+For both platforms, the calibrated camera pose exhibited more densely bound projected points.
+The change in spread is less pronounced for the Shrimp platform, because as mentioned previously
+the manual measurements were by chance much closer to the optimum values, though a significant
+offset can be observed between manual and calibrated results. The plots also demonstrate the effect of
+relative camera pose uncertainty on mapping uncertainty, which were significant for both Ladybird
+and Shrimp.
+Given the hand measurement for shrimp happened to be close to the optimal, the effect of adding
+just one degree of error to the measured axis-angle vector is shown in Fig. 13, which compares the
+mapped points from the optimised and erroneous camera pose. The optimisation improves the cluster
+significantly compared to a hand measured pose with one degree error.
+4.6. Basin of attraction
+Basin of attraction plots, which were generated as described in Section 3.8 using the Powell
+optimiser, are shown in Fig. 14 for both platforms. The Mahalanobis distances were generally either
+close to zero or very large, so they are colour coded into two tiers, below and above 1.0, to improve
+readability. The basin for the Ladybird platform (Fig. 14a) shows success can be expected in the
+triangular region with less than 20?and 0.5 m of hand measurement error. The basin for Shrimp
+(Fig. 14b) shows a greater immunity to translation errors and successful results can be expected with
+initialisation errors less than 20?and as high as 1.5 m. Both figures indicate that when the initialisation
+error is higher, there is still a high chance (approx. 60%) of a solution within a Mahalanobis distance of
+0.1, but it cannot be relied upon, and deteriorates as the distance from optimum increases.
+5. Discussion
+The results show that the proposed method was able to to reliably estimate the relative line scan
+camera pose on a mobile ground vehicle, resulting in a reduction in mapping error, as long as the
+calibration data includes sufficient viewpoint variability. An uncertainty of 0.06 m / 0.018 rad (1.05?)
+for Ladybird, and 0.18 m / 0.042 rad (2.39?) for Shrimp was achieved. This result is dependent on
+the certainty of input parameters, which include pixel observations, navigation system solutions, and
+camera intrinsics. For example, confidence in the calibrated pose parameters for the Ladybird platform
+was significantly greater than for the Shrimp platform, due to Ladybird’s higher grade IMU, which
+allowed the navigation system to provide more certain solutions.
+The results show that it is necessary to examine reprojection errors and remove outliers, as is
+common with many camera calibration approaches. A number of observations for both platforms
+exhibited high reprojection errors relative to other observations (> approx. 8 pixels). Removing outliers
+had significant effects on the results, evident particularly in the correction of some parameters such as
+the z-offset tbc,z for both platforms (see Table 4). The results shown in Fig. 7 also support the iterative
+removal of outliers at each stage. For instance, reprojection errors of Ladybird observation 19 improve
+as other observations are removed, while Shrimp observation 3 degrades, and was eventually removed.
+Conversely, as shown in Fig. 8 a larger number of observations allows for greater certainty in the final
+result. Thus, there are two competing factors when performing outlier rejection. A sufficiently large
+number of observations are required to maintain an acceptable level of certainty, yet removing outliers
+is important to minimise reprojection errors. It is therefore desirable to obtain a sufficient number of
+22 of 27
+0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 1.1
+North (m) +6.24855×106
+0.0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+E
+as
+t(
+m
+)
++3.32965×105
+(a) Ladybird - all projections
+0.0 0.2 0.4 0.6 0.8 1.0 1.2 1.4
+North (m) +6.24855×106
+4.6
+4.8
+5.0
+5.2
+5.4
+5.6
+5.8
+6.0
+E
+as
+t(
+m
+)
++3.3296×105
+(b) Ladybird - sample projection and uncertainties
+2.5 2.6 2.7 2.8 2.9 3.0 3.1 3.2
+North (m) +7.21885×106
+?85.0
+?84.9
+?84.8
+?84.7
+?84.6
+?84.5
+?84.4
+?84.3
+E
+le
+va
+tio
+n
+(m
+)
+(c) Shrimp - all projections
+2.2 2.4 2.6 2.8 3.0 3.2 3.4
+North (m) +7.21885×106
+?85.2
+?85.0
+?84.8
+?84.6
+?84.4
+?84.2
+?84.0
+E
+le
+va
+tio
+n
+(m
+)
+(d) Shrimp - sample projection and uncertainties
+Figure 12. Point to plane projection comparisons for both platforms. In (a) and (c) all scans of all
+pattern points are plotted to best fit planes before (grey) and after (red) calibration, while in (b) and
+(d) a single projected observation of each pattern point is shown with 1-? uncertainty ellipses. In all
+figures, post-calibration pattern point estimates are marked with green crosses for reference. Because
+the calibration pattern was positioned flat on the ground for Ladybird, a top down (North-East) view
+was selected for (a) and (b). Conversely, for Shrimp the calibration pattern was positioned almost
+vertically on a ladder, facing west, and therefore a side view (North-Elevation) was selected for (c) and
+(d).
+23 of 27
+2.5 2.6 2.7 2.8 2.9 3.0 3.1 3.2
+North (m) +7.21885×106
+?85.1
+?85.0
+?84.9
+?84.8
+?84.7
+?84.6
+?84.5
+E
+le
+va
+tio
+n
+(m
+)
+Figure 13. All pattern points plotted to best fit planes for Shrimp, red for post calibration (same as in
+12c) and blue for projected points resulting from a relative camera pose where the optimised orientation
+was perturbed by 1?. This demonstrates the significant effect small changes in the camera pose can
+have on mapping performance.
+0.0 0.5 1.0 1.5
+Euclidean Distance (m)
+0
+10
+20
+30
+40
+A
+xi
+s
+A
+ng
+le
+D
+iff
+er
+en
+ce
+(d
+eg
+re
+es
+)
+1
+2000
+4000
+6000
+8000
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+(a) Ladybird
+0.0 0.5 1.0 1.5
+Euclidean Distance (m)
+0
+10
+20
+30
+40
+A
+xi
+s
+A
+ng
+le
+D
+iff
+er
+en
+ce
+(d
+eg
+re
+es
+)
+1
+100
+200
+300
+400
+500
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+(b) Shrimp
+Figure 14. Basins of attractions for the (a) Ladybird and (b) Shrimp platforms. The x and y axes of the
+plots are the Euclidean distances and axis-angle rotational differences between the initial values and
+the optimal reference solution respectively. Each grid cell is colour coded into two tiers based on the
+Mahalanobis distance of the result to the known optimum: below 0.1 and above, which was chosen as
+a suitable threshold for optimisation success.
+24 of 27
+observations to allow for subsequent outlier removal. The additional computational time required
+when increasing the number of observations is also a consideration.
+The main product of the MCMC uncertainty analysis is a covariance matrix (Eq. 27), which can
+be used to estimate mapping accuracy (e.g. Figs. 12a and 12c). However, covariance matrices represent
+uncertainty in a compressed format, given the assumption that the likelihood function is normally
+distributed. The corner plots (Fig. 9) provide a direct view of the MCMC sampling result, which
+qualitatively confirm that for both vehicles the normality assumption is justified: specifically that
+the distributions behave linearly within the sampled region, and the 1D histograms are qualitatively
+Gaussian in shape.
+In this paper we propose methods of visualising sensor pose distributions in a human interpretable
+way, as depicted in Figs. 10 and 11. The sphere plots and associated axis-angle magnitude histograms
+in Fig. 10 present the same underlying data in the MCMC sample plots (Fig. 9), but focus on
+human interpretability of the orientation parameters. The sphere provides a relatable reference that
+demonstrates how closely clustered the pose orientation is. Similarly, the visualisation in Fig. 11
+allows for human interpretation of the resulting camera pose and uncertainty (likelihood distribution)
+with respect to the platform models. These figures particularly highlight the greater uncertainty in
+translation parameters compared to orientation. They also confirm that the solutions are qualitatively
+“sensible” with respect to the physical platform models.
+The primary objective of optimising the camera pose is to reduce mapping errors. This was
+demonstrated in the results by the tighter clustering of mapped calibration target points that was
+achieved post-calibration. The improvement was particularly noticeable for the Ladybird platform, and
+to a lesser extent for the Shrimp platform. By chance, the manually measured camera pose on Shrimp
+was much closer to the optimal result than it was for Ladybird, and so the mapping improvement for
+Shrimp was less pronounced. The camera location on the Shrimp platform was easier to access, due
+to the lower height and smaller footprint, compared to the Ladybird platform, which likely explains
+the better manual estimate. Nevertheless, such accurate manual measurements can typically not be
+guaranteed, and Fig. 13 reveals the sensitivity of the map to small errors in camera pose, highlighting
+the need for calibration.
+The results reinforce the importance of acquiring a calibration dataset that exhibits a wide variety
+of platform poses with respect to the calibration pattern. This was tested by optimising both with and
+without large body roll (?wb,x) observations. Removing high ?
+w
+b,x observations had a considerable effect,
+as shown in Table 5, where uncertainty approximately doubled and even tripled for some parameters.
+The proposed method is able to deal with a wide range of initial hand measured values when
+paired with the Powell optimisation algorithm. In Fig. 14 we propose an intuitive approach to
+visualising the basins of attraction, by reducing the 6 DOF initial parameter space to form a 2D
+pose-distance space, comprising Euclidean and axis-angle distance. The plots demonstrate that initial
+estimates that deviate up to 0.5 m or 20?are likely to result in a successful optimisation. Additionally,
+with even larger deviations there is still a better than even ( 60%) chance of success. However, this
+is highly dependent on the geometry of the sensor and platform, the acquired data and the chosen
+optimisation algorithm. In our case, the solution for the Shrimp platform was surprisingly robust to
+initial translation errors (up to 1.5 m), while some failures can be seen at over 0.5 m for the Ladybird
+platform. This may be the result of the greater platform roll and pitch angles (up to 17?) achieved with
+Shrimp during data acquisition. In addition, different optimisers will have varying abilities to deal
+with local minima and "flat" regions in the 6 DOF parameter space. Nevertheless, measurement error
+tolerances of ±0.5 m and ±20?should be practically achievable for most applications.
+6. Conclusions
+This paper demonstrated a novel method for estimating a rigidly mounted line scanning camera’s
+fixed 6 DOF pose relative to a mobile platform with a navigation system. The method is appropriate
+for ground or very low altitude applications, where the scene is relatively near the platform, as it does
+25 of 27
+not require GCPs and uses a compact calibration pattern, the dimensions of which do not need to
+be known. Furthermore, it does not require data from auxiliary sensors such as full frame cameras.
+The approach involves imaging a calibration pattern with distinctly identifiable points from various
+platform poses, and using the navigation system and image data to triangulate their positions in the
+world frame. Reprojecting the points to the camera yields reprojection errors, which are used as a
+basis for outlier rejection, and then to calculate the likelihood given a candidate camera pose. By
+minimising the negative log likelihood, the optimal relative camera pose can be obtained. Given
+the likelihood function, an MCMC algorithm is able to estimate the certainty of the camera pose.
+The results demonstrate the effectiveness of the approach using two different mobile platforms with
+differing mounting configurations. The method was shown to be robust to relatively inaccurate initial
+hand measurements (within 0.5 m and 20?). Additionally, a number visualisations have been proposed
+to aid in human interpretation of the results. Future work will attempt to precisely specify platform
+pose requirements prior to data collection, as well as automate and improve the pattern point extraction
+process.
+Acknowledgments: This work is supported by the Australian Centre for Field Robotics (ACFR) at The University
+of Sydney and by funding from the Australian Government Department of Agriculture and Water Resources as
+part of its Rural R&D for profit programme. For more information about robots and systems for agriculture at the
+ACFR, please visit http://sydney.edu.au/acfr/agriculture.
+Author Contributions: Both A.W. and J.U. gathered the relevant data in the field. A.W. conceived and
+implemented the method, while J.U. supervised the work and provided significant conceptual input. The
+paper was written by A.W. and reviewed by J.U.
+Conflicts of Interest: The authors declare no conflict of interest. The founding sponsors had no role in the design
+of the study; in the collection, analyses, or interpretation of data; in the writing of the manuscript, and in the
+decision to publish the results.
+References
+1. Yang, C.; Everitt, J.H.; Bradford, J.M.; Murden, D. Airborne hyperspectral imagery and yield monitor data
+for mapping cotton yield variability. Precision Agriculture 2004, 5, 445–461.
+2. Bethel, J.; Lee, C.; Landgrebe, D.A. Geometric registration and classification of hyperspectral airborne
+pushbroom data. International Archives of Photogrammetry and Remote Sensing 2000, 33, 183–190.
+3. Lim, M.S.; Lim, J. Visual measurement of pile movements for the foundation work using a high-speed
+line-scan camera. Pattern Recognition 2008, 41, 2025–2033.
+4. Dale, L.M.; Thewis, A.; Boudry, C.; Rotar, I.; Dardenne, P.; Baeten, V.; Pierna, J.a.F. Hyperspectral Imaging
+Applications in Agriculture and Agro-Food Product Quality and Safety Control: A Review. Applied
+Spectroscopy Reviews 2013, 48, 142–159.
+5. Pfaff, F.; Maier, G.; Aristov, M.; Noack, B.; Gruna, R.; Hanebeck, U.D.; Längle, T.; Beyerer, J.; Pieper, C.;
+Kruggel-Emden, H.; Others. Real-time motion prediction using the chromatic offset of line scan cameras.
+at-Automatisierungstechnik 2017, 65, 369–380.
+6. Li, D.; Wen, G.; Qiu, S. Cross-ratio–based line scan camera calibration using a planar pattern. Optical
+Engineering 2016, 55, 14104.
+7. Ramirez-Paredes, J.P.; Lary, D.J.; Gans, N.R. Low-altitude Terrestrial Spectroscopy from a Pushbroom
+Sensor. Journal of Field Robotics 2015.
+8. Deery, D.; Jimenez-Berni, J.; Jones, H.; Sirault, X.; Furbank, R. Proximal remote sensing buggies and
+potential applications for field-based phenotyping. Agronomy 2014, 4, 349–379.
+9. Wendel, A.; Underwood, J. Self-supervised weed detection in vegetable crops using ground based
+hyperspectral imaging. 2016 IEEE International Conference on Robotics and Automation (ICRA). IEEE,
+2016, pp. 5128–5135.
+10. Trierscheid, M.; Pellenz, J.; Paulus, D.; Balthasar, D. Hyperspectral Imaging or Victim Detection with
+Rescue Robots. Safety, Security and Rescue Robotics, 2008. SSRR 2008. IEEE International Workshop on.
+IEEE, 2008, pp. 7–12.
+11. Zhang, Z. A flexible new technique for camera calibration. IEEE Transactions on pattern analysis and machine
+intelligence 2000, 22, 1330–1334.
+26 of 27
+12. Mostafa, M.M.R. Boresight calibration of integrated inertial/camera systems. Proceedings of the
+International Symposium on Kinematic Systems in Geodesy, Geomatics and Navigation (KIS 2001), Banff,
+AB, Canada, 2001, pp. 5–8.
+13. Lobo, J.; Dias, J. Relative pose calibration between visual and inertial sensors. The International Journal of
+Robotics Research 2007, 26, 561–575.
+14. Hol, J.D.; Schön, T.B.; Gustafsson, F. Modeling and calibration of inertial and vision sensors. The
+International Journal of Robotics Research 2010, 29, 231–244.
+15. Draréni, J.; Roy, S.; Sturm, P. Plane-based calibration for linear cameras. International Journal of Computer
+Vision 2011, 91, 146–156.
+16. Hui, B.; Wen, G.; Zhao, Z.; Li, D. Line-scan camera calibration in close-range photogrammetry. Optical
+Engineering 2012, 51, 53601–53602.
+17. Li, D.; Wen, G.; Hui, B.W.; Qiu, S.; Wang, W. Cross-ratio invariant based line scan camera geometric
+calibration with static linear data. Optics and Lasers in Engineering 2014, 62, 119–125.
+18. Luna, C.; Mazo, M.; Lázaro, J.L.; Vázquez, J.F.; Others. Calibration of line-scan cameras. Instrumentation
+and Measurement, IEEE Transactions on 2010, 59, 2185–2190.
+19. Yao, M.; Zhao, Z.; Xu, B. Geometric calibration of line-scan camera using a planar pattern. Journal of
+Electronic Imaging 2014, 23, 13028.
+20. Sun, B.; Zhu, J.; Yang, L.; Yang, S.; Niu, Z. Calibration of line-scan cameras for precision measurement.
+Applied optics 2016, 55, 6836–6843.
+21. Ma, W.; Bioucas-Dias, J.; Chan, T.; Gillis, N.; Gader, P.; Plaza, A.; Ambikapathi, A.; Chi, C. A signal
+processing perspective on hyperspectral unmixing: Insights from remote sensing. Signal Processing
+Magazine, IEEE 2014, 31, 67–81.
+22. Lenz, A.; Schilling, H.; Perpeet, D.; Wuttke, S.; Gross, W.; Middelmann, W. Automatic in-flight boresight
+calibration considering topography for hyperspectral pushbroom sensors. 2014 IEEE Geoscience and
+Remote Sensing Symposium, 2014, pp. 2981–2984.
+23. Perry, J.; Ahmed, M.; Abd-Elrahman, A.; Bowman, S.; Kaddoura, Y.; Watts, A. Precision Directly
+Georeferenced Unmanned Aerial Remote Sensing System: Performance Evaluation. Proceedings of
+the Institute of Navigation National Technical Meeting, San Diego, CA, USA, 2001, Vol. 2830, p. 9.
+24. Muller, R.; Lehner, M.; Muller, R.; Reinartz, P.; Schroeder, M.; Vollmer, B. A program for direct
+georeferencing of airborne and spaceborne line scanner images. International Archives of Photogrammetry
+Remote Sensing and Spatial Information Sciences 2002, 34, 148–153.
+25. Abd-Elrahman, A.; Sassi, N.; Wilkinson, B.; Dewitt, B. Georeferencing of mobile ground-based
+hyperspectral digital single-lens reflex imagery. Journal of Applied Remote Sensing 2016, 10, 14002.
+26. Wohlfeil, J.; Bucher, T. A modular, interactive software-concept for radiometric and geometric correction of
+airborne and spaceborne linescanner images. Proc. SPIE, this volume, 2009.
+27. Yeh, C.K.; Tsai, V.J.D. Self-calibrated direct geo-referencing of airborne pushbroom hyperspectral images.
+Geoscience and Remote Sensing Symposium (IGARSS), 2011 IEEE International. IEEE, 2011, pp. 2881–2883.
+28. Wohlfeil, J. Optical orientation determination for airborne and spaceborne line cameras. PhD thesis,
+Humboldt-Universität zu Berlin, Mathematisch-Naturwissenschaftliche Fakultät II, 2012.
+29. Barbieux, K.; Constantin, D.; Merminod, B. Correction of Airborne Pushbroom Images Orientation Using
+Bundle Adjustment of Frame Images. ISPRS-International Archives of the Photogrammetry, Remote Sensing
+and Spatial Information Sciences 2016, pp. 813–818.
+30. Habib, A.; Xiong, W.; He, F.; Yang, H.L.; Crawford, M. Improving Orthorectification of UAV-Based
+Push-Broom Scanner Imagery Using Derived Orthophotos From Frame Cameras. IEEE Journal of Selected
+Topics in Applied Earth Observations and Remote Sensing 2016, PP, 1–15.
+31. Hartley, R.; Zisserman, A. Multiple view geometry in computer vision; Cambridge university press, 2003.
+32. Berner, P. Orientation, Rotation, Velocity, and Acceleration and the SRM. SEDRIS Organization, ISO/IEC
+JTC 2007, 1.
+33. Huynh, D.Q. Metrics for 3D rotations: Comparison and analysis. Journal of Mathematical Imaging and Vision
+2009, 35, 155–164.
+34. Gellert, W.; Gottwald, S.; Hellwich, M.; Kästner, H.; Künstner, H. VNR Concise Encyclopedia of Mathematics,
+2nd ed.; Van Nostrand Reinhold: New York, 1989.
+27 of 27
+35. Underwood, J. Reliable and safe autonomy for ground vehicles in unstructured environments; University of
+Sydney, 2009.
+36. Underwood, J.P.; Hill, A.; Peynot, T.; Scheding, S.J. Error modeling and calibration of exteroceptive sensors
+for accurate mapping applications. Journal of Field Robotics 2010, 27, 2–20.
+37. James, F. Statistical methods in experimental physics; World Scientific, 2006.
+38. Foreman-Mackey, D.; Hogg, D.W.; Lang, D.; Goodman, J. emcee: The MCMC hammer. Publications of the
+Astronomical Society of the Pacific 2013, 125, 306.
+39. MacKay, D.J. Information Theory, Inference, and Learning Algorithms; 2008; p. 640.
+40. Underwood, J.; Wendel, A.; Schofield, B.; McMurray, L.; Kimber, R. Efficient in-field plant phenomics for
+row-crops with an autonomous ground vehicle. Journal of Field Robotics 2017.
+41. Underwood, J.P.; Calleija, M.; Taylor, Z.; Hung, C.; Nieto, J.; Fitch, R.; Sukkarieh, S. Real-time target
+detection and steerable spray for vegetable crops. in proceedings, Workshop on Robotics in Agriculture at
+International Conference on Robotics and Automation (ICRA), 2015.
+42. Wendel, A.; Underwood, J. Illumination compensation in ground based hyperspectral imaging. ISPRS
+Journal of Photogrammetry and Remote Sensing 2017, 129, 162–178.
+43. Stein, M.; Bargoti, S.; Underwood, J. Image Based Mango Fruit Detection, Localisation and Yield Estimation
+Using Multiple View Geometry. Sensors 2016, 16, 1915.
+44. Bargoti, S.; Underwood, J.P. Image segmentation for fruit detection and yield estimation in apple orchards.
+Journal of Field Robotics 2017.
+45. Underwood, J.P.; Hung, C.; Whelan, B.; Sukkarieh, S. Mapping almond orchard canopy volume, flowers,
+fruit and yield using LiDAR and vision sensors. Computers and Electronics in Agriculture 2016, 130, 83–96.
+46. Powell, M.J.D. An efficient method for finding the minimum of a function of several variables without
+calculating derivatives. The computer journal 1964, 7, 155–162.
+47. Jones, E.; Oliphant, T.; Peterson, P.; Others. SciPy: Open source scientific tools for Python.
+48. Foreman-Mackey, D. corner.py: Scatterplot matrices in Python. The Journal of Open Source Software 2016, 24.
