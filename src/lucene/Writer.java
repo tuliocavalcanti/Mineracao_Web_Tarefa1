@@ -10,9 +10,6 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
@@ -25,6 +22,8 @@ import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+
+import util.GetAnalyzer;
  
 public class Writer{
 	
@@ -63,21 +62,14 @@ public class Writer{
 		
 		switch(i){
 			case 1:
-				return getEmptyAnalyzer();
+				return GetAnalyzer.emptyAnalyzer();
 			case 2:
-				return new EnglishAnalyzer();
+				return GetAnalyzer.stopWordsAnalyzer();
 			case 3:
-				return new PorterAnalyzer(getEmptyAnalyzer());
+				return GetAnalyzer.stemmingAnalyzer();
 			default: //case 0
-				return new PorterAnalyzer(new EnglishAnalyzer());
+				return GetAnalyzer.stopWordsStemmingAnalyzer();
 		}
-	}
-	
-	private static Analyzer getEmptyAnalyzer(){
-		
-		CharArraySet stopWords = new CharArraySet(0, true);
-		
-		return new StandardAnalyzer(stopWords);
 	}
 
     private static void indexDocs(final IndexWriter writer, Path path) throws IOException {
