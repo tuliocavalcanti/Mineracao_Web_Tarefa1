@@ -1,0 +1,1304 @@
+1
+Computer Vision and Image Understanding
+journal homepage: www.elsevier.com
+Towards social pattern characterization in egocentric photo-streams
+Maedeh Aghaeia,??, Mariella Dimiccolia,b, Cristian Canton Ferrerc, Petia Radevaa,b
+aUniversity of Barcelona, MAIA Department, Barcelona 08007, Spain
+bComputer Vision Center, Bellaterra (Cerdanyola) Barcelona 08193, Spain
+cMicrosoft Research, Redmond, Washington 98052, United States
+ABSTRACT
+Following the increasingly popular trend of social interaction analysis in egocentric vision, this
+manuscript proposes a new pipeline for automatic social pattern characterization of a wearable pho-
+to-camera user, relying on visual analysis of captured egocentric photos. The proposed framework
+consists of three major steps. The first step is dedicated to social interaction detection where the im-
+pact of several social signals is explored. Detected social events are inspected in the second step for
+categorization into different social meetings. These two steps act at event-level where each potential
+social event is modeled as a multi-dimensional time-series, whose dimensions correspond to a set of
+relevant features for each task, and LSTM is employed for time-series classification. The last step
+of the framework corresponds to the social pattern characterization of the user, where recurrences of
+the same person across the whole set of social events of the user are clustered to achieve a compre-
+hensive understanding of the diversity and frequency of the social relations of the user. Experimental
+evaluation over a dataset acquired by a user wearing a photo-camera during a month demonstrates the
+relevance of the considered features for social interaction analysis, and show promising results on the
+task of social pattern characterization from egocentric photo-streams.
+c© 2017 Elsevier Ltd. All rights reserved.
+1. Introduction
+Automatic analysis of data collected by wearable cameras
+draws attention of the researchers in different topics in com-
+puter vision, ranging from object detection and recognition to
+event summarization and analysis in first-person vision Betan-
+court et al. (2015); Bolanos et al. (2017). Among all these
+topics, social interaction analysis in particular has been an ac-
+tive topic of study Narayan et al. (2014); Alletto et al. (2015);
+Aghaei et al. (2015, 2016b); Fathi et al. (2012); Yang et al.
+(2016). The motivation behind this interest is twofold. Firstly,
+the first-person paradigm offers the unique opportunity of revis-
+??Corresponding author: Tel.: +34-672-684-565;
+e-mail: aghaei.maya@gmail.com (Maedeh Aghaei )
+iting the problem of social interaction detection and categoriza-
+tion from an unmediated source being the first-person, itself.
+Wearable cameras in comparison to the fixed surveillance cam-
+eras allow to capture natural photos of the daily interactions
+of the user, where the users naturally attempt to reach a clear
+view of the individuals who are engaged in a social interaction
+with them (see Fig. 1). Secondly, given the strong emotional
+impact of social interactions, their detection and categorization
+have a large potential for enabling novel applications in differ-
+ent fields, ranging from Entertainment to Preventive Medicine.
+For instance, in a particular scene recorded by a wearable cam-
+era, presence of social interactions is considered as an impor-
+tant factor to determine whether the event is likely to be viewed
+as worth keeping Yang et al. (2016). Also, in the context of
+ar
+X
+iv
+:1
+70
+9.
+01
+42
+4v
+1 
+ [
+cs
+.C
+V
+] 
+ 5
+ S
+ep
+ 2
+01
+7
+2
+Figure 1: Examples of existing images in our dataset, EgoSocialStyle, captured by the Narrative Clip wearable camera and representing social interactions.
+memory recall of people affected by mild cognitive impairment,
+pictures of social interactions are specially suited to trigger au-
+tobiographical memory Woodberry et al. (2015).
+In sociology, the introduction of F-formation theory Kendon
+(1976) was a foot-stone to formalizing social interaction set-
+tings. F-formation is defined as a geometrical pattern that in-
+teracting people tend to follow by adjusting their location and
+orientation towards each other in the space to avoid mutual oc-
+clusion. The computer vision community later adopted the F-
+formation theory to detect groups of interacting people from
+images and videos Cristani et al. (2011); Gan et al. (2013).
+Early works about social interaction analysis in conventional
+images were motivated mainly by the video surveillance appli-
+cations Setti et al. (2015); Cristani et al. (2013). Surveillance
+cameras however, capture the environment from a fixed and ex-
+ternal perspective and fail in capturing real involvement in so-
+cial interaction at personal level. For this purpose, wearable
+cameras are a suitable substitute for fixed cameras and offer the
+possibility of capturing social cues from a more intimate per-
+spective, known as ego-vision or first-person vision. Nonethe-
+less, social interaction analysis in ego-vision introduces new
+challenges in social signal processing in comparison to conven-
+tional third-person vision. Unpredictable motion of the camera
+leads to background clutter and abrupt lighting transitions. In
+addition, when the frame rate of the camera is low (2 fpm in our
+case), further challenges such as complex visual appearance of
+natural scenes and drastic visual changes in even temporally ad-
+jacent photos make people tracking and their interaction analy-
+sis harder Aghaei et al. (2015, 2016b).
+In this paper, we build upon our previous work Aghaei et al.
+(2016b) going beyond social interaction analysis in egocentric
+photo-streams. The proposed pipeline suggests firstly, to study
+a wider set of features for social interaction detection and sec-
+ondly, to categorize the detected social interactions into two
+broad categories of meetings. Following the proposed idea by
+Xiong et al. Xiong and Quek (2005), we focus our attention
+on the meetings, as a special type of social interactions and its
+two broad formal and informal subcategories, since the impor-
+tance of frequency of participation of an individual in any kind
+of these meetings is well recognized by the psychological and
+social scientists Mangrum et al. (2001); Muncy (2001); Steinlin
+(2005); Hudson et al. (2006). Our hypothesis is that to detect
+and categorize social interactions, analysis of combination of
+environmental features and social signals transmitted by the vis-
+ible people in the scene, as well as their evolution over time is
+required. Eventually, social pattern characterization of the user
+comes naturally as the result of discovery of recurring people
+in the dataset and quantifying the frequency, the diversity and
+the type of the occurred social interactions with different indi-
+viduals. Ideally, employing the entire proposed pipeline in this
+work, we would like to be able to answer questions such as How
+often does the user engage in social interactions? With whom
+does the user interact most often? Are the interactions with this
+person mostly formal or informal? With how many people does
+the user interact during a month? How often does the user see
+a specific person?
+Social pattern characterization of individuals requires long
+time observation of their social interactions, and since wearable
+photo cameras allow long term recording of the life of a user,
+they are specifically suitable for this purpose. To demonstrate
+the generalization ability of the proposed approach, we employ
+our proposed model over a test set acquired by one user who
+wore the camera under free-living conditions over one month
+period while did not participate in acquiring the training set
+used for training the models. Possible applications of this com-
+prehensive analysis are, for example, in medical and psycho-
+3
+Social Interaction
+Detection
+Social Interaction
+Categorization
+LSTM
+LSTM
+Temporal Analysis
+ of Social Signals
+Face Clustering Social Interaction
+Analysis
+Tracking
+Social Pattern
+Characterization
+Figure 2: Complete pipeline of the proposed method.
+logical studies aiming at investigating the feasibility of using
+a wearable camera for detecting relapse in people affected by
+depression Hodges et al. (2011); Berry et al. (2007), for moni-
+toring the lifestyle of stroke survivors Dhand et al. (2016), or in
+studies aiming at an ecological momentary assessment of social
+functioning in schizophrenia Granholm et al. (2013) for which
+is important to monitor the duration of social interactions. A vi-
+sual overview of the proposed pipeline is given in Fig. 2. Social
+signals as well as environmental features are extracted for each
+frame and used to represent each sequence as a time-series. A
+LSTM is employed to classify each time-series, accordingly to
+the task at hand: social interaction detection or categorization.
+Face clustering on the other side enables determination of the
+diversity and the frequency of social interactions. Eventually,
+social pattern characterization comes naturally as the result of
+integration of all tasks. The contributions of this paper can be
+summarized as follows:
+• Social interaction detection based on event-level analysis
+of different combination of a wide set of social signals.
+• Social interaction categorization into formal or informal
+meetings, considering a new set of high-level image fea-
+tures.
+• Social pattern characterization through the definition of
+the frequency and the diversity of social interactions of the
+user.
+• Public release of an extensively-annotated egocentric
+dataset captured in a real-world setting consisting of
+125,000 images acquired by 9 users.
+The rest of the paper is organized as follows: Sec. 3 is de-
+voted to social interaction detection. Sec. 4 details the proposed
+approach for social interaction categorization and Sec. 5 is ded-
+icated to the social pattern characterization. Details about the
+dataset and experimental results are discussed in Sec. 6. Sec. 7
+highlights the main conclusions and discusses the future work.
+2. Related work
+The importance of automatic analysis of visual data for the
+purposes of detection and categorization of social interactions
+has been recognized in several works by the computer vision
+community. Most of the previous works in social interaction
+4
+computing were focused on finding potential groups of interact-
+ing people, also known as Free-standing Conversational Groups
+(FCG) in conventional still images or videos. In this regard,
+Groh et al. Groh et al. (2010) proposed to use the relative
+distance and shoulder orientations between each pair of peo-
+ple to measure social interactions on small temporal and spa-
+tial scales. This has been done through training a probabilistic
+classifier which can then be used for characterizing the social
+context. Cristani et al. Cristani et al. (2011) proposed to solve
+the task using a Hough-Voting F-Formation (HVFF) strategy to
+find the common area of interaction by accumulating the den-
+sity of the overlapping votes of each interacting person. Built
+upon a multi-scale Hough-Voting policy, Setti et al. Setti et al.
+(2013) modeled small FCG as well as large groups of peo-
+ple, relying on different voting sessions. The problem of find-
+ing F-formations has also been formulated as finding dominant
+sets and using proxemics by employing the graph clustering
+algorithm Hung and Kro?se (2011), graph-cuts framework for
+clustering individuals Setti et al. (2015), heat-map based fea-
+ture representation of interacting people Gan et al. (2013), and
+defining an intermediate representation of how people interact
+Choi et al. (2014).
+The boom of interest in ego-vision during the past few years
+Bolanos et al. (2017), naturally led to exploration of social in-
+teraction analysis in this setting where images and videos are
+captured by a camera which is typically worn on the chest or
+on the head of a user. Typically, the most exploited features
+in an egocentric scenario are the face location and pattern of
+attention of the visible individuals, along with the head move-
+ments of the first-person when the camera is worn on the head.
+Fathi et al. Fathi et al. (2012) proposed a Markov Random Field
+model to infer the 3D location to which a person is looking at
+during a social interaction, that relies on the camera intrinsic pa-
+rameters. They further used this information to classify social
+interactions into three classes, namely discussion, dialogue and
+monologue, depending on the active role played by the partici-
+pants in the interaction. To the best of our knowledge, this is the
+only previously introduced work about egocentric social inter-
+action categorization. Later, Alletto et al. Alletto et al. (2015)
+proposed a method for identifying multiple social groups from
+egocentric videos, that do not rely on the camera intrinsic pa-
+rameters for 3D projection; hence, the method is applicable
+to any head-mounted wearable camera. Park et al. Soo Park
+and Shi (2015) introduced the concept of social saliency de-
+fined as the likelihood of joint attention from a spatial distri-
+bution of social members. A social formation is modeled as an
+electric dipole moment allowing to encode a spatial distribution
+of social members using a social formation feature. Recently,
+Yang et al. Yang et al. (2016) proposed a procedure based on
+Hidden Markov Models to analyze social interaction sequences
+and detect them applying a Hidden Markov - Support Vector
+Machine (HM-SVM). Their focus was on modeling what they
+called interaction features, mainly physical information of head
+and body.
+The common characteristics among all the above reviewed
+works are first, the high temporal resolution of videos (30-60
+fps), which allows to rely on the temporal coherence among
+video frames to robustly estimate head pose of appearing peo-
+ple and modeling the foreground. Second, the head-mounted
+cameras allow the modeling of head movements and attention
+patterns of the user. And third, the pursued goal by them is ba-
+sically restricted to find potential social groups of people in the
+scene, with exception of Fathi et al. (2012), that goes deeper
+into the categorization of social interactions, but strongly relies
+on head motion for that. The main limitation of high tempo-
+ral resolution cameras is that they can acquire images for only
+relatively short periods of time (up to several hours) that makes
+them difficult to be used in order to detect patterns of social
+interactions.
+The problem of social interaction analysis from egocentric
+photo-streams with low temporal resolution, overcomes the
+aforementioned limitation, but has received much less atten-
+tion Aghaei et al. (2015, 2016b, 2017). Since photo-cameras
+used to acquire photo-streams are typically used for long peri-
+ods of time, they are commonly worn on the chest to make them
+more discrete. Consequently, important information about the
+5
+user’s head movement is not available and attention estimation
+becomes unfeasible. In addition, in this particular setting, ad-
+jacent frames can present abrupt variations and introduce more
+difficulty along information processing. In the first attempt to-
+wards social interaction detection in egocentric photo-streams,
+Aghaei et al. Aghaei et al. (2015) adapted the HVFF method
+to the egocentric setting, namely ego-HVFF, to predict social
+interactions among individuals with the user at frame-level.
+This method inherently analyzes the social interactions in every
+frame of the video separately and eventually measures the prob-
+ability of user social interaction of the user with each individual
+based on the ratio of the frames that the algorithm found them
+as interacting. Later, in another work Aghaei et al. (2016b), the
+authors proposed to model the temporal coherence of the social
+signals at sequence-level, by employing a special type of Recur-
+rent Neural Networks (RNN) known as Long-Short Term Mem-
+ory (LSTM). According to the F-formation notion, the studied
+social signals in both of these works are distance and orienta-
+tion of the individuals with regards to the user. The authors
+reported that analysis of social signals at sequence-level leads
+to a better social interaction prediction accuracy. The authors
+also proposed a face clustering method Aghaei et al. (2017),
+introducing a novel measure of similarity among faces, in con-
+junction with the results of social interaction detection and cat-
+egorization, for social pattern characterization from egocentric
+photo-streams.
+In this work, we propose a complete pipeline for social pat-
+tern characterization of a wearable photo-camera user, where
+for the first time the role of facial expressions, in combination
+with other conventional social signals is studied in social inter-
+action analysis. The proposed model relies on the long term
+observation of social interactions of the user, where multiple
+high-level visual features aggregate together to achieve a more
+robust social interaction analysis. To the best of our knowl-
+edge, this work can be considered as the first comprehensive
+social pattern characterization study in egocentric vision.
+3. Social interaction detection
+We, as humans are naturally able to recognize if two or more
+people are interacting even only by looking at a sequences of
+images (see Fig. 3). However, this is not as trivial for a com-
+puter program. In this work, for social interaction detection
+task, we build upon our previous work by introducing additional
+features and study their effectiveness in improvement of the re-
+sults. Specifically, given a sequence, a potential social segment
+of a photo-stream extracted by applying the video segmentation
+method Dimiccoli et al. (2016), social signals are first extracted
+at frame-level, and later their evolution in terms of social signals
+is analyzed over time at sequence-level to detect social interac-
+tions.
+3.1. Social signal extraction at frame-level
+Tracking the appearance of people along time is generally
+considered as the first step prior to any social behavior analy-
+sis in machine vision. To track the appearing people in each
+sequence, we employ the extended-Bag-of-Tracklets (eBoT)
+Aghaei et al. (2016a) which is a multi-person tracking algo-
+rithm in egocentric photo-stream setting. The set of bounding
+boxes corresponding to the same face in a sequence, resulting
+from eBoT, is called a prototype, where the number of proto-
+types in a sequence is equal to the number of tracked people in
+it as more than one individual may appear in a single sequence.
+In this work, as well as our previous work, we rely on the F-
+formation formalization for social interaction detection in the
+domain of egocentric photo-streams. As the F-formation model
+assumes a bird-view of the scene, we represent each bounding
+box in a prototype by a (x, d, o) triplet, so that x denotes the
+position of the person in the horizontal axis of the image and
+with regards to the user, d denotes its distance, and o its head
+orientation. The tracking process, directly provides us with the
+x position of a face. However, in our egocentric setting, x is
+not a reliable feature to be considered as it constantly goes un-
+der large variations due to the unpredictable movements of the
+camera and its low frame rate (see Fig. 3a). Moreover, when
+it comes to interaction with the user, the x position of the vis-
+ible people as far as they do not occlude each other, does not
+6
+(a) Social interaction
+(b) No social interaction
+Figure 3: Examples of two sub-sampled sequences in our dataset. In 3a the user is involved in a social interaction while 3b demonstrates a sequence where although
+the user is among the crowd, but is not specifically interacting.
+play a crucial role. Therefore, we only consider the (d, o) pair
+to analyze the F-formation. Both parameters, d and o should be
+calculated for all the participants in the social interaction, being
+the user and the visible people in a sequence.
+Distance: In the egocentric setting, the user is obviously lo-
+cated at no distance from the camera O and the distance of the
+j-th tracked person p j in the scene from the camera, d(O, p j), is
+estimated based on the camera-pinhole model through learning
+its relation with the vertical face height of the person Alletto
+et al. (2015). According to our observations, the relation be-
+tween the face height of individuals and their distance from the
+camera is best modeled as a second degree polynomial of the
+face height of the person Aghaei et al. (2015).
+The data for training the polynomial regression function
+is obtained from a dataset that does not belong to the train-
+ing and test datasets for the social interaction detection.
+For the fit, we used the height of the face of 3 different
+individuals measured in all the following set of distances
+{30, 50, 70, 100, 150, 200, 250} cm. The distance feature is rep-
+resented by:
+?d(p j) = d(O, p j) ? R.
+Without loss of generality, in the feature vector we will omit the
+reference to the person p j and the wearable camera O.
+Orientation: The head orientation of each individual gives a
+rough estimation of where the person is looking at. In this work,
+in addition to the commonly studied yaw (?z) head orientation
+for social interaction detection, pitch (?y) and roll (?x) head
+orientation of all the visible faces are also extracted. Hence, the
+orientation feature is given by:
+?o(p j) = (?x(p j), ?y(p j), ?z(p j)) ? R3,
+where each of ?x, ?y, and ?z has a value between [-90?,90?].
+As the camera is basically worn on the chest of the user, we only
+assume the user can possibly look at anywhere in the space, but
+with higher probability of looking at other engaged people in
+the interaction.
+Facial expression: During a social interaction, people exhibit a
+large number of non-verbal communication cues including fa-
+cial expressions. Facial expressions are often referred to as au-
+tomatic demonstrations of affective internal states used as com-
+municative means in interaction with others Hess and Bour-
+geois (2010). In crowded places, people often stand in close
+proximity to strangers with whom they do not necessarily inter-
+act. In this situation, relying solely on distance and orientation
+of the individuals for social interaction detection may lead to
+disputable predictions (see Fig. 4). Our observation on real
+social conditions led us to intuitively explore the role of facial
+expression as an additional feature beside the pure geometrical
+features imposed by the F-formation in social interaction detec-
+tion.
+In this work, facial expressions and face orientation are ex-
+7
+tracted by making use of Microsoft Cognitive Service1. Facial
+expression is presented as a predicted vector of probabilities for
+each of 8 different facial expressions consistently associated to
+emotions in the occidental culture, being neutral, happiness,
+surprise, sadness, anger, disgust, fear, and contempt Barsoum
+et al. (2016). For a given person p j, we proposed to consider the
+index of the dominant facial expression that is a discrete value
+between 1 (neutral) and 8 (contempt):
+?e(p j) = arg max
+k?1,...,8
+ek(p j).
+3.2. Temporal representation of social signals
+In this work, the problem of social interaction detection is
+formulated as a binary time-series classification, where the
+time-series dimensions correspond to the number of selected
+social signals for the analysis as explained in Sec. 3.1. Hav-
+ing the goal to detect social interactions of each tracked indi-
+vidual in a sequence with the user, as the complete setting, a
+5?dimensional time-series representing the time-evolution of
+the k-th interaction features, over time is extracted for each pro-
+totype, separately. The task is to classify each time-series as
+interacting with the user or not. All the aforementioned inter-
+action features, are extracted in every frame of the sequence at
+time step ? separately to build the time-series representation of
+a prototype:
+?detection(?, p j) = (?d(?, p j), ?o(?, p j), ?e(?, p j)) ? R5, ? = 1, 2, . . . .
+3.3. Time-series classification by LSTM
+Time-series classification is a predictive modeling problem
+and what makes this problem difficult is that the original se-
+quences can vary in length, be comprised of a very large vo-
+cabulary of input symbols and may require the model to learn
+the long-term context or dependencies between symbols in the
+input time-series. In this context, RNNs by considering the no-
+tion of order in time thanks to their embedded feedback loop,
+showed great promise to grasp the information hidden among
+1https://azure.microsoft.com/en-us/services/cognitive-services/face/
+steps of a sequence. The combination of backpropagation in
+conjunction with an optimization method such as gradient de-
+scent is a common method of training of RNNs. Back Prop-
+agation Through Time (BPTT) is considered as an extension
+of the backpropagation used for training of RNNs, in which a
+time element is added which extends the series of functions for
+which it calculates derivatives with the chain rule. In this work,
+a variation of RNNs, namely LSTM Hochreiter and Schmidhu-
+ber (1997) is used for the classification task which thanks to its
+embedded memory cells is also able to control how information
+flows through the network and in this way it overcomes the ex-
+ponential error decay problem of the RNNs. The effectiveness
+of the LSTM is demonstrated in previous approaches ranging
+from activity and object detection Ma et al. (2016), recogni-
+tion and segmentation to image and video captioning Jia et al.
+(2015).
+Being ? the memory cell, at time step ?, ?’s output y?(?) is
+computed as:
+y?(?) = yout(?)h(S ?(?)),
+where S ?(?) is the internal state of the LSTM, also known as
+the heart of the memory cell, h is a differentiable function that
+scales memory cell outputs computed from the internal state S ?
+and yout(?) is the output of the output gate. The internal state S ?
+has a self-connected recurrent edge with fixed unit weight with
+linear activation. Because this edge spans adjacent time steps
+with constant weight, error can flow across time steps without
+vanishing or exploding. The internal state S ?(?) is computed
+as:
+?????????????
+S ?(?) = 0, ? = 0
+S ?(?) = S ?(? ? 1)y f orget(?) + yin(?)g(net?(?)), ? > 0
+being yin and y f orget functions of the parameters (?detection, in
+our case) and outputs of the cell’s input gate, and forget gate, re-
+spectively. net? is the combination of present input and past cell
+state which gets fed not only to the cell itself, but also to each of
+its three gates. g is a differentiable function that squashes net? .
+We refer the reader to Hochreiter and Schmidhuber (1997) for
+a more detailed description of the LSTM architecture. For the
+8
+(a) Social interaction (b) No social interaction
+Figure 4: A same person is shown in two different social events. In 4a the person is interacting, while in 4b she is not interacting with the user. Facial expression
+probabilities of the person is also present.
+output layer, a sigmoid function is used as activation function,
+which is standard for binary classification tasks.
+4. Social interaction categorization
+Social interaction categorization is the task of characterizing
+type of a social interaction. In the literature, three major ele-
+ments have been typically exploited for social interaction cate-
+gorization: the physical setting or place, the social environment,
+and the activities surrounding the interaction Palispis (2007). In
+this work, following Xiong et al. Xiong and Quek (2005) we
+propose to categorize social interactions into two broad cate-
+gories of common social interactions as formal meetings and
+informal meetings, also known as informal gatherings.
+Meetings are defined as gatherings at which humans commu-
+nicate, convince, cajole, conspire, and collaborate Xiong and
+Quek (2005). In general sociology, a formal meeting is defined
+as a pre-planned event where two or more people come together
+at a pre-planned place at a particular time to discuss specific
+matters for the purposes of achieving a specific goal Xiong and
+Quek (2005). An informal meeting is more casual, and less
+planning is involved and usually can take place anywhere, such
+as a restaurant or a park. Looking closely at the definition of
+formal and informal meetings from a computer vision perspec-
+tive, environmental features show sign of discriminative power
+in their categorization. Therefore, we base our approach for
+social interaction categorization on the use of environmental
+features. In addition to them, we also attempt to study the im-
+pact of the facial expressions of individuals on characterizing
+the category of a social interaction. Our approach takes into
+account the temporal evolution of both environmental and fa-
+cial expression features by modeling them as multi-dimensional
+time-series, and relies on the classification power of LSTM for
+binary classification of each time-series into either a formal or
+an informal meeting.
+4.1. Feature extraction
+Global features: As explained earlier in this section, the sur-
+rounding environment of an interaction is considered among
+the main indicators for categorizing a meeting. Among differ-
+ent features for image representation, global features learned by
+CNN, known as CNN features showed exceptional results for
+9
+(a) Formal meeting
+(b) Informal meeting
+Figure 5: Example of two sub-sampled sequences, demonstrating the engagement of the user in different categories of social interactions; a formal meeting (5a),
+and an informal meeting (5b).
+global representation of the context in images Girshick et al.
+(2014). Each component of the CNN feature vector has some
+semantic content and corresponds to a virtual concept word
+which enables to encode the high-level semantic meanings of
+an image into a high-dimensional vector. In this work, we
+represent each image with a feature vector extracted by tak-
+ing the output of the last fully connected layer of the VGGNet
+(VGG16) Simonyan and Zisserman (2014) pre-trained on the
+Imagenet dataset Deng et al. (2009). However, since the image
+feature vector consists of thousands of variables (4096 in our
+case), the computational cost is not negligible when it comes
+to further processing. In addition, the Hughes phenomenon
+Hughes (1968) is inevitable when it comes to learn a high-
+dimensional feature space with limited number of training sam-
+ples in machine learning in general and in RNNs, specifically
+Pascanu et al. (2013). In this regard, several works have been
+proposed previously to resolve the curse of dimensionality of
+CNN features.
+We propose to re-write the CNN features as discrete words
+Amato et al. (2016). Our approach takes advantage of the
+inverted-index approach to deal with the sparsity of the CNN
+features to associate each component of the feature vector with
+a unique alphanumeric keyword. This leads to a textual repre-
+sentation of the CNN features in which the relative term is pro-
+portionally related to the feature intensity. This method showed
+great promises in retrieval applications. In this work, the pro-
+posed idea by Amato et al. Amato et al. (2016) is adapted to
+our problem for feature dimensionality reduction.
+Let us represent each component of the L2-normalized CNN
+feature vector, fk, k = 1, ..., 4096 as a word:
+wk = bQ fkc,
+where bc denotes the floor function, and Q is an integer positive
+quantification factor being Q > 1. For instance, if we fix Q = 2,
+for fk < 0.5, then wk = 0, while for fk ? 0.5, wk = 1. The factor
+Q has a regulator effect on the features for further processing.
+The smaller the Q the sparser is the new feature vector and it
+represents less details about the original feature vector. In this
+work, Q = 15 is used which results in highly sparse feature
+representation. As a result, we obtain a feature vector of integer
+values: (w1,w2, . . . ,w4096).
+Given that the obtained word representation is very sparse, a
+PCA is applied over the so obtained feature vectors extracted
+from all the images of the dataset and from the emerging repre-
+sentation, 95% of the most important information are kept. This
+process results in a 35-dimensional feature vector, ?CNN ? R35,
+while keeping the most important environmental features of the
+image.
+Facial expression: Following our hypothesis that formal and
+informal meetings can be characterized by the environmental
+characteristic as well as the facial expression of participants,
+10
+(a) Formal (b) Informal
+Figure 6: Bar-plot of facial expression variation over 10 randomly selected sequences for each of (a) formal and (b) informal meetings. Each sub-figure shows the
+mean of the observed facial expressions for each detected face in all the frames of 10 randomly selected sequences.
+integration of information regarding facial expression in our
+model is required. A proof for this hypothesis is illustrated
+on Fig. 6 that shows the bar-plot of eight facial expressions
+for both formal and informal meetings. These bar-plots, ob-
+tained using ground truth information, suggest that people ex-
+press more freely their emotions in informal meetings. Facial
+expression features in this task are extracted as the mean of fa-
+cial expressions of the total number of J people detected in each
+frame of a sequence:
+?e,k =
+1
+J
+J?
+j=1
+ek(p j), k = 1, . . . , 8.
+4.2. Temporal analysis of representative features
+To achieve joint effect of global image and people facial
+expression features on social interaction categorization, the 8-
+dimensional vector of facial expression probabilities (?e(?)) is
+directly concatenated to the environmental features represented
+by global image characteristics of the event (?CNN(?)). Given
+a sequence, the time-series of interaction sequences are con-
+structed as follows for the social interaction categorization:
+?c(?) = (?CNN(?), ?e(?)) ? R43, ? = 1, 2, . . .
+Further, time-series classification task into either a formal or
+an informal meeting is reached relying on the LSTM power for
+time-series classification.
+5. Social pattern characterization
+5.1. Generic social interaction characterization
+Characterizing the social pattern of an individual, implies the
+ability of defining the nature of social interactions of the user
+from various temporal (how often, how long, etc.) and social
+(with how many people, individual or group interaction, who
+are the most frequent people, what is the interaction type, etc.)
+aspects. Providing a definition within the aforementioned con-
+texts, demands social interaction analysis of the user across sev-
+eral events during a long period of time. For this purpose, we
+define four concepts to estimate social interactions, namely fre-
+quency, social trend, diversity, and duration.
+Definition: Frequency is defined as the rate of formal (infor-
+mal) interactions of a person normalized by the total number of
+interactions:
+F f ormal(in f ormal) = # f ormal(in f ormal) interactions/#days
+Definition: Social trend indicates whether the majority of so-
+cial interactions of a person are formal (informal), respectively:
+A f ormal(in f ormal) = # f ormal(in f ormal) interactions/#all interactions
+Definition: Diversity demonstrates how diverse are social inter-
+actions of a person. The term is defined as the exponential of the
+Shannon entropy calculated with natural logarithms, namely:
+D = 1/2 exp
+????????? ?
+i?{ f ormal,in f ormal}
+Ai ln(Ai)
+????????
+11
+Note that when the person has the same number of formal and
+informal interactions (i.e. A f ormal = Ain f ormal = 0.5), D = 1.
+Definition: Duration is the longitude of a social interaction,
+it is defined as L(i) for each social interaction i of the user, it
+is proportional to the longitude of the sequence corresponding
+to that social interaction, say L(i) = T (i)r, where T (i) is the
+number of frames of i-th interaction and r is the frame rate of
+the camera. Different statistics can be applied on the duration
+of interactions like mean, median or standard deviation in order
+to characterize social interactions and extract the social pattern.
+5.2. Person-specific social interaction characterization
+In this subsection, we consider the concepts for social inter-
+action characterization of the user within the context of interac-
+tion with a specific person, with the goal of going deeper into
+the characterization of the social relations of the user. For this
+purpose, firstly all the interactions of the user with a certain per-
+son need to be localized. To this goal, a face clustering method
+adapted for egocentric photo-streams Aghaei et al. (2017) is
+employed, which essentially achieves the desired goal through
+discovery of various appearances of the same person among all
+the social events of the user. The face clustering method is ap-
+plied on the results of the social interaction detection step. To
+cope with the extreme intra-class variability of faces, it builds
+upon the multi-face tracking outcome. In a single event, track-
+ing gathers a set of different appearances of the same face in that
+event, called a face-set in this context, which allows to reshape
+the face clustering task in different events to face-set clustering.
+The deterministic factor in deciding whether two different
+face-sets belong to the same cluster i.e. represent the same per-
+son, is defined through a dissimilarity measure. Let R and T
+be a reference and a target face-sets, respectively. Let us as-
+sume S R is the similarity matrix between all possible pairs of
+face-examples in R, and S T is the similarity matrix between
+face-examples in R and face-examples in T . The dissimilarity
+between T and R, ?(R,T ), is calculated as the absolute differ-
+ence between the median value µ of S R and S T , respectively:
+?(R,T ) =
+???µR ? µT ??? .
+A hierarchical clustering technique is applied to group the
+face-sets according to their pair-wise dissimilarity value. The
+cut-off threshold for the agglomerative clustering is chosen em-
+pirically over a separate learning dataset and corresponds to the
+median value of all dissimilarities between the face-sets corre-
+sponding to the same person. Fig. 7 shows a few images in one
+resulting cluster obtained together with an index to which se-
+quence each element of the cluster belongs. One can appreciate
+the visual variance of the faces in a cluster.
+5.3. Face-cluster analysis
+Our final goal in this work is to characterize the social pat-
+tern of a user from egocentric images taken for a long period
+(e.g. a month). Let C =
+{
+c j
+}
+, j = 1, . . . , J be the set of clus-
+ters obtained by applying the face-set clustering method on the
+detected interacting prototypes, where J ideally corresponds to
+the total number of people who appeared in all social events of
+the user. Each cluster, c j, ideally contains all the different ap-
+pearances of the person p j across different social events, and
+|c j| is the cardinality of c j which demonstrates the number of
+social interactions events of the user with the person p j during
+the observation period.
+As the employed clustering method as well as the proposed
+method for social interaction detection and categorization act at
+sequence-level, inferring the interaction state of each sequence
+inside a cluster is straightforward. The frequency, the social
+trend, the diversity and the duration of the interactions with a
+specific person, can be computed, 5.1, by restricting the inter-
+actions considered to the ones with the person of interest.
+6. Experiments and discussion
+In this section, we introduce our dataset for social pattern
+characterization in egocentric photo-streams, namely EgoSo-
+cialStyle and describe the proposed experimental setup to val-
+idate our proposed approach. A comprehensive discussion to
+provide broader insight over the obtained results is also given
+in this section.
+12
+Figure 7: A few examples of faces belonging to one cluster obtained by merging different events.
+6.1. Experimental setting
+6.1.1. Data
+To the best of our knowledge, this work is the first attempt to
+characterize automatically the social pattern of a person relying
+exclusively on visual data. Lack of previous studies goes with
+the lack of the public dataset on this considered purpose, which
+led us to build a new dataset to validate jointly all the tasks
+of our proposed method. Our dataset has been acquired by 9
+users wearing a Narrative clip camera during the participation
+in gathering the dataset while they were living their daily life
+without any constrains. The camera was set to automatically
+capture a photo every 30 seconds once being worn. The partic-
+ipants who gathered the dataset had different ages and profiles
+and wore the camera in different and random days and times of
+the week. Sequences in our dataset have different lengths, vary-
+ing from 20 to 60 frames (10 to 30 minutes of interactions).
+The training set of EgoSocialStyle is an extended version of
+the dataset previously introduced in Aghaei et al. (2016b). It
+has been acquired by 8 users; each user wore the camera for a
+number of non-consecutive days over a total of 100 days period,
+collecting over 100,000 images in total, where in 3,000 images
+among them a total number of 62 different persons appear.
+The test set is acquired by a single user, who did not partici-
+pate in acquiring the training set as we aimed to study the gener-
+alization ability of our model for social pattern characterization
+of a person. The user wore the camera for 30 consecutive days
+collecting 25,200 images, where 2,639 of which correspond to
+social events. There are 35 sequences with more than one per-
+son appearing in them over 113, in total. 40 different trackable
+persons appear in the test set.
+Face annotations in the whole dataset are attained using the
+Microsoft face annotation tool Barsoum et al. (2016). Partici-
+pants were asked to provide a label (interacting/not interacting,
+formal/informal) for their own sequences. Table 1 provides fur-
+ther details of the proposed dataset.
+6.1.2. Data augmentation
+Large amount of data for better training of deep models is a
+well recognized necessity. However, the required time to ac-
+quire and label real data for this purpose is not negligible and
+is where artificial data augmentation could have an impact. A
+proper data augmentation is one which provides a reasonable
+set of data in addition and similar to the already existing data in
+the training set, but also slightly different from them to reduce
+overfitting of the model in learning a task Wong et al. (2016).
+Besides the impact of data augmentation in the production of
+additional data, it is also considered a helpful tool to provide
+balance to unbalanced data. This specially is of interest in our
+case where to acquire sequences without any social interaction
+it is more difficult than sequences with social interaction.
+To augment the data at hand, we employed the proposed idea
+by Krizhevsky et al. Krizhevsky et al. (2012). The principle
+idea consists of augmenting signals by adding slight variations
+to them, which can be done by adding eigen-features on top of
+each different feature in a sequence. This has been achieved
+through applying PCA and then adding multiples of the found
+principal components to each sequence, with magnitudes pro-
+portional to the corresponding eigenvalues times a random vari-
+able drawn from a Gaussian with mean zero and small standard
+deviation (0.01, in this work). This scheme generates more
+data in addition to the original training data by applying label-
+preserving transformations to them.
+Let ? = (?1,n(?), ?2,n(?), . . . , ?K,n(?)), n = 1, . . . ,N is the set
+of all the N time series in our training set where ? = 1, . . . ,T ,
+is the length of the sequences and consequently the time-series
+13
+Table 1: EgoSocialStyle dataset
+# Us
+ers
+Da
+ys
+Im
+ag
+es
+So
+cia
+l
+Im
+ag
+es Pe
+op
+le
+Se
+qu
+en
+ces
+Pro
+tot
+yp
+es
+Int
+era
+cti
+ng
+Fo
+rm
+al
+Train 8 100 100,000 3,000 62 106 132 102 42
+Test 1 30 25,200 2,639 40 113 172 130 25
+and, k = 1, . . . ,K, is the dimension of the time-series. Note
+that in the social interaction detection task, N is equal to the
+total number of prototypes in the training set, and in the so-
+cial interaction categorization task, N is equal to the number of
+sequences in the training set.
+The augmentation of ? from N to N? time series, with
+N? = ?N, is achieved through adding the vector ??n(?) =
+(?1,n(?), ?2,n,(?), . . . , ?K,n(?)) to the frame ? of the n-th time-
+series in ? number of attempts. ??n(?) is obtained as:
+??n(?) = [P1, P2, . . . , PK][?1,n(?)?1, ?2,n(?)?2, . . . , ?K,n(?)?K]T ,
+where Pk and ?k are the k-th eigenvector and eigenvalue of the
+K × K covariance matrix of feature values, respectively, and
+?k,n(?) is the aforementioned random variable. It is worth to
+mention that in the social interaction detection task, K = 4 and
+in the social interaction categorization task, K = 32. In the so-
+cial interaction detection, since the facial expression is a vari-
+able with discrete values, we did not consider to alter it in the
+data augmentation. Instead, when we generated new samples of
+signals from an original signal, we only repeated the facial ex-
+pression value of the original signal in the augmented signals.
+We did not consider to alter the facial expression vector nei-
+ther in the social interaction categorization task, since the facial
+expression feature vector originally contains values of probabil-
+ities which must sum to 1 and altering them leads to a change
+in their essence. Instead, similar to the other tasks, we only re-
+peated the facial expression feature vector of the original signal
+in the augmented signals.
+6.1.3. Network structure and hyper-parameter optimization
+Our LSTM network architecture is a three layer network con-
+sisting of the input layer, the hidden layer and the output layer,
+where the input layer has forward connections to all units in the
+hidden layer. In this work, full-BPTT is used for training of the
+network. The hidden layer contains various number of memory
+cells and corresponding gate units use inputs from other mem-
+ory cells to decide whether to access certain information in its
+memory cell. The output layer receives connections only from
+memory cells. Each LSTM is composed of various numbers of
+memory cells and we used the well-known Stochastic Gradi-
+ent Decent method (SGD) for optimization. A dropout layer is
+added between the hidden layers and the output layer to miti-
+gate the overfitting problem which is a very common problem
+in training LSTM models. Both of the tasks in our hand are bi-
+nary classification problem, thus, we used an output layer with
+a single neuron and a sigmoid function to make 0 or 1 predic-
+tions for the two classes in the problem. A log loss is used as
+loss function. Due to the higher computational complexity of
+the gate specific dropout techniques in the hidden layer, we did
+not use any of them. We performed grid-search for finding the
+best combination of parameters for each classification task, sep-
+arately. The studied parameters for the grid-search are learning
+rate and momentum of the SGD optimizer, dropout rate and the
+number of neurons of the LSTM in the hidden layers of the
+network architecture and the batch size and number of epochs
+as general parameters. We made log-uniform sampling over
+the following interval of hyper-parameters: [0.0001,0.1] learn-
+ing rate, [0.1,0.9] momentum, [0.0,0.9] dropout rate, [10,200]
+number of neurons, [100,1000] batch size, and [10,100] epochs.
+6.2. Experimental results and discussion
+As mentioned earlier, our approach towards social interac-
+tion analysis primarily passes through representation of the so-
+cial events in the format of time-series, where every time-step
+14
+represents features belonging to one frame of the social event.
+Later, time-series are temporally analyzed relying on the power
+of LSTM in temporal analysis of the time-series. As the set
+of the representative features for each task is composed of sev-
+eral independent features, we explore different combinations of
+features, which are studied for each task in our experiments in
+order to prove the optimal performance of the method.
+6.2.1. Social interaction detection
+In this task, four set of settings of social signals are explored
+as based on different combinations of the distance feature, ori-
+entation feature, and the facial expression feature as following:
+• SID1: Distance + Yaw
+• SID2: Distance + Yaw + Pitch + Roll
+• SID3: Distance + Yaw + Facial expression
+• SID4: Distance + Yaw + Pitch + Roll + Facial expressions
+SID1 is the baseline setting in which only presented features
+in our previous work Aghaei et al. (2016b) are studied. In
+SID2, pitch and roll in addition to yaw as the main indicator
+of face orientation in previous works are studied. SID3 follows
+the same pattern as SID1, but includes facial expression fea-
+tures as well to observe the effect of facial expressions in addi-
+tion to commonly studied features for social interaction detec-
+tion. Finally, SID4 includes all the discussed features for social
+interaction detection analysis. It is important to note that the
+data augmentation is only performed once for the complete 4-
+dimensional setting (SID4) and data in other settings is formed
+by selecting the required dimensions from the complete setting.
+In Table 2, we report the obtained precision, recall and ac-
+curacy values for each of the above settings. Besides, we
+also compared our obtained results with the ego-HVFF model
+Aghaei et al. (2015) as the unique method amongst state-of-the-
+art methods suitable for social interaction detection in egocen-
+tric photo-streams as discussed in Sec. 2. The best obtained
+results, in all terms of precision, recall and accuracy belong to
+the SID4 setting containing all the proposed features (distance,
+yaw, pitch, roll, facial expressions) for social interaction detec-
+tion. Comparing SID1 with each of SID2 and SID3 shows that
+the incorporation of each of the other head orientation infor-
+mation and facial expression in the analysis leads to more ro-
+bust social interaction detection, while facial expression shows
+to have a slightly stronger impact (SID3) than additional head
+orientations (SID2). Ego-HVFF only considers distance and
+yaw orientation (SID1) for social interactions detection. How-
+ever as expected, temporal analysis of SID1 in sequence-level
+leads to more accurate social interaction detection than frame-
+level analysis of the sequences as it has been achieved through
+applying ego-HVFF on this dataset. In the social interaction
+detection task, all the social signals originate from the face ap-
+pearance of the third-person. Therefore, face occlusions due to
+movements of the camera or the user itself, lead to social signals
+discontinuity. Analysis of the sequences in frame-level results
+in direct exclusion of occluded frames from the analysis while
+sequence-level analysis in format of time-series mitigates the
+social signals fragmentation impact by considering the relation
+among the rest of the frames of a sequence.
+Fig. 8 and Fig. 9 are visual demonstrations of how facial
+expressions and additional head orientations aid in more robust
+social interaction detection. In Fig. 8a and Fig. 8b, although the
+subjects are oriented towards the user and they are in relatively
+close proximity to the camera, we assume their neutral facial
+expressions were a determinant factor in helping the model to
+correctly classify them as not interacting with the user. Another
+scenario can be observed in Fig. 9a and Fig. 9b. In Fig. 9b,
+despite the close proximity of the subject to the user and al-
+though her yaw orientation goes towards the user, we assume
+the uncommon pitch orientation of her head aided the model to
+correctly classify the sequence as not interacting with the user.
+Two failure cases of the detection model can be observed in
+Fig. 10. This could happen due to the uncommon head pose of
+the interacting people and their dominant neutral facial expres-
+sion. Indeed in none of the examples, the interacting people are
+looking towards the user.
+15
+Table 2: Social interaction detection results
+ego-HVFF SID1 SID2 SID3 SID4
+Precision 82.75% 80.76% 88.49% 88.59% 91.66%
+Recall 55.81% 64.61% 76.92% 77.69% 84.61%
+Accuracy 58.38% 61.62% 75.00% 75.58% 82.55%
+(a) Correctly detected as no-social interaction employing SID3 and SID4
+(b) Correctly detected as no-social interaction employing SID3 and SID4
+Figure 8: Two examples to highlight the role of facial expression. Sequences are correctly classified employing SID3 and SID4 settings, and failed to be correctly
+classified employing SID1. For better observability in the cluttered scene, faces are shown by a green bounding boxed around them.
+(a) Correctly detected as social interaction employing SID2 and SID4
+(b) Correctly detected as no-social interaction employing SID2 and SID4
+Figure 9: Two examples to emphasize the role of pitch and roll orientation in social interaction detection. Sequences are correctly classified employing SID2 and
+SID4, and not correctly classified employing SID1.
+6.2.2. Social interaction categorization
+In this task, environmental and facial expression features
+were considered as the representative features, so the follow-
+ing settings are considered for the temporal analysis:
+• SIC1: Environmental (VGG)
+• SIC2: Environmental (VGG-finetuned)
+• SIC3: Environmental (VGG-finetuned) + Facial expres-
+sions
+We assume that global features of an event, namely environ-
+mental features, have the greatest impact in the categorization
+16
+(a) Incorrectly detected as no-social interaction employing any of the settings
+(b) Incorrectly detected as no-social interaction employing any of the settings
+Figure 10: Examples of two sub-sampled sequences in our dataset, where sequences could not be correctly detected as interacting employing any setting.
+Table 3: Social interaction categorization results
+HM-SVM VGG-FT SIC1 SIC2 SIC3
+Precision 76.82% 86.81% 87.91% 89.01% 91.48%
+Recall 63.65% 89.77% 90.90% 92.04% 97.72%
+Accuracy 64.87% 82.30% 83.18% 84.95% 91.15%
+of it. Therefore in this section, the first setting (SIC1) studies
+only environmental features which are extracted from the last
+fully connected layer of VGGNet trained over the Imagenet and
+preprocessed as explained in Sec. 4.1. VGGNet trained on the
+Imagenet is highly capable of grasping the general semantics in
+an image. However, fine-tuning the network for a specific task
+over relevant data for that task, adapts the pre-trained network
+to that specific purpose. Therefore, we assume the extracted
+features from the fine-tuned network ideally lead to better rep-
+resentation of the desired classification task. In SIC2, the envi-
+ronmental features are extracted in the same manner as SIC1,
+but from the fine-tuned VGGNet over the training set of the
+proposed dataset in this work. The features are preprocessed in
+the same manner as explained in Sec. 4.1. Fine-tuning the net-
+work is achieved through instantiation of the convolutional part
+of the model up to the fully-connected layers and then training
+fully-connected layers on the photos of the training set. The last
+setting to be studied is SIC3, which explores jointly the effect
+of facial expressions as well as the environmental features in
+social interaction categorization.
+In this work for social interaction categorization, our focus
+is mostly to study the evolution of considered relevant features
+along a sequence. Therefore, despite our choice of VGGNet
+pre-trained over Imagenet for feature extraction, without the
+loss of generality any other CNN architecture suitable for image
+feature extraction could be employed and finding the optimal
+CNN architecture was out of scope of this work. Moreover, the
+Imagenet dataset was preferred to a seemingly more relevant
+dataset such as Places Zhou et al. (2014) for environmental fea-
+ture extraction of images. This is due to the narrow field of view
+of the Narrative camera where in the images captured by it, a
+scene is better observed by the set of visible objects in it rather
+than the wide view of the scene.
+In Table 3, we report the precision, recall and accuracy
+values obtained for each setting of the aforementioned set-
+tings. Additionally, we compared our obtained results with
+HM-SVM Yang et al. (2016) which is an applicable state-of-
+the-art method to our setting as this model similarly to ours
+17
+extracts features in the egocentric setting and analyzes them in
+sequence-level but different to our proposed model, employs
+a HMM to model interaction sequences according to features
+to categorize them. To apply HM-SVM, the HMM is trained
+using our training set where features follow the SIC3 setting.
+The HM-SVM is later employed to label the interaction state.
+We also report achieved results by a baseline method, VGG-
+finetuned, in which we fine-tuned the VGG network on the pho-
+tos of the training set in EgoSocialStyle and tested the trained
+model over the pool of photos in EgoSocialStyle test set. Thus,
+this model is also considered frame-level rather than sequence-
+level.
+The obtained results suggest that, temporal analysis of envi-
+ronmental features extracted from fine-tuned VGGNet in SIC2
+setting outperforms temporal analysis of environmental fea-
+tures extracted from VGGNet before fine-tuning in the SIC1
+setting. Temporal analysis of fine-tuned features also outper-
+forms frame-level analysis of fine-tuned features in VGG-FT
+which is also an indication of the importance of temporal anal-
+ysis of features in this task. The combination of environmental
+features extracted through fine-tuned VGG network and feature
+vector of facial expressions probabilities leads to the highest
+performance for categorization of social interactions into for-
+mal and informal meetings. HM-SVM is trained and tested with
+features in the SIC3 setting. However, the obtained results sug-
+gest that the LSTM demonstrates more power in modeling the
+problem at hand than the HMM.
+It is worth to note that due to the extensive amount of data
+that end-to-end models need for training (few million data) and
+our limited number of image sequences in the dataset, we did
+not consider to design our proposed model in an end-to-end
+fashion. Indeed, making use of pre-trained networks, like emo-
+tion, makes a more effective use of the resources when the avail-
+able data is small compared with the amount of data needed to
+train the individual sub-networks.
+In Fig. 11, two sequences are shown in which the aggregation
+of facial expressions with the general environmental features
+employing SIC3 leads to the correct categorization of them. In
+Fig. 11a, although the environment is the indicator of a formal
+meeting, we assume the variant facial expressions of the subject
+aids the model to correctly classify it as an informal meeting.
+On the contrary, in Fig. 11b despite the scene not implying
+a formal meeting, we assume the dominant neutral facial ex-
+pression of the subject leads to the correct categorization of the
+sequence as a formal meeting. Fig. 12 shows two cases where
+the model fails to correctly categorize social interactions due to
+misleading features transmitted from the scene. Both Fig. 12a
+and Fig. 12b are informal gatherings which are classified incor-
+rectly as formal meetings. We assume in Fig. 12a the model
+confuses the menu with a piece of paper which is an important
+characteristic of a formal meeting. We also assume in Fig. 12b
+the invariant neutral facial expression of the person leads the
+model to fail.
+6.2.3. Social pattern characterization
+To illustrate the ability of the proposed framework for social
+pattern characterization of an individual, face clustering is ap-
+plied on the test set. A total number of 83 clusters is obtained,
+which is almost double the size of the total number of proto-
+types in the test set. The largest cluster contains 77 number of
+faces from 5 number of sequences belonging to the same per-
+son in various social events. The different statistics of the social
+interactions of the user, as well as those related to the most fre-
+quently interacted person are provided in Table 4. The social
+pattern of the user over one week according to the obtained re-
+sults from clustering and inference to their types is visualized
+in Fig. 13. Social interactions are shown by horizontal colored
+lines, where the interaction boundaries are shown by circles for
+informal meetings and squares for formal meetings. Different
+colors correspond to different persons. Re-occurring people in
+one social event are shown with parallel lines within the same
+interval.
+From our observation, it can be concluded that during the ob-
+servation interval the user interacted with the most frequently
+interacting person in his social life 5 times, in 4 different days,
+4 times of which occurred during informal meetings. An in-
+teresting observation is that in a cluster containing different se-
+18
+(a) Correctly detected as informal meeting employing SIC3
+(b) Correctly detected as formal meeting employing SIC3
+Figure 11: Two successful examples, emphasizing on the role of facial expressions in social interaction categorizations employing SIC3 setting. The method trained
+over mere general features employing SIC2 setting did not lead to the right categorization.
+(a) Incorrectly detected as formal meeting employing SIC3
+(b) Incorrectly detected as formal meeting employing SIC3
+Figure 12: Two failure examples of the model in social interaction categorizations. We assume misleading environmental features in 12a and neutral facial
+expressions of the subject in 12b led to these failure cases.
+quences, a sequence may belong to a formal or informal meet-
+ing which implies the user may have different types of inter-
+action with the same person in various social events. On the
+other side, according to the results, the generic social trend of
+the user is correlated to the person-specific one (0.05 difference
+in both formal and informal social trends). Generic diversity
+of social interaction of the user is relatively high (87%) which
+means the user is almost equally involved in both categories of
+social interactions, although expectedly has more informal so-
+cial interactions since an informal social interaction can occur
+at any time without any planning, while for formal social inter-
+actions normally planning is involved. As it can be observed in
+Fig. 13, informal social interactions of the user are happening
+at almost any time of the day and the formal social interactions
+are normally happening during the middle of the day.
+7. Conclusions
+In this work, we proposed a complete pipeline for social pat-
+tern characterization of a user wearing a wearable camera for a
+long period of time (e.g. a month), relying on the visual features
+transmitted from the captured photo-streams. Social pattern
+characterization is achieved through first, the detection of social
+interactions of the user and second, their categorization. In the
+end, different appearances of interacting with the wearer indi-
+19
+00:00              04:00              08:00               12:00               16:00               20:00               24:00 
+Mon
+Tue
+Wed
+Thu
+Fri
+Sat
+Sun
+Figure 13: Temporal map of social interactions of the user during one week. The boundaries of an interaction are shown by circles for informal and squares for
+formal interactions. Different colors are index of the interaction with different people.
+Table 4: Social pattern characterization results
+F-Formal F-Informal A-Formal A-Informal D L
+Generic 0.83 2.50 0.25 0.75 0.87 25.19±1.32
+Person-specific 0.25 1.00 0.20 0.80 0.59 18.80 ± 0.96
+viduals in different social events are localized through face clus-
+tering to directly derive the frequency and the diversity of social
+interactions of the wearer with each individual observed in the
+images. In the proposed method, social signals for each task
+are presented in the format of multi-dimensional time-series
+and LSTM is employed for the social interaction detection and
+categorization tasks. A quantitative study over different combi-
+nation of features for each task is provided, unveiling the im-
+pact of each feature on that task. Evaluation results suggest that
+in comparison to the frame-level analysis of the social events,
+sequence-level analysis employing LSTM leads to a higher per-
+formance of the model in both tasks.
+To the best of our knowledge, this is the first attempt at a
+comprehensive and unified analysis of social patterns of an in-
+dividual in either ego-vision or third-person vision. This com-
+prehensive study can have important applications in the field of
+preventive medicine, for example in studying social patterns of
+patients affected by depression, of elderly people and of trauma
+survivors.
+Acknowledgments
+This work was partially funded by TIN2015-66951-C2-1R,
+SGR 1219, Grant 20141510 (Marato? TV3), and CERCA Pro-
+gramme / Generalitat de Catalunya. M. Aghaei is supported by
+APIF grant of University of Barcelona. P. Radeva is partially
+supported by ICREA Academia 2014. The authors acknowl-
+edge NVIDIA Corporation for the donation of GPUs. The fun-
+ders had no role in the study design, data collection, analysis,
+and preparation of the manuscript.
+References
+Aghaei, M., Dimiccoli, M., Radeva, P., 2015. Towards social interaction de-
+tection in egocentric photo-streams, in: Eighth International Conference
+on Machine Vision, International Society for Optics and Photonics. pp.
+987514–987519.
+Aghaei, M., Dimiccoli, M., Radeva, P., 2016a. Multi-face tracking by extended
+bag-of-tracklets in egocentric photo-streams. Computer Vision and Image
+Understanding 149, 146–156.
+Aghaei, M., Dimiccoli, M., Radeva, P., 2016b. With whom do I interact? detect-
+ing social interactions in egocentric photo-streams, in: Pattern Recognition,
+23rd International Conference on, IEEE. pp. 2959–2964.
+20
+Aghaei, M., Dimiccoli, M., Radeva, P., 2017. All the people around me: face
+discovery in egocentric photo-streams. International Conference on Image
+Processing, International Conference on .
+Alletto, S., Serra, G., Calderara, S., Cucchiara, R., 2015. Understanding social
+relationships in egocentric vision. Pattern Recognition 48, 4082–4096.
+Amato, G., Debole, F., Falchi, F., Gennaro, C., Rabitti, F., 2016. Large scale
+indexing and searching deep convolutional neural network features, in: In-
+ternational Conference on Big Data Analytics and Knowledge Discovery,
+Springer. pp. 213–224.
+Barsoum, E., Zhang, C., Ferrer, C.C., Zhang, Z., 2016. Training deep net-
+works for facial expression recognition with crowd-sourced label distribu-
+tion. ACM International Conference on Multimodal Interaction .
+Berry, E., Kapur, N., Williams, L., Hodges, S., Watson, P., Smyth, G., Srini-
+vasan, J., Smith, R., Wilson, B., Wood, K., 2007. The use of a wearable
+camera, sensecam, as a pictorial diary to improve autobiographical memory
+in a patient with limbic encephalitis: A preliminary report. Neuropsycho-
+logical Rehabilitation 17, 582–601.
+Betancourt, A., Morerio, P., Regazzoni, C.S., Rauterberg, M., 2015. The evolu-
+tion of first person vision methods: A survey. Transactions on Circuits and
+Systems for Video Technology 25, 744–760.
+Bolanos, M., Dimiccoli, M., Radeva, P., 2017. Toward storytelling from visual
+lifelogging: An overview. Transactions on Human-Machine Systems 47,
+77–90.
+Choi, W., Chao, Y.W., Pantofaru, C., Savarese, S., 2014. Discovering groups of
+people in images, in: European Conference on Computer Vision, Springer.
+pp. 417–433.
+Cristani, M., Bazzani, L., Paggetti, G., Fossati, A., Tosato, D., Del Bue, A.,
+Menegaz, G., Murino, V., 2011. Social interaction discovery by statistical
+analysis of F-formations., in: BMVC, p. 4.
+Cristani, M., Raghavendra, R., Del Bue, A., Murino, V., 2013. Human behav-
+ior analysis in video surveillance: A social signal processing perspective.
+Neurocomputing 100, 86–97.
+Deng, J., Dong, W., Socher, R., Li, L.J., Li, K., Fei-Fei, L., 2009. Imagenet:
+A large-scale hierarchical image database, in: Computer Vision and Pattern
+Recognition, Conference on, IEEE. pp. 248–255.
+Dhand, A., Dalton, A.E., Luke, D.A., Gage, B.F., Lee, J.M., 2016. Accuracy of
+wearable cameras to track social interactions in stroke survivors. Journal of
+Stroke and Cerebrovascular Diseases .
+Dimiccoli, M., Bolan?os, M., Talavera, E., Aghaei, M., Nikolov, S.G., Radeva,
+P., 2016. Sr-clustering: Semantic regularized clustering for egocentric photo
+streams segmentation. Computer Vision and Image Understanding .
+Fathi, A., Hodgins, J.K., Rehg, J.M., 2012. Social interactions: A first-person
+perspective, in: Computer Vision and Pattern Recognition, Conference on,
+IEEE. pp. 1226–1233.
+Gan, T., Wong, Y., Zhang, D., Kankanhalli, M.S., 2013. Temporal encoded
+F-formation system for social interaction detection, in: Proceedings of the
+21st ACM international conference on Multimedia, ACM. pp. 937–946.
+Girshick, R., Donahue, J., Darrell, T., Malik, J., 2014. Rich feature hierarchies
+for accurate object detection and semantic segmentation, in: Proceedings of
+the conference on computer vision and pattern recognition, pp. 580–587.
+Granholm, E., Ben-Zeev, D., Fulford, D., Swendsen, J., 2013. Ecological mo-
+mentary assessment of social functioning in schizophrenia: impact of perfor-
+mance appraisals and affect on social interactions. Schizophrenia research
+145, 120–124.
+Groh, G., Lehmann, A., Reimers, J., Frieß, M.R., Schwarz, L., 2010. Detecting
+social situations from interaction geometry, in: Social Computing, Second
+International Conference on, IEEE. pp. 1–8.
+Hess, U., Bourgeois, P., 2010. You smile–I smile: Emotion expression in social
+interaction. Biological psychology 84, 514–520.
+Hochreiter, S., Schmidhuber, J., 1997. Long short-term memory. Neural com-
+putation 9, 1735–1780.
+Hodges, S., Berry, E., Wood, K., 2011. Sensecam: A wearable camera that
+stimulates and rehabilitates autobiographical memory. Memory 19, 685–
+696.
+Hudson, P.B., Hudson, S.M., Craig, R.F., 2006. Distributing leadership for
+initiating university-community engagement .
+Hughes, G., 1968. On the mean accuracy of statistical pattern recognizers.
+transactions on information theory 14, 55–63.
+Hung, H., Kro?se, B., 2011. Detecting F-formations as dominant sets, in:
+Proceedings of the 13th international conference on multimodal interfaces,
+ACM. pp. 231–238.
+Jia, X., Gavves, E., Fernando, B., Tuytelaars, T., 2015. Guiding the long-short
+term memory model for image caption generation, in: Proceedings of the
+International Conference on Computer Vision, pp. 2407–2415.
+Kendon, A., 1976. The F-formation system: The spatial organization of social
+encounters. Man-Environment Systems 6, 291–296.
+Krizhevsky, A., Sutskever, I., Hinton, G.E., 2012. Imagenet classification with
+deep convolutional neural networks, in: Advances in neural information pro-
+cessing systems, pp. 1097–1105.
+Ma, S., Sigal, L., Sclaroff, S., 2016. Learning activity progression in lstms for
+activity detection and early detection, in: Proceedings of the Conference on
+Computer Vision and Pattern Recognition, pp. 1942–1950.
+Mangrum, F.G., Fairley, M.S., Wieder, D.L., 2001. Informal problem solving
+in the technology-mediated work place. The Journal of Business Communi-
+cation (1973) 38, 315–336.
+Muncy, R., 2001. Disconnecting: Social and civic life in america since 1965.
+Reviews in American History 29, 141–149.
+Narayan, S., Kankanhalli, M.S., Ramakrishnan, K.R., 2014. Action and inter-
+action recognition in first-person videos, in: Proceedings of the Conference
+on Computer Vision and Pattern Recognition Workshops, pp. 512–518.
+Palispis, E., 2007. Introduction to Sociology and Anthropology. Manila: Rex
+Book Store, Inc.
+Pascanu, R., Mikolov, T., Bengio, Y., 2013. On the difficulty of training recur-
+rent neural networks. ICML (3) 28, 1310–1318.
+Setti, F., Lanz, O., Ferrario, R., Murino, V., Cristani, M., 2013. Multi-scale
+F-formation discovery for group detection, in: International Conference on
+21
+Image Processing, IEEE. pp. 3547–3551.
+Setti, F., Russell, C., Bassetti, C., Cristani, M., 2015. F-formation detection:
+Individuating free-standing conversational groups in images. PloS one 10,
+e0123783.
+Simonyan, K., Zisserman, A., 2014. Very deep convolutional networks for
+large-scale image recognition. arXiv preprint arXiv:1409.1556 .
+Soo Park, H., Shi, J., 2015. Social saliency prediction, in: Proceedings of the
+Conference on Computer Vision and Pattern Recognition, pp. 4777–4785.
+Steinlin, M., 2005. Knowledge management feng shui: designing knowledge
+sharing-friendly office space. Knowledge Management for Development
+Journal 1.
+Wong, S.C., Gatt, A., Stamatescu, V., McDonnell, M.D., 2016. Understanding
+data augmentation for classification: when to warp?, in: Digital Image Com-
+puting: Techniques and Applications (DICTA), 2016 International Confer-
+ence on, IEEE. pp. 1–6.
+Woodberry, E., Browne, G., Hodges, S., Watson, P., Kapur, N., Woodberry, K.,
+2015. The use of a wearable camera improves autobiographical memory in
+patients with alzheimer’s disease. Memory 23, 340–349.
+Xiong, Y., Quek, F., 2005. Meeting room configuration and multiple camera
+calibration in meeting analysis, in: Proceedings of the 7th international con-
+ference on Multimodal interfaces, ACM. pp. 37–44.
+Yang, J.A., Lee, C.H., Yang, S.W., Somayazulu, V.S., Chen, Y.K., Chien, S.Y.,
+2016. Wearable social camera: Egocentric video summarization for social
+interaction, in: Multimedia & Expo Workshops, International Conference
+on, IEEE. pp. 1–6.
+Zhou, B., Lapedriza, A., Xiao, J., Torralba, A., Oliva, A., 2014. Learning deep
+features for scene recognition using places database, in: Advances in neural
+information processing systems, pp. 487–495.

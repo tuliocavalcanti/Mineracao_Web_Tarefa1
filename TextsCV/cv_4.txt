@@ -1,0 +1,762 @@
+A Compact Kernel Approximation for Efficient
+3D Action Recognition
+Jacopo Cavazza1,2, Pietro Morerio1, and Vittorio Murino1,3
+1Pattern Analysis & Computer Vision (PAVIS) - Istituto Italiano di Tecnologia -
+Genova, Italy
+2Electrical, Electronics and Telecommunication Engineering and Naval Architecture
+Department (DITEN) – Universita? degli Studi di Genova – Genova, Italy
+3Computer Science Department – Universita? di Verona – Verona, Italy
+firstname.lastname@iit.it
+Abstract. 3D action recognition was shown to benefit from a covariance
+representation of the input data (joint 3D positions). A kernel machine
+feed with such feature is an effective paradigm for 3D action recognition,
+yielding state-of-the-art results. Yet, the whole framework is affected by
+the well-known scalability issue. In fact, in general, the kernel function
+has to be evaluated for all pairs of instances inducing a Gram matrix
+whose complexity is quadratic in the number of samples. In this work
+we reduce such complexity to be linear by proposing a novel and explicit
+feature map to approximate the kernel function. This allows to train a
+linear classifier with an explicit feature encoding, which implicitly im-
+plements a Log-Euclidean machine in a scalable fashion. Not only we
+prove that the proposed approximation is unbiased, but also we work
+out an explicit strong bound for its variance, attesting a theoretical su-
+periority of our approach with respect to existing ones. Experimentally,
+we verify that our representation provides a compact encoding and out-
+performs other approximation schemes on a number of publicly available
+benchmark datasets for 3D action recognition.
+Keywords: Action Recognition, 3D, Kernel, Feature Map
+1 Introduction
+Action recognition is a key research domain in video/image processing and
+computer vision, being nowadays ubiquitous in human-robot interaction, au-
+tonomous driving vehicles, elderly care and video-surveillance to name a few
+[21]. Yet, challenging difficulties arise due to visual ambiguities (illumination
+variations, texture of clothing, general background noise, view heterogeneity, oc-
+clusions). As an effective countermeasure, joint-based skeletal representations
+(extracted from depth images) are a viable solution.
+Combined with a skeletal representation, the symmetric and positive defi-
+nite (SPD) covariance operator scores a sound performance in 3D action recog-
+nition [22,9,5]. Indeed, while properly modeling the skeletal dynamics with a
+ar
+X
+iv
+:1
+70
+9.
+01
+69
+5v
+1 
+ [
+cs
+.C
+V
+] 
+ 6
+ S
+ep
+ 2
+01
+7
+2
+second order statistic, the covariance operator is also naturally able to handle
+different temporal duration of action instances. This avoids slow pre-processing
+stages such as time warping or interpolation [20]. In addition, the superiority
+of such representation can be attested by achieving state-of-the-art performance
+by means of a relative simple classification pipeline [22,5] where, basically1, a
+non-linear Support Vector Machine (SVM) is trained using the Log-Euclidean
+kernel
+K`E(X,Y) = exp
+(
+? 1
+2?2
+? logX? logY?2F
+)
+(1)
+to compare covariance operators X, Y. In (1), for any SPD matrix X, we define
+logX = Udiag(log ?1, . . . , log ?d)U
+>, (2)
+being U the matrix of eigenvectors which diagonalizes X in terms of the eigen-
+values ?1 ? · · · ? ?d > 0. Very intuitively, for any fixed bandwidth ? > 0,
+K`E(X,Y) is actually computing a radial basis Gaussian function by compar-
+ing the covariance operators X and Y by means of the Frobenius norm ? · ?F
+(after X,Y have been log-projected). Computationally, the latter stage is not
+problematic (see Section 3) and can be performed for each covariance operator
+before computing the kernel. In addition to its formal properties in Riemannian
+geometry, this makes (1) widely used in practice [9,22,5].
+However, the modern big data regime mines the applicability of such a kernel
+function. Indeed, since (1) has to be computed for every pair of instances in
+the dataset, the so produced Gram matrix has prohibitive size. So its storage
+becomes time- and memory-expensive and the related computations (required
+to train the model) are simply unfeasible.
+The latter inconvenient can be solved as follows. According to the well es-
+tablished kernel theory [2], the Kernel (1) induces an infinite-dimension feature
+map ?, meaning that K`E(X,Y) = ??(X), ?(Y)?. However, if we are able to
+obtain an explicit feature map ? such that K`E(X,Y) ? ??(X), ?(Y)?, we can
+directly compute a finite-dimensional feature representation ?(X) for each ac-
+tion instance separately. Then, with a compact ?, we can train a linear SVM
+instead of its kernelized version. This is totally feasible and quite efficient even
+in the big data regime [7]. Therefore, the whole pipeline will actually provide a
+scalable implementation of a Log-Euclidean SVM, whose cost is reduced from
+quadratic to linear.
+In our work we specifically tackle the aforementioned issue through the fol-
+lowing main contributions.
+1. We propose a novel compact and explicit feature map to approximate the
+Log-Euclidean kernel within a probabilistic framework.
+2. We provide a rigorous mathematical formulation, proving that the proposed
+approximation has null bias and bounded variance.
+1 For the sake of precision, let us notice that [22] take advantage of multiple kernel
+learning in combining several low-level representations and [5] replaces the classical
+covariance operator with a kernelization.
+3
+3. We compare the proposed feature map approximation against alternative
+approximation schemes, showing the formal superiority of our framework.
+4. We experimentally evaluate our method against the very same approxima-
+tion schemes over six 3D action recognition datasets, confirming with prac-
+tice our theoretical findings.
+The rest of the paper is outlined as follows. In Section 2 we review the
+most relevant related literature. Section 3 proposes the novel approximation and
+discusses its foundation. We compare it with alternative paradigms in Section
+4. Section 5 draws conclusions and the Appendix A reports all proofs of our
+theoretical results.
+2 Related work
+In this Section, we summarize the most relevant works in both covariance-based
+3D action recognition and kernels’ approximations.
+Originally envisaged for image classification and detection tasks, the covari-
+ance operator has experienced a growing interest for action recognition, experi-
+encing many different research trends: [9] extends it to the infinite dimensional
+case, while [10] hierarchically combines it in a temporal pyramid; [22,12] inves-
+tigate the conceptual analogy with trial-specific kernel matrices and [5] further
+proposes a new kernelization as to model arbitrary, non-linear relationships con-
+veyed by the raw data. However, those kernel methods usually do not scale up
+easily to big datasets due to demanding storage and computational costs. As a
+solution, the exact kernel representation can be replaced by an approximated,
+more efficient version. In the literature, this is done according to the following
+mainstream approaches.
+(i) The kernel Gram matrix is replaced with a surrogate low-rank version,
+in order to alleviate both memory and computational costs. Within these
+methods, [1] applied Cholesky decomposition and [24] exploited Nystro?m
+approximation.
+(ii) Instead of the exact kernel function k, an explicit feature map ? is com-
+puted, so that the induced linear kernel ??(x), ?(y)? approximates k(x,y).
+Our work belong to this class of methods.
+In this context, Rahimi & Recht [17] exploited the formalism of the Fourier
+Transform to approximate shift invariant kernels k(x,y) = k(x ? y) through
+an expansion of trigonometric functions. Leveraging on a similar idea, Le et
+al. [13] sped up the computation by exploiting the Walsh-Hadamard transform,
+downgrading the running cost of [17] from linear to log-linear with respect to
+the data dimension. Recently, Kar & Karnick [11] proposed an approximated
+feature maps for dot product kernels k(x,y) = k(?x,y?) by directly exploiting
+the MacLaurin expansion of the kernel function.
+Instead of considering a generic class of kernels, our work specifically focuses
+on the log-Euclidean one, approximating it through a novel unbiased estima-
+tor which ensures a explicit bound for variance (as only provided by [13]) and
+resulting in a superior classification performance with respect to [17,13,11].
+4
+3 The proposed approximated feature map
+In this Section, we present the main theoretical contribution of this work, namely
+i) a random, explicit feature map ? such that ??(X), ?(Y)? ? K`E(X,Y), ii)
+the proof of its unbiasedness and iii) a strong theoretical bound on its variance.
+Construction of the approximated feature map. In order to construct
+a ? dimensional feature map X 7? ?(X) = [?1(X), . . . , ??(X)] ? R? , for any
+d×d SPD matrix X, fix a probability distribution ? supported over N. Precisely,
+each component ?1, . . . , ?? of our ?-dimensional feature map ? is independently
+computed according to the following algorithm.
+foreach j = 1, . . . , ? do
+1 Sample n according to ?
+2 Sample the dn × dn matrix W of independent Gaussian distributed weights
+with zero mean and ?2/
+?
+n variance
+3 Compute log(X)?n = logX? · · · ? logX, n times.
+4 Assign
+?j(X) =
+1
+?2n
+?
+exp(???2)
+??(n)n!
+tr(W> log(X)?n). (3)
+end
+The genesis of (3) can be explained by inspecting the feature map ? associ-
+ated to the kernel K(x, y) = exp
+(
+? 12?2 |x? y|
+2
+)
+, where x, y ? R for simplicity.
+It results ?(x) ?
+[
+1,
+?
+1
+1!?2x,
+?
+1
+2!?4x
+2,
+?
+1
+3!?6x
+3, . . .
+]
+. Intuitively, we can say
+that (3) approximates the infinite dimensional ?(x) by randomly selecting one
+of its components: this is the role played by n ? ?. In addition, we introduce
+the log mapping and replace the exponentiation with a Kronecker product. As
+a consequence, the random weights W ensure that ?(X) achieves a sound ap-
+proximation of (1), in terms of unbiasedness and rapidly decreasing variance.
+In the rest of the Section we discuss the theoretical foundation of our analysis,
+where all proofs have been moved to Appendix A for convenience.
+Unbiased estimation. In order for a statistical estimator to be reliable, we
+need it to be at least unbiased, i.e., its expected value must be equal to the exact
+function it is approximating. The unbiasedness of the feature map ? of eq. (3)
+for the Log-Euclidean kernel (1) is proved by the following result.
+Theorem 1. Let ? be a generic probability distribution over N and consider X
+and Y, two generic SPD matrices such that ? logX?F = ? logY?F = 1. Then,
+??(X), ?(Y)? is an unbiased estimator of (1). That is
+E[??(X), ?(Y)?] = K`E(X,Y), (4)
+where the expectation is computed over n and W which define ?j(X) as in (3).
+Once averaging upon all possible realizations of n sampled from ? and the
+Gaussian weights W, Theorem 1 guarantees that the linear kernel ??(X), ?(Y)?
+induced by ? is equal to K`E(X,Y). This formalizes the unbiasedness of our
+approximation.
+5
+On the assumption ? logX?F = ? logY?F = 1. Under a practical point of
+view, this assumption may seem unfavorable, but this is not the case. The reason
+is provided by equation (2), which is very convenient to compute the logarithm of
+a SPD matrix. Since in (3), ?(X) is explicitly dependent on logX, we can simply
+use (2) and then divide each entry of the obtained matrix by ? logX?F . This is
+a non-restrictive strategy to satisfy our assumption and actually analogous to
+require input vectors to have unitary norm, which is very common in machine
+learning [2].
+Low-variance. One can note that, in Theorem 1, even by choosing ? = 1
+(a scalar feature map), ?(X) = [?1(X)] ? R is unbiased for (1). However, since
+? is an approximated finite version of the exact infinite feature map associated
+to (1), one would expect the quality of the approximation to be very bad in the
+scalar case, and to improve as ? grows larger. This is indeed true, as proved by
+the following statement.
+Theorem 2. The variance of ??(X), ?(Y)? as estimator of (1) can be explicitly
+bounded. Precisely,
+Vn,W(K?(X,Y)) ?
+C?
+?3
+exp
+(
+3? 2?2
+?4
+)
+, (5)
+where ? logX?F = ? logY?F = 1 and the variance is computed over all possible
+realizations of n ? ? and W, the latter being element-wise sampled from a
+N (0, ?2/
+?
+n) distribution. Also, C?
+def
+=
+??
+n=0
+1
+?(n)n! , the series being convergent.
+Let us discuss the bound on the variance provided by Theorem 2. Since the
+bandwidth ? of the kernel function (1) we want to approximate is fixed, the term
+exp
+(
+3?2?2
+?4
+)
+can be left out from our analysis. The bound in (5) is linear in C? and
+inversely cubic in ?. When ? grows, the increased dimensionality of our feature
+map ? makes the variance rapidly vanishing, ensuring that the approximated
+kernel K?(X,Y) = ??(X), ?(Y)? converges to the target one, that is K`E . Such
+trend may be damaged by big values of C?. Since the latter depends on the
+distribution ?, let us fix it to be the geometric distribution G(?) with parameter
+0 ? ? < 1. This yields
+C? ?
+??
+n=0
+1
+(1? ?)n · n!
+= exp
+(
+1
+1? ?
+)
+. (6)
+There is a tradeoff between a low variance (i.e., C? small) and a reduced
+computational cost for ? (i.e., n small). Indeed, choosing ? ? 1 makes C? big in
+(6). In this case, the integer n sampled from ? = G(?) is small with great prob-
+ability: this leads to a reduced number of Kronecker products to be computed
+in log(X)?n. Conversely, when ? ? 0, despite n and the related computational
+cost of log(X)?n are likely to grow, C? is small, ensuring a low variance for the
+estimator.
+6
+As a final theoretical result, Theorems 1 and 2 immediately yield that
+P[|K?(X,Y)?K`E(X,Y)|? ]?
+C?
+?32
+exp
+(
+3?2?2
+?4
+)
+(7)
+for every pairs of unitary Frobenius normed SPD matrices X,Y and  > 0, as a
+straightforward implication of the Chebyshev inequality. This ensures that K?
+differs in module from K`E by more than  with a (low) probability P, which is
+inversely cubic and quadratic in ? and , respectively.
+Final remarks. To sum up, we have presented a constructive algorithm to
+compute a ?-dimensional feature map ? whose induced linear kernel is an un-
+biased estimator of the log-Euclidean one. Additionally, we ensure an explicit
+bound on the variance which rapidly vanishes as ? grows (inversely cubic de-
+crease). This implies that ??(X), ?(Y)? and K`E(X,Y) are equal with very high
+probability, even at low ? values. This implements a Log-Euclidean kernel in a
+scalable manner, downgrading the quadratic cost of computing K`E(X,Y) for
+every X,Y into the linear cost of evaluating the feature map ?(X) as in (3) for
+every X. Practically, this achieve a linear implementation of the log-Euclidean
+SVM.
+4 Results
+In this Section, we compare our proposed approximated feature map versus the
+alternative ones by Rahimi & Recht [17], Kar & Karnick [11] and Le et al. [13]
+(see Section 2).
+Theoretical Comparison. Let us notice that all approaches [17,11,13] are
+applicable also to the log-Euclidean kernel (1). Indeed, [17,13] includes our case
+of study since K`E(X,Y) = k(logX ? logY) is logarithmic shift invariant. At
+the same time, thanks to the assumption ? logX?F = ? logY?F = 1 as in
+Theorem 1, we obtain K`E(X,Y) = k(?logX, logY?) (see (13) in Appendix A),
+thus satisfying the hypothesis of Kar & Karnick [11].
+As we proved in Theorem 1, all works [17,11,13] can also guarantee an unbi-
+ased estimation for the exact kernel function.
+Actually, what makes our approach superior is the explicit bound on the
+variance (see Table 1). Indeed, [17,11] are totally lacking in this respect. More-
+over, despite an analogous bound is provided in [13, Theorem 4], it only ensures
+a O(1/?) convergence rate for the variance with respect to the feature dimen-
+sionality ?. Differently, we can guarantee a O(1/?3) trend. This implies that, we
+achieve a better approximation of the kernel with a lower dimensional feature
+representation, which ease the training of the linear SVM [7].
+Experimental Comparison. We reported here the experimental compar-
+ison on 3D action recognition between our proposed approximation and the
+paradigms of [17,11,13].
+Datasets. For the experiments, we considered UTKinect [23], Florence3D [19],
+MSR-Action-Pairs (MSR-pairs) [16], MSR-Action3D [14], [3], HDM-05 [15] and
+MSRC-Kinect12 [8] datasets.
+7
+proposed Rahimi & Recht [17] Kar & Karninck [11] Le et al. [13]
+O(1/?3) missing missing O(1/?)
+Table 1. Theoretical comparison between explicit bounds on variance between the
+proposed approximation and [17,11,13]: the quicker the decrease, the better the bound.
+Here, ? denotes the dimensionality of the approximated feature vector.
+Florence3D [19] MSR-pairs [16] MSR-Action3D [14]
+UTKinect [23] HDM-05all [15] MSRC-Kinect12 [8]
+Fig. 1. Experimental comparison of our approximation (red curves) against the
+schemes ofr Rahimi & Recht [17] (pink curves), Kar & Karnick [11] (green curves)
+and Le et al. [13] (blue curves). Best viewed in colors.
+For each, we follow the usual training and testing splits proposed in the literature.
+For Florence3D and UTKinect, we use the protocols of [20]. For MSR-Action3D,
+we adopte the splits originally proposed by [14]. On MSRC-Kinect12, once highly
+corrupted action instances are removed as in [10], training is performed on odd-
+index subject, while testing on the even-index ones. On HDM-05, the training
+exploited all instances of “bd” and “mm” subjects, being “bk”, “dg” and “tr”
+left out for testing [22], using the 65 action classes protocol of [6].
+Data preprocessing. As a common pre-processing step, we normalize the data
+by computing the relative displacements of all joints x? y ? z coordinates and
+the ones of the hip (central) joint, for each timestamp.
+Results. Figure 1 reports the quantitative performance while varying ? in the
+range 10, 20, 50, 100, 200, 500, 1000, 2000, 5000. When comparing with [13],
+since the data input size must be a multiple of a power of 2, we zero-padded our
+vectorized representation to match 4096 and (whenever possible) 2048 and 1024
+input dimensionality. These cases are then compared with the results related to
+? = 5000, 2000, 1000 for RGW and [17,11], respectively. Since all approaches
+have a random component, we performed ten repetitions for each method and
+dimensionality setup, averaging the scored classification performances obtained
+through a linear SVM with C = 10. We employ the publicly available codes
+for [17,11,13]. Finally, we also report the classification performance with the
+exact method obtained by feeding an SVM with the log-Euclidean kernel whose
+bandwidth ? is chosen via cross validation.
+8
+Discussion. For large ? values, all methods are able to reproduce the per-
+formance of the log-Euclidean kernel (black dotted line). Still, in almost all the
+cases, our approximation is able to outperform the competitors: for instance, we
+gapped Rahimi and Recht on both MSR-Pairs and MSR-Action3D, while Kar
+& Karnick scored a much lower performance on HDM-05 and Florence3D. If
+comparing to Le et al., the performance is actually closer, but this happens for
+all the methods which are able to cope the performance of the Log-Euclidean
+kernel with ? ? 2000, 5000. Precisely, the true superiority of our approach is ev-
+ident in the case of a small ? value (? = 10, 20, 50). Indeed, our approximation
+always provides a much rapid growing accuracy (MSR-Action3D, Florence3D
+and UTKinect), with only a few cases where the gap is thinner (Kar & Karnick
+[11] on MSR-pairs and Rahimi & Recth [17] on MSRC-Kinect 12). Therefore,
+our approach ensures a more descriptive and compact representation, providing
+a superior classification performance.
+5 Conclusions
+In this work we propose a novel scalable implementation of a Log-Euclidean SVM
+to perform proficient classification of SPD (covariance) matrices. We achieve a
+linear complexity by providing an explicit random feature map whose induced
+linear kernel is an unbiased estimator of the exact kernel function.
+Our approach proved to be more effective than alternative approximations
+[17,11,13], both theoretically and experimentally. Theoretically, we achieve an
+explicit bound on the variance on the estimator (such result is totally absent in
+[17,11]), which is decreasing with inversely cubic pace versus the inverse linear
+of [13]. Experimentally, through a broad evaluation, we assess the superiority of
+our representation which is able to provide a superior classification performance
+at a lower dimensionality.
+A Proofs of all theoretical results
+In this Appendix we report the formal proofs for both the unbiased approxima-
+tion (Theorem 1) and the related rapidly decreasing variance (Theorem 2).
+Proof of Theorem 1. Use the definition of (3) and the linearity of the expecta-
+tion. We get that En,W [??(X), ?(Y)?] equals to
+En
+[
+1
+?4n
+exp(???2)
+?(n)n!
+EW
+[
+tr
+(
+W> log(X)?n
+)
+tr
+(
+W> log(Y)?n
+)]]
+, (8)
+by simply noticing that the dependence with respect to W involves the terms
+inside the trace operators only. Let us focus on the term tr
+(
+W> log(X)?n
+)
+. We
+can expand
+tr
+(
+W> log(X)?n
+)
+=
+d?
+i1,...,i2n=1
+wi1,...,i2n log(X)i1,i2 · · · log(X)i2n?1,i2n (9)
+9
+by using the definition of log(X)?n and the properties of the trace operator. In
+equation (9), we replace the random coefficient wi1,...,i2n with u
+(1)
+i1,i2
+, . . . , u
+(n)
+i2n?1,i2n
+independent and identically distributed (i.i.d.) according to a N (0, ?2) distribu-
+tion. We can notice that (9) can be rewritten as
+tr
+(
+W> log(X)?n
+)
+=
+n?
+?=1
+d?
+i,j=1
+u
+(?)
+i,j log(X)ij . (10)
+Making use of (10) in (8), we can rewrite En,W [K?(X,Y)] as
+En
+?? 1
+?4n
+exp(???2)
+?(n)n!
+EW
+??( d?
+i,j=1
+u
+(1)
+i,j log(X)ij
+)?? d?
+h,k=1
+u
+(1)
+h,k log(Y)hk
+????n?? (11)
+by also considering the independence of u
+(?)
+i,j are independent. By furthermore
+using the fact that EW
+[
+u
+(1)
+i,j u
+(1)
+h,k
+]
+= 0 if i 6= h and j 6= k and the formula for the
+variance of a Gaussian distribution, we get
+En,W [K?(X,Y)] = En
+[
+1
+?4n
+exp(???2)
+?(n)n!
+?2n (?log(X), log(Y)?F )n
+]
+, (12)
+by introducing the Frobenius inner product ?A,B?F =
+?d
+i,j=1 AijBij between
+matrices A and B. By expanding the expectation over ?, (12) becomes
+En,W [K?(X,Y)] =
+??
+n=0
+?(n)
+1
+?2n
+exp(???2)
+?(n)n!
+(?log(X), log(Y)?F )n
+= exp
+(
+? 1
+?2
+) ??
+n=0
+(
+?log(X), log(Y)?F
+?2
+)n
+1
+n!
+. (13)
+The thesis easily comes from (13) by using the Taylor expansion for the expo-
+nential function and the assumption ? log(X)?F = ? log(Y)?F = 1.
+Proof of Theorem 2. Due to the independence of the components in ?, by defini-
+tion of inner product we get Vn,W [??(X), ?(Y)?] = ?Vn,W [?1(X)?1(Y)]. But
+then Vn,W [??(X), ?(Y)?] ? ?En,W
+[
+?1(X)
+2?1(Y)
+2
+]
+by definition of variance.
+Taking advantage of (3), yields to the equality between Vn,W [K?(X,Y)] and
+1
+?3
+En,U
+?? 1
+?8n
+exp(?2??2)
+(?(n)n!)2
+n?
+?=1
+(
+d?
+i,j=1
+u
+(?)
+i,j log(X)ij
+)2?? d?
+h,k=1
+u
+(?)
+h,k log(Y)hk
+??2?? , (14)
+where u
+(1)
+i1,i2
+, . . . , u
+(n)
+i2n?1,i2n
+are i.i.d. fromN (0, ?2) distribution used to re-parametrize
+the original weights W. Exploit the independence of u
+(?)
+ij to rewrite (14) as
+1
+?3
+En
+?? 1
+?8n
+exp(?2??2)
+(?(n)n!)2
+EU
+??( d?
+i,j=1
+u
+(1)
+i,j log(X)ij
+)2?? d?
+h,k=1
+u
+(1)
+h,k log(Y)hk
+??2??n?? . (15)
+10
+By exploiting the zero correlation of the weights in U and the formula E[(N (0, ?2))4] =
+3?4 [4]. Thus,
+Vn,W [K?(X,Y)] ?
+1
+?3
+En
+[
+1
+?8n
+exp(?2??2)
+(?(n)n!)2
+3n?4n
+(
+d?
+i,j=1
+log(X)2ij log(Y)
+2
+ij
+)n]
+.
+(16)
+Since
+?d
+i,j=1 log(X)
+2
+ij log(Y)
+2
+ij ?
+(?d
+i,j=1 log(X)
+2
+ij
+)(?d
+i,j=1 log(Y)
+2
+ij
+)
+= 1 due
+to the assumption of unitary Frobenius norm for both logX and logY, we get
+Vn,W [K?(X,Y)] ?
+1
+?3
+En
+[
+1
+?8n
+exp(?2??2)
+(?(n)n!)2
+3n?4n
+]
+. (17)
+We can now expand the expectation over ? in (17), achieving
+Vn,W [K?(X,Y)] ?
+exp(?2??2)
+?3
+??
+n=0
+(
+3
+?4
+)n
+1
+n!
+??
+n=0
+1
+?(n)n!
+, (18)
+since the series of the products is less than the product of the series, provided that
+both converge. This is actually true since, by exploiting the McLaurin expansion
+for the exponential function, we easily get
+??
+n=0
+(
+3
+?4
+)n 1
+n! = exp
+(
+3
+?4
+)
+. On the
+other hand, since ? is a probability distribution, it must be limn??
+?(n+1)
+?(n) = L
+where 0 < L ? 1, being N the support of ? and due to
+??
+n=0 ?(n) = 1. Then,
+since limn??
+?(n)
+?(n+1) =
+1
+L <? and limn??
+1
+n+1 = 0, by the ration criterion for
+positive-terms series [18], there must exist a constant C? > 0 such that
+??
+n=0
+1
+?(n)n!
+= C?. (19)
+Therefore, by combining (19) in (18), we obtain
+Vn,W [K?(X,Y)] ?
+exp(?2??2)
+?3
+exp
+(
+3
+?4
+)
+C? =
+C?
+?3
+exp
+(
+3? 2?2
+?4
+)
+,
+which is the thesis.
+References
+1. Bach, F.R., Jordan, M.I.: Predictive low-rank decomposition for kernel methods.
+In: ICML (2005)
+2. Bishop, C.M.: Pattern Recognition and Machine Learning - Information Science
+and Statistics. Springer-Verlag New York, Inc. (2006)
+3. Bloom, V., Makris, D., Argyriou, V.: G3D: A gaming action dataset and real time
+action recognition evaluation framework. In: CVPR (2012)
+11
+4. Casella, G., Berger, R.: Statistical Inference. Duxbury advanced series in statistics
+and decision sciences, Thomson Learning (2002)
+5. Cavazza, J., Zunino, A., San Biagio, M., Murino, V.: Kernelized covariance for
+action recognition. In: ICPR (2016)
+6. Cho, K., Chen, X.: Classifying and visualizing motion capture sequences using deep
+neural networks. CoRR 1306.3874 (2014)
+7. Fan, R.E., Chang, K.W., Hsieh, C.J., Wang, X.R., Lin, C.J.: LIBLINEAR: A li-
+brary for large linear classification. JMLR 9, 1871–1874 (2008)
+8. Fothergill, S., Mentis, H.M., Kohli, P., Nowozin, S.: Instructing people for training
+gestural interactive systems. In: ACM-CHI (2012)
+9. Harandi, M., Salzmann, M., Porikli, F.: Bregman divergences for infinite dimen-
+sional covariance matrices. In: CVPR (2014)
+10. Hussein, M., Torki, M., Gowayyed, M., El-Saban., M.: Human action recognition
+using a temporal hierarchy of covariance descriptors on 3d joint locations. IJCAI
+(2013)
+11. Kar, P., Karnick, H.: Random feature maps for dot product kernels. In: AISTATS
+(2012)
+12. Koniusz, P., Cherian, A., Porikli, F.: Tensor representation via kernel linearization
+for action recognition from 3d skeletons. In: ECCV (2016)
+13. Le, Q., Sarlos, T., Smola, A.: Fastfood - approximating kernel expansion in loglinear
+time. In: ICML (2013)
+14. Li, W., Zhang, Z., Liu, Z.: Action recognition based on a bag of 3d points. In:
+CVPR workshop (2010)
+15. Mu?ller, M., Ro?der, T., Clausen, M., Eberhardt, B., Kru?ger, B., Weber, A.: HDM-05
+doc. In: Tech. Rep. (2007)
+16. Oreifej, O., Liu., Z.: HON4D: Histogram of oriented 4D normals for activity recog-
+nition from depth sequences. In: CVPR (2013)
+17. Rahimi, A., Recth, B.: Random features for large-scale kernel machines. In: NIPS
+(2007)
+18. Rudin, W.: Real and Complex Analysis, 3rd Ed. McGraw-Hill, Inc., New York,
+NY, USA (1987)
+19. Seidenari, L., Varano, V., Berretti, S., Bimbo, A.D., Pala, P.: Recognizing actions
+from depth cameras as weakly aligned multi-part bag-of-poses. In: CVPR work-
+shops (2013)
+20. Vemulapalli, R., Arrate, F., Chellappa, R.: Human action recognition by repre-
+senting 3d skeletons as points in a lie group. In: CVPR (June 2014)
+21. Vrigkas, M., Nikou, C., Kakadiaris, I.A.: A review of human activity recognition
+methods. Front. robot. AI 2, 28 (2015)
+22. Wang, L., Zhang, J., Zhou, L., Tang, C., Li, W.: Beyond covariance: Feature rep-
+resentation with nonlinear kernel matrices. In: ICCV (2015)
+23. Xia, L., Chen, C.C., Aggarwal, J.: View invariant human action recognition using
+histograms of 3D joints. In: CVPR workshops (2012)
+24. Zhang, K., Tsang, I.W., Kwok, J.T.: Improved Nystro?m low-rank approximation.
+In: ICML (2008)

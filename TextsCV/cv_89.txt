@@ -1,0 +1,850 @@
+Polar Transformer Networks
+Carlos Esteves, Christine Allen-Blanchette, Xiaowei Zhou, Kostas Daniilidis
+GRASP Laboratory, University of Pennsylvania
+{machc, allec, xiaowz, kostas}@seas.upenn.edu
+Abstract
+Convolutional neural networks (CNNs) are equivariant
+with respect to translation; a translation in the input causes
+a translation in the output. Attempts to generalize equivari-
+ance have concentrated on rotations. In this paper, we com-
+bine the idea of the spatial transformer, and the canonical
+coordinate representations of groups (polar transform) to
+realize a network that is invariant to translation, and equiv-
+ariant to rotation and scale. A conventional CNN is used to
+predict the origin of a polar transform. The polar transform
+is performed in a differentiable way, similar to the Spatial
+Transformer Networks, and the resulting polar representa-
+tion is fed into a second CNN. The model is trained end-
+to-end with a classification loss. We apply the method on
+variations of MNIST, obtained by perturbing it with clutter,
+translation, rotation, and scaling. We achieve state of the
+art performance in the rotated MNIST, with fewer parame-
+ters and faster training time than previous methods, and we
+outperform all tested methods in the SIM2MNIST dataset,
+which we introduce.
+1. Introduction
+The quest for invariance/equivariance has been investi-
+gated since the beginnings of computer vision and pattern
+recognition whether at the global/pattern level or the local
+feature level [8]. The state of the art in the “hand crafted”
+world could be summarized through feature descriptors like
+SIFT [18] where the intrinsic scale or rotation of a region
+is selected [17, 2] and the region is normalized: the selec-
+tion is possible because a descriptor is equivariant and the
+region after the normalization is invariant to scale and/or
+rotation. An equivariant descriptor whether a LoG response
+over scales or a histogram over rotations has to be com-
+puted by sampling the corresponding transformations. This
+transformation sampling was the motivation for the search
+of steerable representations where the feature response to
+any transformation instance could be interpolated by a finite
+basis of filters. Such steerability was proven for rotations of
+Gaussian derivatives [6] and was extended to combine scale
+with translations in the shiftable pyramid [24]. Exhaustive
+sampling for the creation of such a basis was proposed by
+[21] using the SVD. In parallel, Segman et al. [22] realized
+invariance can be achieved by the construction of appropri-
+ate kernels acting as Fourier basis in a new system of canon-
+ical coordinates where a transformation can be expressed
+as a translation if it satisfies certain conditions. Following
+this work, Nordlund [20] and Teo and Hel-Or [9, 26] have
+proposed a methodology for the computation of bases for
+equivariance spaces given the Lie generators of a transfor-
+mation. Last, Mallat [23] proposed the scattering transform
+that produces invariant representations in translation, scal-
+ing, and rotations.
+Figure 1. In the log-polar representation, rotations around the ori-
+gin become vertical shifts, and dilations around the origin become
+horizontal shifts. Top two rows: sequence of 45? rotations, and
+the correspondent polar images. The distance between the yellow
+and green lines is proportional to the angle of rotation. Bottom
+two rows: sequence of
+?
+2 dilations, and the correspondent po-
+lar images. The distance between the yellow and green lines is
+proportional to the scale factor.
+Today there is a consensus that the most powerful fea-
+1
+ar
+X
+iv
+:1
+70
+9.
+01
+88
+9v
+1 
+ [
+cs
+.C
+V
+] 
+ 6
+ S
+ep
+ 2
+01
+7
+ture representations can be learnt instead of being hand-
+crafted. Equivariance to translations through convolutions
+and invariance to local deformations through pooling are
+now textbook material in deep learning ([15], p.335). But
+what about more general transformations like affine trans-
+formations. There are two approaches to this problem: the
+Spatial Transformer [10] reproduces the canonization sim-
+ilar to scale selection by learning the canonical pose of the
+input image and using it to warp the image producing an
+invariant representation. The other line of research is based
+on enforcing an equivariant structure in the convolutional
+filters [29] or producing transformed copies of the filters on
+which a group-convolution produces an equivariant repre-
+sentations [3].
+In this paper, we propose the Polar Transformer Net-
+work (PTN), which combines the ideas of the Spatial Trans-
+former and group-convolutions to achieve equivariance in
+the 2D-similarity group of translations, rotations, and di-
+lations. In the first step our network learns the translation
+of the image to be recognized and shifts the original im-
+age. In the second step it transforms the original image
+around the new origin into a log-polar coordinate system
+where translations represent global rotations and scalings.
+In this coordinate system, planar convolutions are nothing
+more than group-convolutions in angle and scale. This ap-
+proach allows us to avoid the use of the computationally ex-
+pensive fully-connected layers for learning pose in the Spa-
+tial Transformer and produce an equivariant representation
+in rotations and dilations.
+Our approach overcomes the weakness of the harmonic
+networks [29] and group convolutions [3] in not capturing
+dilations and the weakness of group convolution in being
+able to deal only with finite rotations. However, unlike those
+approaches, we deal with only global rotations and dilations
+like the Spatial Transformer does.
+We present competitive results in the rotated MNIST as
+well as in a new dataset we introduce here the SIM2MNIST.
+To summarize our contributions:
+• We develop a neural network architecture capable of
+learning an image representation invariant to shifts,
+and equivariant to rotations and dilations.
+• We propose the polar transformer module, which per-
+forms a log-polar transform in a differentiable way,
+amenable to backpropagation training with the trans-
+form origin being a latent variable.
+• We show how the polar transform origin can be learned
+effectively as the centroid of a single channel heatmap
+predicted by a fully convolutional network.
+2. Related Work
+One of the first equivariant feature extraction schemes
+was proposed by Granlund [20] who suggested the discrete
+sampling of 2D-rotations of a complex angle modulated fil-
+ter. About the same time, the image and optical processing
+community discovered the Mellin transform as a modifica-
+tion of the Fourier transform [31, 1]. The Fourier-Mellin’s
+modulus is invariant and its phase is shift-equivariant to ro-
+tation and scale.
+During the 80’s and 90’s, invariances of integral trans-
+forms were developed using a systematic approach based
+on the Lie generators of the underlying group transforma-
+tions, starting from one-parameter transforms [5] and gen-
+eralizing to subgroups of the affine group [22]. Lie group
+transformations could be converted to translations in canon-
+ical coordinates if the corresponding Lie generators were
+linearly independent. This is true, for example, for rotation
+and scalings but not for translations and rotations. More-
+over, this constrains the maximum dimension of the sub-
+group to be the dimension of the space where the group is
+acting (two in the case of images).
+Closely related to the equivariance/invariance work is
+the framework of steerability, namely, the ability to inter-
+polate the response to any group action from the response
+of a finite-dimensional filter basis. An exact steerability
+framework was started in [6] where rotational steerability
+for Gaussian derivatives was explicitly computed, and was
+extended to the shiftable pyramid [24] handling rotations
+and scale. Approximate steerability was constructed via the
+SVD by Perona [21] using multiple group action copies for
+learning a lower dimensional representation of the image
+deformation.
+A unification of the “Lie generator school” and approx-
+imate steerability was achieved by Teo and Hel-Or [26]
+where an SVD is used to reduce the number of basis func-
+tions for a given transformation group. Teo and Hel-Or
+developed the most extensive framework for steerability
+[26, 9] and proposed the first approach for non-Abelian
+groups by starting with the largest abelian group for which
+an exact steerable function space can be constructed, and
+incrementally steering for the remaining subgroups.
+The most recent “handcrafted” framework for equivari-
+ance has been the scattering transform [23] which compiles
+rotated and dilated wavelet copies. It starts with the ba-
+sic idea inherent in SIFT [18] about equivariance of anchor
+points such as the maxima of filtered responses in (transla-
+tion) space. However, the response of such a filter bank is
+not translation invariant. Translation invariance is enforced
+by taking the modulus of the filter response and further con-
+volving the modulus with the next filter. The final scattering
+coefficient is invariant to translations and continuous to lo-
+cal rotations and scalings.
+Laptev and Savinov et al. [13] incorporate a pooling
+operator over feature maps obtained from several rotated
+versions of the input in order to achieve transformation-
+invariance, with the overhead of running each forward and
+backward pass as many times as the number of input trans-
+formations.
+In the era of learned features, methods of enforcing
+group equivariance fall to two main directions. The first is
+to enforce equivariance by constraining the structure of the
+filters as in the original Lie-generator derived approaches
+[22, 9]. Harmonic networks [29] use complex harmonic
+functions which by themselves are equivariant to rotations.
+Applied locally they produce a simultaneous rotation and
+translation equivariance.
+The second direction is taken up by Cohen and Welling
+[3] who create rotational copies of existing learnt filters en-
+abling convolution in the rotation group. Inherently, such
+a convolution is rotationally equivariant and again, since it
+is applied locally, translation equivariance is well approxi-
+mated. They also prove that the rotation equivariance flows
+through the rectifier and pooling elements. In a similar vein,
+Dielemann et al. [4] make rotated and flipped copies of the
+input and build a separate CNN of each copy. The stack of
+all outputs is then equivariant and is processed for classifi-
+cation. The same idea underlies the work in [7] which pro-
+duces maps of multidimensional groups sampled at a finite
+set of anchor points. More recently, Zhou et al. [30] applies
+rotating filters that produce explicitly oriented feature maps
+to achieve rotation invariant features. To realize equivari-
+ance Lenc and Vedaldi [16] propose a transformation layer
+consisting first of a permutation/indexing and then a linear
+filter that act as a group-convolution.
+Our approach is close to both approaches above: it
+cannot cover local rotation equivariance but covers scal-
+ing in addition to translation and rotation. It borrows the
+well known log-polar coordinates (identified as canonical
+coordinates in [22]) to implement the convolution in the
+rotation-dilation group while translation is fixed like an an-
+chor similar to the Spatial Transformer.
+3. Theoretical Background
+This section is divided into two parts, the first offering
+a review of equivariance and group convolutions which can
+be reduced to the special and familiar case of translational
+convolution. The second offers an explicit example of group
+equivariance using the group of 2D similarity transforma-
+tions (SIM(2)) comprised of translations, dilations and ro-
+tations. Insights from this example enable the application of
+the SIM(2) group convolution as a traditional translational
+convolution by reparameterization.
+3.1. Group Equivariance
+Equivariant representations are highly sought after in fil-
+ter representations since they enable the prediction of the
+filter response given an input transformation. Let G be a
+transformation group and LgI be the result of the group ac-
+tion on an image I . We say that a mapping ? is equivariant
+to actions of the group G if
+?(LgI) = L
+?
+g(?(I)). (1)
+Operators Lg and L?g do not need to be the same but they
+must satisfy Lgh = LgLh. We use a primed L?g [3] to al-
+low for operators to apply on a different space on the left
+and right hand side of the above equation. Equivariance be-
+comes invariance when L?g is the identity.
+In the context of image classification, g ? G may be
+thought of as an image deformation, and ?, a mapping from
+the image to an alternate representation like the output of a
+CNN layer. CNNs inherit the property of translation equiv-
+ariance from the convolution operation. This is observed
+as translations in the image resulting in translations of the
+feature representation. This equivariance property is inde-
+pendent of the convolutional kernel.
+How would this inherent property of convolutional net-
+works apply to other groups? The key is in the generaliza-
+tion of the translational convolution to group convolution.
+Let f(h) and ?(h) be real valued functions on G, for exam-
+ple, Lhf = f(h?1). Then group convolution is defined as
+[12]
+(f ?G ?)(g) =
+?
+h?G
+f(h)?(h?1g) dh. (2)
+The group convolution reduces to the traditional transla-
+tional convolution when G is the translation group with ad-
+dition as the group operator,
+(f ? ?)(x) =
+?
+h
+f(h)?(h?1x) dh
+=
+?
+h
+f(h)?(x? h) dh.
+(3)
+The group convolution definition is quite esoteric since it
+requires the definition of integrability over a group and the
+appropriate measure dg. We will continue using this no-
+tation without defining the corresponding measure because
+at the end we will work with a discretized implementation
+(sum instead of integral) of the group convolution.
+It can be proven that group convolution is always group
+equivariant:
+(Laf ?G ?)(g) =
+?
+h?G
+f(a?1h)?(h?1g) dh
+=
+?
+b?G
+f(b)?((ab)?1g) db
+=
+?
+b?G
+f(b)?(b?1a?1g) db
+= (f ?G ?)(a
+?1g)
+= La((f ?G ?)(g)).
+(4)
+The definition of group convolution looks different for the
+very first layer where the group is acting on the image. We
+show in Figure 2 how the convolution on the original image
+is also equivariant to the group action (in that case rotation).
+We illustrate the filter response as a function of the rotation
+angle (parameter of g ? SO(2)) and how it is shifted when
+the input image is rotated.
+Figure 2. Group-convolutions for SO(2). The images in the left
+most column differ by 90? rotation. It is shown that application
+of the group convolution with any filter results in an equivariant
+representation. The filters are shown in the top row. The inner-
+product each of filters (rotated from 0 ? 360?) and the image is
+plotted in blue for the top image and red for the bottom image.
+Observe how the filter response is shifted by 90?.
+3.2. Equivariance in SIM(2)
+We will show next how group equivariance can be im-
+plemented for the group of 2D similarity transformations,
+comprising translation, dilations, and rotations.
+A similarity transformation ? ? SIM(2) acting on a point
+in R2
+?x? sRx+ t s ? R+, R ? SO(2), t ? R2, (5)
+where SO(2) is the rotation group.
+To take advantage of the planar convolution imple-
+mented in standard CNN we decompose a ? ? SIM(2) into
+a translation, t in R2 and a dilated rotation r in SO(2)×R+.
+Equivariance to SIM(2) will be achieved in two steps.
+First, the center of the dilated rotation will be learned.
+The original image will be shifted to the center and it will
+be transformed to canonical coordinates where SO(2) ×
+R+actions will correspond to translations. Standard con-
+volution will then be equivalent to group (SIM(2)) convolu-
+tion.
+The first step is just an instance of translational spatial
+transformer. The translation filters are learnt in such a way
+that the centroid of the output best approximates the global
+translation of a template [10] which is being classified.
+This transformation of the image LtI = I(t ? t0) (ap-
+pearing also as canonization in [25]) reduces the group ac-
+tion on the original image to a dilated rotation if to is the
+actual translation.
+After de-translation of the original image we perform
+SO(2) × R+convolutions on the new image we will call
+Io = I(x? to):
+f(r) =
+?
+x?R2
+Io(x)?(r
+?1x) dx (6)
+and in subsequent layers
+h(r) =
+?
+s?SO(2)×R+
+f(s)?(s?1r) ds (7)
+where r, s ? SO(2)×R+. Such a convolution would require
+an enormous amount of inner products of index locations
+which might be viable for the case of ?/2 rotations in [3]
+but not for general rotation-dilations.
+To overcome indexing and inspired by canonical coordi-
+nates of Lie-groups [22] we transform the original image
+I(x, y)1 into log-polar coordinates: (e? cos(?), e? sin(?))
+and denote the resulting image as ?(?, ?). The reader will
+realize that suddenly our image is defined on SO(2) ×
+R+and could be written as ?(s) where (?, ?) is just a pa-
+rameterization of s ? SO(2)× R+.
+We visualize in Figure 3 how equivariance holds when
+we apply a set of rotated and dilated copies of filters to two
+images rotated and scaled to each other. The filter response
+maps are shown on canonical coordinates and the 3rd row
+is shifted with respect to the 2nd row.
+What we gain from canonical coordinates is that the
+group convolution can be expressed as a plane/translational
+convolution. Observe that s?1r = ?r ? ?, ?r ? ?. Then?
+s
+f(s)?(s?1r) ds =
+?
+s
+?(?, ?)?(?r ? ?, ?r ? ?) d?d?.
+(8)
+The main advantage of the log-polar coordinates is that it
+provides an efficient discretization of SO(2) × R+. Obvi-
+ously, it is not a group because the dilation ? is not compact.
+To summarize our approach if we build:
+1. a network of translational convolutions,
+2. take the centroid of the last layer,
+3. shift the original image to this centroid,
+4. convert image into log-polar coordinates,
+5. and apply a network of translational convolutions
+1we abuse the notation here and momentarily we use x as the x-
+coordinate instead of x ? R2.
+Figure 3. Result of applying the group-convolution for SO(2) ×
+R+. Images in the left most column differ by a rotation and scaling
+of ?/4 and 1.2 respectively. Careful consideration of the resulting
+heatmaps reveals a shift corresponding to the transformation of the
+input images.
+then the result will be an equivariant feature map with re-
+spect to dilated rotations around the origin. A network does
+also include rectifier and pooling elements which have been
+proven to preserve equivariance [3].
+4. Architecture
+Our network is composed of two parts, connected by the
+polar transformer module. The first part is the polar ori-
+gin predictor, and the second is the classifier. The building
+block of the network is a 3 × 3 convolutional layer, with
+some number of filters, followed by batch normalization
+and a ReLU. We will refer to this building block simply
+as block. Subsampling is performed using strided convolu-
+tions in some layers. Figure 4 shows the architecture.
+4.1. Polar Origin Predictor
+The polar origin predictor operates on the original im-
+age and outputs the origin of the log-polar transform co-
+ordinates. There are some difficulties in training a neural
+network to predict coordinates in images. Some approaches
+[28, 10] attempt to use fully connected layers to directly
+regress the coordinates, with limited success.
+A better option is to predict heatmaps [27, 19], and take
+their argmax. The problem of using the argmax gradients
+during backpropagation is that the gradients are zero in all
+but one point, which impedes learning. The usual way to
+predict heatmaps is by applying a loss against a ground
+truth heatmap. In this case, the supervision comes before
+the argmax, so the gradients of the argmax with respect to
+the previous layer are not necessary.
+In our case, the polar origin is not known a priori, it must
+be learned implicitly by the network. This means we must
+take the gradient of the output coordinates with respect to
+the heatmap. We do this, avoiding the argmax, by taking
+the centroid of the heatmap as our polar origin. The gradient
+of the centroid with respect to the heatmap is constant and
+nonzero for all points, which makes the learning possible.
+Our polar origin predictor comprises a sequence of
+blocks, some with subsampling, culminating in a 1×1 con-
+volution to generate a single feature map. The polar trans-
+form origin is taken as the position of the centroid of this
+feature map.
+4.2. Polar transformer module
+The polar transformer module takes in the origin coordi-
+nates, the image input, and produces a log-polar representa-
+tion of the input.
+The module is inspired by the Spatial Transformer [11].
+In fact, we use the same differentiable image sampling,
+which allows us to write each output coordinate Vi in terms
+of the input U and the coordinates of the source sample
+points (xsi , y
+s
+i ). Therefore, to apply the log-polar transform,
+we need to find the source sample points in terms of the
+target regular grid (xti, y
+t
+i), which is done as follows,
+xsi = x0 + r
+xti/W cos
+2?yti
+H
+(9)
+ysi = y0 + r
+xti/W sin
+2?yti
+H
+(10)
+Where (x0, y0) is the origin, W,H are the output width
+and height, and r is the maximum distance from the origin,
+which is set to 0.5
+?
+H2 +W 2 in our experiments.
+4.3. Wrap-around padding
+The polar representation is periodic in the angular axis.
+When rotating the input by increasing angles, we should
+see the representation gradually shifting vertically, wrap-
+ping around when the first or last row is reached. Hence,
+we should see the polar image as a cylinder instead of a
+rectangle.
+Most CNN implementations use zero padding before ev-
+ery convolutional layer, in order to maintain the feature map
+resolutions. We note this is not ideal for polar representa-
+tions, since the row exactly above the first row should be the
+last row, and not a row of zeros.
+We implement a wrap-around padding in the vertical di-
+mension to handle this. The top of the feature map is padded
+using the bottom rows, and the bottom is padded using the
+top rows. Zero-padding is still used for the horizontal di-
+mension.
+We observe significant performance improvements when
+using the wrap-around padding instead of zero-padding (see
+table 3)
+polar origin predictor classifier
+Polar 
+Transformer
+Figure 4. Network architecture. The input image passes through a fully convolutional network, the polar origin predictor, which outputs
+a heatmap. The centroid of the heatmap (two coordinates), together with the input image, goes into the polar transformer module, which
+performs a polar transform with origin at the input coordinates. The obtained polar representation is invariant with respect to the original
+object location; and rotations and dilations are now shifts, which are handled equivariantly by a conventional classifier CNN.
+4.4. Polar origin augmentation
+The polar transform may change significantly between
+two different origins. In order to improve the robustness
+of our method, we augment the polar origin during train-
+ing time. To achieve that, we just add a random shift to
+the regressed polar origin coordinates. Note that this comes
+with almost no extra computational cost, as opposed to con-
+ventional augmentation methods such as rotating the input
+image. Table 3 quantifies the performance gains of this kind
+of augmentation.
+4.5. Classifier
+The classifier is a conventional fully convolutional net-
+work; the only differences are that it operates on polar im-
+ages and uses the wrap-around padding. It comprises a se-
+quence of blocks, some with subsampling. The final layer
+has the same number of channels as there are classes, from
+where we take the global average pooling and pass through
+a softmax classifier.
+5. Experiments
+We train our model for a classification task on variations
+of MNIST, and compare with several different architectures.
+All models are trained with the Adam optimizer, with a
+learning rate of 0.01.
+5.1. Architectures
+We implement the following architectures for compari-
+son,
+• Conventional CNN (CCNN), a fully convolutional
+network, composed of a sequence of convolutional lay-
+ers and some rounds of subsampling .
+• Polar CNN (PCNN), same architecture as CCNN, op-
+erating on polar images. The log-polar transform is
+pre-computed at the image center before training, as in
+[10]. The fundamental difference between our method
+and this is that we learn the polar origin implicitly, in-
+stead of fixing it.
+• Spatial Transformer Network (STN), our implemen-
+tation of [11], replacing the localization network by
+four blocks of 20 filters and stride 2, followed by a 20
+unit fully connected layer, which we found to perform
+better. The transformation regressed is in SIM(2), and
+a CCNN comes after the transform.
+• Polar Transformer Network (PTN), our proposed
+method. The polar origin predictor comprises three
+blocks of 20 filters each, with stride 2 on the first block
+(or the first two blocks, when input is 96 × 96). The
+classification network is the CCNN.
+• PTN-CNN, we classify based on the sum of the per
+class scores of instances of PTN and CCNN trained
+independently.
+The following suffixes qualify the architectures de-
+scribed above:
+• S, “small” network, with seven blocks of 20 filters and
+one round of subsampling (equivalent to the Z2CNN
+in [3]).
+• B, “big” network, with 8 blocks with the following
+number of filters: 16, 16, 32, 32, 32, 64, 64, 64. Sub-
+sampling by strided convolution is used whenever the
+number of filters increase. We add up to two 2 extra
+blocks of 16 filters with stride 2 at the beginning to
+handle larger input resolutions (one for 42 × 42 and
+two for 96× 96).
+• +, training time rotation augmentation by continuous
+angles.
+• ++, training and test time rotation augmentation. We
+input 8 rotated versions the the query image and clas-
+sify using the sum of the per class scores.
+Regarding rotation augmentation for polar-based meth-
+ods; in theory, the effect of input rotation is just a shift
+in the corresponding polar image, which should not affect
+the classifier CNN. In practice, however, interpolation and
+angle discretization effects result in slightly different polar
+images for rotated inputs, so even the polar-based methods
+benefit from this kind of augmentation.
+5.2. Rotated MNIST
+The rotated MNIST dataset [14] is composed of 28×28,
+360? rotated images of handwritten digits. The training,
+validation and test sets are of sizes 10k, 2k, and 50k, re-
+spectively.
+Table 1 shows the results. We divide the analysis in two
+parts; on the top, we show approaches with smaller net-
+works and no rotation augmentation, on the bottom there
+are no restrictions.
+Between the restricted approaches, the Harmonic Net-
+work [29] outperforms the PTN by a small margin, but with
+almost 4x more training time. This can be explained by the
+use of convolutions on complex variables, which are more
+costly. Also worth mentioning is the poor performance of
+the STN with no augmentation, which shows that learning
+the transformation parameters is much harder than learning
+the polar origin coordinates.
+Analyzing the unrestricted approaches, we see that all
+variants of PTN-B outperform the current state of the art,
+with significant improvements when combined with CCNN
+and/or test time augmentation. We note that the methods
+based on TI-Pooling [13] employ rotated versions of the in-
+puts in both training and test time, which roughly corre-
+sponds to our ++ variants, and the PTN outperform those
+methods even with no test time augmentation.
+Finally, we note that the PCNN achieves a relatively high
+accuracy in this dataset because the digits are mostly cen-
+tered, so using the polar transform origin as the image cen-
+ter is reasonable. Our method, however, outperforms it by a
+high margin, showing that even with the digit roughly cen-
+tered, it is possible to find an origin away from the image
+center that results in a more distinctive representation.
+5.3. Other MNIST variants
+We also perform experiments in other MNIST variants.
+• MNIST R, we replicate it from [11]. It has 60k train-
+ing and 10k testing samples, where the digits of the
+original MNIST are rotated between [?90?, 90?]. It is
+also know as half-rotated MNIST [13].
+• MNIST RTS, we replicate it from [11]. It has 60k
+training and 10k testing samples, where the digits of
+the original MNIST are rotated between [?45?, 45?],
+scaled between 0.7 and 1.2, and shifted within a 42×42
+black canvas.
+Model error [%] params time [s]
+PTN-S 1.83 (0.04) 27k 3.64 (0.04)
+PCNN-S 2.6 (0.08) 22k 2.61 (0.04)
+CCNN-S 5.76 (0.35) 22k 2.43 (0.02)
+STN-S 7.87 (0.18) 43k 3.90 (0.05)
+HNet [29] 1.691 33k 13.29 (0.19)
+P4CNN [3] 2.281 22k -
+PTN-B+ 1.14 (0.08) 129k 4.38 (0.02)
+PTN-B++ 0.95 (0.09) 129k 4.382
+PTN-CNN-B+ 1.01 (0.06) 254k 7.36
+PTN-CNN-B++ 0.89 (0.06) 254k 7.362
+PCNN-B+ 1.37 (0.00) 124k 3.30 (0.04)
+CCNN-B+ 1.53 (0.07) 124k 2.98 (0.02)
+STN-B+ 1.31 (0.05) 146k 4.57 (0.04)
+ORN-8 [30] 2.251 ? 1M 3.173
+OR-TIPooling [30] 1.541 ? 1M -
+TI-Pooling [13] 1.21 ? 1M 42.90
+1 As reported in the original paper
+2 Test time performance is 8x slower when using test time augmentation
+3 This runs in Torch, all the others in Tensorflow; comparison may not be fair
+Table 1. Performance on rotated MNIST. Errors are averages of
+several runs, with standard deviations within parenthesis. Times
+are average training time for one epoch. All variants of PTN-B
+outperform the current state of the art, with significant improve-
+ments when combined with CCNN and/or test time augmentation.
+• SMI2MNIST, we introduce a more challenging
+dataset, based on MNIST, perturbed by random trans-
+formations from SIM(2). The images are 96×96, with
+360? rotations; the scale factors range from 1 to 2.4,
+and the digits can appear anywhere in the image. The
+training, validation and test set have size 10k, 5k, and
+50k, respectively.
+Table 2 shows the results.
+We can see that the PTN performance mostly matches
+the STN on both MNIST R and RTS. The deformations
+on these datasets are mild and data is plenty, so the per-
+formance may be saturated.
+On SIM2MNIST, however, the deformations are more
+challenging and the training set 5x smaller. The PCNN per-
+formance is significantly lower, which reiterates the impor-
+tance of predicting the best polar origin. The HNet out-
+performs the other methods (except for the PTN), thanks
+to its translation and rotation equivariance properties. Our
+method is more efficient both in number of parameters
+and training time, and is also inherently equivariant to di-
+lations; hence, it achieves the best performance for the
+SIM2MNIST dataset by a large margin.
+5.4. Ablation study
+We quantify the performance boost obtained with wrap
+around padding, polar origin augmentation, and training
+MNIST R MNIST RTS SIM2MNIST3
+error [%] params time error [%] params time error [%] params time
+PTN-S+ 0.88 (0.04) 29k 19.72 0.78 (0.05) 32k 24.48 5.44 (0.03) 35k 11.92
+PTN-B+ 0.62 (0.04) 129k 20.37 0.57 (0.03) 134k 28.74 5.03 (0.11) 134k 12.02
+PCNN-B+ 0.81 (0.04) 124k 13.97 0.70 (0.01) 129k 17.19 15.46 (0.22) 129k 5.33
+CCNN-B+ 0.74 (0.01) 124k 12.79 0.62 (0.07) 129k 15.97 11.73 (0.57) 129k 5.28
+STN-B+ 0.61 (0.02) 146k 23.12 0.54 (0.02) 150k 27.90 12.35 (1.61) 150k 10.41
+STN [11] 0.71 400k1 - 0.51 400k1 - - - -
+HNet 2[29] - - - - - - 9.28 (0.05) 44k 31.42
+TI-Pooling [13] 0.81 ? 1M - - - - - - -
+1 As reported in the original paper
+2 Our modified version, with two extra layers with subsampling to account for larger input
+3 No augmentation is used with SIM2MNIST, despite the + suffixes
+Table 2. Performance on MNIST variants. Errors are averages of several runs, with standard deviations within parenthesis. Times are
+average training time for one epoch. The deformations in MNIST R and RTS are mild, and 5x more training data is available; in those
+conditions, our STN implementation perform slightly better than the PTN. On SIM2MNIST, however, the PTN outperforms all the other
+methods by a large margin.
+Origin aug. Rotation aug. Wrap padding Error [%]
+Yes Yes Yes 1.12 (0.03)
+No Yes Yes 1.33 (0.12)
+Yes No Yes 1.46 (0.11)
+Yes Yes No 1.31 (0.06)
+Table 3. Ablation study. Rotation and polar origin augmentation
+during training time, and wrap around padding all contribute to
+reduce the error. Results are from PTN-B on the rotated MNIST.
+time rotation augmentation. Results are based on the PTN-
+B variant trained on Rotated MNIST. We remove one oper-
+ation at a time and verify that the performance consistently
+drops, which indicates that all operations are indeed helpful.
+Table 3 shows the results.
+5.5. Visualization
+We visualize network activations to confirm our claims
+about invariance to translation and equivariance to rotations
+and dilations.
+In figure 5, we look at some of the predicted polar ori-
+gins and the results of the polar transform. We can see that
+the network learns to reject clutter and to find a suitable ori-
+gin for the polar transform, and that the representation af-
+ter the polar transformer module does present the properties
+claimed.
+We proceed to visualize if the properties are preserved
+in deeper layers. Figure 6 shows the activations of selected
+channels from the last convolutional layer, for different ro-
+tations, dilations, and translations of the input. The reader
+can verify that the equivariance to rotations and dilations,
+and the invariance to translations are indeed preserved dur-
+ing the sequence of convolutional layers.
+Figure 5. Predicted polar origins and results of the polar transform.
+The rows alternate between samples from SIM2MNIST, where the
+predicted origin is shown as a green dot, and their learned polar
+representation. Note how the polar representation is invariant to
+the original location of the object, and how rotations and dilations
+of the object become shifts.
+Figure 6. Feature maps on the last convolutional layer. Each row
+shows a different input and correspondent activations. The first
+and second rows show that the 180? rotation results in a half-width
+shift of the feature maps. The third and fourth rows show that
+the 2.4× dilation results in a shift right of the feature maps. By
+comparing the first and third rows, the invariance to translation can
+be verified.
+6. Conclusion
+We have proposed a novel network whose output is in-
+variant to translations and equivariant to the group of di-
+lations/rotations. We have combined the idea of learning
+the translation (similar to the spatial transformer) but pro-
+viding equivariance for the scaling and rotation, avoiding,
+thus, fully connected layers required for the pose regres-
+sion in the spatial transformer. Equivariance with respect to
+dilated rotations is achieved by convolution in this group.
+Such a convolution would require the production of multi-
+ple group copies, however, we avoid this by transforming
+into canonical coordinates. We improve the state of the art
+performance on rotated MNIST by a large margin, and out-
+perform all other tested methods on a new dataset we call
+SIM2MNIST. We expect our approach to be applicable to
+other problems, where the presence of different orientations
+and scales hinder the performance of conventional CNNs.
+References
+[1] D. Casasent and D. Psaltis. Scale invariant optical transform.
+Optical Engineering, 15(3):153258–153258, 1976. 2
+[2] O. Chomat, V. C. de Verdie?re, D. Hall, and J. L. Crowley. Lo-
+cal scale selection for gaussian based description techniques.
+In European Conference on Computer Vision, pages 117–
+134. Springer, 2000. 1
+[3] T. S. Cohen and M. Welling. Group equivariant convolu-
+tional networks. arXiv preprint arXiv:1602.07576, 2016. 2,
+3, 4, 5, 6, 7
+[4] S. Dieleman, K. W. Willett, and J. Dambre. Rotation-
+invariant convolutional neural networks for galaxy morphol-
+ogy prediction. Monthly notices of the royal astronomical
+society, 450(2):1441–1459, 2015. 3
+[5] M. Ferraro and T. M. Caelli. Relationship between inte-
+gral transform invariances and lie group theory. JOSA A,
+5(5):738–742, 1988. 2
+[6] W. T. Freeman, E. H. Adelson, et al. The design and use of
+steerable filters. IEEE Transactions on Pattern analysis and
+machine intelligence, 13(9):891–906, 1991. 1, 2
+[7] R. Gens and P. M. Domingos. Deep symmetry networks. In
+Advances in neural information processing systems, pages
+2537–2545, 2014. 3
+[8] G. H. Granlund. In search of a general picture processing op-
+erator. Computer Graphics and Image Processing, 8(2):155–
+173, 1978. 1
+[9] Y. Hel-Or and P. C. Teo. Canonical decomposition of steer-
+able functions. In Computer Vision and Pattern Recognition,
+1996. Proceedings CVPR’96, 1996 IEEE Computer Society
+Conference on, pages 809–816. IEEE, 1996. 1, 2, 3
+[10] J. F. Henriques and A. Vedaldi. Warped convolutions: Ef-
+ficient invariance to spatial transformations. arXiv preprint
+arXiv:1609.04382, 2016. 2, 4, 5, 6
+[11] M. Jaderberg, K. Simonyan, A. Zisserman, et al. Spatial
+transformer networks. In Advances in Neural Information
+Processing Systems, pages 2017–2025, 2015. 5, 6, 7, 8
+[12] A. B. Kyatkin and G. S. Chirikjian. Algorithms for fast con-
+volutions on motion groups. Applied and Computational
+Harmonic Analysis, 9(2):220–241, 2000. 3
+[13] D. Laptev, N. Savinov, J. M. Buhmann, and M. Pollefeys. Ti-
+pooling: Transformation-invariant pooling for feature learn-
+ing in convolutional neural networks. In The IEEE Confer-
+ence on Computer Vision and Pattern Recognition (CVPR),
+June 2016. 2, 7, 8
+[14] H. Larochelle, D. Erhan, A. Courville, J. Bergstra, and
+Y. Bengio. An empirical evaluation of deep architectures
+on problems with many factors of variation. In Proceedings
+of the 24th international conference on Machine learning,
+pages 473–480. ACM, 2007. 7
+[15] Y. LeCun, Y. Bengio, and G. Hinton. Deep learning. Nature,
+521(7553):436–444, 2015. 2
+[16] K. Lenc and A. Vedaldi. Understanding image representa-
+tions by measuring their equivariance and equivalence. In
+Proceedings of the IEEE conference on computer vision and
+pattern recognition, pages 991–999, 2015. 3
+[17] T. Lindeberg. Scale-space theory: A basic tool for analyzing
+structures at different scales. Journal of applied statistics,
+21(1-2):225–270, 1994. 1
+[18] D. G. Lowe. Distinctive image features from scale-
+invariant keypoints. International journal of computer vi-
+sion, 60(2):91–110, 2004. 1, 2
+[19] A. Newell, K. Yang, and J. Deng. Stacked hourglass net-
+works for human pose estimation. 2016. 5
+[20] K. Nordberg and G. Granlund. Equivariance and invariance-
+an approach based on lie groups. In Image Processing, 1996.
+Proceedings., International Conference on, volume 3, pages
+181–184. IEEE, 1996. 1, 2
+[21] P. Perona. Deformable kernels for early vision. IEEE
+Transactions on pattern analysis and machine intelligence,
+17(5):488–499, 1995. 1, 2
+[22] J. Segman, J. Rubinstein, and Y. Y. Zeevi. The canonical
+coordinates method for pattern deformation: Theoretical and
+computational considerations. IEEE Transactions on Pat-
+tern Analysis and Machine Intelligence, 14(12):1171–1183,
+1992. 1, 2, 3, 4
+[23] L. Sifre and S. Mallat. Rotation, scaling and deformation
+invariant scattering for texture discrimination. In Proceed-
+ings of the IEEE conference on computer vision and pattern
+recognition, pages 1233–1240, 2013. 1, 2
+[24] E. P. Simoncelli, W. T. Freeman, E. H. Adelson, and D. J.
+Heeger. Shiftable multiscale transforms. IEEE transactions
+on Information Theory, 38(2):587–607, 1992. 1, 2
+[25] S. Soatto. Actionable information in vision. In Machine
+learning for computer vision, pages 17–48. Springer, 2013.
+4
+[26] P. C. Teo and Y. Hel-Or. Design of multi-parameter steer-
+able functions using cascade basis reduction. In Computer
+Vision, 1998. Sixth International Conference on, pages 187–
+192. IEEE, 1998. 1, 2
+[27] J. J. Tompson, A. Jain, Y. LeCun, and C. Bregler. Joint
+training of a convolutional network and a graphical model
+for human pose estimation. In Z. Ghahramani, M. Welling,
+C. Cortes, N. D. Lawrence, and K. Q. Weinberger, edi-
+tors, Advances in Neural Information Processing Systems 27,
+pages 1799–1807. Curran Associates, Inc., 2014. 5
+[28] A. Toshev and C. Szegedy. Deeppose: Human pose esti-
+mation via deep neural networks. In The IEEE Conference
+on Computer Vision and Pattern Recognition (CVPR), June
+2014. 5
+[29] D. E. Worrall, S. J. Garbin, D. Turmukhambetov, and G. J.
+Brostow. Harmonic networks: Deep translation and rotation
+equivariance. arXiv preprint arXiv:1612.04642, 2016. 2, 3,
+7, 8
+[30] Y. Zhou, Q. Ye, Q. Qiu, and J. Jiao. Oriented response net-
+works. In The IEEE Conference on Computer Vision and
+Pattern Recognition (CVPR), July 2017. 3, 7
+[31] P. E. Zwicke and I. Kiss. A new implementation of the mellin
+transform and its application to radar classification of ships.
+IEEE Transactions on pattern analysis and machine intelli-
+gence, 4(2):191–199, 1983. 2

@@ -1,0 +1,958 @@
+Order-Planning Neural Text Generation From Structured Data
+Lei Sha,1 Lili Mou,2 Tianyu Liu,1 Pascal Poupart,2 Sujian Li,1 Baobao Chang,1 Zhifang Sui1
+1Key Laboratory of Computational Linguistics, Ministry of Education; School of EECS, Peking Univeristy
+2David R. Cheriton School of Computer Science, University of Waterloo
+1{shalei, tianyu0421, lisujian, chbb, szf}@pku.edu.cn
+2doublepower.mou@gmail.com, ppoupart@uwaterloo.ca
+Abstract
+Generating texts from structured data (e.g., a table) is im-
+portant for various natural language processing tasks such as
+question answering and dialog systems. In recent studies, re-
+searchers use neural language models and encoder-decoder
+frameworks for table-to-text generation. However, these neu-
+ral network-based approaches do not model the order of con-
+tents during text generation. When a human writes a sum-
+mary based on a given table, he or she would probably con-
+sider the content order before wording. In a biography, for
+example, the nationality of a person is typically mentioned
+before occupation in a biography. In this paper, we propose
+an order-planning text generation model to capture the rela-
+tionship between different fields and use such relationship to
+make the generated text more fluent and smooth. We con-
+ducted experiments on the WIKIBIO dataset and achieve sig-
+nificantly higher performance than previous methods in terms
+of BLEU, ROUGE, and NIST scores.
+Introduction
+Generating texts from structured data (e.g., a table) is im-
+portant for various natural language processing tasks such
+as question answering and dialog systems. Table 1 shows an
+example of a Wikipedia infobox (containing fields and val-
+ues) and a text summary.
+In early years, text generation is usually accomplished by
+human-designed rules and templates (Green 2006; Turner,
+Sripada, and Reiter 2010), and hence the generated texts are
+not flexible. Recently, researchers apply neural networks to
+generate texts from structured data (Lebret, Grangier, and
+Auli 2016), where a neural encoder captures table informa-
+tion and a recurrent neural network (RNN) decodes these
+information to a natural language sentence.
+Although such neural network-based approach is capable
+of capturing complicated language and can be trained in an
+end-to-end fashion, it lacks explicit modeling of content or-
+der during text generation. That is to say, an RNN gener-
+ates a word at a time step conditioned on previous generated
+words as well as table information, which is more or less
+“shortsighted” and differs from how a human writer does.
+As suggested in the book The Elements of Style,
+A basic structural design underlies every kind of writ-
+ing . . . in most cases, planning must be a deliberate pre-
+lude to writing. (William and White 1999)
+Table:
+ID Field Content
+1 Name Arthur Ignatius Conan Doyle
+2 Born 22 May 1859 Edinburgh, Scotland
+3 Died 7 July 1930 (aged 71) Crowborough, England
+4 Occupation Author, writer, physician
+5 Nationality British
+6 Alma mater University of Edinburgh Medical School
+7 Genre Detective fiction fantasy
+8 Notable work Stories of Sherlock Homes
+Text:
+Sir Arthur Ignatius Conan Doyle (22 May 1859 – 7 July 1930)
+was a British writer best known for his detective fiction featuring
+the character Sherlock Holmes.
+Table 1: Example of a Wikipedia infobox and a reference
+text.
+This motivates order planning for neural text generation. In
+other words, a neural network should model not only word
+order (as has been well captured by RNN) but also the order
+of contents, i.e., fields in a table.
+We also observe from real summaries that table fields by
+themselves provide illuminating clues and constraints of text
+generation. In the biography domain, for example, the na-
+tionality of a person is typically mentioned before the occu-
+pation. This could benefit from explicit planning of content
+order during neural text generation.
+In this paper, we propose an order-planning method
+for table-to-text generation. Our model is built upon the
+encoder-decoder framework and use RNN for text synthe-
+sis with attention to table entries. Different from exiting
+neural models, we design a table field linking mechanism,
+inspired by temporal memory linkage in the Differentiable
+Neural Computer (Graves et al. 2016, DNC). Our field link-
+ing mechanism explicitly models the relationship between
+different fields, enabling our neural network to better plan
+what to say first and what next. Further, we incorporate a
+copy mechanism (Gu et al. 2016) into our model to cope
+with rare words.
+We evaluated our method on the WIKIBIO dataset (Le-
+bret, Grangier, and Auli 2016). Experimental results show
+that our order-planning approach significantly outperforms
+ar
+X
+iv
+:1
+70
+9.
+00
+15
+5v
+1 
+ [
+cs
+.C
+L
+] 
+ 1
+ S
+ep
+ 2
+01
+7
+previous state-of-the-art results in terms of BLEU, ROUGE,
+and NIST metrics. Extensive ablation tests verify the ef-
+fectiveness of each component in our model; we also per-
+form visualization analysis to better understand the proposed
+order-planning mechanism.
+Approach
+Our model takes as input a table (e.g., a Wikipedia infobox)
+and generates a natural language summary describing the
+information based on an RNN. The neural network contains
+three main components:
+• An encoder captures table information;
+• A dispatcher—a hybrid content- and linkage-based atten-
+tion mechanism over table contents—plans what to gen-
+erate next; and
+• A decoder generates a natural language summary using
+RNN, where we also incorporate a copy mechanism (Gu
+et al. 2016) to cope with rare words.
+We elaborate these components in the rest of this section.
+Encoder: Table Representation
+We design a neural encoder to represent table information.
+As shown in Figure 1, the content of each field is split
+into separate words and the entire table is transformed into
+a large sequence. Then we use a recurrent neural network
+(RNN) with long short term memory (LSTM) units (Hochre-
+iter and Schmidhuber 1997) to read the contents as well as
+their corresponding field names.
+Concretely, let C be the number of content words in a
+table; let ci and fi be the embeddings of a content and its
+corresponding field, respectively (i = 1 · · ·C). The input of
+LSTM-RNN is the concatenation of fi and ci, denoted as
+xi = [fi; ci], and the output, denoted as hi, is the encoded
+information corresponding to a content word, i.e.,[
+gin; gforget; gout
+]
+= ?(Wgxi + Ughi?1) (1)
+x?i = tanh(Wxxi + Uxhi?1) (2)
+h?i = gin ? x?i + gforget ? h?i?1 (3)
+hi = gout ? tanh(h?i) (4)
+where ? denotes element-wise product, and ? denotes the
+sigmoid function. W ’s and U ’s are weights, and bias terms
+are omitted in the equations for clarity. gin, gforget, and gout
+are known as input, forget, and output gates.
+Notice that, we have two separate embedding matrices for
+fields and content words. We observe the field names of dif-
+ferent data samples mostly come from a fixed set of candi-
+dates, which is reasonable in a particular domain. Therefore,
+we assign an embedding to a field, regardless of the number
+of words in the field name. For example, the field Notable
+work in Table 1 is represented by a single field embedding
+instead of the embeddings of notable and work.
+For content words, we represent them with conventional
+word embeddings (which are randomly initialized), and use
+LSTM-RNN to integrate information. In a table, some fields
+contain a sequence of words (e.g., Name=“Arthur Ignatius
+(a) Encoder (b) Dispatcher
+Table Representation Planning What to Generate Next
+Name Arthur
+Name Ignatius
+Name Conan
+Name Doyle
+Born 22
+Born May
+Born 1859
+Occupation writer
+Occupation physician
+Nationality British
+LS
+T
+M
+Last step's
+attention Link (sub)matrix
+Content-based
+attention
+Link-based
+attention
+Hybrid attention
+Weighted
+sum
+Attention
+vector
+Field          Content
+Figure 1: The (a) Encoder and (b) Dispatcher in our model.
+Conan Doyle”), whereas other fields contain a set of words
+(e.g., Occupation = “writer, physician”). We do not have
+much human engineering here, but let an RNN to capture
+such subtlety by itself.
+Dispatcher: Planning What to Generate Next
+After encoding table information, we use another RNN to
+decode a natural language summary (deferred to the next
+part). During the decoding process, the RNN is augmented
+with a dispatcher that plans what to generate next.
+Generally, a dispatcher is an attention mechanism over ta-
+ble contents. At each decoding time step t, the dispatcher
+computes a probabilistic distribution ?t,i (i = 1 · · ·C),
+which is further used for weighting content representa-
+tions hi. In our model, the dispatcher is a hybrid of content-
+and link-based attention, discussed in detail as follows.
+Content-Based Attention. Traditionally, the computation
+of attention ?t,i is based on the content representation hi
+as well as some state during decoding (Bahdanau, Cho, and
+Bengio 2015; Mei, Bansal, and Walter 2016). We call this
+content-based attention, which is also one component in our
+dispatcher.
+Since both the field name and the content contain im-
+portant clues for text generation, we compute the attention
+weights based on not only the encoded vector of table con-
+tent hi but also the field embedding fi, thus obtaining the
+final attention ?contentt,i by re-weighting one with the other.
+Formally, we have
+??
+(f)
+t,i = f
+>
+i
+(
+W (f)yt?1 + b
+(f)
+)
+(5)
+??
+(c)
+t,i = h
+>
+i
+(
+W (c)yt?1 + b
+(c)
+)
+(6)
+?contentt,i =
+exp
+{
+??
+(f)
+t,i ??
+(c)
+t,i
+}?C
+j=1 exp
+{
+??
+(f)
+t,j ??
+(c)
+t,j
+} (7)
+where W (f), b(f),W (c), b(c) are learnable parameters; fi
+and hi are vector representations of the field name and en-
+coded content, respectively, for the ith row. ?contentt,i is the
+content-based attention weights. Ideally, a larger content-
+based attention indicates a more relevant content to the last
+generated word.
+Link-Based Attention. We further propose a link-based
+attention mechanism that directly models the relationship
+between different fields.
+Our intuition stems from the observation that, a well-
+organized text typically has a reasonable order of its con-
+tents. As illustrated previously, the nationality of a person
+is often mentioned before his occupation (e.g., a British
+writer). Therefore, we propose an link-based attention to ex-
+plicitly model such order information.
+We construct a link matrix L ? Rnf×nf , where nf is
+the number possible field names in the dataset. An element
+L [fj , fi] is a real-valued score indicating how likely the field
+fj is mentioned after the field fi. (Here, [·, ·] indexes a ma-
+trix.) The link matrix L is a part of model parameters and
+learned by backpropagation. Although the link matrix ap-
+pears to be large in size (1475×1475), a large number of its
+elements are not used because most fields do not co-occur
+in at least one data sample; in total, we have 53422 effective
+parameters here. In other scenarios, low-rank approximation
+may be used to reduce the number of parameters.
+Formally, let ?t?1,i (i = 1 . . . C) be an attention proba-
+bility1 over table contents in the last time step during gener-
+ation. For a particular data sample whose content words are
+of fields f1, f2, · · · , fC , we first weight the linking scores
+by the previous attention probability, and then normalize
+the weighted score to obtain link-based attention probabil-
+ity, given by
+?linkt,i = softmax
+{ C?
+j=1
+?t?1,j ·L [fj , fi]
+}
+(8)
+=
+exp
+{?C
+j=1 ?t?1,j ·L [fj , fi? ]
+}?C
+i?=1 exp
+{?
+j ?t?1,j ·L [fj , fi? ]
+} (9)
+Intuitively, the link matrix is analogous to the transition
+matrix in a Markov chain (Karlin 2014), whereas the term?C
+j=1 ?t?1,j · L [fj , fi] is similar to one step of transition
+in the Markov chain. However, in our scenario, a table in a
+particular data sample contains only a few fields, but a field
+may occur several times because it contains more than one
+1Here, ?t?1,i refers to the hybrid content- and link-based atten-
+tion, which will be introduced shortly.
+content words. Therefore, we do not require our link matrix
+L to be a probabilistic distribution in each row, but normal-
+ize the probability afterwards by Equation 9, which turns out
+to work well empirically.
+Besides, we would like to point out that the link-based
+attention is inspired by the Differentiable Neural Com-
+puter (Graves et al. 2016, DNC). DNC contains a “linkage-
+based addressing” mechanism to track consecutively used
+memory slots and thus to integrate order information during
+memory addressing. Likewise, we design the link-based at-
+tention to capture the temporal order of different fields. But
+different from the linking strength heuristically defined in
+DNC, the link matrix in our model is directly parameterized
+and trained in an end-to-end manner.
+Hybrid Attention. To combine the above two attention
+mechanisms, we use a self-adaptive gate zt ? (0, 1) by a
+sigmoid unit
+zt = ?
+(
+w>[h?t?1; e
+(f)
+t ;yt?1]
+)
+(10)
+where w is a parameter vector. h?t?1 is the last step’s hid-
+den state of the decoder RNN. yt?1 is the embedding of
+the word generated in the last step; e(f)t is the sum of field
+embeddings fi weighted by the current step’s field attention
+?linkt,i . As yt?1 and e
+(f)
+t emphasize the content and link as-
+pects, respectively, the self-adaptive gate z is aware of both.
+In practice, we find z tends to address link-based attention
+too much and thus adjust it by z?t = 0.2zt + 0.5 empirically.
+Finally, the hybrid attention, a probabilistic distribution
+over all content words, is given by
+?hybridt = z?t ·?contentt + (1? z?t) ·?linkt (11)
+Decoder: Sentence Generation
+The decoder is an LSTM-RNN that predicts target words in
+sequence. We also have an attention mechanism (Bahdanau,
+Cho, and Bengio 2015) that summarizes source information,
+i.e., the table in our scenario, by weighted sum, yielding an
+attention vector at by
+at =
+C?
+i=1
+?hybridt,i hi (12)
+where hi is the hidden representation obtained by the
+table encoder. As ?hybridt,i is a probabilistic distribution—
+determined by both content and link information—over con-
+tent words, it enables the decoder RNN to focus on relevant
+information at a time, serving as an order-planning mecha-
+nism for table-to-text generation.
+Then we concatenate the attention vector at and the em-
+bedding of the last step’s generated word yt?1, and use a
+single-layer neural network to mix information before feed-
+ing to the decoder RNN. In other words, the decoder RNN’s
+input (denoted as xt) is
+xt = tanh(Wd[at;yt?1] + bd) (13)
+where Wd and bd are weights. Similar to Equations 1–4, at
+a time step t during decoding, the decoder RNN yields a
+Decoder
+Sentence Generation
+Table content
+LSTM LSTM LSTM
+<start>
+  
+. . . LSTM
+ 
+. . .
+ 
+<eos>
+LSTM
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Last
+LSTM
+state
+Attention
+vector
+ 
+Embedding of the
+generated word
+in last step
+Figure 2: The decoder RNN in our model, which is enhanced
+with a copy mechanism.
+hidden representation h?t, based on which a score function
+sLSTM is computed suggesting the next word to generate.
+The score function is computed by
+sLSTMt =Wsh
+?
+t + bs (14)
+where h?t is the decoder RNN’s state. (Ws and bs are
+weights.) The score function can be thought of as the input
+of a softmax layer for classification before being normalized
+to a probabilistic distribution. We incorporate a copy mech-
+anism (Gu et al. 2016) into our approach, and the normal-
+ization is accomplished after considering a copying score,
+introduced as follows.
+Copy Mechanism. The copy mechanism scores a content
+word ci by its hidden representation hi in the encoder side,
+indicating how likely the content word ci is directly copied
+during target generation. That is,
+st,i = ?(h
+>
+i Wc)h
+?
+t (15)
+and st,i is a real number for i = 1, · · · , C (the number of
+content words). HereWc is a parameter matrix, and h? is the
+decoding state.
+In other words, when a word appears in the table content,
+it has a copying score computed as above. If a wordw occurs
+multiple times in the table contents, the scores are added,
+given by
+scopyt (w) =
+C?
+i=1
+st,i · 1{ci=w} (16)
+where 1{ci=w} is a Boolean variable indicating whether the
+content word ci is the same as the word w we are consider-
+ing.
+Finally, the LSTM score and the copy score are added for
+a particular word and further normalized to obtain a proba-
+bilistic distribution, given by
+st(w) = s
+LSTM
+t (w) + s
+copy
+t (w) (17)
+pt(w) = softmax (st(w)) =
+exp{st(w)}?
+w??V
+?
+C
+exp{st(w?)}
+(18)
+where V refers to the vocabulary list and C refers to the set
+of content words in a particular data sample. In this way,
+the copy mechanism can either generate a word from the
+vocabulary or directly copy a word from the source side.
+This is hepful in our scenario because some fields in a table
+(e.g., Name) may contain rare or unseen words and the copy
+mechanism can cope with them naturally.
+For simplicity, we use greedy search during inference, i.e.,
+for each time step t, the word with the largest probability is
+chosen, given by yt = argmaxw pt(w). The decoding pro-
+cess terminates when a special symbol <eos> is generated,
+indicating the end of a sequence.
+Training Objective
+Our training objective is the negative log-likelihood of a sen-
+tence y1 · · · yT in the training set.
+J = ?
+T?
+t=1
+log p(yt|y0 · · · yt?1) (19)
+where p(yt|·) is computed by Equation 18. An `2 penalty is
+also added as most other studies.
+Since all the components described above are differen-
+tiable, our entire model can be trained end-to-end by back-
+propagation, and we use Adam (Kingma and Ba 2015) for
+optimization.
+Experiments
+Dataset
+We used the newly published WIKIBIO dataset (Lebret,
+Grangier, and Auli 2016),2 which contains 728,321 biogra-
+phies from WikiProject Biography3 (originally from English
+Wikipedia, September 2015).
+Each data sample comprises an infobox table of field-
+content pairs, being the input of our system. The generation
+target is the first sentence in the biography, which follows the
+setting in previous work (Lebret, Grangier, and Auli 2016).
+Although only the first sentence is considered in the experi-
+ment, the sentence typically serves as a summary of the ar-
+ticle. In fact, the target sentence has 26.1 tokens on average,
+which is actually long. Also, the sentence contains informa-
+tion spanning multiple fields, and hence our order-planning
+mechanism is useful in this scenario.
+2https://github.com/DavidGrangier/
+wikipedia-biography-dataset
+3https://en.wikipedia.org/wiki/Wikipedia:
+WikiProject_Biography
+Group Model BLEU ROUGE NIST
+Previous results KN 2.21 0.38 0.93
+Template KN 19.80 10.70 5.19
+Table NLMl 34.70 25.80 7.98
+Our results Content attention only 41.38 34.65 8.57
+Order planning (full model) 43.91 37.15 8.85
+Table 2: Comparison of the overall performance between our model and previous methods. lBest results in Lebret, Grangier,
+and Auli (2016).
+We applied the standard data split: 80% for training and
+10% for testing, except that model selection was performed
+on a validaton subset of 1000 samples (based on BLEU-4).
+Settings
+We decapitalized all words and kept a vocabulary size of
+20,000 for content words and generation candidates, which
+also followed previous work (Lebret, Grangier, and Auli
+2016). Even with this reasonably large vocabulary size, we
+had more than 900k out-of-vocabulary words. This rational-
+izes the use of the copy mechanism.
+For the names of table fields, we treated each as a spe-
+cial token. By removing nonsensical fields whose content is
+“none” and grouping fields occurring less than 100 times as
+an “Unknown” field, we had 1475 different field names in
+total.
+In our experiments, both words’ and table fields’ embed-
+dings were 400-dimensional and LSTM layers were 500-
+dimensional. Notice that, a field (e.g., “name”) and a con-
+tent/generation word (e.g., also “name”), even with the same
+string, were considered as different tokens; hence, they had
+different embeddings. We randomly initialized all embed-
+dings, which are tuned during training.
+We used Adam (Kingma and Ba 2015) as the optimiza-
+tion algorithm with a batch size of 32; other hyperparame-
+ters were set to default values.
+Baselines
+We compared our model with previous results using either
+traditional language models or neural networks.
+• KN and Template KN (Heafield et al. 2013): Lebret,
+Grangier, and Auli (2016) train an interpolated Kneser-
+Ney (KN) language model for comparison with the
+KenLM toolkit. They also train a KN language model
+with templates.
+• Table NLM: Lebret, Grangier, and Auli (2016) propose an
+RNN-based model with attention and copy mechanisms.
+They have several model variants, and we quote the high-
+est reported results.
+We report model performance in terms of several met-
+rics, namely BLEU-4, ROUGE-4, and NIST-4, which are
+computed by standard software, NIST mteval-v13a.pl (for
+BLEU and NIST) and MSR rouge-1.5.5 (for ROUGE). We
+did not include the perplexity measure in Lebret, Grangier,
+Component BLEU ROUGE NIST
+Content att. 41.38 34.65 8.57
+Link att. 38.24 32.75 8.36
+Hybrid att. 43.01 36.91 8.75
+Copy+Content att. 41.89 34.93 8.63
+Copy+Link att. 39.08 33.47 8.42
+Copy+Hybrid att. 43.91 37.15 8.85
+Table 3: Ablation test.
+and Auli (2016) because the copy mechanism makes the vo-
+cabulary size vary among data samples, and thus the per-
+plexity is not comparable among different approaches.
+Results
+Overall Performance. Table 2 compares the overall per-
+formance with previous work. We see that, modern neural
+networks are considerably better than traditional KN models
+with or without templates. Moreover, our base model (with
+content-attention only) outperforms Lebret, Grangier, and
+Auli (2016), showing our better engineering efforts. After
+adding up all proposed components, we obtain +2.5 BLEU
+and ROUGE improvement and +0.3 NIST improvement,
+achieving new state-of-the-art results.
+Ablation Test. Table 3 provides an extensive ablation test
+to verify the effectiveness of each component in our model.
+The top half of the table shows the results without the copy
+mechanism, and the bottom half incorporates the copying
+score as described previously. We observe that the copy
+mechasnim is consistently effective with different types of
+attention.
+We then compare content-based attention and link-based
+attention, as well as their hybrid (also Table 3). The results
+show that, link-based attention alone is not as effective as
+content-based attention. However, we achieve better perfor-
+mance if combining them together with an adaptive gate,
+i.e., the proposed hybrid attention. The results are consistent
+in both halves of Table 3 (with or without copying) and in
+terms of all metrics (BLEU, ROUGE, and NIST). This im-
+plies that content-based attention and link-based attention do
+capture different aspects of information, and their hybrid is
+more suited to the task of table-to-text generation.
+Effect of the gate. We are further interested in the effect
+of the gate z, which balances content-based attention?content
+0.0 0.2 0.4 0.6 0.8 1.0
+z
+30.0
+35.0
+40.0
+45.0
+50.0
+B
+L
+E
+U
+Fixed z
+Self-adaptive z
+Figure 3: Comparing the self-adaptive gate with interpola-
+tion of content- and link-based attention. z = 0 is link-based
+attention, z = 1 is content-based attention.
+and link-based attention ?link. As defined in Equation 11,
+the computation of z depends on the decoding state as well
+as table information; hence it is “self-adaptive.” We would
+like to verify if such adaptiveness is useful. To verify this,
+we designed a controlled experiment where the gate z was
+manually assigned in advance and fixed during training. In
+other words, the setting was essentially a (fixed) interpola-
+tion between?content and?link. Specifically, we tuned z from
+0 to 1 with a granularity of 0.1, and plot BLEU scores as the
+comparison metric in Figure 3.
+As seen, interpolation of content- and link-based atten-
+tion is generally better than either single mechanism, which
+again shows the effectiveness of hybrid attention. However,
+the peak performance of simple interpolation (42.89 BLEU
+when z = 0.4) is worse than the self-adaptive gate, imply-
+ing that our gating mechanism can automatically adjust the
+importance of ?content and ?link at a particular time based on
+the current state and input.
+Different Ways of Using Field Information. We are cu-
+rious whether the proposed order-planning mechanism is
+better than other possible ways of using field information.
+We conducted two controlled experiments as follows. Sim-
+ilar to the proposed approach, we multiplied the attention
+probability by a field matrix and thus obtained a weighted
+field embedding. We fed it to either (1) the computation of
+content-based attention, i.e., Equations 5–6, or (2) the RNN
+decoder’s input, i.e., Equation 13. In both cases, the last
+step’s weighted field embedding was concatenated with the
+embedding of the generated word yt?1.
+From Table 4, we see that feeding field information to the
+computation of?content interferes content attention and leads
+to performance degradation, and that feeding it to decoder
+RNN slightly improves model performance. However, both
+controlled experiments are worse than the proposed method.
+The results confirm that our order-planning mechanism is
+indeed useful in modeling the order of fields, outperforming
+several other approaches that use the same field information
+in a na??ve fashion.
+Case Study and Visualization
+We showcase an example in Table 5. With only content-
+based attention, the network is confused about when the
+Feeding field info to. . . BLEU ROUGE NIST
+None 41.89 34.93 8.63
+Computation of ?content 40.52 34.95 8.57
+Decoder RNN’s input 41.96 35.07 8.61
+Hybrid att. (proposed) 43.91 37.15 8.85
+Table 4: Comparing different possible ways of using field
+information. “None”: No field information is fed back to
+the network, i.e., content-based attention computed by Equa-
+tion 7 (with copying).
+word American is appropriate in the sentence, and corrupts
+the phrase former governor of the federal reserve system as
+appears in the reference. However, when link-based atten-
+tion is added, the network is more aware of the order be-
+tween fields “Nationality” and “Occupation,” and generates
+the nationality American before the occupation economist.
+This process could also be visualized in Figure 4. Here, we
+plot our model’s content-based attention, link-based atten-
+tion and their hybrid. (The content- and link-based attention
+probabilities may be different from those separately trained
+in the ablation test.) After generating “emmett john rice (
+december 21, 1919 – march 10, 2011 ) was,” content-based
+attention skips the nationality and focuses more on the oc-
+cupation. Link-based attention, on the other hand, provides
+a strong clue suggesting to generate the nationality first and
+then occupation. In this way, the obtained sentence is more
+compliant with conventions.
+Related Work
+Text generation has long aroused interest in the NLP com-
+munity due to is wide applications including automated nav-
+igation (Dale, Geldof, and Prost 2003) and weather forecast-
+ing (Reiter et al. 2005). Traditionally, text generation can be
+divided into several steps (Stent, Prassad, and Walker 2004):
+content planning defines what information should be con-
+veyed in the generated sentence; (2) sentence planning de-
+termines what to generate in each sentence; and (3) surface
+realization actually generates those sentences with words.
+In early years, surface realization is often accomplished
+by templates (Van Deemter, Theune, and Krahmer 2005)
+or statistically learned (shallow) models, e.g., probabilis-
+tic context-free grammar (Belz 2008) and language mod-
+els (Angeli, Liang, and Klein 2010), with hand-crafted fea-
+tures or rules. Therefore, these methods are weak in terms of
+the quality of generated sentences. For planning, researchers
+also apply (shallow) machine learning approaches. Barzilay
+and Lapata (2005), for example, model it as a collective clas-
+sification problem, whereas Liang, Jordan, and Klein (2009)
+use a generative semi-Markov model to align text segment
+and assigned meanings. Generally, planning and realization
+in the above work are separate and have difficulty in captur-
+ing the complexity of language due to the nature of shallow
+models.
+Recently, the recurrent neural network (RNN) is playing
+a key role in natural language generating. As RNN can au-
+Name
+Birth date
+Birth place
+Death date
+Death place
+Nationality
+Occupation
+Known for
+Emmett John Rice
+December 21, 1919
+Florence, South Carolina,
+United States
+March 10, 2011 (aged 91)
+Camas, Washington, 
+United States
+American
+Governor of the Federal 
+Reserve System, 
+Economics Professor
+Expert in the Monetary 
+System of Developing 
+Countries, Father to
+Susan E. Rice
+Reference emmett john rice ( december 21 , 1919 – march 10 , 2011 ) was a
+former governor of the federal reserve system , a Cornell university
+economics professor , expert in the monetary systems of developing
+countries and the father of the current national security advisor to
+president barack obama , susan e . rice .
+Content-based
+attention
+emmett john rice ( december 21 , 1919 – march 10 , 2011 ) was an
+economist , author , public official and the former american governor
+of the federal reserve system , the first african american UNK .
+Hybrid attention emmett john rice ( december 21 , 1919 – march 10 , 2011 ) was an
+american economist , author , public official and the former governor
+of the federal reserve system , expert in the monetary systems of
+developing countries .
+Table 5: Case study. Left: Wikipedia infobox. Right: A reference and two generated sentences by different attention (both with
+the copy mechanism).
+)
+w
+as an
+am
+er
+ic
+an
+ec
+on
+om
+is
+t
+death place:united
+death place:states
+nationality:american
+occupation:governor
+occupation:of
+occupation:the
+occupation:federal
+occupation:reserve
+occupation:system
+occupation:,
+occupation:economics
+occupation:professor
+known for:expert
+(a) ?content
+)
+w
+as an
+am
+er
+ic
+an
+ec
+on
+om
+is
+t
+(b) ?link
+)
+w
+as an
+am
+er
+ic
+an
+ec
+on
+om
+is
+t
+(c) ?hybrid
+Figure 4: Visualization of attention probabilities in our
+model. x-axis: generated words “. . . ) was an american
+economist . . . ”; y-axis: ?field : content word? pairs in the
+table. (a) Content-based attention. (b) Link-based attention.
+(c) Hybrid attention. Subplot (b) exhibits strips because, by
+definition, link-based attention will yield the same score for
+all content words with the same field. Please also note that
+the columns do not sum to 1 in the figure because we only
+plot a part of the attention probabilities.
+tomatically capture highly complicated patterns during end-
+to-end training, it has successful applications including ma-
+chine translation (Bahdanau, Cho, and Bengio 2015), dia-
+log systems (Shang, Lu, and Li 2015), and text summariza-
+tion (Tan, Wan, and Xiao 2017).
+Researchers are then beginning to use RNN for text gener-
+ation from structured data. Mei, Bansal, and Walter (2016)
+propose a coarse-to-fine grained attention mechanism that
+selects one or more records (e.g., a piece of weather forecast)
+by a precomputed but fixed probability and then dynamically
+attends to relevant contents during decoding. Lebret, Grang-
+ier, and Auli (2016) incorporate the copy mechanism (Gu
+et al. 2016) into the generation process. However, the above
+approaches do not explicitly model the order of contents. It
+is also nontrivial to combine traditional planning techniques
+to such end-to-end learned RNN.
+Our paper proposes an order-planning approach by de-
+signing a hybrid of content- and link-based attention. The
+model is inspired by hybrid content- and location-based ad-
+dressing in the Differentiable Neural Computer (Graves et
+al. 2016, DNC), where the location-based addressing is de-
+fined heuristically. Instead, we propose a transition-like link
+matrix that models how likely a field is mentioned after an-
+other, which is more suited in our scenario.
+Moreover, our entire model is differentiable, and thus the
+planning and realization steps in traditional language gener-
+ation can be learned end-to-end in our model.
+Conclusion and Future Work
+In this paper, we propose an order-planning neural network
+that generates texts from a table (Wikipedia infobox). The
+text generation process is built upon an RNN with attention
+to table contents. Different from traditional content-based
+attention, we explicitly model the order of contents by a
+link matrix, based on which we compute a link-based at-
+tention. Then a self-adaptive gate balances the content- and
+link-based attention mechanisms. We further incorporate a
+copy mechanism to our model to cope with rare or unseen
+words.
+We evaluated our approach on a newly proposed large
+scale dataset, WIKIBIO. Experimental results show that we
+outperform previous results by a large margin in terms of
+BLEU, ROUGE, and NIST scores. We also had extensive
+ablation test showing the effectiveness of the copy mecha-
+nism, as well as the hybrid attention of content and linking
+information. We compared our order-planning mechanism
+with other possible ways of modeling field; the results con-
+firm that the proposed method is better than feeding field
+embedding to the network in a na??ve fashion. Finally we pro-
+vide a case study and visualize the attention scores so as to
+better understand our model.
+In future work, we would like to deal with text genera-
+tion from multiple tables. In particular, we would design hi-
+erarchical attention mechanisms that can first select a table
+containing the information and then select a field for gen-
+eration, which would improve the attention efficiency. We
+would also like to apply the proposed method to text gener-
+ation from other structured data, e.g., a knowledge graph.
+Acknowledgments
+We thank Jing He from AdeptMind.ai for helpful discus-
+sions on different ways of using field information.
+References
+[Angeli, Liang, and Klein 2010] Angeli, G.; Liang, P.; and
+Klein, D. 2010. A simple domain-independent probabilistic
+approach to generation. In Proceedings of the Conference on
+Empirical Methods in Natural Language Processing, 502–
+512.
+[Bahdanau, Cho, and Bengio 2015] Bahdanau, D.; Cho, K.;
+and Bengio, Y. 2015. Neural machine translation by jointly
+learning to align and translate. In Proceedings of the Inter-
+national Conference on Learning Representations.
+[Barzilay and Lapata 2005] Barzilay, R., and Lapata, M.
+2005. Collective content selection for concept-to-text gener-
+ation. In Proceedings of Human Language Technology Con-
+ference and Conference on Empirical Methods in Natural
+Language Processing, 331–338.
+[Belz 2008] Belz, A. 2008. Automatic generation of weather
+forecast texts using comprehensive probabilistic generation-
+space models. Natural Language Engineering 14(4):431–
+455.
+[Dale, Geldof, and Prost 2003] Dale, R.; Geldof, S.; and
+Prost, J.-P. 2003. CORAL: Using natural language genera-
+tion for navigational assistance. In Proceedings of the 26th
+Australasian Computer Science Conference, volume 16, 35–
+44.
+[Graves et al. 2016] Graves, A.; Wayne, G.; Reynolds, M.;
+et al. 2016. Hybrid computing using a neural network with
+dynamic external memory. Nature 538(7626):471–476.
+[Green 2006] Green, N. 2006. Generation of biomedical ar-
+guments for lay readers. In Proceedings of the 4th Interna-
+tional Natural Language Generation Conference, 114–121.
+[Gu et al. 2016] Gu, J.; Lu, Z.; Li, H.; and Li, V. O. 2016.
+Incorporating copying mechanism in sequence-to-sequence
+learning. In Proceedings of the 54th Annual Meeting of the
+Association for Computational Linguistics, 1631–1640.
+[Heafield et al. 2013] Heafield, K.; Pouzyrevsky, I.; Clark,
+J. H.; and Koehn, P. 2013. Scalable modified Kneser-Ney
+language model estimation. In Proceedings of the 51st An-
+nual Meeting of the Association for Computational Linguis-
+tics, volume 2, 690–696.
+[Hochreiter and Schmidhuber 1997] Hochreiter, S., and
+Schmidhuber, J. 1997. Long short-term memory. Neural
+Computation 9(8):1735–1780.
+[Karlin 2014] Karlin, S. 2014. A First Course in Stochastic
+Processes. Academic Press.
+[Kingma and Ba 2015] Kingma, D., and Ba, J. 2015. Adam:
+A method for stochastic optimization. In Proceedings of the
+International Conference on Learning Representations.
+[Lebret, Grangier, and Auli 2016] Lebret, R.; Grangier, D.;
+and Auli, M. 2016. Neural text generation from structured
+data with application to the biography domain. In Proceed-
+ings of the Conference on Empirical Methods in Natural
+Language Processing, 1203–1213.
+[Liang, Jordan, and Klein 2009] Liang, P.; Jordan, M. I.; and
+Klein, D. 2009. Learning semantic correspondences with
+less supervision. In Proceedings of the Joint Conference of
+the 47th Annual Meeting of the ACL and the 4th Interna-
+tional Joint Conference on Natural Language Processing of
+the AFNLP, 91–99.
+[Mei, Bansal, and Walter 2016] Mei, H.; Bansal, M.; and
+Walter, M. R. 2016. What to talk about and how? Selec-
+tive generation using LSTMs with coarse-to-fine alignment.
+In Proceedings of the Conference of the North American
+Chapter of the Association for Computational Linguistics:
+Human Language Technologies, 720–730.
+[Reiter et al. 2005] Reiter, E.; Sripada, S.; Hunter, J.; Yu, J.;
+and Davy, I. 2005. Choosing words in computer-generated
+weather forecasts. Artificial Intelligence 167(1-2):137–169.
+[Shang, Lu, and Li 2015] Shang, L.; Lu, Z.; and Li, H. 2015.
+Neural responding machine for short-text conversation. In
+Proceedings of the 53rd Annual Meeting of the Associa-
+tion for Computational Linguistics and the 7th International
+Joint Conference on Natural Language Processing, 1577–
+1586.
+[Stent, Prassad, and Walker 2004] Stent, A.; Prassad, R.; and
+Walker, M. 2004. Trainable sentence planning for complex
+information presentations in spoken dialog systems. In Pro-
+ceedings of the 42nd Meeting of the Association for Compu-
+tational Linguistics, 79–86.
+[Tan, Wan, and Xiao 2017] Tan, J.; Wan, X.; and Xiao, J.
+2017. Abstractive document summarization with a graph-
+based attentional neural model. In Proceedings of the 55th
+Annual Meeting of the Association for Computational Lin-
+guistics, 1171–1181.
+[Turner, Sripada, and Reiter 2010] Turner, R.; Sripada, S.;
+and Reiter, E. 2010. Generating approximate geographic
+descriptions. In Empirical Methods in Natural Language
+Generation, 121–140.
+[Van Deemter, Theune, and Krahmer 2005] Van Deemter,
+K.; Theune, M.; and Krahmer, E. 2005. Real versus
+template-based natural language generation: A false
+opposition? Computational Linguistics 31(1):15–24.
+[William and White 1999] William, S., and White, E. B.
+1999. The Element of Style. Pearson, 4th edition.

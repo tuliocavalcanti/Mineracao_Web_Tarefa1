@@ -1,0 +1,1486 @@
+1
+PolarBear: A 28-nm FD-SOI ASIC
+for Decoding of Polar Codes
+Pascal Giard, Member, IEEE, Alexios Balatsoukas-Stimming, Thomas Christoph Müller, Student Member, IEEE,
+Andrea Bonetti, Student Member, IEEE, Claude Thibeault, Senior Member, IEEE,
+Warren J. Gross, Senior Member, IEEE, Philippe Flatresse, and Andreas Burg, Member, IEEE
+Abstract—Polar codes are a recently proposed class of block
+codes that provably achieve the capacity of various communica-
+tion channels. They received a lot of attention as they can do
+so with low-complexity encoding and decoding algorithms, and
+they have an explicit construction. Their recent inclusion in a 5G
+communication standard will only spur more research. However,
+only a couple of ASICs featuring decoders for polar codes were
+fabricated, and none of them implements a list-based decoding
+algorithm. In this paper, we present ASIC measurement results
+for a fabricated 28 nm CMOS chip that implements two different
+decoders: the first decoder is tailored toward error-correction
+performance and flexibility. It supports any code rate as well
+as three different decoding algorithms: successive cancellation
+(SC), SC flip and SC list (SCL). The flexible decoder can also
+decode both non-systematic and systematic polar codes. The
+second decoder targets speed and energy efficiency. We present
+measurement results for the first silicon-proven SCL decoder,
+where its coded throughput is shown to be of 306.8 Mbps with a
+latency of 3.34 us and an energy per bit of 418.3 pJ/bit at a clock
+frequency of 721 MHz for a supply of 1.3 V. The energy per bit
+drops down to 178.1 pJ/bit with a more modest clock frequency
+of 308 MHz, lower throughput of 130.9 Mbps and a reduced
+supply voltage of 0.9 V. For the other two operating modes, the
+energy per bit is shown to be of approximately 95 pJ/bit. The less
+flexible high-throughput unrolled decoder can achieve a coded
+throughput of 9.2 Gbps and a latency of 628 ns for a measured
+energy per bit of 1.15 pJ/bit at 451 MHz.
+Index Terms—polar codes, ASIC, successive cancellation, SC
+flip, SC list
+I. Introduction
+POLAR codes [1] received a lot of attention in the recentyears, and they will gather even more as they have just
+been selected for the 5G communication standard currently
+under development by the 3GPP [2, p. 139]. However, to this
+day, only a couple of ASICs featuring decoders for polar codes
+have been fabricated [3], [4], making it difficult to get a good
+picture of what can be achieved. The chip described in [3]
+is for a successive-cancellation (SC) decoder that lacks the
+very significant algorithmic and error-correction performance
+P. Giard, A. Balatsoukas-Stimming, T. C. Müller, A. Bonetti, and A. Burg
+are with the Telecommunications Circuits Laboratory, École polytechnique
+fédérale de Lausanne, 1015 Lausanne, VD, Switzerland (e-mail: {pascal.giard,
+alexios.balatsoukas,christoph.mueller,andrea.bonetti,andreas.burg}@epfl.ch).
+C. Thibeault is with the Department of Electrical Engineering, École
+de technologie supérieure, Montréal, QC, H3C 1K3, Canada (e-mail:
+claude.thibeault@etsmtl.ca).
+W. J. Gross is with the Department of Electrical and Computer En-
+gineering, McGill University, Montréal, QC, H3A 0G4, Canada (e-mail:
+warren.gross@mcgill.ca).
+P. Flatresse is with STMicroelectronics, 38920 Crolles, France.
+improvements that were later added to the basic SC algorithm,
+e.g., [5]–[7], and was fabricated on outdated technology node
+which does not suffer from the physical post-layout limitations
+of modern processes. The chip presented in [4] was built for
+a more recent technology but solely implements the belief-
+propagation decoding, an algorithm that, even compared to SC,
+suffers from mediocre error-correction performance at short to
+moderate blocklength.
+Moreover, successive-cancellation list (SCL) is regarded as
+the most promising decoding algorithm, yet, up to now it has
+not been silicon proven. Successive-cancellation flip (SCF)
+decoding is another promising algorithm [8] for applications
+that can tolerate a variable decoding throughput for the benefit
+of superior energy efficiency. However, it has never been
+implemented in hardware before.
+Contributions: In this paper, we present and compare two
+very different architectural choices for decoding of polar
+codes: flexible and optimized for error-correction performance
+versus high speed and good energy efficiency. We introduce
+a simple latency saving technique that is directly applicable
+to the SC, SCF, and SCL decoding algorithms. We describe
+a flexible decoder that supports any code rate for any set
+of frozen-bit locations as well as three different decoding
+algorithms with parameters that are configurable at the time
+of execution. Furthermore, this flexible decoder can decode
+both non-systematic and systematic polar codes. We present
+the first hardware implementation of the SCF algorithm along
+with its corresponding measurement results, and we show
+with measurement results that a dedicated fully-unrolled SC
+decoder offers the best energy efficiency that is almost two
+orders of magnitude better than a sequential list decoder. This
+points out the substantial cost for improving error-correction
+performance beyond SC decoding and for providing flexibility.
+Outline: The remainder of this paper starts with Section II
+which provides the necessary background about polar codes
+along with a brief overview of the various decoding algo-
+rithms implemented on our fabricated chip. The impact on
+the error-correction performance of these different algorithms
+is also illustrated in that section. Section III describes the
+architecture of the PolarBear chip, including the hardware
+implementations of the two decoders with entirely orthogonal
+objectives featured on the chip, and the units that are necessary
+for the chip to function properly and to be testable. Section IV
+shows how the various modes of the flexible decoder compare
+and presents the advantages and disadvantages of each, and
+similarly for the two architectural directions. For that purpose,
+ar
+X
+iv
+:1
+70
+8.
+09
+60
+3v
+2 
+ [
+cs
+.A
+R
+] 
+ 1
+ S
+ep
+ 2
+01
+7
+2
+u0 = 0 + + + x0
+u1 = 0 + + x1
+u2 = 0 + + x2
+u3 = a0 + x3
+u4 = 0 + + x4
+u5 = a1 + x5
+u6 = a2 + x6
+u7 = a3 x7
+Fig. 1: Graph representation of a (8, 4) polar code.
+detailed measurement results are presented and discussed
+for each decoder. A comparison against the state-of-the-art
+fabricated polar decoders is also carried out in that section.
+Finally, Section V concludes this paper.
+II. Polar Codes
+A. Construction and Encoding
+In his seminal work on polar codes [1], Ar?kan showed
+that using a particular linear transformation on a vector of
+bits leads to a polarization phenomenon, where some of the
+bits become almost completely reliable when transmitted over
+certain types of channels while the remainder become almost
+completely unreliable. Polar codes exploit this phenomenon,
+thus provably achieving the symmetric capacity of memoryless
+channels as the blocklength grows to infinity.
+An (N, k) polar code has a blocklength of N and rate R = kN .
+It is constructed by setting the N?k least reliable bits—called
+frozen bits—of a row vector u of length N to a predetermined
+value, typically zero, while the remaining k locations in u are
+used to carry the information bits ai, 0 ? i < k. The set of
+frozen-bit indices is denoted by Ac and the set of information
+indices is denoted by A. The encoding process consists in
+multiplying this row vector u by a N × N generator matrix
+F ?n, where F ?n is recursively defined as:
+F ?n =
+[
+F ?(n?1) 0
+F ?(n?1) F ?(n?1)
+]
+(1)
+with ?n denoting the n-th Kronecker product of the Ar?kan
+kernel matrix F ?1 = F =
+[
+1 0
+1 1
+]
+, and n = log2(N).
+Fig. 1 illustrates the encoding process as a graph where ?
+represents a modulo-2 addition (XOR). In that representation,
+a polar codeword is generated by setting the frozen- and
+information-bit locations to 0 and ai, 0 ? i < k, respectively,
+on the left and by propagating data through the graph from
+left to right. Polar codes can also be encoded systematically
+as described and efficiently implemented in [9] and [10], re-
+spectively. Systematic and non-systematic polar codes have the
+same frame-error rate (FER). In this paper, unless otherwise
+specified, non-systematic polar coding is used.
+B. Successive-Cancellation (SC) Decoding
+The SC decoding algorithm as initially proposed [1] pro-
+ceeds by visiting the graph representation of Fig. 1 sequen-
+tially, from right to left, from top to bottom, successively
+estimating u? from the noisy channel values. To reduce latency
+and increase throughput, it was first proposed to calculate two
+bits at once [3]. Later, the SC algorithm was further refined to
+use the a priori knowledge of the frozen bit locations to trim
+the graph [5] or even to use dedicated, and faster, decoding
+algorithms on parts of the graph [6]. Regardless of the version
+of the SC algorithm used, at all times, only one candidate
+codeword is considered.
+C. Successive-Cancellation Flip (SCF) Decoding
+The SCF decoding algorithm [8] shares many similarities
+with the SC algorithm. Initially, it proceeds exactly like SC
+decoding but while decoding it also keeps a list of the least
+reliable bit-decisions. Moreover it is necessary to concatenate a
+cyclic redundancy check (CRC) with the polar code. Once the
+SCF decoder has generated a complete codeword candidate,
+it checks if the calculated CRC matches the expected one. If
+the CRC check fails, then SC decoding is restarted until the
+bit corresponding to the least reliable bit-decision is reached.
+Once reached, the SCF flips that decision and resumes SC
+decoding. After this second round, if the calculated CRC still
+does not match the expected CRC, then the algorithm is rerun
+once more and the second least reliable bit-decision is flipped.
+This procedure lasts until the CRC comparison succeeds or
+until the maximum number of trials is reached.
+D. Successive-Cancellation List (SCL) Decoding
+As the name indicates, the SCL algorithm [7] also shares
+many similarities with the SC algorithm. Contrary to SC
+decoding though, the SCL decoding algorithm builds a con-
+strained list of up to L of candidate codewords. It does
+so by examining both possibilities of u?i for the locations i
+corresponding to information bits. A path reliability metric,
+calculated along the way, is used to keep only the L-best paths
+in the survivor list. At the very end of the decoding process,
+the candidate with the best path reliability metric among the
+L candidates is picked as the estimated codeword.
+If a polar code is concatenated with a CRC, the CRC for
+each of the L candidates is calculated and compared against the
+expected one. The most reliable candidate out of all candidates
+that pass the CRC is selected as the decoded codeword. If all
+candidates fail the CRC, then the algorithm simply picks the
+candidate with the best path reliability metric. In this work,
+all SCL results use an 8-bit CRC.
+E. Error-Correction Performance Comparison
+Fig. 2 shows the error-correction performance of a
+(1024, 869) polar code for three different decoding algorithms:
+SC, SCL, and SCF. This particular code is used for comparison
+as this is also the code that is supported by the high-throughput
+fixed code-rate implementation of the SC algorithm. These
+simulation results are for random codewords modulated with
+binary phase-shift keying (BPSK) and transmitted over an
+additive white Gaussian noise (AWGN) channel. For the SCL
+and SCF results, the polar code is concatenated with an 8-
+bit CRC, i.e., the number of information bits k of the polar
+3
+3 4 5 6
+10?5
+10?4
+10?3
+10?2
+10?1
+100
+Eb/N0 (dB)
+Fr
+am
+e-
+er
+ro
+r
+ra
+te
+SC :
+SCF: T = 8 T = 16
+SCL: L = 2 L = 4 L = 8 L = 32
+Fig. 2: Error-correction performance comparison for a
+(1024, 869) polar code decoded using three different algo-
+rithms. The SCL and SCF decoders use an 8-bit CRC.
+code is increased by 8 such that the code rate of the resulting
+system remains of R = 869/1024. The SCF algorithm was set to
+do a maximum number of trials T of either 8 or 16. The list
+algorithm has a constrained list size L of either 2, 4, or 32.
+From that figure, it can be seen that the SC algorithm (black
+curve without markers) has the worst FER. The SCF algorithm
+(blue curve with triangle markers and cyan curve with circle
+markers) offers a coding gain from approximately 0.35 dB to
+0.4 dB at a FER of 10?4 compared to the SC algorithm. Both
+SCF curves are almost identical to the SCL results with L = 2
+(dashed-magenta curve with diamond markers). By increasing
+the list size L to 4 (dashed-red curve with cross markers), the
+SCL algorithm improves the coding gain by 0.33 dB compared
+to the SCF results. Further increasing the list size L to 32
+(dashed-green curve with square markers) leads to a 0.31 dB
+gain over L = 4 up to a FER of approximately 10?3 from which
+point the 8-bit CRC becomes too short to avoid collisions. This
+causes the gain to slowly degrate as the Eb/N0 ratio grows.
+The gaps between these decoding algorithms depend on the
+parameters, however the order generally remains the same,
+i.e., SC decoding will have the worst FER of the three, while
+SCL decoding has the best one, and that of SCF decoding lies
+somewhere in between.
+Fig. 3 shows the error-correction performance of polar
+codes of blocklength N = 1024, for various code rates, under
+SCF and SCL decoding. These FER results are included for
+reference as these are the codes used for the measurement
+results presented in Section IV.
+III. PolarBear Architecture
+Fig. 4 shows an overview of the PolarBear chip archi-
+tecture. PolarBear comprises four main units: the flexible
+decoder, in green, the unrolled decoder, in yellow, the clock-
+generation unit (CGU), in red, and the test-controller unit
+(TCU), made of multiple modules, all illustrated in blue with
+a dashed outline. Both decoders represent channel and internal
+soft values as quantized log-likelihood ratios (LLRs) in the 2’s
+0 1 2 3 4 5 6
+10?5
+10?4
+10?3
+10?2
+10?1
+100
+Eb/N0 (dB)
+Fr
+am
+e-
+er
+ro
+r
+ra
+te
+0 1 2 3 4 5
+10?5
+10?4
+10?3
+10?2
+10?1
+100
+Eb/N0 (dB)
+Fr
+am
+e-
+er
+ro
+r
+ra
+te
+R: 1/4 1/2 2/3 3/4 5/6
+Fig. 3: Error-correction performance comparison for polar
+codes of blocklength N = 1024 with a variable code rate R
+decoded using either the SCF algorithm (left, solid curves) or
+the SCL algorithm (right, dashed curves). The SCF maximum
+number of trials T = 8, the SCL list size L = 4; results are
+for an 8-bit CRC.
+CGU
+Flexible
+Decoder
+Unrolled
+Decoder
+Estimated
+Codeword
+Banks
+Channel LLR
+Banks
+Test
+FSM
+FLL
+Sync
+Slow CLK
+Fast CLK
+CLKrefRX/TX
+Serial IO
+Sync
+Sync
+Fig. 4: Simplified overview of the PolarBear architecture.
+The Test-Controller Unit (TCU) is composed of the modules
+highlighted in blue with a dashed outline.
+complement format. We denote quantization as Qi.Qc, where
+Qc is the total number of bits to store a channel LLR and
+Qi is the number of bits used to store an internal LLR. Both
+decoders have quantization parameters that can be modified at
+the time of synthesis.
+There are multiple power domains on the chip, supplied
+through distinct pins. This allows to precisely measure the
+current drawn by each of the two decoders.
+There are two clock domains on the chip. One is slower—
+typically around 20 MHz—and is used as a reference clock for
+the CGU as well as by some of the TCU modules. The faster
+clock is used by the decoders, the test finite-state machine
+(FSM), and to read from the channel-LLR banks and to write
+to estimated-codeword banks. A serial interface, which is part
+of the TCU, provides the means to communicate with the
+PolarBear chip from the outside world. Section III-D provides
+a more detailed description of the TCU.
+4
+SCL only
+All Modes
+SCL+SCF
+SCF only
+CRC Unit
+LLR Sorter
+Fig. 5: Flexible-decoder architecture. In SCL decoder mode, all modules but the LLR sorter unit are used. The modules used
+in SCF decoder mode are colored in orange, in purple with a dashed-dotted outline, and in blue with a dashed outline. The
+SC mode only uses the modules colored in orange.
+A. Flexible Decoder
+The flexible decoder supports all three decoding algorithms
+described in the previous section, i.e., SC decoding, SCF
+decoding, and SCL decoding. This decoder also supports
+decoding of polar codes of any rate for a given blocklength
+N, various list sizes ranging from L = 2 up to a maximum list
+size L = Lmax for SCL decoding, and a configurable maximum
+number of decoding trials Tmax for the SCF decoding algo-
+rithm. In this architecture, Lmax decoder cores are instantiated.
+Moreover, the CRC unit supports various CRC lengths in order
+to implement CRC-aided SCL decoding, and SCF decoding.
+The CRC length can be selected during runtime.
+Architecture Overview: An overview of the flexible decoder
+architecture is presented in Fig. 5 along with a legend explain-
+ing which components are used for the different supported
+decoding modes.
+More specifically, the decoder contains one memory bank
+for the channel LLRs and Lmax memory banks for the internal
+LLRs and the partial sums. Moreover, there are Lmax memory
+banks that form the path memory, which is used to store
+the paths taken along the decoding tree, which correspond
+to candidate codewords. We note that, for SC decoding of a
+non-systematic polar code, it is not strictly necessary to use
+the path memory as there is only a single candidate codeword
+which can be output serially as decoding proceeds. However,
+in our decoder architecture the single candidate codeword is
+stored even for SC decoding, as this enables the decoder to also
+decode systematic polar codes when used in conjuction with
+a re-encoding block to obtain the information bits. There are
+Lmax decoder cores which implement the basic update rules
+for SC decoding. A single decoder core is used during SC
+and SCF decoding, while up to Lmax decoder cores are used
+during SCL decoding, depending on the employed list size.
+The flexible decoder also contains two sorting units, namely
+the path-metric sorter (identified as “metric sorter” for short,
+in Fig. 5) and the LLR sorter, which are used during SCL
+and SCF decoding, respectively. The path-metric sorter is used
+to identify the L most reliable decoding paths out of the 2L
+candidate decoding paths that are produced every time the SCL
+decoder encounters an information bit. We use a pruned radix-
+2L sorter in order to sort the path metric as it is the fastest
+sorter for Lmax = 4 [11]. The LLR sorter, on the other hand,
+is used in order to identify the T ?1 information bits with the
+smallest decision-LLR absolute values, which correspond to
+the T ? 1 least reliable decisions. The LLR sorter architecture
+is described in more detail in Section III-A3. Finally, the
+decoder contains a pointer memory, which implements the
+low-complexity state copying mechanism for SCL decoding
+as described in detail in [12], as well as a controller which
+is responsible for the generation of all control signals and for
+the calculation of the CRC for SCL and SCF decoding.
+The set of frozen-bit locations Ac is derived from a N-bit
+wide binary vector provided at the input, where a one or a
+zero indicate that the location corresponds to a frozen bit or
+an information bit, respectively.
+Latency Saving Technique: Since the values of frozen bits
+are known a priori at the receiver, no LLR computations are in
+fact necessary until the first non-frozen bit is reached during
+the SC decoding process. This observation is exploited in
+our decoder in order to directly start decoding from the first
+information bit and reduce the decoding latency. Note that this
+latency reduction technique can be seen as partial application
+of the SSC algorithm [5], with the important advantage that it
+is applicable verbatim to SCL decoding, as the first path fork
+only occurs at the first information-bit location.
+In the following sections, we provide more details on each
+of the different decoding modes.
+1) SCL Mode: The flexible decoder implements the SCL
+decoding algorithm as briefly reviewed in Section II-D and as
+more thoroughly described in [13]. The SCL decoder imple-
+5
+?
+LLR0
+?
+LLR1
+?
+LLR2
+LLRin
+Fig. 6: Insertion sorter used in the SCF decoder to identify the
+T ? 1 least reliable bit-decisions.
+mentation requires all modules illustrated in Fig. 5, except for
+the LLR sorting unit that is only used by the SCF decoder. The
+CRC calculations take place alongside the decoding process, as
+the information bits become available one by one, and thus do
+not incur any additional latency. Moreover, this characteristic
+enables a very compact serial implementation of the CRC
+units, rendering their size negligible.
+2) SC Mode: The flexible decoder also implements a
+slightly improved version of the original SC algorithm [1]. The
+improvement consists in the latency reduction technique de-
+scribed above, i.e., a priori knowledge of the first information-
+bit location allows the algorithm to skip the unnecessary
+calculations that would otherwise mandate the SC algorithm
+to visit frozen bit locations.
+As illustrated in Fig. 5, the SC decoder mode only uses one
+of the Lmax decoder cores. Moreover, the SC mode uses only
+one of the internal-LLR-memory banks, one of the partial-
+sum-memory banks, and one of the path-memory banks. For
+SC operation both the path-metric sorting unit and the LLR
+sorting unit are bypassed completely.
+3) SCF Mode: The flexible decoder also implements the
+SCF decoding algorithm as proposed in [8], and as briefly
+described in Section II-C. Similarly to the SC decoder, the SCF
+decoder mode only uses one of the Lmax decoder cores, a sin-
+gle internal-LLR-memory bank, a single partial-sum-memory
+bank, and a single path-memory bank. These components are
+illustrated in orange (labeled as “All Modes” in the legend) in
+Fig. 5. In addition to the hardware required for SC decoding,
+the SCF decoder uses the CRC unit, colored in purple with
+a dashed-dotted outline, and a dedicated LLR sorter, colored
+in blue with a dashed outline, that identifies the T ? 1 least
+reliable bit-decisions during the first decoding attempt, i.e., the
+bit-decisions that had the T ? 1 smallest absolute LLR values.
+Since the decision LLRs that need to be sorted become
+available at a rate of at most one LLR per clock cycle, an
+insertion sorter was selected to implement the LLR sorter.
+The insertion sorter can be fully parallelized in order to sort
+each LLR in a single clock cycle. More specifically, each
+decision LLR is compared in parallel with all T ? 1 existing
+(and already sorted) least reliable decision LLRs which are
+stored in registers. Using the result of these comparisons,
+it is straightforward to decide whether the new LLR should
+be stored and to identify the location in which it should be
+inserted. Insertion can then be performed efficiently in a single
+clock cycle by shifting the content of the registers that are
+after the insertion position by one position, discarding the
+LLR at position T ? 1 in the process, and writing the new
+LLR value in its corresponding position, while keeping the
+remaining contents at their place. We note that the registers
+containing the T ?1 least reliable decision LLRs are initialized
+to the maximum possible absolute LLR value when decoding
+starts. A high level block diagram of the sorter is presented in
+Fig. 6.
+B. Decoding Latency and Throughput of the Flexible Decoder
+Since all three algorithms implemented by the flexible
+decoder are based on SC decoding, their decoding latency is
+largely dictated by the decoding latency of the underlying SC
+hardware decoder. More specifically, the time required by the
+SC decoding algorithm to generate an estimated codeword,
+measured in clock cycles (CCs), can be expressed as:
+LSC = 2N +
+N
+64
+log2
+( N
+256
+)
+?
+log2 N?
+i=0
+?
+b
+2i
+? ?
+2i
+64
+?
+, (2)
+where N is the polar-code blocklength, and b is the location
+of the first information bit. The two left-hand-side terms
+correspond to the latency of a semi-parallel SC decoder
+implementation [14], where P = 64. The right-hand-side term
+is a correction term that stems from the polar-code-specific
+simplifications described earlier, a contribution of this work.
+The SCL algorithm performs some additional steps com-
+pared to the SC algorithm. In particular, the metric sorting
+step involved in SCL decoding cannot be performed in parallel
+with the LLR computations and thus increases the latency of
+the SCL decoder with respect to that of the SC decoder. More
+specifically, the latency of SCL decoding depends on the code
+rate and on the distribution of frozen-bit clusters in the polar
+code. Let us partition Ac as Ac = ?FCj=1Acj such that:
+(i) Acj ?Acj? = ? if j , j?,
+(ii) for every j, Acj is a contiguous subset of {0, . . . ,N ? 1},
+(iii) for every pair j , j?, Acj ?Acj? is not a contiguous subset
+of {0, . . . ,N ? 1}.
+Then, eachAcj is a frozen-bit cluster and FC is the total number
+of frozen-bit clusters in a polar code.
+Using the above definition of a frozen-bit cluster, the latency
+of the SCL decoding algorithm is given by:
+LSCL = LSC +Lsort, (3)
+where LSC is the latency of the SC decoder as defined in (2)
+and Lsort is the latency incurred by the sorting steps defined
+as [13]:
+Lsort = k + FC, (4)
+where k is the number of information bits and FC is the number
+of frozen-bit clusters. Similarly to the right-hand-side term of
+(2), FC is also polar-code specific.
+Contrary to SC and SCL decoding, SCF decoding has a
+variable runtime that depends on the number of performed
+decoding attempts. The worst-case latency of the SCF decod-
+ing algorithm can be expressed as:
+LSCF = TLSC, (5)
+6
+?c
+CC
+?c
+F8 ?1
+?c
+Rep4
+?1
+G8 ?2
+SPC4
+?2
+?1
+C
+om
+bi
+ne
+8 ?c
+?c
+61 2 3 4 5
+Fig. 7: Fully-unrolled partially-pipelined SC decoder archi-
+tecture example for a (8, 4) polar code, where the initiation
+interval I equals 2. Clock gates and signals omitted for clarity.
+where T is the maximum number of trials, and LSC is the
+latency of the SC decoder as defined in (2). It is noteworthy
+that, as will be shown in the sequel, for the FER values of
+interest the average latency of SCF decoding is very close to
+that of standard SC decoding.
+Since only a single codeword is decoded at any given
+time by the flexible decoder, the decoding throughput can be
+directly calculated from the decoding latency. Thus, the coded
+throughput of the flexible decoder is given by:
+Tx =
+N fclk
+Lx
+bps, (6)
+where x ? {SC,SCF,SCL}.
+C. Fully-Unrolled Partially-Pipelined SC Decoder
+The SC decoder implementation is optimized for speed
+and energy efficiency at the expense of flexibility and error-
+correction performance (compared to the SCL and SCF decod-
+ing algorithms), and is based on the fast-SSC algorithm [6] and
+on a fully-unrolled partially-pipelined architecture for a polar
+decoder as presented in [15].
+Fig. 7 illustrates an example of a fully-unrolled partially-
+pipelined SC decoder for the (8, 4) polar code represented
+as a graph in Fig. 1. Partial pipelining, as opposed to deep
+pipelining, allows to reduce the required area, at the cost of
+reducing the throughput, by removing redundant shimming
+registers in parts of the pipeline where data remains unchanged
+over multiple clock cycles [15]. In this example the initiation
+interval is I = 2, meaning that, at every second clock cycle,
+a new frame can be fed into the decoder and a new codeword
+is estimated. In Fig. 7, registers are shown in light blue,
+where ? and ? registers are for LLRs and bit-vector estimates,
+respectively. The blocks in white, marked F , G, Combine, Rep,
+and SPC, correspond to functions of the fast-SSC algorithm,
+and the subscript indicates their respective width. Data flows
+from left to right with very little control logic.
+The latency of our unrolled decoder is polar-code specific
+as it depends on the distribution of the frozen bit locations [6],
+but it is by nature significantly smaller than LSC. An example
+of that difference is given in Table I. The coded throughput of
+a fully-unrolled decoder does not depend on the distribution
+of the frozen bit locations and is given by:
+TU-SC =
+N fclk
+I bps, (7)
+where fclk is the clock frequency of the decoder.
+Flexible Decoder
+Reg. VT, 0.44 mm2
+Unrolled
+Decoder
+Low VT, 0.35 mm2
+TCU
+0.13 mm2
+CGU
+0.006 mm2
+1400 µm
+10
+50
+µ
+m
+Fig. 8: PolarBear micrograph.
+D. Clock-Generation and Test-Controller Units
+The CGU, highlighted in red in Fig. 4, produces a fast
+clock from a reference clock by using a flexible configurable
+frequency lock loop (FLL) [16]. The CGU has its own supply
+VCGU such that its energy consumption does not affect the
+decoder measurements.
+The TCU is the interface to the decoders and the FLL.
+The majority of its area consists of memory, which is im-
+plemented using registers. More specifically, there are three
+memory banks that hold channel LLRs for three polar code
+frames, as well as three additional memory banks to store
+the corresponding estimated codewords. The TCU includes
+a test FSM responsible to select the desired decoder, and
+to configure both the FLL and the decoders. In Fig. 4, the
+modules composing the TCU have a dashed outline and are
+highlighted in blue.
+The TCU uses a serial interface to communicate with the
+outside world. This interface implements a simple protocol that
+allows to read and write to a memory map. As a consequence,
+we can communicate with the chip from a computer, e.g. to
+load the channel LLRs into the banks, to read back the content
+of the estimated codeword banks, and to configure the FLL.
+IV. Test Chip andMeasurement Results
+The PolarBear architecture described in Section III was
+fabricated in a 28 nm FD-SOI CMOS technology, where the
+flexible decoder uses the regular VT flavor to minimize leakage
+and the unrolled decoder uses the low VT flavor to maximize
+speed. The other units present on the chip all use regular VT.
+The core occupies 0.93 mm2 of the complete 1.47 mm2 die,
+and has an overall density of 62%.
+Fig. 8 shows a micrograph of the chip, where the area
+highlighted in green corresponds to the flexible decoder, the
+area in yellow is the fully-unrolled SC decoder, the one in
+blue is the TCU along with its memory, and the one in red is
+the CGU. The CGU can provide a clock frequency between
+960 kHz and 1.275 GHz using an external reference clock of
+20 MHz and a supply voltage VCGU = 0.9 V.
+7
+TABLE I: Decoding latency in clock cycles for the various
+supported decoders and modes corresponding to polar codes
+of 5 different code rates. The unrolled decoder is denoted U-
+SC.
+R SC SCL U-SC
+1/4 1577 1887 -
+1/2 1833 2408 -
+2/3 1896 2644 -
+3/4 1960 2783 -
+5/6 1991 2899 283
+In the following sections, we start by describing our test
+setup and methodology. Then the various modes of the flexible
+decoder are compared against each other and against the
+unrolled SC decoder. Lastly our decoders are compared against
+the other fabricated polar decoders that can be found in the
+literature.
+A. Test Setup and Methodology
+Testing is conducted by inserting a PolarBear chip into a
+custom-made PCB which is, in turn, inserted as a daughter-
+board into an FPGA development board. The FPGA develop-
+ment board—a Xilinx XUPV5-LX110T—is connected to a PC
+via a serial interface. The steps to run a test can be summarized
+as follows:
+1) Transfer the channel LLRs to the TCU memory.
+2) Configure the FLL to generate the desired fast clock.
+3) Select the desired decoder (flexible or unrolled).
+If the flexible decoder was selected:
+a) Select the desired mode.
+b) Set the polar-code type: non-systematic or system-
+atic.
+c) Select the CRC length-and-polynomial pair.
+d) Transfer the binary vector from which the set of
+frozen-bit indices Ac is derived.
+e) Set the index of the first information-bit location.
+f) Set the list size L (SCL mode) or the maximum
+number of trials T (SCF mode).
+4) Start the test.
+5) Wait until the decoder notifies the TCU that decoding is
+complete.
+6) Read the estimated codeword from the TCU memory.
+7) Compare the estimated codeword against the expected
+one.
+Measurement results are for test vectors generated using
+bit-true models of the decoders for an AWGN channel with
+an Eb/N0 of 0 dB to obtain worst-case values, i.e., such that
+more switching activity is generated compared to operation in
+a typical Eb/N0 region of interest. Independent programmable
+power supplies are used to provide power to the various cores,
+and a high-precision multimeter is put in the loop to measure
+the current drawn by the decoder of interest. Furthermore,
+measurements are taken in continuous decoding mode at room
+temperature.
+For reference, the latency—in clock cycles—of the polar
+codes used in the measurements are provided in Table I. The
+latency values for the SCF mode are not included in this table
+as they are integer multiples of those of the SC decoder, where
+TABLE II: CRC lengths and polynomials supported by the
+flexible decoder.
+Length Polynomial(bits)
+4 x4 + x + 1
+8 x8 + x7 + x4 + x2 + x + 1
+16 x16 + x12 + x5 + 1
+the multiplication factor is the number of trials. As it can be
+observed by combining equations (2), (3), and (4), the latency
+and throughput of the SCL mode are independent of the list
+size L. This is a result of having all the necessary hardware
+resources to accommodate the largest supported list size Lmax.
+From Table I, it can be seen that the latency increases with
+the code rate. The reason for that lies in the nature of good
+polar codes where the first information bit location b is pushed
+further and further to the right as the code rate R decreases.
+As a result, the correction term of (2) increases as the code
+rate diminishes and the SC latency Lsc, common to all three
+modes, is reduced.
+B. Flexible Decoder
+The flexible decoder uses the regular VT process flavor, and
+occupies an area of 0.44 mm2 of which 0.29 mm2 are occupied
+by standard cells with a density of 65%. The memory, in
+the form of registers, accounts for 26% of the total flexible-
+decoder area.
+1) Quantization: In terms of quantization, this decoder uses
+Qi.Qc equal to 6.6, and 8-bit path metrics for the SCL mode.
+Fig. 9 shows the impact of this quantization on the error-
+correction performance of 8-bit CRC-aided SCL decoding
+with L = 4 for polar codes of various rates. It can be seen that
+this quantization incurs a coding loss ranging from 0.13 dB to
+under 0.05 dB, at a FER of 10?3, compared to using a floating-
+point representation. We note that the coding loss is greater
+for the lower-rate codes and diminishes as the rate increases.
+2) Decoding Modes: As mentioned earlier, the flexible
+decoder has three operating modes corresponding to the SC,
+SCF, and SCL algorithms. The operating mode can be selected
+at execution time.
+The SCL mode supports a list size L value up to Lmax = 4.
+As can be seen from Fig. 2, for an N = 1024 polar code,
+moving from L = 4 to L = 8 (or even L = 32) results in a
+small gain in terms of the error-correction performance for this
+particular code rate and we observe similar behavior for other
+code rates. This fact, combined with the area constraints we
+had for our chip, lead to the choice of Lmax = 4. Since in our
+architecture the configured list size L has to be a power of two,
+our chip supports the list sizes L ? {1, 2, 4}, where L = 1 is
+equivalent to SC mode selection. The CRC lengths supported
+by the decoder chip, which can be selected at the time of
+execution, are summarized in Table II along with the CRC
+polynomials that were used. These lengths were selected to
+cover a wide range of list sizes and rates, as different operating
+conditions require different CRC lengths in order to achieve
+the best possible performance [13]. We note that, for SCL
+decoding it is also possible to completely disable the CRC.
+8
+0 1 2 3
+10?5
+10?4
+10?3
+10?2
+10?1
+100
+Eb/N0 (dB)
+Fr
+am
+e-
+er
+ro
+r
+ra
+te
+1 2 3
+10?5
+10?4
+10?3
+10?2
+10?1
+100
+Eb/N0 (dB)
+Fr
+am
+e-
+er
+ro
+r
+ra
+te
+2 3
+10?5
+10?4
+10?3
+10?2
+10?1
+100
+Eb/N0 (dB)
+Fr
+am
+e-
+er
+ro
+r
+ra
+te
+3 4
+10?5
+10?4
+10?3
+10?2
+10?1
+100
+Eb/N0 (dB)
+Fr
+am
+e-
+er
+ro
+r
+ra
+te
+3 4 5
+10?5
+10?4
+10?3
+10?2
+10?1
+100
+Eb/N0 (dB)
+Fr
+am
+e-
+er
+ro
+r
+ra
+te
+Floating-point Fixed-point: Qi.Qc = 6.6, 8-bit path metric
+Fig. 9: Impact of LLR and path metric quantization on the error-correction performance of 8-bit CRC-aided SCL decoding
+with L = 4. From left to right, the performance of polar codes of blocklength N = 1024 with various code rates R ?
+{1/4, 1/2, 2/3, 3/4, 5/6}.
+In the SCF mode, the maximum number of trials T has to
+be set and can have a value of up to Tmax. As can be seen
+from Fig. 2, for an N = 1024 polar code, moving from T = 8
+to T = 16 provides very little benefit in terms of the error-
+correction performance. However, since increasing Tmax incurs
+a negigible hardware overhead because the LLR sorter area is
+very small, we decided to choose Tmax = 32 in order to ensure
+that we can cover a very wide range of code rate scenarios.
+While it is optional in the SCL mode, the SCF mode mandates
+activation of a CRC unit and the selection of a CRC length.
+The SC mode can be selected by disabling the CRC and
+setting L = 1.
+Regarding the critical path of the flexible decoder, it depends
+on the operating mode and parameters. In SCL mode with
+a list size L = 4, the critical path starts at the output of a
+register storing a path metric, goes through the metric sorter,
+then through a partial-sum network (PSN) (part of a decoder
+core), and ends at the input of the path-memory register. For
+the SC and SCF modes as well as the SCL mode with L = 2,
+the critical path starts from an internal-LLR memory register,
+goes through a processing element and into the PSN (both part
+of a decoder core) and ends at the input of a path-memory
+register.
+As for any polar decoder, the flexible decoder can decode
+polar codes with blocklengths N smaller than 1024 by setting
+the 1024 ? N most significant channel-LLR locations to the
+fixed-point equivalent of +?. However, since the controller
+was not optimized towards this goal, minute changes to its
+architecture would be required to achieve the optimal latency
+with no noticeable impact on area or clock frequency.
+3) Throughput Comparison: In this section, the measured
+throughput and energy per bit of the three modes are com-
+pared. The 8-bit CRC is selected for the SCF and SCL modes.
+Since the throughput, and thus the energy per bit, of the SCF
+mode are highly dependent on the average number of trials,
+results are provided for the average number of trials required
+at two FER values of interest.
+1/4 1/2 2/3 3/4 5/6
+0
+50
+100
+150
+200
+250
+336 MHz
+308 MHz
+336 MHz
+Code Rate R
+C
+od
+ed
+T
+hr
+ou
+gh
+pu
+t
+(M
+bp
+s)
+SC :
+SCL:
+SCF: W.-C. (T = 8) FER = 10?2 FER = 10?3
+Fig. 10: Coded throughput to decode polar codes of block-
+length N = 1024 using all three modes supported by the
+flexible decoder. Maximum achievable clock frequencies fclk
+shown as annotations.
+Fig. 10 shows the throughput for the three modes supported
+by the flexible decoder. All measurements are for the same
+core supply voltage of 0.9 V and for the respective maximum
+achievable clock frequency. Fig. 10 shows that the SC mode
+has a throughput that is from 31% to 59% greater than that of
+the SCL mode. While the worst-case (W.-C.) throughput of the
+SCF mode is well below that of any other mode, the achievable
+throughput of the SCF mode approaches that of the SC mode
+as the FER improves. While operating at a FER of 10?2, the
+SCF mode is approximately 12% slower than the SC mode.
+This gap shrinks to under 1.5% at a FER of 10?3. Comparing
+the SCF mode at a FER of 10?2 with the SCL mode, the SCF
+mode is from 16% to 39% faster than the SCL mode for the
+lowest to the highest code rates, respectively.
+9
+1/4 1/2 2/3 3/4 5/6
+0
+25
+50
+75
+100
+125
+150
+175
+200
+225
+Code Rate R
+E
+ne
+rg
+y
+pe
+r
+bi
+t
+(p
+J/
+bi
+t)
+1/4 1/2 2/3 3/4 5/6
+0
+25
+50
+75
+100
+125
+150
+175
+200
+225
+Code Rate R
+E
+ne
+rg
+y
+pe
+r
+bi
+t
+(p
+J/
+bi
+t)
+SC :
+SCF: @FER = 10?2 @FER = 10?3
+SCL: L = 2 L = 4
+Fig. 11: Energy per bit to decode polar codes of blocklength
+N = 1024 using the various decoding algorithms supported
+by the flexible decoder. All measurements are for a core
+supply voltage of 0.9 V. Results on the left (solid curves)
+are for a clock fclk = 100 MHz while the ones on the right
+(dashed curves) are for the respective maximum achievable
+clock frequency, i.e., fclk = 336 MHz for both SC and SCF
+modes, and 308 MHz for the SCL mode.
+4) Energy-per-bit Comparison: Fig. 11 shows the energy
+efficiency for the various modes supported by the flexible
+decoder. For fair comparison, all measurements are for the
+same core supply voltage of 0.9 V. The solid curves on the
+left-hand side of the figure are all for a clock frequency of
+fclk = 100 MHz whereas the dashed curves on the right-
+hand side of the figure are for the maximum achievable clock
+frequencies for each decoder and mode. An 8-bit CRC is used
+for the SCF and SCL decoders. The energy per bit is defined
+as:
+Power (W )
+Coded T/P (bps)
+.
+From both sides of Fig. 11 we observe that more energy is
+required as the code rate increases regardless of the operating
+mode. This is an expected result as the latency (number of
+required CCs) increases with the code rate, as can be seen
+from Table I. The SCL mode has the greatest latency among
+the three modes and uses the majority of the modules of the
+flexible decoder illustrated in Fig. 5. Thus, as expected, Fig. 11
+shows that, indeed, the SCL mode requires the most energy
+out of the three supported modes. From the same figure, we
+observe that the energy per bit of the SCF mode approaches
+that of the SC decoder as the FER improves (or as the Eb/N0
+ratio increases).
+5) Discussion: With three modes that offer different char-
+acteristics, the adequate configuration can be selected at
+execution time according to the requirements and operating
+conditions. The SC mode has a constant latency, and the best
+throughput and energy per bit. The SCL mode, with a list size
+L = 4, requires from 1.8× to 1.9× more energy per bit as the
+SC mode, but its error-correction performance is significantly
+2 3 4 5 6
+10?5
+10?4
+10?3
+10?2
+10?1
+100
+Eb/N0 (dB)
+Fr
+am
+e-
+er
+ro
+r
+ra
+te
+2 3 4 5 6
+10?7
+10?6
+10?5
+10?4
+10?3
+10?2
+10?1
+Eb/N0 (dB)
+B
+it-
+er
+ro
+r
+ra
+te
+Floating-point Fixed-point: Qi.Qc = 5.4
+Fig. 12: Impact of LLR quantization on the error-correction
+performance of the systematic (1024, 869) polar code decoded
+by the unrolled decoder implementation.
+better than that of SC. With an error-correction performance
+that approaches that of the SCL algorithm with L = 2 and an
+average throughput that tends to that of the SC mode as the
+signal-to-noise ratio improves, the SCF mode appears as the
+most attractive mode if the decoder is operated in a good Eb/N0
+region and if the system can cope with the variable execution
+time. It is interesting to note that SCL decoding with L = 4
+does not require twice as much energy per bit than with L = 2.
+The energy-per-bit gap between the SC mode and the SCL
+mode with L = 2 is greater. The initial energy hit comes
+from the greater latency of SCL decoding combine with the
+increase in hardware resources used. Increasing L from 2 to 4,
+the latency remains unchanged, only the additional hardware
+resources used contribute to increase the energy required per
+bit.
+C. Fully-Unrolled Partially-Pipelined SC Decoder
+The unrolled decoder is implemented in the low-VT tech-
+nology flavor, and occupies an area of 0.35 mm2 with a
+density of 64%. It is built for a high-rate polar code as, in
+many applications, the peak throughput is achieved in the
+best channel conditions with a high-rate code. The underlying
+assumption is that the unrolled decoder—implementing an
+SC-based algorithm that does not offer as good of an error-
+correction performance than SCL or SCF decoding—would
+only be used when the channel conditions are good. Thus, the
+unrolled decoder is built for a systematic (1024, 869) polar
+code optimized for Eb/N0 = 4.0 dB, and with an initiation
+interval I = 50. It has a fixed latency of 283 CCs and uses
+Qi.Qc = 5.4 to represent LLRs. Fig. 12 shows that using this
+LLR quantization leads to a coding loss of under 0.13 dB at a
+FER of 10?4 or at a bit-error rate (BER) of 10?6. To keep the
+longest combinational paths balanced, the dedicated decoders
+for the Repetition and single-parity check (SPC) codes were
+constrained to a maximum length of 8 and 4, respectively.
+The critical path starts from the output of an LLR register,
+goes through a dedicated decoder for a SPC code of length
+10
+TABLE III: Comparison of the flexible decoder against the other fabricated ASIC decoders for a (1024, 512) polar code. An
+8-bit CRC is used for the SCF and SCL decoders.
+Implementation This work [3] [4]
+Algorithm SC SCF (T = 8) SCL (L = 4) SC BP (15 iter.)
+FER @ Eb/N0 = 4 dB ? 1 × 10?5 ? 1 × 10?7 ? 7 × 10?8 ? 1 × 10?5 ? 7 × 10?5
+Eb/N0 @ FER of = 10?5 ? 4 dB ? 3.4 dB ? 3 dB ? 4 dB ? 4.8 dB
+Technology 28 nm 28 nm 28 nm 180 nm 65 nm
+Area (mm2) 0.44a 0.44a 0.44a 1.71 1.48
+Supply (V) 0.9 0.9 1.3 0.9 0.5 1.3 1.0 0.475
+Frequency (MHz) 336 336 721 308 20 150 300 50
+Latency (CCs)
+(µs)
+1 833 14 664 (1 833b) 2 408 1 568 150 (65.7b)
+5.46 43.67 3.34 7.82 120.40 10.45 0.50 3.00
+Coded T/P (Mbps) 187.6 187.6b 306.8 130.9 8.5 98.0 4 675.8b,c 779.3b,c
+W.-C. Coded T/P (Mbps) 187.6 23.5 306.8 130.9 8.5 98.0 2 048.0 341.3
+Area Eff. (Mbps/mm2) 423 423b 692 295 19 57 3,168b,c 528b,c
+Power (mW) 17.8 17.9 128.3 23.3 0.6 67 477.5 18.6
+Energy per bit (pJ/bit) 95.0 95.5b 418.3 178.1 64.7 684 102.1b,c 23.8b,c
+Normalized for 28 nm and 0.9 V 
+Area (mm2) 0.44a 0.44a 0.44a 0.04 0.27
+Frequency (MHz) 336 336 – 308 – 1 335 696 –
+Latency (µs) 5.46 43.67 – 7.82 – 1.17 0.22 –
+Coded T/P (Mbps) 187.6 187.6b – 130.9 – 871.9 10 847.9b,c –
+W.-C. Coded T/P (Mbps) 187.6 23.5 – 130.9 – 871.9 4 751.4 –
+Area Eff. (Mbps/mm2) 423 423b – 295 – 21 073 39 500b,c –
+Power (mW) 17.8 17.9 – 23.3 – 5.0 166.6 –
+Energy per bit (pJ/bit) 95.0 95.5b – 178.1 – 5.7 15.4b,c –
+aAll three modes supported by our flexible decoder occupy the same 0.44 mm2.
+bAverage value at Eb/N0 = 4 dB.
+cWith early-termination and an average number of iterations of 6.57.
+Area scaled as s2, frequency as 1/s, and power as v2s, where s is the technology feature size and v is the supply voltage ratio.
+The frequency of [3] was first scaled back linearly to 1.8 V, the nominal voltage of the 180 nm technology.
+4, and ends at the input of a bit-estimate register. Instead of
+using enable signals for the registers, it makes heavy use of
+clock gating, thus significantly reducing the area and power
+requirements.
+In the following, the measured throughput and energy per
+bit are presented, and briefly discussed.
+1) Throughput and Energy-per-bit Comparisons: The
+throughput of the unrolled SC decoder is over an order of
+magnitude greater than any of the flexible decoder modes.
+At a supply voltage of 0.9 V, its coded throughput is of
+9 234 Mbps at an achievable clock frequency fclk of 451 MHz.
+The energy per bit is shown to be of 2.55 pJ/bit at 100 MHz
+or of 1.15 pJ/bit at 451 MHz. For this decoder implemented
+with low-VT cells, leakage makes for the majority of the total
+power consumption at 100 MHz: 3.9 mW out of 5.2 mW. At
+451 MHz, the contribution of the leakage drops down to a third
+of the total power consumption.
+2) Discussion: The throughput of the unrolled SC decoder
+is over an order of magnitude than those of the various modes
+supported by the flexible decoder, as presented in Fig. 10.
+Comparing the energy per bit of the two architectures confirms
+that an unrolled SC decoder built for a specific polar code
+can achieve the lowest energy per bit. This speed and energy-
+efficiency comes at the expense of flexibility.
+D. Comparing with the State-of-the-Art Fabricated ASICs
+Only two other fabricated ASICs can be found in the liter-
+ature, both are for polar codes with a blocklength N = 1024.
+In [3], Mishra et al. presented a rate-flexible SC decoder
+fabricated in UMC’s 180 nm CMOS technology. In [4], Park
+et al. presented a rate-flexible belief-propagation (BP) decoder
+fabricated in TSMC’s 65 nm CMOS technology. The results
+reported in [4] focus on a (1024, 512) polar code decoded at
+a high Eb/N0 value where the average number of iterations is
+of 6.57 out of the maximum of 15 iterations.
+Table III shows a comparison of our flexible decoder against
+the other fabricated ASIC decoders. We present some results
+for the three supported modes: SC, SCF with a maximum
+number of trials T = 8, and SCL with a list size L = 4. An
+8-bit CRC is used for the SCF and SCL decoders. We present
+SCL results for three different core supply voltages. For fair
+comparison against [4], the table focusses on a (1024, 512)
+polar code decoded at a Eb/N0 = 4 dB. Note that the FER
+at Eb/N0 = 4 dB for the BP decoder was taken from [17,
+Fig. 4.10]—the Ph.D. thesis of the first author of [4]. The
+worst-case (W.-C.) coded throughput is also included as some
+decoding algorithms have a throughput that depends on the
+channel conditions. Since the results for the state of the art are
+for other technologies and supply voltages, normalized results
+are also provided for comparison.
+Looking at results for the different modes of the flexible
+decoder, the same remarks formulated in Sections IV-B3 and
+IV-B4 apply when the core voltage is 0.9 V for all modes. At
+0.9 V, the SC decoder shows the lowest latency and greatest
+throughput. Still at the same core supply, the throughput and
+energy efficiency of the SCF mode are on par with the SC
+decoder when the Eb/N0 ratio is sufficiently high, i.e., when
+the number of trials becomes approximately 1. The SCL
+mode trails behind but still remains within the same order
+of magnitude.
+11
+TABLE IV: Comparison of the unrolled decoder against the
+other fabricated ASIC decoders for a (1024, 869) polar code.
+Implementation This work [3] [4]
+Algorithm SC SC BP (15 iter.)
+Eb/N0 @ FER of 10?3 4.95 4.95 5.20
+Technology 28 nm 180 nm 65 nm
+Area (mm2) 0.35 1.71 1.48
+Supply (V) 0.9 1.3 1.0 0.475
+Frequency (MHz) 451 150 300 50
+Latency (CCs)
+(µs)
+283 1 568 150
+0.63 10.45 0.50 3.00
+W.-C. Coded T/P (Mbps) 9 233.8 98.0 2 048.0 341.3
+Area Eff. (Mbps/mm2) 26 741 57 1 384 231
+Power (mW) 10.6 67 477.5 18.6
+Energy per bit (pJ/bit) 1.2 684 233 54
+Normalized for 28 nm and 0.9 V 
+Area (mm2) 0.35 0.04 0.27
+Frequency (MHz) 451 1 335 696 –
+Latency (µs) 0.63 1.17 0.22 –
+W.-C. Coded T/P (Mbps) 9 233.8 871.9 4 751.4 –
+Area Eff. (Mbps/mm2) 26 741 21 073 17 301 –
+Power (mW) 10.6 5.0 166.6 –
+Energy per bit (pJ/bit) 1.2 5.7 35.1 –
+Area scaled as s2, frequency as 1/s, and power as v2s, where s is the
+technology feature size and v is the supply voltage ratio.
+The frequency of [3] was first scaled back linearly to 1.8 V, the nom-
+inal voltage of the 180 nm technology.
+Comparing our flexible decoder with the normalized results
+for the other works, it can be seen from Table III that
+the BP decoder of [4] has the lowest latency and greatest
+throughput while the SC decoder of [3] has the smallest area
+and best energy efficiency. It should be noted however that the
+error-correction performance of the BP decoding algorithm is
+significantly worse than that of any of the three algorithms
+supported by our flexible decoder, and that the decoder of
+[3] is specialized for SC decoding. Our flexible decoder is
+not optimized for efficient SC decoding, it implements the
+SC algorithm by using parts of the SCL decoder. Similarly,
+the area efficiency results for the SC and SCF modes are not
+suitable for a fair comparison against the other works as these
+two modes use only a fraction of the flexible decoder area,
+an area dictated by the largest list size supported by the SCL
+mode.
+Table IV compares the measurement results for our dedi-
+cated unrolled decoder, specialized for one polar code, against
+those of the same two fabricated rate-flexible decoders [3], [4].
+Note that by lack of data, and for fair comparison, we present
+worst-case throughput results for the BP decoder. Similarly
+to Table III, normalized results are presented. Comparing
+solely with the normalized results, it can be seen that the
+unrolled decoder outperforms the other works in terms of
+throughput and energy efficiency for an area efficiency in the
+same vicinity. Compared to the normalized results of the other
+SC decoder, the area of our decoder is approximately 10×
+greater, however the throughput is also 10× greater and the
+latency 1.8× lower. The area of our decoder is 1.3× that of
+the normalized area for the BP decoder, the throughput near
+double and the latency approximately three times greater. The
+energy per bit of our decoder was measured to be 4.75× and
+29.25× smaller than the normalized energy-per-bit values of
+[3] and [4], respectively.
+TABLE V: Synthesis-result comparison of SCL decoders for
+a (1024, 512) polar code.
+Implementation This work [21] [22]
+List size 4 4 16
+Technology 28 nm 90 nm 90 nm
+Area (mm2) 0.3 3.83 7.47
+Frequency (MHz) 500 403 658
+Latency (CCs)
+(µs)
+2 408 371 1 462
+4.82 0.92 2.22
+Coded T/P (Mbps) 212.6 1 112.3 460.9
+Area Eff. (Mbps/mm2) 709 290 62
+Normalized for 28 nm and list size L = 4 
+Area (mm2) 0.3 0.4 0.2
+Frequency (MHz) 500 1 295 2 115
+Latency (µs) 4.82 0.29 0.69
+Coded T/P (Mbps) 213 3 575 1 481
+Area Eff. (Mbps/mm2) 709 9 645 8 195
+Area scaled as s2l, and frequency as 1/s, where s is the
+technology feature size and l is the list-size ratio.
+Further Discussion
+We note that the field of polar codes has been very active
+since the RTL of PolarBear has been finalized. Many im-
+provements were proposed to the SCL decoding algorithm and
+its implementation in particular. Notably, more efficient PSNs
+were proposed in [18], multi-bit and tree pruning methods
+presented [19], [20], or a combination of both, e.g. [21], [22].
+These improvements are orthogonal to our work.
+To help estimate the potential impact that could be brought
+by recent architectural improvements, Table V presents a
+comparison between our synthesis results for our flexible
+decoder (with emphasis on the SCL mode) against those from
+the state of the art works of [21], [22]. Normalized results,
+including to account for the different list size of [22], are
+presented.
+Comparing the latency in CCs of our decoder with the other
+works, it can be seen that the reduced-latency algorithm of
+[21], that notably estimates multiple bits at once, can have a
+significant impact. The approximate metric sorter of [22] also
+leads to a latency reduction. Looking at the normalized results,
+it can be seen that the area results are in the same vicinity.
+The improved PSN of [21], [22] and the approximate sorter
+of [22] lead to much greater clock frequencies. By comparing
+the achievable clock of our synthesized design with that of
+our on-chip flexible decoder at 0.9 V (Table III) hints that the
+gains that are expected from standard scaling laws appear to be
+difficult to fully realize, especially with regular-VT libraries.
+This is partly due to the impact of parasitics and wiring.
+A detailed survey that includes the recent work and a
+comparison of polar decoders with low-density parity-check
+(LDPC) and Turbo decoders can be found in [23]. The
+comparison discusses, among other things, the required list
+size and blocklength for SCL decoding in order to match the
+performance of various LDPC and Turbo decoders. Another
+important implementation-related aspect is the quantization
+loss, which we showed in Section IV to be negligible when
+using bit-widths that are very similar to the bit-widths com-
+monly used in LDPC decoders.
+12
+V. Conclusion
+In this paper, we presented measurement results for
+PolarBear, a fabricated chip in 28 nm FD-SOI CMOS tech-
+nology that implements two decoders for polar codes. The
+first decoder is flexible, supporting three different modes
+corresponding to distinct decoding algorithms: SC, SCF and
+SCL. It implements a latency saving technique applicable
+to all three decoding algorithms. Furthermore, this flexible
+decoder can decode both non-systematic and systematic polar
+codes of any code rate. The list size and maximum number
+of trials for SCL and SCF decoding modes, respectively, are
+configured at execution time. The second decoder is a fully-
+unrolled partially-pipelined SC decoder built for speed. To our
+knowledge, this paper presents the first ASIC measurement
+results for both the SCF and SCL algorithms.
+We presented a flexible decoder where the most suitable
+mode can be selected at execution based on the requirements
+and operating conditions. The SC mode was shown to have
+the best throughput and energy per bit. For the best error-
+correction performance, the SCL mode was shown to be the
+most favorable choice at the expense of a greater energy per
+bit compared to both the SC and SCF modes. Lastly, with an
+error-correction performance that approaches that of the SCL
+algorithm with L = 2 and an average throughput that tends to
+that of the SC mode as the signal-to-noise ratio improves, the
+SCF mode appeared as the most attractive mode if the decoder
+is operated in a good Eb/N0 region and if the system can cope
+with a variable execution time.
+In terms of more specific results, we showed that in the SCL
+mode, our flexible decoder could achieve a coded throughput
+of 306.8 Mbps with a latency of 3.34 µs and an energy per bit
+of 418.3 pJ/bit at a clock frequency of 721 MHz for a supply
+of 1.3 V. The energy efficiency was shown to improve twofold
+with the energy per bit dropping down to 178.1 pJ/bit with
+the more modest clock frequency of 308 MHz, throughput
+of 130.9 Mbps, and supply voltage of 0.9 V. In the other
+two operating modes, our measurement results showed that
+our flexible decoder had an energy per bit of approximately
+95 pJ/bit with a core supply voltage of 0.9 V. It should be noted
+that research on SCL decoding has been moving quickly since
+this chip has been sent out for tapeout. This makes us confident
+that ASIC results can only improve from here if all the latest
+improvements from the recent literature are to be incorporated.
+The unrolled decoder was shown to be capable of achieving
+an area efficiency of 26.74 Gbps/mm2 at 451 MHz for a supply
+voltage of 0.9 V and an energy per bit of 1.15 pJ/bit. These
+results confirmed that a specialized unrolled polar decoder has
+significantly better energy per bit and speed than its flexible
+counterpart. When it comes to the energy-efficiency advantage,
+the key ingredients were the polar code-specific specialization,
+the unrolling, and the use of clock gating. Since the design of
+this chip, it was shown in [15] that such a decoder can be made
+to support multiple codes of various rates and blocklengths.
+ACKNOWLEDGEMENT
+The authors would like to thank Christian Senning and
+Lorenz Schmid (formerly EPFL) for their support, Ivan Miro-
+Padanes (CEA-LETI) for providing the FLL [16] along with
+support for it, and Marc-André Carbonneau (ÉTS) for the test
+PCB design. Furthermore, they would like to thank STMicro-
+electronics for chip fabrication.
+References
+[1] E. Ar?kan, “Channel polarization: A method for constructing capacity-
+achieving codes for symmetric binary-input memoryless channels,” IEEE
+Trans. Inf. Theory, vol. 55, no. 7, pp. 3051–3073, Jul 2009.
+[2] MCC Support, “Final Report of 3GPP TSG RAN WG1 #87 v1.0.0,”
+Feb 2017. [Online]. Available: http://www.3gpp.org/ftp/tsg_ran/WG1_
+RL1/TSGR1_88/Docs/R1-1701552.zip
+[3] A. Mishra, A. J. Raymond, L. Amaru, G. Sarkis, C. Leroux, P. Mein-
+erzhagen, A. Burg, and W. J. Gross, “A successive cancellation decoder
+ASIC for a 1024-bit polar code in 180nm CMOS,” in IEEE Asian Solid-
+State Circuits Conf. (A-SSCC), Nov 2012, pp. 205–208.
+[4] Y. S. Park, Y. Tao, S. Sun, and Z. Zhang, “A 4.68Gb/s belief propagation
+polar decoder with bit-splitting register file,” in Symp. on VLSI Circuits
+Dig. of Tech. Papers, Jun 2014, pp. 1–2.
+[5] A. Alamdar-Yazdi and F. R. Kschischang, “A simplified successive-
+cancellation decoder for polar codes,” IEEE Commun. Lett., vol. 15,
+no. 12, pp. 1378–1380, Dec 2011.
+[6] G. Sarkis, P. Giard, A. Vardy, C. Thibeault, and W. J. Gross, “Fast polar
+decoders: Algorithm and implementation,” IEEE J. Sel. Areas Commun.,
+vol. 32, no. 5, pp. 946–957, May 2014.
+[7] I. Tal and A. Vardy, “List decoding of polar codes,” IEEE Trans. Inf.
+Theory, vol. 61, no. 5, pp. 2213–2226, May 2015.
+[8] O. Afisiadis, A. Balatsoukas-Stimming, and A. Burg, “A low-complexity
+improved successive cancellation decoder for polar codes,” in Asilomar
+Conf. on Signals, Syst., and Comput. (ACSSC), Nov 2014, pp. 2116–
+2120.
+[9] E. Ar?kan, “Systematic polar coding,” IEEE Commun. Lett., vol. 15,
+no. 8, pp. 860–862, Aug 2011.
+[10] G. Sarkis, I. Tal, P. Giard, A. Vardy, C. Thibeault, and W. J. Gross,
+“Flexible and low-complexity encoding and decoding of systematic polar
+codes,” IEEE Trans. Commun., vol. 64, no. 7, pp. 2732–2745, Jul 2016.
+[11] A. Balatsoukas-Stimming, M. Bastani Parizi, and A. Burg, “On metric
+sorting for successive cancellation list decoding of polar codes,” in IEEE
+Int. Symp. on Circuits and Syst. (ISCAS), May 2015, pp. 1993–1996.
+[12] A. Balatsoukas-Stimming, A. J. Raymond, W. J. Gross, and A. Burg,
+“Hardware architecture for list successive cancellation decoding of polar
+codes,” IEEE Trans. Circuits Syst. II, vol. 61, no. 8, pp. 609–613, Aug
+2014.
+[13] A. Balatsoukas-Stimming, M. Bastani Parizi, and A. Burg, “LLR-based
+successive cancellation list decoding of polar codes,” IEEE Trans. Signal
+Process., vol. 63, no. 19, pp. 5165–5179, Oct 2015.
+[14] C. Leroux, A. Raymond, G. Sarkis, and W. Gross, “A semi-parallel
+successive-cancellation decoder for polar codes,” IEEE Trans. Signal
+Process., vol. 61, no. 2, pp. 289–299, Jan 2013.
+[15] P. Giard, G. Sarkis, C. Thibeault, and W. J. Gross, “Multi-mode unrolled
+hardware architectures for polar decoders,” IEEE Trans. Circuits Syst.
+I, vol. 63, no. 9, pp. 1443–1453, Aug 2016.
+[16] I. Miro-Panades, E. Beigné, Y. Thonnart, L. Alacoque, P. Vivet,
+S. Lesecq, D. Puschini, A. Molnos, F. Thabet, B. Tain, K. B. Chehida,
+S. Engels, R. Wilson, and D. Fuin, “A fine-grain variation-aware
+dynamic Vdd-hopping AVFS architecture on a 32 nm GALS MPSoC,”
+IEEE J. Solid-State Circuits, vol. 49, no. 7, pp. 1475–1486, Jul 2014.
+[17] Y. S. Park, “Energy-efficient decoders of near-capacity channel codes,”
+Ph.D. dissertation, University of Michigan, Ann Arbor, MI, USA, 2014.
+[18] Y. Fan and C.-Y. Tsui, “An efficient partial-sum network architecture for
+semi-parallel polar codes decoder implementation,” IEEE Trans. Signal
+Process., vol. 62, no. 12, Jun 2014.
+[19] G. Sarkis, P. Giard, A. Vardy, C. Thibeault, and W. J. Gross, “Fast list
+decoders for polar codes,” IEEE J. Sel. Areas Commun., vol. 34, no. 2,
+pp. 318–328, Feb 2016.
+[20] B. Yuan and K. K. Parhi, “Low-latency successive-cancellation list
+decoders for polar codes with multibit decision,” IEEE Trans. VLSI Syst.,
+vol. 23, no. 10, pp. 2268–2280, Oct 2015.
+[21] J. Lin, C. Xiong, and Z. Yan, “A high throughput list decoder architecture
+for polar codes,” IEEE Trans. VLSI Syst., vol. 24, no. 6, Jun 2016.
+[22] Y. Fan, C. Xia, J. Chen, C. Y. Tsui, J. Jin, H. Shen, and B. Li, “A low-
+latency list successive-cancellation decoding implementation for polar
+codes,” IEEE J. Sel. Areas Commun., vol. 34, no. 2, pp. 303–317, Feb
+2016.
+[23] A. Balatsoukas-Stimming, P. Giard, and A. Burg, “A comparison of polar
+decoders with existing LDPC and turbo decoders,” in IEEE Wireless
+Commun. and Netw. Conf. (WCNC), Mar 2017, pp. 1–6.

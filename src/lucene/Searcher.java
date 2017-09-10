@@ -6,9 +6,6 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -20,6 +17,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 
+import util.GetAnalyzer;
 import util.IndexedFileMapper;
 import util.PDFswitchTXT;
 
@@ -64,30 +62,22 @@ public class Searcher {
 			//using Stopwords
 			if(isUsingStemming) {
 				/*analyzer with english stopwords and stemming*/
-				return new PorterAnalyzer(new EnglishAnalyzer());
+				return GetAnalyzer.stopWordsStemmingAnalyzer();
 			}else {
 				/*analyzer with english stopwords*/
-				return new EnglishAnalyzer();
+				return GetAnalyzer.stopWordsAnalyzer();
 			}
 		}else {
 			//not using Stopwords
 			if(isUsingStemming) {
 				/*analyzer with only stemming*/
-				return new PorterAnalyzer(getEmptyAnalyzer());
+				return GetAnalyzer.stemmingAnalyzer();
 			}else {
 				//default analyzer
-				return getEmptyAnalyzer();
+				return GetAnalyzer.emptyAnalyzer();
 			}
 		}
 	}
-
-	private Analyzer getEmptyAnalyzer(){
-		
-		CharArraySet stopWords = new CharArraySet(0, true);
-		
-		return new StandardAnalyzer(stopWords);
-	}
-
 
 	private IndexSearcher getIndexSearcher(boolean isUsingStemming, boolean isUsingStopwords) throws IOException{
 

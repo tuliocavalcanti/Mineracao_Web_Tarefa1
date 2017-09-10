@@ -1,0 +1,2201 @@
+ONLINE CONVOLUTIONAL DICTIONARY LEARNING?
+JIALIN LIU† , CRISTINA GARCIA-CARDONA‡ , BRENDT WOHLBERG§ , AND WOTAO
+YIN¶
+Abstract. Convolutional sparse representations are a form of sparse representation with a
+structured, translation invariant dictionary. Most convolutional dictionary learning algorithms to
+date operate in batch mode, requiring simultaneous access to all training images during the learning
+process, which results in very high memory usage and severely limits the training data that can be
+used. Very recently, however, a number of authors have considered the design of online convolutional
+dictionary learning algorithms that offer far better scaling of memory and computational cost with
+training set size than batch methods. This paper extends our prior work, improving a number of
+aspects of our previous algorithm; proposing an entirely new one, with better performance, and that
+supports the inclusion of a spatial mask for learning from incomplete data; and providing a rigorous
+theoretical analysis of these methods.
+Key words. convolutional sparse coding, convolutional dictionary learning, stochastic gradient
+descent, recursive least squares
+1. Introduction.
+1.1. Sparse representations and dictionary learning. Sparse signal rep-
+resentation aims to represent a given signal by a linear combination of only a few
+elements of a typically overcomplete basis. For example, we can approximate an an
+N -dimensional signal s ? RN as
+(1) s ? Dx = d1x1 + . . .+ dMxM ,
+where D = [d1,d2, · · · ,dM ] ? RN×M is the overcomplete basis or dictionary with M
+atoms and x = [x1, x2, · · · , xM ]T ? RM is the sparse representation. The problem of
+computing the sparse representation x given s and D is referred to as sparse coding.
+Among a variety of formulations of this problem, we focus on Basis Pursuit Denoising
+(BPDN) [9]
+(2) arg min
+x
+(1/2) ?Dx? s?22 + ? ?x?1 .
+Sparse representations have been widely used in, for example, denoising [15, 35],
+super-resolution [62, 68], classification [60], and face recognition [59]. A key issue
+when solving sparse coding problems as in (2) is how to choose the dictionary D.
+Early work on sparse representations used a fixed basis [41] such as wavelets [38] or
+Discrete Cosine Transform (DCT) [25], but learned dictionaries can provide better
+performance [2, 15].
+Dictionary learning aims to learn a good dictionary D for a given distribution of
+signals. If s is a random variable, the dictionary learning problem can be formulated
+as:
+(3) min
+D?C
+Es
+{
+min
+x
+1
+2
+?Dx? s?22 + ? ?x?1
+}
+,
+?
+Funding: This research was supported by the U.S. Department of Energy through the
+LANL/LDRD Program.
+†Department of Mathematics, UCLA, Los Angeles, CA 90095
+‡CCS Division, Los Alamos, NM 87545, USA
+§Theoretical Division, Los Alamos National Laboratory, Los Alamos, NM 87545, USA. Email:
+brendt@lanl.gov, Tel: +1 505 667 6886, Fax: +1 505 665 5757
+¶Department of Mathematics, UCLA, Los Angeles, CA 90095
+1
+ar
+X
+iv
+:1
+70
+9.
+00
+10
+6v
+1 
+ [
+cs
+.L
+G
+] 
+ 3
+1 
+A
+ug
+ 2
+01
+7
+where C = {D | ?dm?22 ? 1,?m} is the constraint set, which is necessary to resolve
+the scaling ambiguity between D and x.
+Batch dictionary learning methods sample a batch of training signals {s1, s2, . . . , sK}
+before training, and minimize the objective function:
+(4) min
+D?C,x
+K?
+k=1
+{
+1
+2
+?Dxk ? sk?22 + ? ?xk?1
+}
+.
+In the training process, batch learning methods such as FOCUSS/MOD [17, 16], K-
+SVD [2], and the work for global samples [61] require simultaneous access to all the
+training samples.
+In contrast, online dictionary learning methods process training samples in a
+streaming fashion. Specifically, let s(t) be the chosen sample at the tth step of training.
+The framework of online dictionary learning is:
+x(t) = BPDN
+(
+D(t?1); s(t)
+)
+,
+D(t) = D-update
+(
+{D(?)}t?1?=0, {x(?)}t?=1, {s(?)}t?=1
+)
+.
+(5)
+where BPDN refers to model (2), and D-update computes a new dictionary D(t) given
+the past information {D(?)}t?1?=0, {x(?)}t?=1, {s(?)}t?=1. While each outer iteration of
+a batch dictionary learning algorithm involves computing the coefficient maps xk
+for all training samples, online learning methods compute the coefficient map x(t)
+for only one, or a small number of, training sample s(t) at each iteration, the other
+coefficient maps {x(?)}t?1?=1 used in the D-update having been computed in previous
+iterations. Thus, these algorithms can be implemented for large sets of training data or
+dynamically generated data. Different kinds of D-update methods have been proposed
+in the literature. Online dictionary learning algorithms can be classified into two
+classes:
+Class I: first-order algorithms [50, 34, 1] are inspired by Stochastic Gradient De-
+scent (SGD), which only uses first-order information, the gradient of the loss function,
+to update the dictionary D.
+Class II: second-order algorithms. These algorithms are inspired by Recursive
+Least Squares (RLS) [43, 14], Iterative Reweighted Least Squares (IRLS) [33, 51],
+Kernel RLS [20], second-order Stochastic Approximation (SA) [36, 46, 64, 44, 67, 29],
+etc. They use previous information {D(?)}t?1?=0, {x(?)}t?=1, {s(?)}t?=1 to construct a
+surrogate function F (t)(D) to estimate the true loss function of D and then update
+D by minimizing the surrogate function. These surrogate functions involve both first-
+order and second-order information, the gradient and Hessian of the loss function,
+respectively.
+The most significant difference between the two classes is that Class I algorithms
+only need access to information from the current step, t, i.e. D(t?1),x(t), s(t), while
+Class II algorithms use the entire history up to step t, i.e. {D(?)}t?1?=0, {x(?)}t?=1, {s(?)}t?=1.
+However, as we discuss in Sec. 3 below, it is possible to store this information in ag-
+gregate form so that the memory requirements do not scale with t.
+1.2. Convolutional form. Convolutional Sparse Coding (CSC) [30, 63] [55,
+Sec. II], a highly structured sparse representation model, has recently attracted in-
+creasing attention for a variety of imaging inverse problems [23, 32, 65, 39, 54, 66].
+CSC aims to represent a given signal s ? RN as a sum of convolutions,
+(6) s ? d1 ? x1 + . . .+ dM ? xM ,
+2
+where dictionary atoms {dm}Mm=1 are linear filters and the representation {xm}Mm=1 is
+a set of coefficient maps, each map xm having the same size N as the signal s. Since
+we implement the convolutions in the frequency domain for computational efficiency,
+it is convenient to adopt circular boundary conditions for the convolution operation.
+Given {dm} and s, the maps {xm} can be obtained by solving the Convolutional
+Basis Pursuit DeNoising (CBPDN) `1-minimization problem
+arg min
+{xm}
+1
+2
+??? M?
+m=1
+dm ? xm ? s
+???2
+2
++ ?
+M?
+m=1
+?xm?1 .(7)
+The corresponding dictionary learning problem is called Convolutional Dictionary
+Learning (CDL). Specifically, given a set of K training signals {sk}Kk=1, CDL is im-
+plemented via minimization of the following function:
+arg min
+{dm},{xk,m}
+1
+2
+K?
+k=1
+??? M?
+m=1
+dm ? xk,m ? sk
+???2
+2
++ ?
+K?
+k=1
+M?
+m=1
+?xk,m?1
+subject to ?dm?2 ? 1, ?m ? {1, . . . ,M} ,(8)
+where the coefficient maps xk,m, k ? {1, . . . ,K}, m ? {1, . . . ,M}, represent sk, and
+the norm constraint avoids the scaling ambiguity between dm and xk,m. Most current
+CDL algorithms [8, 24, 23, 55, 49, 53, 21] are batch learning methods that alternatively
+minimize over {xk,m} and {dm}, dealing with the entire training set at each iteration.
+Complexity of batch CDL. When K is large, the dm update subproblem is com-
+putationally expensive. Based on the state-of-the-art results [49, 21], the single
+step complexity and memory usage are both O(KNM). With the typical values
+K = 40, N = 256 × 256,M = 64, KNM ? 1.7 × 108, which is computationally very
+expensive.
+1.3. Contribution of this article. The goal of the present work is to develop
+online convolutional dictionary learning methods for training data sets that are much
+larger than those that are presently feasible. We develop online methods for CDL in
+two directions: first-order method and second-order method. The contribution of this
+article includes:
+1. An efficient first-order online CDL method (Algorithm 5).
+2. An efficient second-order online CDL method (Algorithm 4) that improves
+the algorithm proposed in [31], and its convergence proof.
+3. An online CDL method that is able to learn dictionaries from partially masked
+training set (Algorithm 6).
+4. An analysis of the forgetting factor1 used in Algorithm 4.
+5. An analysis of the stopping condition in the D-update.
+6. An analysis of circular boundary conditions on dictionary learning.
+Relationship with other works. Recently, two other works on online CDL [12,
+52] have appeared. Both of them study second-order SA methods. They use the
+same framework from [36] but different methods to update D. [12] uses projected
+coordinate descent and [52] uses iterated Sherman-Morrison. Our previous work [31]
+uses frequency-domain FISTA to updateD, uses a forgetting factor technique, inspired
+by [43, 37], to correct the surrogate function, and uses “region-sampling” to reduce
+the memory cost. In this paper, the second-order SA algorithm 4 improves over the
+1This technique is used in previous works [43, 37, 46, 44], but not theoretically analyzed.
+3
+similar algorithm in [31] by applying two techniques: an improved stopping condition
+of FISTA and image-splitting. The former technique largely reduces the inner-loop
+iterations of D-update; the latter, compared with “region-sampling”, fully utilizes all
+the information in the training set. With these techniques, Algorithm 4 converges
+faster.
+The method in [12] works on a variant of problem (8), and is therefore not com-
+parable with our methods, and [52], which appeared while we were completing our
+work, studies the same problem (8) with ours. The algorithm in it is expected to be
+comparable with our previous work [31] because they share the same framework. Our
+Algorithm 5, however, uses a different framework. Compared to [31], it runs faster
+while also using less memory.
+2. Preliminaries. Here we introduce our notation. The signal is denoted by
+s ? RN , and the dictionaries by d = (d1 d2 . . . dM )T ? RMD, where the dictionary
+kernels (or filters) dm ? RD. Coefficient maps are denoted by x = (x1 x2 . . . xM )T ?
+RMN , where x ? RN is the coefficient map corresponding to dm. In addition to the
+vector form, x, of the coefficient maps, we define an operator form X. First we define
+a linear operator Xm on dm such that Xmdm = dm?xm and let X ,
+(
+X1 X2 · · ·XM
+)
+.
+Then, we have
+(9) Xd ,
+M?
+m=1
+Xmdm =
+M?
+m=1
+dm ? xm ? s .
+Hence, X ? RMD ? RN , a linear operator defined from the dictionary space to the
+signal space, is the operator form of x.
+2.1. Problem settings. Now we reformulate (8) into a more general form. Usu-
+ally, the signal is sampled from a large training set, but we consider the training signal
+s as a random variable following the distribution s ? PS(s). Our goal is to optimize
+the dictionary d. Given s, the loss function l to evaluate d,x is defined as
+(10) l(d,x; s) = (1/2) ?Xd? s?22 .
+Given s, the loss function f to evaluate d and the corresponding minimizer are,
+respectively,
+f(d; s) , min
+x
+{
+l(d,x; s) + ? ?x?1
+}
+,(11)
+x?(d; s) , arg min
+x
+{
+l(d,x; s) + ? ?x?1
+}
+.(12)
+The online CDL problem can be formulated as
+(13) min
+d
+Es[f(d; s)] + ?C(d) ,
+where C is the constraint set of C = {d | ?dm?2 ? 1,?m} and ?C(·) is the indicator
+function2 of set C.
+2Indicator function is defined as: ?C(d) =
+{
+0, if d ? C
++?, otherwise
+.
+4
+2.2. Mathematical derivation: computing in the frequency domain. Be-
+fore introducing our algorithms for (13), we consider a basic problem and a frequency
+domain gradient descent in this section, which are also used in Sections 3 and 4.
+With s and x fixed, the basic problem is
+(14) min
+d?RMD
+l(d,x; s) + ?C(d) ,
+for which we can apply projected gradient descent (GD) [5]:
+(15) d(t) = ProjC
+(
+d(t?1) ? ?(t)?l(d(t?1),x; s)
+)
+,
+where (t) is the iteration index and the gradient of l is given by
+(16) ?l(d,x; s) = XT
+(
+Xd? s
+)
+.
+Since X is a linear operator from RMD to RN , the cost of directly computing (16) is
+O(NMD).
+It is well known that convolving two signals of the same size corresponds to the
+pointwise multiplication of their frequency representations. Our method below for
+solving (14) takes advantage of this property. First, we zero-pad each dm from RD to
+RN to match the size of s. Then the basic problem can be written as
+(17) min
+d?RMN
+l(d,x; s) + ?CPN(d) ,
+where the set CPN is defined as
+(18) CPN , {dm ? RN : (I ? P )dm = 0, ?dm?2 ? 1} .
+Operator P preserves part of dm and masks the remaining part to zeros. Projected
+GD for (17) is
+(19) d(t) = ProjCPN
+(
+d(t?1) ? ?(t)?l(d(t?1),x; s)
+)
+.
+Then, using the Plancheral formula, we can write the loss function l as
+(20) l(d,x; s) =
+????
+m
+dm ? xm ? s
+???2
+2? ?? ?
+?Xd?s?2
+=
+????
+m
+d?m  x?m ? s?
+???2
+2? ?? ?
+?X?d??s??2
+where ·? denotes the corresponding quantity in the frequency domain and  means
+pointwise multiplication. Therefore, we have d? ? CMN , and X? =
+(
+X?1 X?2 · · · X?M
+)
+is
+a linear operator. Since each X?m is diagonal, X? is much cheaper to compute than X.
+Define the loss function in the frequency domain
+(21) l?(d?, x?; s?) = (1/2)
+??X?d?? s???2 ,
+which is a real valued function defined in the complex domain. The Cauchy-Riemann
+condition [3] implies that (21) is not differentiable unless it is constant. However, the
+conjugate cogradient below [45] exists and can be used for optimization:
+(22) ?l?(d?, x?; s?) , X?H(X?d?? s?) .
+5
+The derivation of (22) is given in Appendix A.
+Since each item X?m in X? is diagonal, the gradient is easy to compute, with a
+complexity of O(NM), instead of O(NMD). Based on (22), we have the following
+modified gradient descent:
+(23) d(t) = ProjCPN
+(
+IFFT
+(
+d?(t?1) ? ?(t)?l?(d?(t?1), x?; s?)
+))
+.
+To compute (23), we transform d(t) into its frequency domain counterpart d?(t), per-
+form gradient descent in the frequency domain, return to the spatial domain, and
+project the result onto the set CPN.
+In our modified method (23), the iterate d is transformed between the frequency
+and spatial domains because the gradient is cheaper to compute in the frequency
+domain, but projection is cheaper to compute in the spatial domain.
+Equivalence of (19) and (23). We can prove:
+(24) X?H(X?d?? s?) = FFT
+(
+XT (Xd? s)
+)
+, ?x,d, s ,
+which means that the conjugate cogradient of l? is equivalent with the gradient of l.
+Thus, modified GD (23) coincides with standard GD (19) using conjugate cogradient.
+A proof of (24) given in Appendix B. A similar result is also given in [40] under
+the assumption of “conjugate symmetry”.
+3. Second-order SA method: surrogate function approaches. Now we
+consider the CDL problem (13) when the training signals s(1), s(2), · · · , s(t), · · · arrive
+in a streaming fashion.
+3.1. Algorithm 1: basic surrogate function. Second-order stochastic ap-
+proximation based algorithms are popular in dictionary learning [36, 43, 46, 64, 44,
+67, 29]. In this section, we apply the method in [36] (the method in [43] is similar, but
+without the normalization constraint on the dictionaries) to the CDL problem (13).
+In the next subsection, we discuss issues and our resolutions.
+Given all the past training samples {s(?)}t?=1, the objective function in (13) could
+be approximated by F (t) as
+(25) F (t)(d) =
+1
+t
+( t?
+?=1
+f(d; s(?))
+)
+? F (d) = Es[f(d; s)] .
+Central limit theorem tells us F (t) ? F as t ? ?. However, F (t) is not computa-
+tionally friendly. Each item in F (t) is, by (11) and (12),
+f(d; s(?)) = l
+(
+d,x?(d; s(?)); s(?)
+)
++ ?
+???x?(d; s(?))???
+1
+.
+Thus, when we update the dictionary from d(t?1) to d(t), we have to re-compute all
+the past x? again because it depends on d.
+To approximate F efficiently, we introduce the surrogate function F (t) of F (t).
+Given s(t), x(t) is computed by CBPDN (12) using the latest dictionary d(t?1):
+(26) x(t) = x?
+(
+d(t?1), s(t)
+)
+.
+Then the surrogate of f(d; s(t)) is defined as
+(27) f (t)(d) , l
+(
+d,x(t); s(t)
+)
++ ??x(t)?1 =
+1
+2
+???X(t)d? s(t)???2 + ??x(t)?1 ,
+6
+Algorithm 1: Online Convolutional Dictionary Learning (Basic Surrogate
+Function)
+Initialize: Initialize d(0), let A(0) ? 0,b(0) ? 0.
+1 for t = 1, · · · , T do
+2 Sample a signal s(t).
+3 Solve convolutional sparse coding problem (26).
+4 Compute Hessian matrix A(t) and vector b(t) (30).
+5 Update dictionary by solving (29) with FISTA.
+6 end
+Output: d(T )
+whereX(t) is the operator corresponding to x(t). Given the past information s(1), · · · , s(t)
+and x(1), · · · ,x(t), the surrogate function of F (t) is defined as
+(28) F (t)(d) = 1
+t
+(
+f (1)(d) + · · ·+ f (t)(d)
+)
+.
+Then, at the tth step, the dictionary is updated as
+(29) d(t) = arg min
+d?RMD
+F (t)(d) + ?C(d) .
+Solving subproblem (29). To solve (29), we apply Fast Iterative Shrinkage-
+Thresholding (FISTA) [4], which needs to compute a gradient at each step. The
+gradient for the surrogate function can be computed as
+?F (t)(d) = 1
+t
+( t?
+?=1
+(X(?))TX(?)
+)
+d? 1
+t
+( t?
+?=1
+(X(?))T s(?)
+)
+.
+We cannot follow this formula directly since the cost increases linearly in t. Instead
+we perform the recursive updates:
+(30) A(t) = A(t?1) + (X(t))TX(t) , b(t) = b(t?1) + (X(t))T s(t) ,
+which has a constant cost per step and yields ?F (t)(d) = (A(t)d ? b(t))/t. Here
+(X(t))TX(t) is the Hessian matrix of f (t). The matrix A(t)/t, the Hessian matrix
+of the surrogate function F (t), accumulates the Hessian matrices of all the past loss
+functions. This is why we call this method the second-order stochastic approximation
+method. The full algorithm is summarized in Algorithm 1.
+3.2. Algorithm 3: improved surrogate function. Algorithm 1 has three
+practical issues:
+• Inaccurate loss function: The surrogate function F (t) involves old loss func-
+tions f (1), f (2), · · · , which contain old information x(1),x(2), · · · . For example,
+x(1) is computed using d(0) (cf. (26)).
+• Expense of computing A(t): Since X is an operator X : RMD ? RN , the
+number of flops of computing (X(t))T (X(t)) is O(D2M2N), which is quite
+large.
+• FISTA is slow at solving subproblem (29): FISTA takes many steps to reach
+a sufficient accuracy.
+7
+To address these points, three modifications of Algorithm 1 are given in this section.3
+3.2.1. Improvement I: forgetting factor. At time t, the dictionary is the
+result of an accumulation of past coefficient maps x
+(?)
+m , ? < t, which were computed
+with the then-available dictionaries. A way to balance accumulated past contributions
+and the information provided by the new training samples is to compute a weighted
+combination of these contributions [43, 37, 46, 44]. This combination gives more
+weight to more recent updates since those are the result of a more extensively trained
+dictionary. Specifically, we consider the following weighted (or modified) surrogate
+function:
+(31) F (t)mod(d) =
+1
+?(t)
+t?
+?=1
+(?/t)pf (?)(d) , ?(t) =
+t?
+?=1
+(?/t)p .
+This function can be written in recursive form as
+?(t) =?(t)?(t?1) + 1 ,(32)
+?(t)F (t)mod(d) =?
+(t)?(t?1)F (t?1)mod (d) + f
+(t)(d) .(33)
+Here ?(t) ? (0, 1) is a forgetting factor, which has its own time evolution:
+(34) ?(t) = (1? 1/t)p
+regulated by the forgetting exponent p > 0. As t increases, the factor ?(t) increases
+(?(t) ? 1 as t ? ?), reflecting the increasing accuracy of the past information as
+the training progresses. To incorporate the forgetting factor, we modify our gradient
+computation (30) as
+A
+(t)
+mod = ?
+(t)A
+(t?1)
+mod + (X
+(t))TX(t) ,
+b
+(t)
+mod = ?
+(t)b
+(t?1)
+mod + (X
+(t))T s(t) ,
+?F (t)mod(d) = (1/?
+(t))(A
+(t)
+modd? b
+(t)
+mod) .
+Based on the modified surrogate function F (t)mod(d), the dictionary update (29) is
+modified correspondingly to
+(35) d(t) = arg min
+d?RMD
+F (t)mod(d) + ?C(d) .
+This technique is used in some previous dictionary learning works, as we men-
+tioned before, but not theoretically analyzed. In this paper, we prove in Propositions
+1 and 2 that F
+(t)
+mod ? F as t??, where F
+(t)
+mod is a weighted approximation of F :
+(36) F
+(t)
+mod(d) =
+1
+?(t)
+( t?
+?=1
+(?/t)pf(d; s(?))
+)
+.
+Moreover, in Theorem 1, F (t)mod, the surrogate of F
+(t)
+mod, is also proved to be convergent
+on the current dictionary: F (t)mod(d(t))? F
+(t)
+mod(d
+(t))? 0.
+3Improvements I and II have been addressed in our previous work [31]. In the present article,
+we include their theoretical analysis and introduce the new enhancement of the stopping criterion
+(Improvement III).
+8
+Effect of the forgetting exponent p. A small p tends to lead to a stable
+algorithm since all the training signals are given nearly equal weights and F
+(t)
+mod is a
+statistic approximation of F with small variance. Propositions 1 and 2 give theoretical
+explanations of this phenomenon. However, a small p leads to an inaccurate surrogate
+loss function F (t)mod since it gives large weights to old information. An extreme case
+is, as p ? 0, the modified surrogate function (31) reduces to the standard one (28).
+Section 7.1.1 reports the related numerical results.
+3.2.2. Improvement II: solving subproblem (35) with frequency-domain
+FISTA. Based on the discussion in Section 2.2, (35) can be written in an equivalent
+form:
+(37) d(t) = arg min
+d?RMN
+F (t)mod(d) + ?CPN(d) .
+Then, after we apply the acceleration techniques in Section 2.2, the gradient of F (t)mod
+in the frequency domain can be computed as
+(38)
+A?
+(t)
+mod = ?
+(t)A?
+(t?1)
+mod + (X?
+(t))HX?(t) ,
+b?
+(t)
+mod = ?
+(t)b?
+(t?1)
+mod + (X?
+(t))H s?(t) ,
+(39) ?F? (t)mod(d?) = (1/?
+(t))(A?
+(t)
+modd?? b?
+(t)
+mod) .
+With the gradient in the frequency domain (39), we can apply FISTA in the frequency
+domain on problem (37), as in Algorithm 2.
+Complexity analysis.4 If we solve (35) directly, the operator X(t) is a linear
+operator that RDM ? RN . Thus, the complexity of computing the Hessian matrix
+of f (t), (X(t))TX(t), is O(D2M2N). Moreover, the memory cost is O(D2M2). In
+comparison, if we solve (37) in the frequency domain, the frequency-domain operator
+X?(t) = (X?1, X?2, · · · , X?M ) is a linear operator that CMN ? CN , which seems to lead
+to a larger complexity to compute Hessian: O(M2N3) flops and O(M2N2) memory
+cost. However, each component X?m is diagonal. Hence, the frequency-domain product
+(X?(t))HX?(t) has onlyO(M2N) non-zero values. Both the number of flops and memory
+cost are O(M2N). Take typical values M = 64, D = 16 × 16, N = 256 × 256; then,
+the flops O(M2N) is much less than O(D2M2N), and the memory cost O(M2N) is
+comparable to O(D2M2).
+3.2.3. Improvement III: the stopping condition of FISTA. Another issue
+in Algorithm 1 is the stopping of FISTA. A fixed small tolerance will cause too many
+inner-loop iterations at initial steps. Another strategy, as used in SPAMS [36] and
+[27], is a fixed number of inner-loop iterations, but it does not have any theoretical
+convergence guarantee.
+In this article, we propose a “diminishing tolerance” scheme in which subproblem
+(37) is solved inexactly, but the online learning algorithm is still theoretically guaran-
+teed to converge. The stopping accuracy is increasing as t increases. Moreover, with
+warm start (using d(t?1) as the initial point of the tth step), the number of inner-loop
+iterations stays moderate as t increases.
+4In our previous paper [31], we compared the complexity of computing (37) in the spatial and
+frequency domains. But a more meaningful comparison should be between solving (35) in the spatial
+domain and solving (37) in the frequency domain, as we do here.
+9
+Algorithm 2: D-update: Modified FISTA for solving subproblem (37)
+Input: Hessian matrix A?
+(t)
+mod and vector b?
+(t)
+mod.
+Dictionary of last iterate: d(t?1).
+Initialize: Let g0 = d(t?1) (warm start), g0aux = g
+0, ?0 = 1.
+1 for j = 0, 1, 2, . . . until convergence do
+2 Compute DFT: g?jaux = FFT(g
+j
+aux).
+3 Compute conjugate cogradient ?F? (t)mod(g?jaux) by (39).
+4 Compute the next iterate:
+(40) gj+1 = ProjCPN
+(
+IFFT
+(
+g?jaux ? ??F?
+(t)
+mod(g?
+j
+aux)
+))
+.
+Let ?j+1 =
+(
+1 +
+?
+1 + 4(?j)2
+)
+/2, then compute the auxiliary variable:
+(41) gj+1aux = g
+j+1 +
+?j ? 1
+?j+1
+(gj+1 ? gj) .
+5 end
+Output: d(t) ? gJ , where J is the last iterate.
+Stopping metric. We use the Fixed Point Residual (FPR) [11] in this paper:
+(42) R(t)(g) ,
+???g ? ProjCPN(g ? ??F (t)mod(g))??? .
+There are two reasons to use it. One is its simplicity; if FISTA is used to solve (37),
+this metric can be computed directly as R(t)(gjaux) =
+??gj+1 ? gjaux??. The other is
+that a small FPR implies a small distance to the exact solution of the subproblem, as
+shown in Proposition 3 below.
+Stopping condition. In this paper, we consider the following stopping condi-
+tion:
+(43) R(t)(gjaux) ? ? (t) , ?0/(1 + ?t) ,
+where the tolerance ? (t) is large during the first several steps and reduces to zeros
+at the rate of O(1/t) as t increases. In the tth step, once (43) is satisfied, we stop
+the D-update (Algorithm 2) and continue to the next step. The full algorithm is
+summarized in Algorithm 3. The effect of this stopping condition is theoretically
+analyzed in Propositions 3 and 4, and numerically demonstrated in Sec. 7.1.3 below.
+3.3. Algorithm 4 (Surrogate-Splitting): a limited memory version of
+Algorithm 3. In Algorithm 3, the Hessian matrix of the surrogate function A?
+(t)
+mod
+with the size of O(M2N) is maintained and updated. (Recall that M is the total
+number of dictionary filters and N is the signal dimension.) When M and N are
+large, say M = 64 and N = 256 × 256, we have M2N ? 2.7 × 108. Thus A?(t)mod still
+requires a large amount of memory. To reduce memory usage, we use small regions
+instead of the whole signal. Specifically, as illustrated in Fig. 1, we split a signal
+s(t) ? N into small regions s(t)split,1, s
+(t)
+split,2, ... ? N? , with N? < N , and treat them as if
+they were distinct signals. In this way, the training signal sequence becomes
+10
+Algorithm 3: Online Convolutional Dictionary Learning (Improved Surrogate
+Function)
+Initialize: Initialize d(0), let A?
+(0)
+mod ? 0, b?
+(0)
+mod ? 0.
+1 for t = 1, · · · , T do
+2 Sample a signal s(t).
+3 Solve convolutional sparse coding problem (26).
+4 Compute the Hessian matrix A?
+(t)
+mod and vector b?
+(t)
+mod (32, 38).
+5 Update dictionary by solving (37) with Algorithm 2 until stopping
+condition (43) is satisfied.
+6 end
+Output: d(T )
+streaming
+Fig. 1. An example of image splitting: N = 256× 256? N? = 128× 128.
+Algorithm 4: Online Convolutional Dictionary Learning (Surrogate-Splitting)
+Initialize: Initialize d(0), let A?
+(0)
+mod ? 0, b?
+(0)
+mod ? 0.
+1 for t = 1, · · · , T do
+2 Sample a signal s(t).
+3 Split s(t) into several regions5: {s(t)split,1, · · · , s
+(t)
+split,n}.
+4 Shuffle the n small regions into a random order.
+5 for i = 1, · · · , n do
+6 Compute line 3 – line 5 in Algorithm 3 for s
+(t)
+split,i.
+7 end
+8 end
+Output: d(T )
+{s(t)split}(t) , {s
+(1)
+split,1, · · · , s
+(1)
+split,n, s
+(2)
+split,1, · · · , s
+(2)
+split,n, · · · } .
+We call this approach “Surrogate-Splitting”, which is listed in Algorithm 4.
+Boundary issues. The use of circular boundary conditions for signals that are
+5In our previous work [31], we sample some small regions from the whole signals in the limited
+memory algorithm, which performs worse than the algorithm training with the whole signals. We
+claim that the performance sacrifice is caused by the circular boundary condition. In fact, this
+is caused by the sampling. In that paper, we sample small regions with random center position
+and fixed size. If we sample small regions in this way, some parts of the image are not sampled,
+but some are sampled several times. Consequently, in the present paper, we propose the “image-
+splitting” technique, which avoids this issue. The “Surrogate-Splitting” algorithm only shows worse
+performance when the splitting size is smaller than a threshold, which is actually caused by the
+boundary condition.
+11
+s : 64× 64
+dm
+12× 12
+s1 s2
+(a) When the signal size 64×
+64 is much larger than the ker-
+nel size 12 × 12, pixels s1, s2
+in the same filter are far from
+each other. Thus, they do not
+interact with each other.
+s : 24× 24
+dm
+12× 12s1 s2
+(b) When the signal size 24×
+24 is twice the kernel size 12×
+12, s1, s2 still do not interact.
+It is the smallest signal size to
+avoid boundary artifacts.
+s : 16× 16
+dm
+12× 12s1 s2
+(c) When the signal size 16 ×
+16 is less than twice the ker-
+nel size 12×12, s1, s2 interact
+with one another. This leads
+to artifacts in practice.
+Fig. 2. An illustration of the boundary artifacts with two-dimensional square signals and dic-
+tionary kernels.
+not periodic has the potential to introduce boundary artifacts in the representation,
+and therefore also in the learned dictionary [63]. When the size of the training images
+is much larger than the filters, there is some evidence that the effect on the learned
+dictionary is negligible [8], but it is reasonable to expect that these effects will become
+more pronounced for smaller training images, such as the regions we obtain when
+using a small splitting size N? . The possibility of severe artifacts when the image size
+approaches the filter size is illustrated in Fig. 2. In Sec. 7.1.2, we study this effect
+and show that using a splitting size that is twice of the kernel size in each dimension
+is sufficient to avoid artifacts, as expected from the argument illustrated in Fig. 2.
+4. First-order SA method: modified SGD (Algorithm 5) . Now we con-
+sider first-order algorithms for the CDL problem (13). Projected SGD can be applied
+directly as
+d(t) = ProjC
+(
+d(t?1) ? ?(t)?f(d(t?1); s(t))
+)
+,
+where parameter ?(t) is the step size6. Given the definition of f in (11),?f(d(t?1); s(t))
+is the partial derivative on d at the optimal x [37, 10], i.e. ?f(d; s) = ?l?d (d,x
+?(d, s); s),
+where x? is defined by (12).
+Thus, to compute the gradient ?f(d(t?1); s(t)), we should first compute the co-
+efficient maps x(t) of the tth training signal s(t), which is given by (26). Then we can
+compute the gradient as
+?f(d(t?1); s(t)) = ?l
+?d
+(d(t?1),x(t); s(t)) =
+(
+X(t)
+)T(
+X(t)d(t?1) ? s(t)
+)
+.
+Based on equation (24), we can compute the conjugate cogradient of the frequency-
+domain loss function f? :
+(44) ?f?(d?(t?1); s?(t)) =
+(
+X?(t)
+)H(
+X?(t)d?(t?1) ? s?(t)
+)
+.
+6Some authors refer to it as the learning rate.
+12
+Algorithm 5: Online Convolutional Dictionary Learning (Modified SGD)
+Initialize: Initialize d(0) with a random dictionary.
+1 for t = 1, · · · , T do
+2 Sample a signal s(t).
+3 Solve convolutional sparse coding problem (26).
+4 Compute the conjugate cogradient of f? (44).
+5 Update dictionary via modified SGD (45).
+6 end
+Output: d(T )
+Algorithm Single step complexity Memory usage
+Batch learning algorithms [49, 21] O(KMN) O(KMN)
+Algorithm 1 + FISTA O(D2M2N) O(D2M2)
+Algorithm 3 + Algorithm 2 O(M2N) O(M2N)
+Algorithm 4 + Algorithm 2 O(M2N) O(M2N?)
+Algorithm 5 O(MN) O(MN)
+Table 1
+Single step complexity and memory usage of the algorithms in Sections 3 and 4
+Similar to Section 2.2, projected SGD can be modified to the following equation:
+(45) d(t) = ProjCPN
+(
+IFFT
+(
+d?(t?1) ? ?(t)?f?(d?(t?1); s?(t))
+))
+The full algorithm is summarized in Algorithm 5.
+Summary of the complexities of the algorithms. We summarize the single-
+step and memory usage complexities in Table 1. Algorithm 3 is improved based on
+Algorithm 1; Algorithm 4 is the limited memory version of Algorithm 3. Thus, our
+most effective algorithms are Algorithms 4 and 5. In Section 7, we will numerically
+compare these two methods with batch methods.
+5. Learning from masked images. In this section, we focus on the masked
+CDL problem [24, 53] for which there are no existing online algorithms:
+(46) min
+d
+Es[fmask(d; s)] + ?C(d) ,
+where fmask is defined as
+(47) fmask(d; s) , min
+{xm}
+1
+2
+???W  ( M?
+m=1
+dm ? xm ? s
+)???2
+2
++ ?
+M?
+m=1
+?xm?1 .
+The masking matrix W is usually a {0, 1}-valued matrix that masks unknown or
+unreliable pixels. Similarly to (44), we can derive the conjugate cogradient of f?mask:
+(48) ?f?mask(d?(t?1); s?(t)) =
+(
+X?(t)
+)H
+FFT
+{
+W  IFFT
+(
+X?(t)d?(t?1) ? s?(t)
+)}
+.
+With (48) in hand, we propose an online method to solve masked CDL problem (46):
+(49) d(t) = ProjCPN
+(
+IFFT
+(
+d?(t?1) ? ?(t)?f?mask(d?(t?1); s?(t))
+))
+13
+Algorithm 6: Online Masked Convolutional Dictionary Learning (Solving
+(46))
+Initialize: Initialize d(0) with a random dictionary.
+1 for t = 1, · · · , T do
+2 Sample a signal s(t).
+3 Solve masked convolutional sparse coding problem (47):
+x(t) = CBPDN-mask(d(t?1); s(t))
+4 Compute gradient (48).
+5 Update dictionary via modified SGD (49).
+6 end
+Output: d(T )
+The full algorithm is summarized in Algorithm 6.
+Equivalence of the frequency domain gradient and spatial domain gra-
+dient. For the masked loss function,
+(50) ?f?mask(d?(t?1); s?(t)) = FFT
+{
+?fmask(d(t?1); s(t))
+}
+.
+Our proposed algorithm (49) is mathematically equivalent with standard projected
+stochastic gradient descent on masked CDL problem (46), while our method is com-
+putationally cheaper because operator X? is easier to compute.
+6. Convergence. In this section, we study the convergence of Algorithms 3.
+Algorithm 4, compared with Algorithm 3, only changes the method of splitting the
+training signals. Thus, the convergence proof of Algorithm 4 follows exactly with that
+of Algorithm 3. Algorithms 5 and 6, by (24) and (50) respectively, are equivalent to
+the standard projected SGD. Thus, by properly choosing step sizes ?(t), Algorithm 5
+converges to a stationary point [22]. A diminishing step size rule ?(t) = a/(b + t) is
+used in other dictionary learning works [1, 36].
+First, we start with some assumptions7:
+Assumption 1. All the signals follow a distribution with a compact support.
+Assumption 2. Each sparse coding step (12) has a unique solution.
+Assumption 3. The surrogate functions are strongly convex.
+Assumption 1 can be easily guaranteed by normalizing each training signal. As-
+sumption 2 is a common assumption in dictionary learning and other linear regression
+papers [36, 13]. Practically, it must be guaranteed by choosing a sufficiently large
+penalty parameter ? in (12), because a larger penalty parameter leads to a sparser
+x. See Appendix C for details. Assumption 3 is a common assumption in RLS (see
+Definition (3.1) in [28]) and dictionary learning (see Assumption B in [37]).
+Proposition 1 (Weighted central limit theorem). Suppose Zi
+i.i.d? PZ(z), with a
+compact support, expectation µ, and variance ?2. Define the weighted approximation
+7The specific formulas for Assumptions 2 and 3 are shown in Appendix C.
+14
+of Z: Z?nmod ,
+1?n
+i=1(i/n)
+p
+?n
+i=1(i/n)
+pZi. Then, we have
+(51)
+?
+n(Z?nmod ? µ)
+d? N
+(
+0,
+p+ 1?
+2p+ 1
+?
+)
+.
+(52) E
+[?
+n
+??Z?nmod ? µ??] = O(1) .
+This proposition is an extension of the central limit theorem (CLT). As p ? 0, it
+reduces to the standard CLT. The proof is given in Appendix D.3.
+Proposition 2 (Convergence of functions). With Assumptions 1-3, we have
+(53) E
+[?
+t
+??F ? F (t)???] ?M ,
+(54) E
+[?
+t
+??F ? F (t)mod???] ? p+ 1?2p+ 1M ,
+where M > 0 is some constant unrelated with t, and ?f?? = supd?C ?f(d)?.
+This proposition is an extension of Donsker’s theorem (see Lemma 7 in [37] and
+Chapter 19 in [48]). The proof is given in Appendix D.4.
+Moreover, it shows that weighted approximation F
+(t)
+mod and standard approxima-
+tion F (t) have the same asymptotic convergence rate O(1/
+?
+t). However, the error
+bound factor (p + 1)/
+?
+2p+ 1 is a monotone increasing function in p ? 0. Thus, a
+larger p leads to a larger variance and slower convergence of F
+(t)
+mod. This explains why
+we cannot choose p to be too large.
+Proposition 3 (Convergence of FPR implies convergence of iterates). Let
+(d?)(t) be the exact minimizer of the tth subproblem:
+(55) (d?)(t) = arg min
+d
+F (t)mod(d) + ?C(d) .
+Let d(t) be the solution obtained by the frequency-domain FISTA (Algorithm 2) with
+our proposed stopping condition (43). Then, we have
+(56)
+??d(t) ? (d?)(t)?? ? O (t?1) .
+The proof is given in Appendix D.1.
+Proposition 4 (The convergence rate of Algorithm 3). Let d(t) be the sequence
+generated by Algorithm 3. Then, we have
+(57)
+??d(t+1) ? d(t)?? = O (t?1) .
+Compared with Lemma 1 in [37], which shows the convergence rate of the exact D-
+update algorithm (Algorithm 1), our Proposition 4 shows that the inexact D-update
+(43) shares the same rate. Since our inexact version stops FISTA earlier, it is faster.
+The proof of this proposition is given in Appendix D.2.
+Theorem 1 (Almost sure convergence of Algorithm 3). Let F (t)mod be the surro-
+gate function sequence, d(t) the iterate sequence, both generated by Algorithm 3. Then
+we have, with probability 1,
+15
+1. F (t)mod(d(t)) converges.
+2. F (t)mod(d(t))? F (d(t))? 0.
+3. F (d(t)) converges.
+4. dist(d(t), V )? 0, where V is the set of stationary points of the CDL problem
+(13).
+The proof is given in Appendix D.5.
+7. Numerical results: learning from clean data set. All the experiments
+are conducted in MATLAB R2016a running on a workstation with 2 Intel Xeon(R)
+X5650 CPUs clocked at 2.67GHz. The dictionary size is 12×12×64, and the signal size
+is 256× 256. Dictionaries are evaluated by comparing the functional values obtained
+by computing CBPDN (11) on the test set. A smaller function value indicates a better
+dictionary. Similar methods to evaluate dictionary are also used in other dictionary
+learning works: [37, 47]. The training set consists of 40 images selected from the
+MIRFLICKR-1M dataset [26]8, and the test set consists of 20 different images from
+the same source. The penalty parameter is chosen as ? = 0.1.
+Originally, all the images used are of size 512×512. To accelerate the experiments,
+we crop the borders of both the training images and testing images and preserve the
+middle part to yield 256× 256. The training and testing images are pre-processed by
+dividing by 255 to rescale the pixel values to the range [0, 1] and highpass filtering9.
+7.1. Tuning parameters for Surrogate-Splitting (Algorithm 4). There
+are 3 parameters to tune in Algorithm 4: the forgetting exponent p, splitting size N? ,
+and stopping tolerance of FISTA ? (t). We study the effect of these parameters. The
+experiment results are shown in Fig. 3.
+7.1.1. Forgetting exponent p. In this section, we fix N? = 64 × 64, which is
+illustrated as a good choice in the next paragraphs, and ? (t) = 10?3, which is small
+enough. Fig. 3(a) shows the results. It shows that, when p = 0, the curve is monotonic
+and with small oscillation, but it converges slowly, and the dictionaries obtained are
+not accurate. (Higher function values indicate more inaccurate dictionaries.) When
+p is larger, the algorithm converges to lower function values. When p is too large,
+for instance, p ? {40, 80}, the curve oscillates severely, which indicates large variance.
+These results are consistent with Propositions 1 and 2. In the remaining sections we
+fix p = 10 since it is shown to be a good choice.
+7.1.2. Region splitting size N? and boundary artifacts. In this section, we
+fix ? (t) = 10?4, which is small enough. Fig. 3(b) shows the results. Moreover, we
+report the dictionaries obtained with different N? in Fig. 4. In our experiments, we
+only consider square signals (N? = 12 × 12, 16 × 16, 32 × 32, 64 × 64, 256 × 256) and
+square dictionary kernels (D = 12 × 12). When N? ? 22D, say N? = 32 × 32 or
+N? = 64 × 64, the algorithm converges to a good function value, which is the same
+with that of Algorithm 3 without image-splitting. However, when N? is smaller than
+the threshold 22D, say N? = 16 × 16 or 12 × 12, the algorithm converges to a higher
+function value, which implies worse dictionaries. Thus, we can conclude that the
+8The actual image data contained in this dataset is of very low resolution since the dataset is
+primarily targeted at image classification tasks. The original images from which those used here were
+derived were obtained by downloading the original images from Flickr that were used to derive the
+MIRFLICKR-1M images.
+9The highpass component is the difference between the input signal and a lowpass component
+computed by Tikhonov regularization with a gradient term [58, pg. 3], with regularization parameter
+5.0.
+16
+p = 80
+p = 40
+p = 20
+p = 10
+p = 0
+Iterations
+F
+u
+n
+ct
+io
+n
+a
+l
+va
+lu
+e
+o
+n
+te
+st
+se
+t
+100101
+120
+115
+110
+105
+100
+(a) Effect of forgetting exponent p. A small p leads
+to a higher function value (inaccurate approximate);
+a large p leads to instability. p = 10 is a good choice.
+N? = 2562
+N? = 642
+N? = 322
+N? = 162
+N? = 122
+Iterations
+F
+u
+n
+ct
+io
+n
+a
+l
+va
+lu
+e
+o
+n
+te
+st
+se
+t
+100101
+120
+115
+110
+105
+100
+(b) Effect of the region splitting size N? . Boundary
+artifacts become significant when splitting region
+size is smaller than twice of the dictionary kernel
+size. Here the kernel size is 12× 12, thus 24× 24 is
+the threshold.
+? = 10?2/(1+t)
+? = 10?4
+? = 10?3
+? = 10?2
+Iteration
+F
+u
+n
+ct
+io
+n
+a
+l
+va
+lu
+e
+o
+n
+te
+st
+se
+t
+100101
+120
+115
+110
+105
+100
+(c) Effect of subproblem stopping tolerance ? (t). A
+large tolerance leads to inaccuracy. Our diminishing
+tolerance starting with a large tolerance and increas-
+ing the accuracy as t increases, avoids this issue.
+? = 10?2/(1+t)
+? = 10?4
+? = 10?3
+? = 10?2
+Time (s)
+F
+u
+n
+ct
+io
+n
+a
+l
+va
+lu
+e
+o
+n
+te
+st
+se
+t
+100001000100
+120
+115
+110
+105
+100
+(d) Effect of subproblem stopping tolerance ? (t). A
+small enough tolerance is accurate enough but slow.
+Our diminishing tolerance scheme is faster since we
+stop the inner loop earlier.
+Fig. 3. Tuning parameters of Surrogate-Splitting (Algorithm 4)
+splitting size should be at least twice of the dictionary kernel size in each dimension.
+Otherwise, it will lead to boundary artifacts. This phenomenon is consistent with our
+statements in Section 3.3. The artifacts are specifically displayed in Fig. 4. When N?
+is smaller than the threshold, say 12× 12, the features learned are incomplete.
+In the following sections, we will uniformly use 64× 64, since it provides a good
+balance between memory cost and functional convergence.
+7.1.3. Stopping tolerance of FISTA ? (t). Fig. 3(c) and 3(d) show the effect
+of using different ? (t). If we use a fixed tolerance as our stopping condition, then
+when the tolerance is large, say ? (t) = 10?2, the function value decreases fast at first
+but goes to a higher value in the end; when the tolerance is small, say ? (t) = 10?3 or
+17
+(a) Dictionaries learned by N? =
+12 × 12: some incomplete fea-
+tures.
+(b) Dictionaries learned by N? =
+64× 64.
+(c) Dictionaries learned by N? =
+256× 256.
+Fig. 4. Effect of splitting regions size N? (Algorithm 4).
+? = 10/(5 + t)
+? = 0.01
+? = 0.03
+? = 0.10
+? = 0.30
+? = 1.00
+Iterations
+F
+u
+n
+ct
+io
+n
+a
+l
+va
+lu
+e
+o
+n
+te
+st
+se
+t
+1000100101
+130
+125
+120
+115
+110
+105
+100
+Fig. 5. Tuning the step size of modified SGD (Algorithm 5). With a large fixed ?, the algorithm
+converges fast at first but unstable in the end; with a small fixed ?, the algorithm converges slowly.
+A diminishing step size is a good balance.
+10?4, the algorithm converges slowly. Consider our proposed diminishing tolerance
+rule (43) ? (t) = 0.01/(1 + t). When t = 0, we have ? (0) = 10?2; at the end, ? (100) ?
+10?4. Thus, the diminishing tolerance fixes this issue and balances the convergence
+rate and accuracy. Based on the results shown in Sections 7.1.1, 7.1.2, and 7.1.3,
+p = 10, N? = 64× 64, ? (t) = 10?2/(1 + t) is a good choice for Algorithm 4.
+7.2. Tuning parameters for modified SGD (Algorithm 5). The only pa-
+rameter to tune in Algorithm 5 is the step size ?(t). We can choose either a fixed step
+size or a diminishing step size:
+?(t) = ?0 or ?
+(t) = a/(t+ b).
+The results of experiments to determine the best choice of ? are reported in Fig. 5.
+We test the convergence performance of fixed step size scheme with values: ?0 ?
+{1, 0.3, 0.1, 0.03, 0.01}. We also test the convergence performance of diminishing
+step size scheme with values: a ? {5, 10, 20}; b ? {5, 10, 20} and report the best
+(a = 10, b = 5) in Fig. 5. When a large fixed step size is used, the function value
+decreases fast initially but becomes unstable in the end. A smaller step size causes
+the opposite. A diminishing step size balances accuracy and convergence rate.
+18
+Surrogate-Split.
+Modified SGD
+Prev. Online
+Batch K = 40
+Batch K = 20
+Batch K = 10
+Time (s)
+F
+u
+n
+ct
+io
+n
+a
+l
+va
+lu
+e
+o
+n
+te
+st
+se
+t
+10000010000100010010
+120
+115
+110
+105
+100
+Fig. 6. Main Result I: convergence speed comparison on the clean data set. Notice that the time
+axis is logarithmically scaled. In this plot, “Prev. Online” refers to our algorithm “Online-Samp”
+proposed in [31], “Modified SGD” refers to Algorithm 5 and “Surrogate-Split.” refers to Algorithm
+4.
+7.3. Main result I: convergence speed. In this section, we study the conver-
+gence speeds of all the methods on the clean data set, without a masking operator.
+A performance comparison of batch and online methods is presented in Fig. 6. The
+batch results are computed using the ADMM consensus dictionary update [49, 21],
+which is currently one of the leading methods. For batch learning algorithms, we
+test on a subset of the whole training set with 10, 20, 40 images. For online learning
+algorithms, since they are scalable in the size of the training set, we just test our
+methods on the whole training set (40 images in total). All the parameters are tuned
+as follows. For batch learning algorithms, we use the “adaptive penalty parameter”
+scheme in [57]. For modified SGD (Algorithm 5), we use the step size of 10/(5 + t).
+For Surrogate-Splitting (Algorithm 4), we use p = 10, ? (t) = 0.01/(1+t), N? = 64×64.
+For our algorithm proposed in [31], we use p = 10, ? (t) = 10?3, N? = 64× 64.
+The time axis is logarithmically scaled. Thus, the advantage of online learning
+is significant. To get to the same function value 101 on the test set, batch learning
+takes 15 hours, our previous method [31] takes around 1.5 hours, Algorithm 4 takes
+around 1 hour, and Algorithm 5 takes less than 1 hour. We can conclude that, both
+modified SGD (Algorithm 5) and Surrogate-Splitting (Algorithm 4) converge faster
+than the batch learning algorithms and our previous method.
+7.4. Main result II: memory usage. As Table 2 shows, both Algorithm 5
+and 4 save a large amount of memory.
+7.5. Main result III: dictionaries obtained by different algorithms. We
+print out the dictionaries obtained by algorithms in Section 7.3 in Fig. 7. A small
+training set, say 10 images, leads to some random kernels in the dictionaries. A train-
+ing set containing 40 images works much better. Our algorithms can learn comparable
+dictionaries (see Fig. 7(c), 7(e), and 7(f)) within much less time (see Fig. 6) and much
+less memory usage (see Table 2).
+8. Numerical results: learning from the noisy data set. In this section,
+we try to learn dictionaries from noisy images. We test the algorithms on the training
+19
+Scheme Memory (MB)
+Batch (K = 10) 1959.58
+Batch (K = 20) 3887.08
+Batch (K = 40) 7742.08
+Our algorithm “Online-Samp” in [31] 158.11
+Algorithm 4: Surrogate-Splitting 158.11
+Algorithm 5: modified SGD 154.84
+Table 2
+Main Result II: Memory Usage Comparison in Megabytes.
+set with salt-and-pepper impulse noise at known pixel locations. We apply the noise
+to 10%, 20%, and 30% of the positions, as Fig. 8 shows. We pre-process the data set
+by applying a highpass filter computed as the difference between the input and a non-
+linear lowpass filter10. When the number of noisy pixels is low, say 10%, SGD without
+masking (Algorithm 5) still can learn some features, as Fig. 8(b) demonstrates. When
+the number of noisy pixels is significant, say 30%, SGD without masking “learns”
+nothing valid, as Fig. 8(h) demonstrates. However, SGD with masking technique
+(Algorithm 6) works much better because it “ignores” the noisy positions.
+8.1. Masked CDL: online algorithm (Algorithm 6) vs batch algorithm.
+We compare our online masked SGD and a batch dictionary learning algorithm11 [53]
+incorporating the mask via the mask decoupling technique [24]. The results are shown
+in Fig. 9. We use the function value on the clean test set as the criterion. Our online
+algorithm converges much faster and more stably. Our Algorithm 6 takes 1 ? 2 hours
+to converge while the mask-decoupling scheme needs more than 10 hours.
+9. Conclusions. We have proposed two efficient online convolutional dictionary
+learning methods. Both of them have theoretical convergence guarantee and show
+good performance on both time and memory usage. Compared to recent online CDL
+works [12, 52], which use the same framework but different D-update algorithms,
+our second order SA method improves the framework by several practical techniques.
+Our first order SA method, to the best of our knowledge, is the first attempt to use
+first order methods in online CDL. It shows better performance in time and memory
+usage, and requires fewer parameters to tune. Moreover, based on the first-order SA
+method, we have also proposed an online dictionary learning method, which is able
+to learn meaningful dictionaries from a partially masked training set.
+Appendix A. Derivation of conjugate cogradient (22) of the frequency-
+domain loss function l?.
+Consider a real-valued function defined on the complex domain f : Cn ? R,
+which can be viewed as a function defined on the 2n dimensional real domain: f(x) =
+f(Rx + iIx), where Rx, Ix ? Rn are the real part and imaginary part, respectively.
+By [45], “conjugate cogradient” is defined as
+(58) ?f(x) , ?f
+?Rx
++ i
+?f
+?Ix
+.
+10The lowpass component was computed by `2 total-variation denoising [42] of the input image
+with a spatial mask informed by the known locations of corrupted pixels in the data fidelity term.
+11We used the implementation cbpdndlmd.m from the Matlab version of the SPORCO library [56],
+with the Iterated Sherman-Morrison dictionary update solver option [55].
+20
+(a) Dictionaries learned by batch learning al-
+gorithm (10 training images): many “random”
+kernels.
+(b) Dictionaries learned by batch learning al-
+gorithm (20 training images): less “random”
+kernels, more valid features
+(c) Dictionaries learned by batch learning algo-
+rithm (40 training images): almost all kernels
+are valid.
+(d) Dictionaries learned by [31], which is similar
+to 7(c).
+(e) Dictionaries learned by Surrogate-Splitting
+(Algorithm 4), which is similar to 7(c).
+(f) Dictionaries learned by modified SGD (Al-
+gorithm 5), which is similar to 7(c).
+Fig. 7. Main result III: Dictionaries learned from the clean data set.
+Based on (58), we give a derivation of (22).
+Recall the definition l?(d?, x?; s?) = 1/2
+??X?d? ? s???2. Plugging X? = RX? + iIX?,
+21
+(a) One of the training images.
+(10% positions noised (salt-and-
+pepper noise))
+(b) Learning with SGD (Algo-
+rithm 5): some features learned.
+(c) Learning with masked SGD
+(Algorithm 6): clean features
+learned.
+(d) One of the training images.
+(20% positions noised (salt-and-
+pepper noise))
+(e) Learning with SGD (Algo-
+rithm 5): few features learned.
+(f) Learning with masked SGD
+(Algorithm 6): clean features
+learned.
+(g) One of the training images.
+(30% positions noised (salt-and-
+pepper noise))
+(h) Learning with SGD (Algo-
+rithm 5): almost no valid fea-
+tures.
+(i) Learning with masked SGD
+(Algorithm 6): clean features
+learned.
+Fig. 8. Learning from the noisy training set.
+d? = Rd? + iId?, and s? = Rs? + iI s? into l?, we have
+l?(d?, x?; s?)
+=
+1
+2
+??RX?Rd?? IX?Id??Rs? + i(IX?Rd? +RX?Id?? I s?)??2
+=
+1
+2
+??RX?Rd?? IX?Id??Rs???2 + 1
+2
+??IX?Rd? +RX?Id?? I s???2 .
+The partial derivatives on Rd? and Id? are, respectively,
+?l?
+?Rd?
+=RX?T (RX?Rd?? IX?Id??Rs?) + IX?T (IX?Rd? +RX?Id?? I s?)
+?l?
+?Id?
+=IX?T (?RX?Rd? + IX?Id? +Rs?) +RX?T (IX?Rd? +RX?Id?? I s?) .
+22
+Batch (30%)
+Batch (20%)
+Batch (10%)
+SGD (30%)
+SGD (20%)
+SGD (10%)
+Time (s)
+F
+u
+n
+ct
+io
+n
+a
+l
+va
+lu
+e
+o
+n
+te
+st
+se
+t
+100000100001000100
+160
+155
+150
+145
+140
+Fig. 9. For masked CDL problem (46), Algorithm 6 performs better than batch learning algo-
+rithms.
+Therefore,
+X?H(X?d?? s?) =(RX? ? iIX?)T
+(
+(RX?Rd?? IX?Id??Rs?) + i
+(
+IX?Rd? +RX?Id?? I s?
+))
+=
+?l?
+?Rd?
++ i
+?l?
+?Id?
+.
+By the definition of conjugate cogradient (58), the right side of the above equation is
+the conjugate cogradient of l?, i.e.
+?l?(d?, x?; s?) = X?H(X?d?? s?) .
+Appendix B. Proof of the equivalence between the gradients in the
+frequency domain and spatial domain: (24) and (50).
+Proof. Let F be the Fourier operator CN ? CN , F?1 = FH is the inverse Fourier
+operator. x and X are the vector form and operator form of the coefficient map,
+respectively. x? and X? are the corresponding vector and operator in the frequency
+domain. Then we claim that:
+(59) x? = Fx , X? = FXFH .
+The first one is by definition. To prove the second one, notice that
+X?d? = F
+(
+x ? d
+)
+= F(Xd
+)
+= FXFHFd = FXFH d? , ?d ? RN .
+Thus we have X? = FXFH . With this equation, we have
+X?H(X?d?? s?) = (FXFH)H(FXFHFd?Fs) = (FXTFH)(FXd?Fs)
+= F
+(
+XT (Xd? s)
+)
+,
+which is exactly (24). Applying the same technique, we can prove (50).
+Appendix C. Details of the assumptions.
+23
+C.1. Description of Assumption 2. To represent Assumption 2 in a concise
+way, we use the following notation:
+Dx =
+M?
+m=1
+dm ? xm ? s ,
+where x ? RMN , s ? RN , D : RMN ? RN . The coefficient map x is usually sparse,
+and ? is the non-zero index of x. Then, we have
+Dx = D?x? .
+By results in [19], the sparse coding problem (12) has the unique solution if DT?D? is
+invertible, and its unique solution is
+(60) x?? = (D
+T
+?D?)
+?1(DT?s? ?sign(x??)) .
+Specifically, Assumption 2 is: for all signals s and dictionaries d we used, the smallest
+singular value of DT?D? is lower bounded by a positive number, i.e.
+(61) ?min(D
+T
+?D?) ? ? .
+C.2. Description of Assumption 3. Specifically, Assumption 3 is, the surro-
+gate functions F (t)mod(d) are uniformly strongly convex, i.e.
+(62) ??F (t)mod(d)??F
+(t)
+mod(d?),d? d?? ? µ
+???d? d????2 ,
+for all t,d, d?, for some µ > 0.
+Appendix D. Proofs of propositions and the theorem. Before proving
+propositions, we introduce a useful lemma.
+Lemma 2 (Uniform smoothness of surrogate functions). Under Assumptions 1
+and 2, we have f (t) (27) and F (t)mod(36) are uniformly L-smooth, i.e.
+(63)
+????f (t)(d)??f (t)(d?)??? ? Lf ???d? d????????F (t)mod(d)??F (t)mod(d?)??? ? LF ???d? d???? ,
+for all t,d, d?, for some constant Lf > 0, LF > 0.
+Proof. First, we consider a single surrogate function:????f (t)(d)??f (t)(d?)??? = ???(X(t))T (X(t))(d? d?)??? .
+By d ? C (the compact support of d), Assumption 1 (the compact support of s), and
+equation (60) (regularity of convolutional sparse coding), we have x(t) is uniformly
+bounded. Therefore, X(t), the operator form of x(t), is also uniformly bounded:
+(64)
+??X(t)?? ?M,
+for all t, for some M > 0, which is independent of t.
+By (31), we have????F (t)mod(d)??F (t)mod(d?)??? =???? 1?(t)
+t?
+?=1
+(?/t)p(X(?))T (X(?))(d? d?)
+????
+? 1
+?(t)
+t?
+?=1
+(?/t)p
+???(X(?))T (X(?))(d? d?)??? ,
+24
+which, together with (64), implies (63).
+D.1. Proof of Proposition 3. Given the strong-convexity (62) and smoothness
+(63) of the surrogate function, we start to prove Proposition 3.
+Proof. To prove (56), we consider a more general case. Let g? be the minimizer
+of the following subproblem:
+g? = arg min
+d
+F(d) + ?C(d) ,
+where F is µ-strongly convex and L-smooth. Moreover, gj and gjaux are the iterates
+generated in Algorithm 2, and j is the loop index. Then, we want to show that
+(65)
+??gj+1 ? g??? ? CR(t)(gjaux) , ?j ? 0 .
+By (24), it is enough to prove for the spatial-domain FISTA. By strong convexity
+and smoothness of F , we obtain
+?gj+1 ? g??2
+=
+???Proj(gjaux ? ??F(gjaux))? Proj(g? ? ??F(g?))???2
+?
+???gjaux ? ??F(gjaux)? g? ? ??F(g?)???2
+=
+???gjaux ? g? ? ?(?F(gjaux)??F(g?))???2
+=?gjaux ? g??2 ? 2?
+?
+gjaux ? g?,?F(gjaux)??F(g?)
+?
++ ?2
+???F(gjaux)??F(g?)??2
+?(1? 2µ? + ?2L2)?gjaux ? g??2 .
+Combining the above inequality and the definition of FPR (42), we have
+R(gjaux) =
+???gjaux ? Proj(gjaux ? ??F(gjaux))???
+=?gjaux ? g(j+1)?
+=?gjaux ? g? ? (g(j+1) ? g?)?
+??gjaux ? g?? ? ?g(j+1) ? g??
+?
+(
+1?
+?
+1? 2µ? + ?2L2
+)
+?gjaux ? g??
+?1?
+?
+1? 2µ? + ?2L2?
+1? 2µ? + ?2L2
+?gj+1 ? g?? .
+Let the step size be small enough ? ? min (µ/L2, 1/µ), we have 0 ? 1?2µ?+?2L2 ? 1,
+which implies (65). Combining (65) and (43), we get (56).
+D.2. Proof of Proposition 4.
+Proof. Recall (d?)(t) (55) is the “exact solution” of the tth iterate, and d(t) is
+the “inexact solution” of the tth iterate (i.e. the approximated solution obtained by
+25
+stopping condition (43)). Then, by the strong convexity of F (t)mod, we have
+F (t)mod(d
+(t+1))?F (t)mod(d
+(t))
+=F (t)mod(d
+(t+1))?F (t)mod((d
+?)(t))?
+(
+F (t)mod(d
+(t))?F (t)mod((d
+?)(t))
+)
+?µ?d(t+1) ? (d?)(t)?2 ? L?d(t) ? (d?)(t)?2
+?µ
+(
+?d(t+1) ? d(t)? ? ?d(t) ? (d?)(t)?
+)2
+? L?d(t) ? (d?)(t)?2 .
+Let r(t) = ?d(t+1) ? d(t)?. If r(t) ? C/t, Proposition 4 is directly proved. Otherwise,
+Proposition 3 (56) implies r(t) ? ?d(t) ? (d?)(t)? ? r(t) ? C/t ? 0 and
+(66) F (t)mod(d
+(t+1))?F (t)mod(d
+(t)) ? µ
+(
+r(t) ? C
+t
+)2
+? LC
+2
+t2
+.
+On the other hand,
+F (t)mod(d
+(t+1))?F (t)mod(d
+(t)) =F (t)mod(d
+(t+1))?F (t+1)mod (d
+(t+1))? ?? ?
+T1
++F (t+1)mod (d
+(t+1))?F (t+1)mod (d
+(t))? ?? ?
+T2
++ F (t+1)mod (d
+(t))?F (t)mod(d
+(t))? ?? ?
+T3
+,
+Now we will give the upper bounds of T1,T2,T3. Given the smoothness of F (t)mod(63)
+and (d?)(t+1) being the minimizer of F (t)mod, we have an upper bound of T2:
+(67)
+T2 =F (t+1)mod (d
+(t+1))?F (t+1)mod (d
+(t))
+=F (t+1)mod (d
+(t+1))?F (t+1)mod ((d
+?)(t+1))?
+(
+F (t+1)mod (d
+(t))?F (t+1)mod ((d
+?)(t+1))
+)
+?L?d(t+1) ? (d?)(t+1)?2 ? 0 ? LC
+2
+t2
+.
+Based on (31), the gradient of F (t)mod ?F
+(t+1)
+mod is bounded by????F (t)mod(d)??F (t+1)mod (d)???
+=
+?????F (t)mod(d)? ?(t+1)?(t)?(t+1) ?F (t)mod(d)? 1?(t+1)?f (t+1)(d)
+????
+? 1
+?(t+1)
+????F (t)mod(d)???+ 1?(t+1) ????f (t+1)(d)??? ? C0/(?(t+1)) ? C1/t ,
+for some constant C1 > 0. The second inequality follows from d ? C (the compact
+support of d), Assumption 1 (the compact support of s), and equation (64) (bound-
+edness of X). The last inequality is derived by the follows:
+1
+?(t+1)
+=
+(t+ 1)p?(t+1)
+?=1 ?
+p
+? (t+ 1)
+p? (t+1)
+0
+?pd?
+=
+p
+t+ 1
+.
+Then, F (t)mod?F
+(t+1)
+mod is a Lipschitz continuous function with L = C1/t, which implies
+T1 + T3 ?
+C1
+t
+r(t) .
+26
+Therefore,
+(68) F (t)mod(d
+(t+1))?F (t)mod(d
+(t)) ? C1
+t
+r(t) +
+LC2
+t2
+.
+Combining (66) and (68), we have
+µ
+(
+r(t) ? C
+t
+)2
+? LC
+2
+t2
+? C1
+t
+r(t) +
+LC2
+t2
+,
+which implies
+(r(t))2 ? 2C + C1
+t
+r(t) ? 2LC
+2
+µt2
+.
+We write it in a neat way,
+(r(t))2 ? 2C2
+t
+r(t) ? C3
+t2
+, for some C2 > 0, C3 > 0 .
+Finally, r(t) is bounded by r(t) ? (C2 +
+?
+C22 + C3)/t. (57) is proved.
+D.3. Proof of Proposition 1.
+Proof. Define a sequence of random variables Yi = i
+pZi. Their expectations and
+variances are µi = i
+pµ and ?2i = i
+2p?2, respectively. Now we apply the Lyapunov
+central limit theorem on the stochastic sequence {Yi}. Firstly, we check the Lyapunov
+condition [6]. Let
+s2n =
+n?
+i=1
+?2i =
+n?
+i=1
+i2p?2 = ?(n2p+1) ,
+then we have
+(69)
+1
+s2+?n
+n?
+i=1
+E
+[
+|Yi?µi|2+?
+]
+? 1
+s2+?n
+n?
+i=1
+(ip?)2+? = O
+( n2p+1+?p
+n2p+1+?p+?/2
+)
+= O(n??/2) .
+The Lyapunov condition is satisfied, so, by the Lyapunov central limit theorem, we
+have 1sn
+?n
+i=1(Yi ? µi)
+d? N(0, 1). Furthermore, the definition of Z?nmod indicates
+1
+sn
+n?
+i=1
+(Yi ? µi) =
+1
+sn
+n?
+i=1
+ip(Zi ? µ) =
+?n
+i=1 i
+p??n
+i=1 i
+2p?
+(
+1?n
+i=1 i
+p
+n?
+i=1
+ip(Zi ? µ)
+)
+=
+?n
+i=1 i
+p??n
+i=1 i
+2p?
+(Z?nmod ? µ) .
+Given the following inequalities:
+n?
+i=1
+ip <
+? n+1
+1
+spds <
+1
+p+ 1
+(n+ 1)p+1 ,
+n?
+i=1
+ip >
+? n
+0
+spds =
+1
+p+ 1
+(n)p+1 ,
+we have
+1
+sn
+n?
+i=1
+(Yi ? µi) ?
+(
+1 +
+1
+n
+)p+1 1
+?
+?
+2p+ 1
+p+ 1
+?
+n(Z?nmod ? µ) ,
+1
+sn
+n?
+i=1
+(Yi ? µi) ?
+(
+1 +
+1
+n
+)?(p+1) 1
+?
+?
+2p+ 1
+p+ 1
+?
+n(Z?nmod ? µ) .
+27
+Then (51) is obtained by 1sn
+?n
+i=1(Yi ? µi)
+d? N(0, 1) and (1 + 1/n)? 1.
+The formula Var(X) = EX2 ? (EX)2 ? 0 implies(
+E
+[?
+n
+??Z?nmod ? µ??])2 ? E[n??Z?nmod ? µ??2] .
+By the independence between different Zi, we have
+E
+[
+n
+??Z?nmod ? µ??2] = n(?ni=1 ip)2
+n?
+i=1
+E
+[
+i2p
+??Zi ? µ??2] ? (p+ 1)2
+2p+ 1
+B2 ,
+where B is the upper bound of Zi as Zi is compact supported. (52) is proved.
+D.4. Proof of Proposition 2.
+Proof. Firstly, we fix d ? C. Let i? ?, n? t, Zi ? f(d; s(?)), then, by Proposi-
+tion 1, we have
+E
+[?
+t
+??F (d)? F (t)mod(d)??] ? p+ 1?2p+ 1B , ?t ? {1, 2, · · · }
+for some B > 0, for fixed d. Since F and F
+(t)
+mod are continuously differentiable and
+have uniformly bounded derivatives (64), we have E
+[?
+t
+??F (d)?F (t)mod(d)??] is uniformly
+continuous w.r.t d on a compact set C. Thus, the boundedness of E
+[?
+t
+??F (d) ?
+F
+(t)
+mod(d)
+??] on each d implies the boundedness for all d ? C. Inequality (54) is proved.
+Taking p? 0, we have (53).
+D.5. Proof of Theorem 1.
+Proof. Let u(t) = F (t)mod(d(t)). Inspired by the proof of Proposition 3 in [37], we
+will show that u(t) is a “quasi-martingale” [18].
+u(t+1) ? u(t)
+=F (t+1)mod (d
+(t+1))?F (t)mod(d
+(t))
+=F (t+1)mod (d
+(t+1))?F (t+1)mod (d
+(t))? ?? ?
+T2
++F (t+1)mod (d
+(t))?F (t)mod(d
+(t))? ?? ?
+T4
+.
+The bound of T2 is given by (67). Furthermore, definition (27) tells us f
+(t+1)(d(t)) =
+f(d(t); s(t+1)), which implies
+T4 =F (t+1)mod (d
+(t))?F (t)mod(d
+(t))
+=
+(
+1
+?(t+1)
+f(d(t); s(t+1)) +
+?(t+1)?(t)
+?(t+1)
+F (t)mod(d
+(t))
+)
+?F (t)mod(d
+(t))
+=
+f(d(t); s(t+1))? F (t)mod(d(t))
+?(t+1)
++
+F
+(t)
+mod(d
+(t))?F (t)mod(d(t))
+?(t+1)
+.
+By the definitions of f (11) and F (36), we have F
+(t)
+mod(d
+(t)) ? F (t)mod(d(t)). Define Gt
+as all the previous information: Gt , {x(?), s(?),d(?)}t?=1. Thus, taking conditional
+expectation, we obtain
+E[T4|Gt] ?
+1
+?(t+1)
+(
+E[f(d(t); s(t+1))|Gt]?F (t)mod(d
+(t))
+)
+=
+1
+?(t+1)
+(
+F (d(t))?F (t)mod(d
+(t))
+)
+.
+28
+Therefore, the positive part of E[T4|Gt] is bounded by
+E[T4|Gt]+ ?
+1
+?(t+1)
+?F ? F (t)mod?? = O(
+1
+t3/2
+) ,
+where the second inequality follows from (54). Given the bound of T2 (67) and T4,
+we have
+??
+t=1
+E
+[
+E[u(t+1) ? u(t)|Gt]+
+]
+?
+??
+t=1
+(
+O( 1
+t3/2
+) +O( 1
+t2
+)
+)
+< +? ,
+which implies that u(t+1) generated by Algorithm 3 is a quasi-martingale. Thus, by
+results in [7, Sec. 4.4] or [37, Theorem 6], we have u(t) converges almost surely.
+For the proofs of 2, 3 and 4, using the results in Proposition 4, 2 in this paper,
+following the same proof line of Proposition 3 and 4 in [37], we can obtain the results
+in 2, 3 and 4.
+REFERENCES
+[1] M. Aharon and M. Elad, Sparse and redundant modeling of image content using an image-
+signature-dictionary, SIAM Journal on Imaging Sciences, 1 (2008), pp. 228–247.
+[2] M. Aharon, M. Elad, and A. Bruckstein, k-SVD: An algorithm for designing overcomplete
+dictionaries for sparse representation, IEEE Transactions on Signal Processing, 54 (2006),
+pp. 4311–4322.
+[3] L. V. Ahlfors, Complex analysis: an introduction to the theory of analytic functions of one
+complex variable, McGraw-Hill, 1979.
+[4] A. Beck and M. Teboulle, A fast iterative shrinkage-thresholding algorithm for linear inverse
+problems, SIAM Journal on Imaging Sciences, 2 (2009), pp. 183–202, https://doi.org/10.
+1137/080716542.
+[5] D. P. Bertsekas, Nonlinear programming, Athena scientific Belmont, 1999.
+[6] P. Billingsley, Probability and measure, John Wiley & Sons, 2008.
+[7] L. Bottou, Online learning and stochastic approximations, Online learning in neural networks,
+17 (1998), p. 142.
+[8] H. Bristow, A. Eriksson, and S. Lucey, Fast convolutional sparse coding, in Proceedings
+of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2013,
+pp. 391–398.
+[9] S. S. Chen, D. L. Donoho, and M. A. Saunders, Atomic decomposition by basis pursuit,
+SIAM Journal on Scientific Computing, 20 (1998), pp. 33–61, https://doi.org/10.1137/
+S1064827596304010.
+[10] J. M. Danskin, The theory of max-min, with applications, SIAM Journal on Applied Mathe-
+matics, 14 (1966), pp. 641–664.
+[11] D. Davis and W. Yin, Convergence rate analysis of several splitting schemes, in Splitting
+Methods in Communication, Imaging, Science, and Engineering, Springer, 2016, pp. 115–
+163.
+[12] K. Degraux, U. S. Kamilov, P. T. Boufounos, and D. Liu, Online convolutional dictionary
+learning for multimodal imaging, Preprint arXiv:1706.04256, (2017).
+[13] B. Efron, T. Hastie, I. Johnstone, R. Tibshirani, et al., Least angle regression, The
+Annals of Statistics, 32 (2004), pp. 407–499.
+[14] E. M. Eksioglu, Online dictionary learning algorithm with periodic updates and its application
+to image denoising, Expert Systems with Applications, 41 (2014), pp. 3682–3690.
+[15] M. Elad and M. Aharon, Image denoising via sparse and redundant representations over
+learned dictionaries, IEEE Transactions on Image Processing, 15 (2006), pp. 3736–3745.
+[16] K. Engan, S. O. Aase, and J. H. Husoy, Method of optimal directions for frame design, in
+Proceedings of IEEE International Conference on Acoustics, Speech, and Signal Processing
+(ICASSP), vol. 5, 1999, pp. 2443–2446.
+[17] K. Engan, B. D. Rao, and K. Kreutz-Delgado, Frame design using focuss with method
+of optimal directions (mod), in Proceedings of Norwegian Signal Processing Symposium
+(NORSIG), 1999, pp. 65–69.
+[18] D. L. Fisk, Quasi-martingales, Transactions of the American Mathematical Society, 120 (1965),
+pp. 369–389.
+29
+[19] J.-J. Fuchs, Recovery of exact sparse representations in the presence of bounded noise, IEEE
+Transactions on Information Theory, 51 (2005), pp. 3601–3608.
+[20] W. Gao, J. Chen, C. Richard, and J. Huang, Online dictionary learning for kernel LMS,
+IEEE Transactions on Signal Processing, 62 (2014), pp. 2765–2777.
+[21] C. Garcia-Cardona and B. Wohlberg, Subproblem coupling in convolutional dictionary
+learning, in Proceedings of IEEE International Conference on Image Processing (ICIP),
+Sept. 2017. Accepted.
+[22] S. Ghadimi and G. Lan, Stochastic first-and zeroth-order methods for nonconvex stochastic
+programming, SIAM Journal on Optimization, 23 (2013), pp. 2341–2368.
+[23] S. Gu, W. Zuo, Q. Xie, D. Meng, X. Feng, and L. Zhang, Convolutional sparse coding for
+image super-resolution, in Proceedings of International Conference on Computer Vision
+(ICCV), Dec. 2015.
+[24] F. Heide, W. Heidrich, and G. Wetzstein, Fast and flexible convolutional sparse coding,
+in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition
+(CVPR), 2015, pp. 5135–5143, https://doi.org/10.1109/CVPR.2015.7299149.
+[25] K. Huang and S. Aviyente, Sparse representation for signal classification, in Advances in
+neural information processing systems, 2007, pp. 609–616.
+[26] M. J. Huiskes, B. Thomee, and M. S. Lew, New trends and ideas in visual concept de-
+tection: The MIR Flickr retrieval evaluation initiative, in Proceedings of the interna-
+tional conference on Multimedia information retrieval (MIR), ACM, 2010, pp. 527–536,
+https://doi.org/10.1145/1743384.1743475.
+[27] R. Jenatton, J. Mairal, F. R. Bach, and G. R. Obozinski, Proximal methods for sparse
+hierarchical dictionary learning, in Proceedings of the 27th international conference on
+machine learning (ICML), 2010, pp. 487–494.
+[28] R. M. Johnstone, C. R. Johnson, R. R. Bitmead, and B. D. Anderson, Exponential con-
+vergence of recursive least squares with exponential forgetting factor, Systems & Control
+Letters, 2 (1982), pp. 77–82.
+[29] S. P. Kasiviswanathan, H. Wang, A. Banerjee, and P. Melville, Online l1-dictionary
+learning with application to novel document detection, in Advances in Neural Information
+Processing Systems, 2012, pp. 2258–2266.
+[30] M. S. Lewicki and T. J. Sejnowski, Coding time-varying signals using sparse, shift-invariant
+representations, in Advances in neural information processing systems, M. J. Kearns, S. A.
+Solla, and D. A. Cohn, eds., vol. 11, 1999, pp. 730–736.
+[31] J. Liu, C. Garcia-Cardona, B. Wohlberg, and W. Yin, Online convolutional dictionary
+learning, in Proceedings of IEEE International Conference on Image Processing (ICIP),
+Sept. 2017. Accepted.
+[32] Y. Liu, X. Chen, R. K. Ward, and Z. J. Wang, Image fusion with convolutional sparse
+representation, IEEE Signal Processing Letters, (2016), https://doi.org/10.1109/lsp.2016.
+2618776.
+[33] C. Lu, J. Shi, and J. Jia, Online robust dictionary learning, in Proceedings of the IEEE
+Conference on Computer Vision and Pattern Recognition (CVPR), 2013, pp. 415–422.
+[34] J. Mairal, F. Bach, and J. Ponce, Task-driven dictionary learning, IEEE Transactions on
+Pattern Analysis and Machine Intelligence, 34 (2012), pp. 791–804.
+[35] J. Mairal, F. Bach, and J. Ponce, Sparse modeling for image and vision processing,
+Foundations and Trends in Computer Graphics and Vision, 8 (2014), pp. 85–283, https:
+//doi.org/10.1561/0600000058.
+[36] J. Mairal, F. Bach, J. Ponce, and G. Sapiro, Online dictionary learning for sparse coding,
+in Proceedings of the 26th annual international conference on machine learning (ICML),
+ACM, 2009, pp. 689–696.
+[37] J. Mairal, F. Bach, J. Ponce, and G. Sapiro, Online learning for matrix factorization and
+sparse coding, Journal of Machine Learning Research, 11 (2010), pp. 19–60.
+[38] S. Mallat, A wavelet tour of signal processing, Academic press, 1999.
+[39] T. M. Quan and W.-K. Jeong, Compressed sensing reconstruction of dynamic contrast en-
+hanced mri using GPU-accelerated convolutional sparse coding, in IEEE International Sym-
+posium on Biomedical Imaging (ISBI), Apr. 2016, pp. 518–521, https://doi.org/10.1109/
+ISBI.2016.7493321.
+[40] O. Rippel, J. Snoek, and R. P. Adams, Spectral representations for convolutional neural
+networks, in Advances in Neural Information Processing Systems, 2015, pp. 2449–2457.
+[41] R. Rubinstein, A. M. Bruckstein, and M. Elad, Dictionaries for sparse representation
+modeling, Proceedings of the IEEE, 98 (2010), pp. 1045–1057.
+[42] L. Rudin, S. J. Osher, and E. Fatemi, Nonlinear total variation based noise removal algo-
+rithms., Physica D. Nonlin. Phenomena, 60 (1992), pp. 259–268, https://doi.org/10.1016/
+30
+0167-2789(92)90242-f.
+[43] K. Skretting and K. Engan, Recursive least squares dictionary learning algorithm, IEEE
+Transactions on Signal Processing, 58 (2010), pp. 2121–2130, https://doi.org/10.1109/tsp.
+2010.2040671.
+[44] K. Slavakis and G. B. Giannakis, Online dictionary learning from big data using accelerated
+stochastic approximation algorithms, in Proceedings of IEEE International Conference on
+Acoustics, Speech, and Signal Processing (ICASSP), IEEE, 2014, pp. 16–20.
+[45] L. Sorber, M. V. Barel, and L. D. Lathauwer, Unconstrained optimization of real functions
+in complex variables, SIAM Journal on Optimization, 22 (2012), pp. 879–898.
+[46] Z. Szabo?, B. Po?czos, and A. Lo?rincz, Online group-structured dictionary learning, in IEEE
+Conference on Computer Vision and Pattern Recognition (CVPR), 2011, pp. 2865–2872.
+[47] Y. Tang, Y.-B. Yang, and Y. Gao, Self-paced dictionary learning for image classification, in
+Proceedings of the 20th ACM international conference on Multimedia, 2012, pp. 833–836.
+[48] A. W. Van der Vaart, Asymptotic statistics, vol. 3, Cambridge University Press, 2000.
+[49] M. S?orel and F. S?roubek, Fast convolutional sparse coding using matrix inversion lemma,
+Digital Signal Processing, (2016), https://doi.org/10.1016/j.dsp.2016.04.012.
+[50] J. Wang, J. Yang, K. Yu, F. Lv, T. Huang, and Y. Gong, Locality-constrained linear
+coding for image classification, in Proceedings of IEEE Conference on Computer Vision
+and Pattern Recognition (CVPR), 2010, pp. 3360–3367.
+[51] N. Wang, J. Wang, and D.-Y. Yeung, Online robust non-negative dictionary learning for
+visual tracking, in Proceedings of the IEEE International Conference on Computer Vision
+(ICCV), 2013, pp. 657–664.
+[52] Y. Wang, Q. Yao, J. T. Kwok, and L. M. Ni, Online convolutional sparse coding, Preprint
+arXiv:1706.06972, (2017).
+[53] B. Wohlberg, Boundary handling for convolutional sparse representations, in Proceedings
+IEEE Conference Image Processing (ICIP), Phoenix, AZ, USA, Sept. 2016, pp. 1833–1837,
+https://doi.org/10.1109/ICIP.2016.7532675.
+[54] B. Wohlberg, Convolutional sparse representations as an image model for impulse noise
+restoration, in Proceedings of the IEEE Image, Video, and Multidimensional Signal
+Processing Workshop (IVMSP), Bordeaux, France, July 2016, https://doi.org/10.1109/
+IVMSPW.2016.7528229.
+[55] B. Wohlberg, Efficient algorithms for convolutional sparse representations, IEEE Trans-
+actions on Image Processing, 25 (2016), pp. 301–315, https://doi.org/10.1109/TIP.2015.
+2495260.
+[56] B. Wohlberg, SParse Optimization Research COde (SPORCO). Software library available
+from http://purl.org/brendt/software/sporco, 2016.
+[57] B. Wohlberg, ADMM penalty parameter selection by residual balancing, Preprint
+arXiv:1704.06209, (2017).
+[58] B. Wohlberg, SPORCO: A Python package for standard and convolutional sparse represen-
+tations, in Proceedings of the 15th Python in Science Conference, Austin, TX, USA, July
+2017, pp. 1–8.
+[59] J. Wright, Y. Ma, J. Mairal, G. Sapiro, T. S. Huang, and S. Yan, Sparse representation
+for computer vision and pattern recognition, Proceedings of the IEEE, 98 (2010), pp. 1031–
+1044.
+[60] J. Wright, A. Y. Yang, A. Ganesh, S. S. Sastry, and Y. Ma, Robust face recognition via
+sparse representation, IEEE Transactions on Pattern Analysis and Machine Intelligence,
+31 (2009), pp. 210–227.
+[61] Y. Xu and W. Yin, A fast patch-dictionary method for whole image recovery, Inverse Problems
+and Imaging, 10 (2016), pp. 563–583, https://doi.org/10.3934/ipi.2016012.
+[62] J. Yang, J. Wright, T. S. Huang, and Y. Ma, Image super-resolution via sparse represen-
+tation, IEEE Transactions on Image Processing, 19 (2010), pp. 2861–2873.
+[63] M. D. Zeiler, D. Krishnan, G. W. Taylor, and R. Fergus, Deconvolutional networks, in
+Proceedings of IEEE Conference on Computer Vision and Pattern Recognition (CVPR),
+June 2010, pp. 2528–2535, https://doi.org/10.1109/cvpr.2010.5539957.
+[64] G. Zhang, Z. Jiang, and L. S. Davis, Online semi-supervised discriminative dictionary learn-
+ing for sparse representation, in Proceedings of Asian Conference on Computer Vision
+(ACCV), 2012, pp. 259–273.
+[65] H. Zhang and V. Patel, Convolutional sparse coding-based image decomposition, in Proceed-
+ings of British Machine Vision Conference (BMVC), York, UK, Sept. 2016.
+[66] H. Zhang and V. M. Patel, Convolutional sparse and low-rank coding-based rain streak re-
+moval, in Proceedings of IEEE Winter Conference on Applications of Computer Vision
+(WACV), March 2017.
+31
+[67] S. Zhang, S. Kasiviswanathan, P. C. Yuen, and M. Harandi, Online dictionary learning
+on symmetric positive definite manifolds with vision applications., in Proceedings of the
+AAAI Conference on Artificial Intelligence (AAAI), 2015, pp. 3165–3173.
+[68] Z. Zhang, Y. Xu, J. Yang, X. Li, and D. Zhang, A survey of sparse representation: algo-
+rithms and applications, IEEE Access, 3 (2015), pp. 490–530.
+32

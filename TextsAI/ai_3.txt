@@ -1,0 +1,1127 @@
+A Generic Approach for Escaping Saddle points
+Sashank J Reddi*, Manzil Zaheer*†
+Machine Learning Department
+Carnegie Mellon University
+Pittsburgh, PA 15213
+sjakkamr@cs.cmu.edu, manzil@cmu.edu
+Suvrit Sra
+Laboratory for Information & Decision Systems
+Massachusetts Institute for Technology
+Cambridge, MA 02139
+suvrit@mit.edu
+Barnabás Póczos
+Machine Learning Department
+Carnegie Mellon University
+Pittsburgh, PA 15213
+bapoczos@cs.cmu.edu
+Francis Bach
+Departement d’Informatique
+Ecole Normale Superieure
+75012 Paris
+francis.bach@inria.fr
+Ruslan Salakhutdinov
+Machine Learning Department
+Carnegie Mellon University
+Pittsburgh, PA 15213
+rsalakhu@cs.cmu.edu
+Alexander J Smola
+Deep Learning
+Amazon Web Services
+Palo Alto, CA 94301
+alex@smola.org
+Abstract
+A central challenge to using first-order methods for optimizing nonconvex problems
+is the presence of saddle points. First-order methods often get stuck at saddle points,
+greatly deteriorating their performance. Typically, to escape from saddles one has
+to use second-order methods. However, most works on second-order methods rely
+extensively on expensive Hessian-based computations, making them impractical in
+large-scale settings. To tackle this challenge, we introduce a generic framework that
+minimizes Hessian based computations while at the same time provably converging
+to second-order critical points. Our framework carefully alternates between a first-
+order and a second-order subroutine, using the latter only close to saddle points,
+and yields convergence results competitive to the state-of-the-art. Empirical results
+suggest that our strategy also enjoys good practical performance.
+1 Introduction
+We study nonconvex finite-sum problems of the form
+min
+x?Rd
+f(x) :=
+1
+n
+n?
+i=1
+fi(x), (1)
+where neither f : Rd ? R nor the individual functions fi : Rd ? R (i ? [n]) are necessarily convex.
+We operate in a general nonconvex setting except for few smoothness assumptions like Lipschitz
+continuity of the gradient and Hessian. Optimization problems of this form arise naturally in machine
+learning and statistics as empirical risk minimization (ERM) and M-estimation respectively.
+In the large-scale settings, algorithms based on first-order information of functions fi are typically
+favored as they are relatively inexpensive and scale seamlessly. An algorithm widely used in practice
+is stochastic gradient descent (SGD), which has the iterative update:
+xt+1 = xt ? ?t?fit(xt), (2)
+*Equal Contribution
+†Also at Amazon Web Services Deep Learning, Palo Alto CA 94301
+ar
+X
+iv
+:1
+70
+9.
+01
+43
+4v
+1 
+ [
+cs
+.L
+G
+] 
+ 5
+ S
+ep
+ 2
+01
+7
+Figure 1: First order methods like GD can po-
+tentially get stuck at saddle points. Second-order
+methods can escape it in very few iterations (as
+observed in the left plot) but at the cost of ex-
+pensive Hessian based iterations (see time plot
+to the right). The proposed framework, which
+is a novel mix of the two strategies, can escape
+saddle points faster in time by carefully trading
+off computation and iteration complexity.
+where it ? [n] is a randomly chosen index and ?t is a learning rate. Under suitable selection of the
+learning rate, we can show that SGD converges to a point x that, in expectation, satisfies the stationarity
+condition ??f(x)? ?  in O(1/4) iterations [14]. This result has two critical weaknesses: (i) It does
+not ensure convergence to local optima or second-order critical points; (ii) The rate of convergence of
+the SGD algorithm is slow.
+For general nonconvex problems, one has to settle for a more modest goal than sub-optimality, as
+finding the global minimizer of finite-sum nonconvex problem will be in general intractably hard.
+Unfortunately, SGD does not even ensure second-order critical conditions such as local optimality
+since it can get stuck at saddle points. This issue has recently received considerable attention in the
+ML community, especially in the context of deep learning [8–10]. These works argue that saddle
+points are highly prevalent in most optimization paths, and are the primary obstacle for training large
+deep networks. To tackle this issue and achieve a second-order critical point for which ??f? ? 
+and ?2f  ?
+?
+I, we need algorithms that either use the Hessian explicitly or exploit its structure.
+A key work that explicitly uses Hessians to obtain faster convergence rates is the cubic regularization
+(CR) method [28]. In particular, Nesterov and Polyak [28] showed that CR requires O(1/3/2)
+iterations to achieve the second-order critical conditions. However, each iteration of CR is expensive
+as it requires computing the Hessian and solving multiple linear systems, each of which has complexity
+O(d?) (? is the matrix multiplication constant), thus, undermining the benefit of its faster convergence.
+Recently, Agarwal et al. [3] designed an algorithm to solve the CR more efficiently, however, it still
+exhibits slower convergence in practice compared to first-order methods. Both of these approaches
+use Hessian based optimization in each iteration, which make them slow in practice.
+A second line of work focuses on using Hessian information (or its structure) whenever the method
+gets stuck at stationary points that are not second-order critical. To our knowledge, the first work
+in this line is [13], which shows that for a class of functions that satisfy a special property called
+“strict-saddle” property, a noisy variant of SGD can converge to a point close to a local minimum. For
+this class of functions, points close to saddle points have a Hessian with a large negative eigenvalue,
+which proves instrumental in escaping saddle points using an isotropic noise. While such a noise-
+based method is appealing as it only uses first-order information, it has a very bad dependence on the
+dimension d, and furthermore, the result only holds when the strict-saddle property is satisfied [13].
+More recently, Carmon et al. [6] presented a new faster algorithm that alternates between first-order
+and second-order subroutines. However, their algorithm is designed for the simple case of n = 1
+in (1) and hence, can be expensive in practice.
+Inspired by this line of work, we develop a general framework for finding second-order critical points.
+The key idea of our framework is to use first-order information for the most part of the optimization
+process and invoke Hessian information only when stuck at stationary points that are not second-order
+critical. We summarize the key idea and main contributions of this paper below.
+Main Contributions: We develop an algorithmic framework for converging to second-order crit-
+ical points and provide convergence analysis for it. Our framework carefully alternates between
+two subroutines that use gradient and Hessian information, respectively, and ensures second-order
+criticality. Furthermore, we present two instantiations of our framework and provide convergence
+rates for them. In particular, we show that a simple instance of our framework, based on SVRG,
+achieves convergence rates competitive with the current state-of-the-art methods; thus highlighting
+the simplicity and applicability of our framework. Finally, we demonstrate the empirical performance
+of a few algorithms encapsulated by our framework and show their superior performance.
+Related Work. There is a vast literature on algorithms for solving optimization problems of the
+form (1). A classical approach for solving such optimization problems is SGD, which dates back
+at least to the seminal work of [35]. Since then, SGD has been a subject of extensive research,
+2
+especially in the convex setting [5, 20, 24, 30]. Recently, new faster methods, called variance
+reduced (VR) methods, have been proposed for convex finite-sum problems. VR methods attain faster
+convergence by reducing the variance in the stochastic updates of SGD, see e.g., [11, 12, 17, 19,
+36, 37]. Accelerated variants of these methods achieve the lower bounds proved in [2, 21], thereby
+settling the question of their optimality. Furthermore, [31] developed an asynchronous framework for
+VR methods and demonstrated their benefits in parallel environments.
+Most of the aforementioned prior works study stochastic methods in convex or very specialized
+nonconvex settings that admit theoretical guarantees on sub-optimality. For the general nonconvex
+setting, it is only recently that non-asymptotic convergence rate analysis for SGD and its variants was
+obtained in [14], who showed that SGD ensures ??f? ?  (in expectation) in O(1/4) iterations.
+A similar rate for parallel and distributed SGD was shown in [23]. For these problems, Reddi et al.
+[32, 33, 34] proved faster convergence rates that ensure the same optimality criteria inO(n+n2/3/2),
+which is an order n1/3 faster than GD. While these methods ensure convergence to stationary points at
+a faster rate, the question of convergence to local minima (or in general to second-order critical points)
+has not been addressed. To our knowledge, convergence rates to second-order critical points (defined
+in Definition 1) for general nonconvex functions was first studied by [28]. However, each iteration of
+the algorithm in [28] is prohibitively expensive since it requires eigenvalue decompositions, and hence,
+is unsuitable for large-scale high-dimensional problems. More recently, Agarwal et al. [3], Carmon
+et al. [6] presented algorithms for finding second-order critical points by tackling some practical
+issues that arise in [28]. However, these algorithms are either only applicable to a restricted setting
+or heavily use Hessian based computations, making them unappealing from a practical standpoint.
+Noisy variants of first-order methods have also been shown to escape saddle points (see [13, 16, 22]),
+however, these methods have strong dependence on either n or d, both of which are undesirable.
+2 Background & Problem Setup
+We assume that each of the functions fi in (1) is L-smooth, i.e., ??fi(x)??fi(y)? ? L?x? y?
+for all i ? [n]. Furthermore, we assume that the Hessian of f in (1) is Lipschitz, i.e., we have
+??2f(x)??2f(y)? ?M?x? y?, (3)
+for all x, y ? Rd. Such a condition is typically necessary to ensure convergence of algorithms to the
+second-order critical points [28]. In addition to the above smoothness conditions, we also assume
+that the function f is bounded below, i.e., f(x) ? B for all x ? Rd.
+In order to measure stationarity of an iterate x, similar to [14, 27, 28], we use the condition
+??f(x)? ? . In this paper, we are interested in convergence to second-order critical points. Thus, in
+addition to stationarity, we also require the solution to satisfy the Hessian condition?2f(x)  ??I
+[28]. For iterative algorithms, we require both , ? ? 0 as the number of iterations T ??. When
+all saddle points are non-degenerate, such a condition implies convergence to a local optimum.
+Definition 1. An algorithm A is said to obtain a point x that is a (, ?)-second order critical point if
+E[??f(x)?] ?  and ?2f(x)  ??I, where the expectation is over any randomness in A.
+We must exercise caution while interpreting results pertaining to (, ?)-second order critical points.
+Such points need not be close to any local minima either in objective function value, or in the domain
+of (1). For our algorithms, we use only an Incremental First-order Oracle (IFO) [2] and an Incremental
+Second-order Oracle (ISO), defined below.
+Definition 2. An IFO takes an index i ? [n] and a point x ? Rd, and returns the pair (fi(x),?fi(x)).
+An ISO takes an index i ? [n], point x ? Rd and vector v ? Rd and returns the vector?2fi(x)v.
+IFO and ISO calls are typically cheap, with ISO call being relatively more expensive. In many
+practical settings that arise in machine learning, the time complexity of these oracle calls is linear in
+d [4, 29]. For clarity and clean comparison, the dependence of time complexity on Lipschitz constant
+L, M , initial point and any polylog factors in the results is hidden.
+3 Generic Framework
+In this section, we propose a generic framework for escaping saddle points while solving non-
+convex problems of form (1). One of the primary difficulties in reaching a second-order crit-
+ical point is the presence of saddle points. To evade such points, one needs to use properties
+of both gradients and Hessians. To this end, our framework is based on two core subroutines:
+GRADIENT-FOCUSED-OPTIMIZER and HESSIAN-FOCUSED-OPTIMIZER.
+3
+Algorithm 1 Generic Framework
+1: Input - Initial point: x0, total iterations T , error threshold parameters , ? and probability p
+2: for t = 1 to T do
+3: (yt, zt) = GRADIENT-FOCUSED-OPTIMIZER(xt?1, ) (refer to G.1 and G.2)
+4: Choose ut as yt with probability p and zt with probability 1? p
+5: (xt+1, ? t+1) = HESSIAN-FOCUSED-OPTIMIZER(ut, , ?) (refer to H.1 and H.2)
+6: if ? t+1 = ? then
+7: Output set {xt+1}
+8: end if
+9: end for
+10: Output set {y1, ..., yT }
+The idea is to use these two subroutines, each focused on different aspects of the optimiza-
+tion procedure. GRADIENT-FOCUSED-OPTIMIZER focuses on using gradient information for de-
+creasing the function. On its own, the GRADIENT-FOCUSED-OPTIMIZER might not converge to
+a local minimizer since it can get stuck at a saddle point. Hence, we require the subroutine
+HESSIAN-FOCUSED-OPTIMIZER to help avoid saddle points. A natural idea is to interleave these
+subroutines to obtain a second-order critical point. But it is not even clear if such a procedure even
+converges. We propose a carefully designed procedure that effectively balances these two subroutines,
+which not only provides meaningful theoretical guarantees, but remarkably also translates into strong
+empirical gains in practice.
+Algorithm 1 provides pseudocode of our framework. Observe that the algorithm is still
+abstract, since it does not specify the subroutines GRADIENT-FOCUSED-OPTIMIZER and
+HESSIAN-FOCUSED-OPTIMIZER. These subroutines determine the crucial update mechanism of the
+algorithm. We will present specific instance of these subroutines in the next section, but we assume
+the following properties to hold for these subroutines.
+• GRADIENT-FOCUSED-OPTIMIZER: Suppose (y, z) = GRADIENT-FOCUSED-OPTIMIZER(x, n, ),
+then there exists positive function g : N× R+ ? R+, such that
+G.1 E[f(y)] ? f(x),
+G.2 E[??f(y)?2] ? 1g(n,)E[f(x)? f(z)].
+Here the outputs y, z ? Rd. The expectation in the conditions above is over any randomness
+that is a part of the subroutine. The function g will be critical for the overall rate of Algorithm 1.
+Typically, GRADIENT-FOCUSED-OPTIMIZER is a first-order method, since the primary aim of
+this subroutine is to focus on gradient based optimization.
+• HESSIAN-FOCUSED-OPTIMIZER: Suppose (y, ?) = HESSIAN-FOCUSED-OPTIMIZER(x, n, , ?)
+where y ? Rd and ? ? {?, }. If ? = ?, then y is a (, ?)-second order critical point with
+probability at least 1? q. Otherwise if ? = , then y satisfies the following condition:
+H.1 E[f(y)] ? f(x),
+H.2 E[f(y)] ? f(x) ? h(n, , ?) when ?min(?2f(x)) ? ?? for some function h : N × R+ ×
+R+ ? R+.
+Here the expectation is over any randomness in subroutine HESSIAN-FOCUSED-OPTIMIZER.
+The two conditions ensure that the objective function value, in expectation, never increases and
+furthermore, decreases with a certain rate when ?min(?2f(x)) ? ??. In general, this subroutine
+utilizes the Hessian or its properties for minimizing the objective function. Typically, this is the
+most expensive part of the Algorithm 1 and hence, needs to be invoked judiciously.
+The key aspect of these subroutines is that they, in expectation, never increase the objective function
+value. The functions g and h will determine the convergence rate of Algorithm 1. In order to provide
+a concrete implementation, we need to specify the aforementioned subroutines. Before we delve into
+those details, we will provide a generic convergence analysis for Algorithm 1.
+Convergence Analysis
+Theorem 1. Let ? = f(x0) ? B and ? = min((1 ? p)2g(n, ), ph(n, , ?)) . Also, let set ?
+be the output of Algorithm 1 with GRADIENT-FOCUSED-OPTIMIZER satisfying G.1 and G.2 and
+HESSIAN-FOCUSED-OPTIMIZER satisfying H.1 and H.2. Furthermore, T be such that T > ?/?.
+4
+Algorithm 2 SVRG
+(
+x0, 
+)
+1: Input: x0m = x0 ? Rd, epoch length m, step sizes {?i > 0}m?1i=0 , iterations Tg , S = dTg/me
+2: for s = 0 to S ? 1 do
+3: x?s = xs+10 = x
+s
+m
+4: gs+1 = 1
+n
+?n
+i=1?fi(x?
+s)
+5: for t = 0 to m? 1 do
+6: Uniformly randomly pick it from {1, . . . , n}
+7: vs+1t = ?fit(xs+1t )??fit(x?s) + gs+1
+8: xs+1t+1 = x
+s+1
+t ? ?tvs+1t
+9: end for
+10: end for
+11: Output: (y, z) where y is Iterate xa chosen uniformly random from {{xs+1t }m?1t=0 }
+S?1
+s=0 and z = x
+S
+m.
+Suppose the multiset S = {i1, ...ik} are k indices selected independently and uniformly randomly
+from {1, ..., |?|}. Then the following holds for the indices in S:
+1. yt, where t ? {i1, ..., ik}, is a (, ?)-critical point with probability at least 1?max(?/(T?), q).
+2. If k = O(log(1/?)/min(log(?/(T?)), log(1/q))), with at least probability 1? ?, at least one
+iterate yt where t ? {i1, ..., ik} is a (, ?)-critical point.
+The proof of the result is presented in Appendix A. The key point regarding the above result
+is that the overall convergence rate depends on the magnitude of both functions g and h. The-
+orem 1 shows that the slowest amongst the subroutines GRADIENT-FOCUSED-OPTIMIZER and
+HESSIAN-FOCUSED-OPTIMIZER governs the overall rate of Algorithm 1. Thus, it is important to
+ensure that both these procedures have good convergence. Also, note that the optimal setting for p
+based on the result above satisfies 1/p = 1/2g(n, ) + 1/h(n, , ?) . We defer further discussion of
+convergence to next section, where we present more specific convergence and rate analysis.
+4 Concrete Instantiations
+We now present specific instantiations of our framework in this section. Before we state our key
+results, we discuss an important subroutine that is used as GRADIENT-FOCUSED-OPTIMIZER for
+rest of this paper: SVRG. We give a brief description of the algorithm in this section and show that it
+meets the conditions required for a GRADIENT-FOCUSED-OPTIMIZER. SVRG [17, 32] is a stochastic
+algorithm recently shown to be very effective for reducing variance in finite-sum problems. We seek
+to understand its benefits for nonconvex optimization, with a particular focus on the issue of escaping
+saddle points. Algorithm 2 presents SVRG’s pseudocode.
+Observe that Algorithm 2 is an epoch-based algorithm. At the start of each epoch s, a full gradient
+is calculated at the point x?s, requiring n calls to the IFO. Within its inner loop SVRG performs m
+stochastic updates. Suppose m is chosen to be O(n) (typically used in practice), then the total IFO
+calls per epoch is ?(n). Strong convergence rates have been proved Algorithm 2 in the context
+of convex and nonconvex optimization [17, 32]. The following result shows that SVRG meets the
+requirements of a GRADIENT-FOCUSED-OPTIMIZER.
+Lemma 1. Suppose ?t = ? = 1/4Ln2/3,m = n and Tg = T, which depends on , then Algorithm 2
+is a GRADIENT-FOCUSED-OPTIMIZER with g(n, ) = T/40Ln2/3.
+In rest of this section, we discuss approaches using SVRG as a GRADIENT-FOCUSED-OPTIMIZER.
+In particular, we propose and provide convergence analysis for two different methods with different
+HESSIAN-FOCUSED-OPTIMIZER but which use SVRG as a GRADIENT-FOCUSED-OPTIMIZER.
+4.1 Hessian descent
+The first approach is based on directly using the eigenvector corresponding to the smallest eigenvalue
+as a HESSIAN-FOCUSED-OPTIMIZER. More specifically, when the smallest eigenvalue of the Hes-
+sian is negative and reasonably large in magnitude, the Hessian information can be used to ensure
+descent in the objective function value. The pseudo-code for the algorithm is given in Algorithm 3.
+5
+Algorithm 3 HESSIANDESCENT (x, , ?)
+1: Find v such that ?v? = 1, and with probability at least ? the following inequality holds: ?v,?2f(x)v? ?
+?min(?2f(x)) + ?2 .
+2: Set ? = |?v,?2f(x)v?|/M .
+3: u = x? ? sign(?v,?f(x)?)v.
+4: y = argminz?{u,x} f(z)
+5: Output: (y, ).
+The key idea is to utilize the minimum eigenvalue information in order to make a descent step.
+If ?min(?2f(x)) ? ?? then the idea is to use this information to take a descent step. Note the
+subroutine is designed in a fashion such that the objective function value never increases. Thus, it
+naturally satisfies the requirement H.1 of HESSIAN-FOCUSED-OPTIMIZER. The following result
+shows that HESSIANDESCENT is a HESSIAN-FOCUSED-OPTIMIZER.
+Lemma 2. HESSIANDESCENT is a HESSIAN-FOCUSED-OPTIMIZER with h(n, , ?) = ?24M2 ?
+3.
+The proof of the result is presented in Appendix C. With SVRG as GRADIENT-FOCUSED-OPTIMIZER
+and HESSIANDESCENT as HESSIAN-FOCUSED-OPTIMIZER, we show the following key result:
+Theorem 2. Suppose SVRG with m = n, ?t = ? = 1/4Ln2/3 for all t ? {1, ...,m} and Tg =
+40Ln2/3/1/2 is used as GRADIENT-FOCUSED-OPTIMIZER and HESSIANDESCENT is used as
+HESSIAN-FOCUSED-OPTIMIZER with q = 0, then Algorithm 1 finds a (,
+?
+)-second order critical
+point in T = O(?/min(p, 1? p)3/2) with probability at least 0.9.
+The result directly follows from using Lemma 1 and 2 in Theorem 1. The result shows that the iteration
+complexity of Algorithm 1 in this case is O(?/3/2 min(p, 1?p)). Thus, the overall IFO complexity
+of SVRG algorithm is (n+Tg)×T = O(n/3/2+n2/3/2). Since each IFO call takesO(d) time, the
+overall time complexity of all GRADIENT-FOCUSED-OPTIMIZER steps is O(nd/3/2 + n2/3d/2).
+To understand the time complexity of HESSIANDESCENT, we need the following result [3].
+Preposition 1. The time complexity of finding v ? Rd that ?v? = 1, and with probability at least ?
+the following inequality holds: ?v,?2f(x)v? ? ?min(?2f(x)) + ?2 is O(nd+ n
+3/4d/?1/2).
+Note that each iteration of Algorithm 1 in this case has just linear dependence on d. Since the total
+number of HESSIANDESCENT iterations is O(?/min(p, 1 ? p)3/2) and each iteration has the
+complexity of O(nd+ n3/4d/1/4), using the above remark, we obtain an overall time complexity
+of HESSIANDESCENT is O(nd/3/2 + n3/4d/7/4). Combining this with the time complexity of
+SVRG, we get the following result.
+Corollary 1. The overall running time of Algorithm 1 to find a (,
+?
+)-second order critical point,
+with parameter settings used in Theorem 2, is O(nd/3/2 + n3/4d/7/4 + n2/3d/2).
+Note that the dependence on  is much better in comparison to that of Noisy SGD used in [13].
+Furthermore, our results are competitive with [3, 6] in their respective settings, but with a much
+simpler algorithm and analysis. We also note that our algorithm is faster than the one proposed in [16],
+which has a time complexity of O(nd/2).
+4.2 Cubic Descent
+In this section, we show that the cubic regularization method in [28] can be used as
+HESSIAN-FOCUSED-OPTIMIZER. More specifically, here HESSIAN-FOCUSED-OPTIMIZER approx-
+imately solves the following optimization problem:
+y = arg min
+z
+??f(x), z ? x?+ 1
+2
+?
+z ? x,?2f(x)(z ? x)
+?
++
+M
+6
+?z ? x?3, (CUBICDESCENT)
+and returns (y, ) as output. The following result can be proved for this approach.
+Theorem 3. Suppose SVRG (same as Theorem 2) is used as GRADIENT-FOCUSED-OPTIMIZER and
+CUBICDESCENT is used as HESSIAN-FOCUSED-OPTIMIZER with q = 0, then Algorithm 1 finds a
+(,
+?
+)-second order critical point in T = O(?/min(p, 1? p)3/2) with probability at least 0.9.
+6
+Figure 2: Comparison of various methods on a synthetic problem. Our mix framework successfully
+escapes saddle point and uses relatively few ISO calls in comparison to CUBICDESCENT.
+In principle, Algorithm 1 with CUBICDESCENT as HESSIAN-FOCUSED-OPTIMIZER can con-
+verge without the use of GRADIENT-FOCUSED-OPTIMIZER subroutine at each iteration since
+it essentially reduces to the cubic regularization method of [28]. However, in practice, we
+would expect GRADIENT-FOCUSED-OPTIMIZER to perform most of the optimization and
+HESSIAN-FOCUSED-OPTIMIZER to be used for far fewer iterations. Using the method developed
+in [28] for solving CUBICDESCENT, we obtain the following corollary.
+Corollary 2. The overall running time of Algorithm 1 to find a (,
+?
+)-second order critical point,
+with parameter settings used in Theorem 3, is O(nd?/3/2 + n2/3d/2).
+Here ? is the matrix multiplication constant. The dependence on  is weaker in comparison to
+Corollary 1. However, each iteration of CUBICDESCENT is expensive (as seen from the factor d? in
+the corollary above) and thus, in high dimensional settings typically encountered in machine learning,
+this approach can be expensive in comparison to HESSIANDESCENT.
+4.3 Practical Considerations
+The focus of this section was to demonstrate the wide applicability of our framework; wherein using
+a simple instantiation of this framework, we could achieve algorithms with fast convergence rates.
+To further achieve good empirical performance, we had to slightly modify these procedures. For
+HESSIAN-FOCUSED-OPTIMIZER, we found stochastic, adaptive and inexact approaches for solving
+HESSIANDESCENT and CUBICDESCENT work well in practice. Due to lack of space, the exact
+description of these modifications is deferred to Appendix F. Furthermore, in the context of deep
+learning, empirical evidence suggests that first-order methods like ADAM [18] exhibit behavior that
+is in congruence with properties G.1 and G.2. While theoretical analysis for a setting where ADAM
+is used as GRADIENT-FOCUSED-OPTIMIZER is still unresolved, we nevertheless demonstrate its
+performance through empirical results in the following section.
+5 Experiments
+We now present empirical results for our saddle point avoidance technique with an aim to highlight
+three aspects: (i) the framework successfully escapes non-degenerate saddle points, (ii) the framework
+is fast, and (iii) the framework is practical on large-scale problems. All the algorithms are implemented
+on TensorFlow [1]. In case of deep networks, the Hessian-vector product is evaluated using the trick
+presented in [29]. We run our experiments on a commodity machine with Intel R© Xeon R© CPU
+E5-2630 v4 CPU, 256GB RAM, and NVidia R© Titan X (Pascal) GPU.
+Synthetic Problem To demonstrate the fast escape from a saddle point by the proposed method, we
+consider the following simple nonconvex finite-sum problem:
+min
+x?Rd
+1
+n
+n?
+i=1
+xTAix+ b
+T
+i x+ ?x?1010 (4)
+Here the parameters are designed such that
+?
+i bi = 0 and
+?
+iAi matrix has exactly one negative
+eigenvalue of ?0.001 and other eigenvalues randomly chosen in the interval [1, 2]. The total number
+of examples n is set to be 100,000 and d is 1000. It is not hard to see that this problem has a non-
+degenerate saddle point at the origin. This allows us to explore the behaviour of different optimization
+algorithms in the vicinity of the saddle point. In this experiment, we compare a mix of SVRG
+and HESSIANDESCENT (as in Theorem 2) with SGD (with constant step size), ADAM, SVRG and
+7
+Figure 3: Comparison of various methods on CURVES and MNIST Deep Autoencoder. Our mix
+approach converges faster than the baseline methods and uses relatively few ISO calls in comparison
+to APPROXCUBICDESCENT.
+CUBICDESCENT. The parameter of these algorithms is chosen by grid search so that it gives the
+best performance. The subproblem of CUBICDESCENT was solved with gradient descent [6] until
+the gradient norm of the subproblem is reduced below 10?3. We study the progress of optimization,
+i.e., decrease in function value with wall clock time, IFO calls, and ISO calls. All algorithms were
+initialized with the same starting point very close to origin.
+The results are presented in Figure 2, which shows that our proposed mix framework was the fastest
+to escape the saddle point in terms of wall clock time. We observe that performance of the first order
+methods suffered severely due to the saddle point. Note that SGD eventually escaped the saddle
+point due to inherent noise in the mini-batch gradient. CUBICDESCENT, a second-order method,
+escaped the saddle point faster in terms of iterations using the Hessian information. But operating on
+Hessian information is expensive as a result this method was slow in terms of wall clock time. The
+proposed framework, which is a mix of the two strategies, inherits the best of both worlds by using
+cheap gradient information most of the time and reducing the use of relatively expensive Hessian
+information (ISO calls) by 100x. This resulted in faster escape from saddle point in terms of wall
+clock time.
+Deep Networks To investigate the practical performance of the framework for deep learning prob-
+lems, we applied it to two deep autoencoder optimization problems from [15] called “CURVES” and
+“MNIST”. Due to their high difficulty, performance on these problems has become a standard bench-
+mark for neural network optimization methods, e.g. [25, 26, 38, 39]. The “CURVES” autoencoder
+consists of an encoder with layers of size (28x28)-400-200-100- 50-25-6 and a symmetric decoder
+totaling in 0.85M parameters. The six units in the code layer were linear and all the other units were
+logistic. The network was trained on 20,000 images and tested on 10,000 new images. The data set
+contains images of curves that were generated from three randomly chosen points in two dimensions.
+The “MNIST” autoencoder consists of an encoder with layers of size (28x28)-1000-500-250-30 and
+a symmetric decoder, totaling in 2.8M parameters. The thirty units in the code layer were linear and
+all the other units were logistic. The network was trained on 60,000 images and tested on 10,000 new
+images. The data set contains images of handwritten digits 0-9. The pixel intensities were normalized
+to lie between 0 and 1.1
+As an instantiation of our framework, we use a mix of ADAM, which is popular in deep learning
+community, and an APPROXCUBICDESCENT for the practical reasons mentioned in Section 4.3. This
+method with ADAM and APPROXCUBICDESCENT. The parameters of these algorithms were chosen
+to produce the best generalization on a held out test set. The regularization parameter M was chosen
+as the smallest value such that the function value does not fluctuate in the first 10 epochs. We use
+the initialization suggested in [25] and a mini-batch size of 1000 for all the algorithms. We report
+objective function value against wall clock time and ISO calls.
+The results are presented in Figure 3, which shows that our proposed mix framework was the fastest
+to escape the saddle point in terms of wall clock time. ADAM took considerably more time to escape
+the saddle point, especially in the case of MNIST. While APPROXCUBICDESCENT escaped the
+saddle point in relatively fewer iterations, each iteration required considerably large number of ISO
+calls; as a result, the method was extremely slow in terms of wall clock time, despite our efforts to
+improve it via approximations and code optimizations. On the other hand, our proposed framework,
+seamlessly balances these two methods, thereby, resulting in the fast decrease of training loss.
+1Data available at: www.cs.toronto.edu/~jmartens/digs3pts_1.mat, mnist_all.mat
+8
+6 Discussion
+In this paper, we examined a generic strategy to escape saddle points in nonconvex finite-sum problems
+and presented its convergence analysis. The key intuition is to alternate between a first-order and
+second-order based optimizers; the latter is mainly intended to escape points that are only stationary
+but are not second-order critical points. We presented two different instantiations of our framework
+and provided their detailed convergence analysis. While both our methods explicity use the Hessian
+information, one can also use noisy first-order methods as HESSIAN-FOCUSED-OPTIMIZER (see for
+e.g. noisy SGD in [13]). In such a scenario, we exploit the negative eigenvalues of the Hessian to
+escape saddle points by using isotropic noise, and do not explicitly use ISO. For these methods, under
+strict-saddle point property [13], we can show convergence to local optima within our framework.
+We primarily focused on obtaining second-order critical points for nonconvex finite-sums (1). This
+does not necessarily imply low test error or good generalization capabilities. Thus, we should be
+careful when interpreting the results presented in this paper. A detailed discussion or analysis of
+these issues is out of scope of this paper. While a few prior works argue for convergence to local
+optima, the exact connection between generalization and local optima is not well understood, and is
+an interesting open problem. Nevertheless, we believe the techniques presented in this paper can be
+used alongside other optimization tools for faster and better nonconvex optimization.
+References
+[1] Martín Abadi, Ashish Agarwal, Paul Barham, Eugene Brevdo, Zhifeng Chen, Craig Citro,
+Greg S. Corrado, Andy Davis, Jeffrey Dean, Matthieu Devin, Sanjay Ghemawat, Ian Goodfellow,
+Andrew Harp, Geoffrey Irving, Michael Isard, Yangqing Jia, Rafal Jozefowicz, Lukasz Kaiser,
+Manjunath Kudlur, Josh Levenberg, Dan Mané, Rajat Monga, Sherry Moore, Derek Murray,
+Chris Olah, Mike Schuster, Jonathon Shlens, Benoit Steiner, Ilya Sutskever, Kunal Talwar, Paul
+Tucker, Vincent Vanhoucke, Vijay Vasudevan, Fernanda Viégas, Oriol Vinyals, Pete Warden,
+Martin Wattenberg, Martin Wicke, Yuan Yu, and Xiaoqiang Zheng. TensorFlow: Large-scale
+machine learning on heterogeneous systems, 2015. URL http://tensorflow.org/.
+Software available from tensorflow.org.
+[2] Alekh Agarwal and Leon Bottou. A lower bound for the optimization of finite sums.
+arXiv:1410.0723, 2014.
+[3] Naman Agarwal, Zeyuan Allen Zhu, Brian Bullins, Elad Hazan, and Tengyu Ma. Finding
+approximate local minima for nonconvex optimization in linear time. CoRR, abs/1611.01146,
+2016.
+[4] Naman Agarwal, Brian Bullins, and Elad Hazan. Second order stochastic optimization in linear
+time. CoRR, abs/1602.03943, 2016.
+[5] Léon Bottou. Stochastic gradient learning in neural networks. Proceedings of Neuro-N?mes, 91
+(8), 1991.
+[6] Yair Carmon, John C. Duchi, Oliver Hinder, and Aaron Sidford. Accelerated methods for
+non-convex optimization. CoRR, abs/1611.00756, 2016.
+[7] C. Cartis and K. Scheinberg. Global convergence rate analysis of unconstrained optimization
+methods based on probabilistic models. Mathematical Programming, pages 1–39, 2017. ISSN
+1436-4646. doi: 10.1007/s10107-017-1137-4.
+[8] Anna Choromanska, Mikael Henaff, Michaël Mathieu, Gérard Ben Arous, and Yann LeCun.
+The loss surface of multilayer networks. CoRR, abs/1412.0233, 2014.
+[9] Yann Dauphin, Harm de Vries, and Yoshua Bengio. Equilibrated adaptive learning rates for non-
+convex optimization. In C. Cortes, N. D. Lawrence, D. D. Lee, M. Sugiyama, and R. Garnett,
+editors, Advances in Neural Information Processing Systems 28, pages 1504–1512. Curran
+Associates, Inc., 2015.
+[10] Yann N. Dauphin, Razvan Pascanu, Caglar Gulcehre, Kyunghyun Cho, Surya Ganguli, and
+Yoshua Bengio. Identifying and attacking the saddle point problem in high-dimensional non-
+convex optimization. In Proceedings of the 27th International Conference on Neural Information
+Processing Systems, NIPS’14, pages 2933–2941, 2014.
+9
+[11] Aaron Defazio, Francis Bach, and Simon Lacoste-Julien. SAGA: A fast incremental gradient
+method with support for non-strongly convex composite objectives. In NIPS 27, pages 1646–
+1654, 2014.
+[12] Aaron J Defazio, Tibério S Caetano, and Justin Domke. Finito: A faster, permutable incremental
+gradient method for big data problems. arXiv:1407.2710, 2014.
+[13] Rong Ge, Furong Huang, Chi Jin, and Yang Yuan. Escaping from saddle points - online
+stochastic gradient for tensor decomposition. In Proceedings of The 28th Conference on
+Learning Theory, COLT 2015, pages 797–842, 2015.
+[14] Saeed Ghadimi and Guanghui Lan. Stochastic first- and zeroth-order methods for nonconvex
+stochastic programming. SIAM Journal on Optimization, 23(4):2341–2368, 2013. doi: 10.1137/
+120880811.
+[15] Geoffrey E Hinton and Ruslan R Salakhutdinov. Reducing the dimensionality of data with
+neural networks. science, 313(5786):504–507, 2006.
+[16] Chi Jin, Rong Ge, Praneeth Netrapalli, Sham M. Kakade, and Michael I. Jordan. How to escape
+saddle points efficiently. CoRR, abs/1703.00887, 2017.
+[17] Rie Johnson and Tong Zhang. Accelerating stochastic gradient descent using predictive variance
+reduction. In NIPS 26, pages 315–323, 2013.
+[18] Diederik P. Kingma and Jimmy Ba. Adam: A method for stochastic optimization. CoRR,
+abs/1412.6980, 2014.
+[19] Jakub Konec?ný, Jie Liu, Peter Richtárik, and Martin Takác?. Mini-Batch Semi-Stochastic
+Gradient Descent in the Proximal Setting. arXiv:1504.04407, 2015.
+[20] Harold Joseph Kushner and Dean S Clark. Stochastic approximation methods for constrained
+and unconstrained systems, volume 26. Springer Science & Business Media, 2012.
+[21] Guanghui Lan and Yi Zhou. An optimal randomized incremental gradient method.
+arXiv:1507.02000, 2015.
+[22] Kfir Y. Levy. The power of normalization: Faster evasion of saddle points. CoRR,
+abs/1611.04831, 2016.
+[23] Xiangru Lian, Yijun Huang, Yuncheng Li, and Ji Liu. Asynchronous Parallel Stochastic Gradient
+for Nonconvex Optimization. In NIPS, 2015.
+[24] Lennart Ljung. Analysis of recursive stochastic algorithms. Automatic Control, IEEE Transac-
+tions on, 22(4):551–575, 1977.
+[25] James Martens. Deep learning via hessian-free optimization. In Proceedings of the 27th
+International Conference on Machine Learning (ICML-10), pages 735–742, 2010.
+[26] James Martens and Roger Grosse. Optimizing neural networks with kronecker-factored ap-
+proximate curvature. In International Conference on Machine Learning, pages 2408–2417,
+2015.
+[27] Yurii Nesterov. Introductory Lectures On Convex Optimization: A Basic Course. Springer,
+2003.
+[28] Yurii Nesterov and Boris T Polyak. Cubic regularization of newton method and its global
+performance. Mathematical Programming, 108(1):177–205, 2006.
+[29] Barak A. Pearlmutter. Fast exact multiplication by the hessian. Neural Computation, 6(1):
+147–160, January 1994. ISSN 0899-7667.
+[30] BT Poljak and Ya Z Tsypkin. Pseudogradient adaptation and training algorithms. Automation
+and Remote Control, 34:45–67, 1973.
+[31] Sashank Reddi, Ahmed Hefny, Suvrit Sra, Barnabas Poczos, and Alex J Smola. On variance
+reduction in stochastic gradient descent and its asynchronous variants. In NIPS 28, pages
+2629–2637, 2015.
+10
+[32] Sashank J. Reddi, Ahmed Hefny, Suvrit Sra, Barnabás Póczos, and Alexander J. Smola. Stochas-
+tic variance reduction for nonconvex optimization. In Proceedings of the 33nd International
+Conference on Machine Learning, ICML 2016, New York City, NY, USA, June 19-24, 2016,
+pages 314–323, 2016.
+[33] Sashank J. Reddi, Suvrit Sra, Barnabás Póczos, and Alexander J. Smola. Fast incremental
+method for nonconvex optimization. CoRR, abs/1603.06159, 2016.
+[34] Sashank J. Reddi, Suvrit Sra, Barnabás Póczos, and Alexander J. Smola. Fast stochastic methods
+for nonsmooth nonconvex optimization. CoRR, 2016.
+[35] H. Robbins and S. Monro. A stochastic approximation method. Annals of Mathematical
+Statistics, 22:400–407, 1951.
+[36] Mark W. Schmidt, Nicolas Le Roux, and Francis R. Bach. Minimizing Finite Sums with the
+Stochastic Average Gradient. arXiv:1309.2388, 2013.
+[37] Shai Shalev-Shwartz and Tong Zhang. Stochastic dual coordinate ascent methods for regularized
+loss. The Journal of Machine Learning Research, 14(1):567–599, 2013.
+[38] Ilya Sutskever, James Martens, George Dahl, and Geoffrey Hinton. On the importance of
+initialization and momentum in deep learning. In International conference on machine learning,
+pages 1139–1147, 2013.
+[39] Oriol Vinyals and Daniel Povey. Krylov subspace descent for deep learning. In AISTATS, pages
+1261–1268, 2012.
+11
+Appendix: A Generic Approach for Escaping Saddle points
+A Proof of Theorem 1
+The case of ? = ? can be handled in a straightforward manner, so let us focus on the case where
+? = . We split our analysis into cases, each analyzing the change in objective function value
+depending on second-order criticality of yt.
+We start with the case where the gradient condition of second-order critical point is violated and then
+proceed to the case where the Hessian condition is violated.
+Case I: E[??f(yt)?] ?  for some t > 0
+We first observe the following: E[??f(yt)?2] ? (E??f(yt)?)2 ? 2. This follows from a straight-
+forward application of Jensen’s inequality. From this inequality, we have the following:
+2 ? E[??f(yt)?2] ? 1
+g(n, )
+E[f(xt?1)? f(zt)]. (5)
+This follows from the fact that yt is the output of GRADIENT-FOCUSED-OPTIMIZER subroutine,
+which satisfies the condition that for (y, z) = GRADIENT-FOCUSED-OPTIMIZER(x, n, ), we have
+E[??f(y)?2] ? 1
+g(n, )
+E[f(x)? f(z)].
+From Equation (5), we have
+E[f(zt)] ? E[f(xt?1)]? 2g(n, ).
+Furthermore, due to the property of non-increasing nature of GRADIENT-FOCUSED-OPTIMIZER, we
+also have E[yt] ? E[f(xt?1)].
+We now focus on the HESSIAN-FOCUSED-OPTIMIZER subroutine. From the property of
+HESSIAN-FOCUSED-OPTIMIZER that the objective function value is non-increasing, we have
+E[f(xt)] ? E[f(ut)]. Therefore, combining with the above inequality, we have
+E[f(xt)] ? E[f(ut)]
+= pE[f(yt)] + (1? p)E[f(zt)]
+? pE[f(xt?1)] + (1? p)(E[f(xt?1)]? 2g(n, ))
+= E[f(xt?1)]? (1? p)2g(n, ). (6)
+The first equality is due to the definition of ut in Algorithm 1. Therefore, when the gradient condition
+is violated, irrespective of whether ?min(?2f(x)) ? ?? or?2f(yt)  ??I, the objective function
+value always decreases by at least 2g(n, ).
+Case II: E[??f(yt)?] <  and ?min(?2f(x)) ? ?? for some t > 0
+In this case, we first note that for y = HESSIAN-FOCUSED-OPTIMIZER(x, n, , ?) and
+?min(?2f(x)) ? ??, we have E[f(y)] ? f(x) ? h(n, , ?). Observe that xt =
+HESSIAN-FOCUSED-OPTIMIZER(ut, n, , ?). Therefore, if ut = yt and ?min(?2f(x)) ? ??,
+then we have
+E[f(xt)|ut = yt] ? f(yt)? h(n, , ?) ? f(xt?1)? h(n, , ?).
+The second inequality is due to the non-increasing property of GRADIENT-FOCUSED-OPTIMIZER.
+On the other hand, if ut = zt, we have hand, if we have E[f(xt)|ut = zt] ? f(zt). This is due to the
+non-increasing property of HESSIAN-FOCUSED-OPTIMIZER. Combining the above two inequalities
+and using the law of total expectation, we get
+E[f(xt)] = pE[f(xt)|ut = yt] + (1? p)E[f(xt)|ut = zt]
+? p
+(
+E[f(yt)]? h(n, , ?)
+)
++ (1? p)E[f(zt)]
+? p
+(
+E[f(xt?1)]? h(n, , ?)
+)
++ (1? p)E[f(xt?1)]
+= E[f(xt?1)]? ph(n, , ?). (7)
+12
+The second inequality is due to he non-increasing property of GRADIENT-FOCUSED-OPTIMIZER.
+Therefore, when the hessian condition is violated, the objective function value always decreases by at
+least ph(n, , ?).
+Case III: E[??f(yt)?] <  and?2f(yt)  ??I for some t > 0
+This is the favorable case for the algorithm. The only condition to note is that the objective function
+value will be non-increasing in this case too. This is, again, due to the non-increasing properties of
+subroutines GRADIENT-FOCUSED-OPTIMIZER and HESSIAN-FOCUSED-OPTIMIZER. In general,
+greater the occurrence of this case during the course of the algorithm, higher will the probability that
+the output of our algorithm satisfies the desired property.
+The key observation is that Case I & II cannot occur large number of times since each of these cases
+strictly decreases the objective function value. In particular, from Equation (6) and (7), it is easy to
+see that each occurrence of Case I & II the following holds:
+E[f(xt)] ? E[f(xt?1)]? ?,
+where ? = min((1 ? p)2g(n, ), ph(n, , ?)). Furthermore, the function f is lower bounded by
+B, thus, Case I & II cannot occur more than (f(x0) ? B)/? times. Therefore, the probability of
+occurrence of Case III is at least 1? (f(x0)?B)/(T?), which completes the first part of the proof.
+The second part of the proof simply follows from first part. As seen above, the probability of Case I
+& II is at most (f(x0)?B)/T?. Therefore, probability that an element of the set S falls in Case III
+is at least 1? ((f(x0)?B)/T?)k, which gives us the required result for the second part.
+B Proof of Lemma 1
+Proof. The proof follows from the analysis in [32] with some additional reasoning. We need to show
+two properties: G.1 and G.2, both of which are based on objective function value. To this end, we
+start with an update in the sth epoch. We have the following:
+E[f(xs+1t+1 )] ? E[f(x
+s+1
+t ) + ??f(xs+1t ), xs+1t+1 ? x
+s+1
+t ?+ L2 ?x
+s+1
+t+1 ? x
+s+1
+t ?2]
+? E[f(xs+1t )? ?t??f(xs+1t )?2 +
+L?2t
+2 ?v
+s+1
+t ?2]. (8)
+The first inequality is due to L-smoothness of the function f . The second inequality simply follows
+from the unbiasedness of SVRG update in Algorithm 2. For the analysis of the algorithm, we need the
+following Lyapunov function:
+As+1t := E[f(x
+s+1
+t ) + µt?xs+1t ? x?s?2].
+This function is a combination of objective function and the distance of the current iterate from the
+latest snapshot x?s. Note that the term µt is introduced only for the analysis and is not part of the
+algorithm (see Algorithm 2). Here {µt}mt=0 is chosen such the following holds:
+µt = µt+1(1 + ?t?t + 2?
+2
+tL
+2) + ?2tL
+3,
+for all t ? {0, · · · ,m?1} and µm = 0. For bounding the Lypunov functionA, we need the following
+bound on the distance of the current iterate from the latest snapshot:
+E[?xs+1t+1 ? x?s?2] = E[?x
+s+1
+t+1 ? x
+s+1
+t + x
+s+1
+t ? x?s?2]
+= E[?xs+1t+1 ? x
+s+1
+t ?2 + ?xs+1t ? x?s?2 + 2?xs+1t+1 ? x
+s+1
+t , x
+s+1
+t ? x?s?]
+= E[?2t ?vs+1t ?2 + ?xs+1t ? x?s?2]? 2?tE[??f(xs+1t ), xs+1t ? x?s?]
+? E[?2t ?vs+1t ?2 + ?xs+1t ? x?s?2] + 2?tE
+[
+1
+2?t
+??f(xs+1t )?2 + 12?t?x
+s+1
+t ? x?s?2
+]
+. (9)
+The second equality is due to the unbiasedness of the update of SVRG. The last inequality follows
+from a simple application of Cauchy-Schwarz and Young’s inequality. Substituting Equation (8) and
+13
+Equation (9) into the Lypunov function As+1t+1 , we obtain the following:
+As+1t+1 ? E[f(x
+s+1
+t )? ?t??f(xs+1t )?2 +
+L?2t
+2 ?v
+s+1
+t ?2]
++ E[µt+1?2t ?vs+1t ?2 + µt+1?xs+1t ? x?s?2]
++ 2µt+1?tE
+[
+1
+2?t
+??f(xs+1t )?2 + 12?t?x
+s+1
+t ? x?s?2
+]
+? E[f(xs+1t )?
+(
+?t ? µt+1?t?t
+)
+??f(xs+1t )?2
++
+(
+L?2t
+2 + µt+1?
+2
+t
+)
+E[?vs+1t ?2] + (µt+1 + µt+1?t?t)E
+[
+?xs+1t ? x?s?2
+]
+. (10)
+To further bound this quantity, we use Lemma 3 to bound E[?vs+1t ?2], so that upon substituting it in
+Equation (10), we see that
+As+1t+1 ? E[f(x
+s+1
+t )]?
+(
+?t ? µt+1?t?t ? ?
+2
+tL? 2µt+1?2t
+)
+E[??f(xs+1t )?2]
++
+[
+µt+1
+(
+1 + ?t?t + 2?
+2
+tL
+2
+)
++ ?2tL
+3
+]
+E
+[
+?xs+1t ? x?s?2
+]
+? As+1t ?
+(
+?t ? µt+1?t?t ? ?
+2
+tL? 2µt+1?2t
+)
+E[??f(xs+1t )?2].
+The second inequality follows from the definition of µt and As+1t . Since ?t = ? = 1/(4Ln
+2/3) for
+j > 0 and t ? {0, . . . , j ? 1},
+As+1j ? A
+s+1
+0 ? ?n
+?j?1
+t=0
+E[??f(xs+1t )?2], (11)
+where
+?n =
+(
+?t ? µt+1?t?t ? ?
+2
+tL? 2µt+1?2t
+)
+.
+We will prove that for the given parameter setting ?n > 0 (see the proof below). With ?n > 0, it is
+easy to see that As+1j ? A
+s+1
+0 . Furthermore, note that A
+s+1
+0 = E[f(x
+s+1
+0 ) + µ0?x
+s+1
+0 ? x?s?2] =
+E[f(xs+10 )] since x
+s+1
+0 = x?
+s (see Algorithm 2). Also, we have
+E[f(xs+1j ) + µj?x
+s+1
+j ? x?
+s?2] ? E[f(xs+10 )]
+and thus, we obtain E[f(xs+1j )] ? E[f(x
+s+1
+0 )] for all j ? {0, ....,m}. Furthermore, using sim-
+ple induction and the fact that xs+10 = x
+s
+m for all epoch s ? {0, ..., S ? 1}, it easy to see that
+E[f(xs+1j )] ? f(x0). Therefore, with the definition of y specified in the output of Algorithm 2, we
+see that the condition G.1 of GRADIENT-FOCUSED-OPTIMIZER is satisfied for SVRG algorithm.
+We now prove that ?n > 0 and also G.2 of GRADIENT-FOCUSED-OPTIMIZER is satisifed for SVRG
+algorithm. By using telescoping the sum with j = m in Equation (11), we obtain?m?1
+t=0
+E[??f(xs+1t )?2] ?
+As+10 ?As+1m
+?n
+.
+This inequality in turn implies that?m?1
+t=0
+E[??f(xs+1t )?2] ?
+E[f(x?s)? f(x?s+1)]
+?n
+, (12)
+where we used that As+1m = E[f(xs+1m )] = E[f(x?s+1)] (since µm = 0), and that A
+s+1
+0 = E[f(x?s)]
+(since xs+10 = x?
+s). Now sum over all epochs to obtain
+1
+Tg
+S?1?
+s=0
+m?1?
+t=0
+E[??f(xs+1t )?2] ?
+E[f(x0)? f(xSm)]
+Tg?n
+. (13)
+Here we used the the fact that x?0 = x0. To obtain a handle on ?n and complete our analysis, we will
+require an upper bound on µ0. We observe that µ0 = L16n4/3
+(1+?)m?1
+? where ? = 2?
+2L2 + ??. This
+is obtained using the relation µt = µt+1(1 + ?? + 2?2L2) + ?2L3 and the fact that µm = 0. Using
+the specified values of ? and ? we have
+? = 2?2L2 + ?? =
+1
+8n4/3
++
+1
+4n
+? 3
+4n
+.
+14
+Using the above bound on ?, we get
+µ0 =
+L
+16n4/3
+(1 + ?)m ? 1
+?
+=
+L((1 + ?)m ? 1)
+2(1 + 2n1/3)
+?
+L((1 + 34n )
+b4n/3c ? 1)
+2(1 + 2n1/3)
+? n?1/3(L(e? 1)/4), (14)
+wherein the second inequality follows upon noting that (1+ 1l )
+l is increasing for l > 0 and liml??(1+
+1
+l )
+l = e (here e is the Euler’s number). Now we can lower bound ?n, as
+?n = min
+t
+(
+? ? µt+1?? ? ?
+2L? 2µt+1?2
+)
+?
+(
+? ? µ0?? ? ?
+2L? 2µ0?2
+)
+? 1
+40Ln2/3
+.
+The first inequality holds since µt decreases with t. The second inequality holds since (a) µ0/? can be
+upper bounded by (e?1)/4 (follows from Equation (14)), (b) ?2L ? ?/4 and (c) 2µ0?2 ? (e?1)?/8
+(follows from Equation (14)). Substituting the above lower bound in Equation (13), we obtain the
+following:
+1
+Tg
+S?1?
+s=0
+m?1?
+t=0
+E[??f(xs+1t )?2] ?
+40Ln2/3E[f(x0)? f(xSm)]
+Tg
+. (15)
+From the definition of (y, z) in output of Algorithm 2 i.e., y is Iterate xa chosen uniformly random
+from {{xs+1t }m?1t=0 }
+S?1
+s=0 and z = x
+S
+m, it is clear that Algorithm 2 satisfies the G.2 requirement
+of GRADIENT-FOCUSED-OPTIMIZER with g(n, ) = T/40Ln2/3. Since both G.1 and G.2 are
+satisified for Algorithm 2, we conclude that SVRG is a GRADIENT-FOCUSED-OPTIMIZER.
+C Proof of Lemma 2
+Proof. The first important observation is that the function value never increases because y =
+arg minz?{u,x} f(z) i.e., f(y) ? f(x), thus satisfying H.1 of HESSIAN-FOCUSED-OPTIMIZER.
+We now analyze the scenario where ?min(?2f(x)) ? ??. Consider the event where we obtain v
+such that
+?v,?2f(x)v? ? ?min(?2f(x)) +
+?
+2
+.
+This event (denoted by E) happens with at least probability ?. Note that, since ?min(?2f(x)) ? ??,
+we have ?v,?2f(x)v? ? ??2 . In this case, we have the following relationship:
+f(y) ? f(x) + ??f(x), y ? x?+ 1
+2
+(y ? x)T?2f(x)(y ? x) + M
+6
+?y ? x?3
+= f(x)? ?|??f(x), v?|+ ?
+2
+2
+vT?2f(x)v + M?
+3
+6
+?v?3
+? f(x) + ?
+2
+2
+vT?2f(x)v + M?
+3
+6
+? f(x)? 1
+2M2
+|vT?2f(x)v|3 + 1
+6M2
+|vT?2f(x)v|3
+= f(x)? 1
+3M2
+|vT?2f(x)v|3 ? f(x)? 1
+24M2
+?3. (16)
+The first inequality follows from the M -lipschitz continuity of the Hessain?2f(x). The first equality
+follows from the update rule of HESSIANDESCENT. The second inequality is obtained by dropping
+the negative term and using the fact that ?v? = 1 . The second equality is obtained by substituting
+? = |v
+T?2f(x)v|
+M . The last inequality is due to the fact that?v,?
+2f(x)v? ? ??2 . In the other scenario
+where
+?v,?2f(x)v? ? ?min(?2f(x)) +
+?
+2
+,
+we can at least ensure that f(y) ? f(x) since y = arg minz?{u,x} f(z). Therefore, we have
+E[f(y)] = ?E[f(y)|E ] + (1? ?)E[f(y)|E? ]
+? ?E[f(y)|E ] + (1? ?)f(x)
+? ?
+[
+f(x)? ?24M2 ?
+3
+]
++ (1? ?)f(x)
+= f(x)? ?24M2 ?
+3. (17)
+15
+The last inequality is due to Equation (16). Hence, HESSIAN-FOCUSED-OPTIMIZER satisfies H.2 of
+HESSIAN-FOCUSED-OPTIMIZER with h(n, , ?) = ?24M2 ?
+3, thus concluding the proof.
+D Proof of Theorem 3
+First note that cubic method is a descent method (refer to Theorem 1 of [28]); thus, H.1 is trivially sat-
+isfied. Furthermore, cubic descent is a HESSIAN-FOCUSED-OPTIMIZER with h(n, , ?) = 2?
+3
+81M3 ?
+3.
+This, again, follows from Theorem 1 of [28]. The result easily follows from the aforementioned
+observations.
+E Other Lemmas
+The following bound on the variance of SVRG is useful for our proof [32].
+Lemma 3. [32] Let vs+1t be computed by Algorithm 2. Then,
+E[?vs+1t ?2] ? 2E[??f(xs+1t )?2] + 2L2E[?xs+1t ? x?s?2].
+Proof. We use the definition of vs+1t to get
+E[?vs+1t ?2] = E[?
+(
+?fit(xs+1t )??fit(x?s)
+)
++?f(x?s)?2]
+= E[?
+(
+?fit(xs+1t )??fit(x?s)
+)
++?f(x?s)??f(xs+1t ) +?f(xs+1t )?2]
+? 2E[??f(xs+1t )?2] + 2E
+[???fit(xs+1t )??fit(x?s)? E[?fit(xs+1t )??fit(x?s)]??2]
+The inequality follows from the simple fact that (a+ b)2 ? a2 + b2. From the above inequality, we
+get the following:
+E[?vs+1t ?2] ? 2E[??f(xs+1t )?2] + 2E??fit(xs+1t )??fit(x?s)?2
+? 2E[??f(xs+1t )?2] + 2L2E[?xs+1t ? x?s?2]
+The first inequality follows by noting that for a random variable ?, E[?? ? E[?]?2] ? E[???2]. The
+last inequality follows from L-smoothness of fit .
+F Approximate Cubic Regularization
+Cubic regularization method of [19] is designed to operate on full batch, i.e., it does not exploit the
+finite-sum structure of the problem and requires the computation of the gradient and the Hessian on
+the entire dataset to make an update. However, such full-batch methods do not scale gracefully with
+the size of data and become prohibitively expensive on large datasets. To overcome this challenge,
+we devised an approximate cubic regularization method described below:
+1. Pick a mini-batch B and obtain the gradient and the hessian based on B, i.e.,
+g =
+1
+|B|
+?
+i?B
+?fi(x) H =
+1
+|B|
+?
+i?B
+?2fi(x) (18)
+2. Solve the sub-problem
+v? = arg min
+v
+?g, v?+ 1
+2
+?v,Hv?+ M
+6
+?v?3 (19)
+3. Update: x? x+ v?
+We found that this mini-batch training strategy, which requires the computation of the gradient and
+the Hessian on a small subset of the dataset, to work well on a few datasets (CURVES, MNIST,
+CIFAR10). A similar method has been analysed in [7].
+Furthermore, in many deep-networks, adaptive per-parameter learning rate helps immensely [18].
+One possible explanation for this is that the scale of the gradients in each layer of the network
+16
+Figure 4: Comparison of various methods on a synthetic problem. Our mix framework successfully
+escapes saddle point.
+often differ by several orders of magnitude. A well-suited optimization method should take this into
+account. This is the reason for popularity of methods like ADAM or RMSPROP in the deep learning
+community. On similar lines, to account for different per-parameter behaviour in cubic regularization,
+we modify the sub-problem by adding a diagonal matrix Md in addition to the scalar regularization
+coefficient M , i.e.,
+min
+v
+?g, v?+ 1
+2
+?v,Hv?+ 1
+6
+M?Mdv?3. (20)
+Also we devised an adaptive rule to obtain the diagonal matrix as Md = diag((s+ 10?12)1/9), where
+s is maintained as a moving average of third order polynomial of the mini-batch gradient g, in a
+fashion similar to RMSPROP and ADAM:
+s? ?s+ (1? ?)(|g|3 + 2g2), (21)
+where |g|3 and g2 are vectors such that [|g|3]i = |gi|3 and [g2]i = g2i respectively for all i ? [n]. The
+experiments reported on CURVES and MNIST in this paper utilizes both the above modifications
+to the cubic regularization, with ? set to 0.9. We refer to this modified procedure as ACubic in our
+results.
+G Experiment Details
+In this section we provide further experimental details and results to aid reproducibility.
+G.1 Synthetic Problem
+The parameter selection for all the methods were carried as follows:
+1. SGD: The scalar step-size was determined by a grid search.
+2. ADAM: We performed a grid search over ? and ? parameters of ADAM tied together, i.e., ? = ?.
+3. SVRG: The scalar step-size was determined by a grid search.
+4. CUBICDESCENT: The regularization parameter M was chosen by grid search. The sub-problem
+was solved with gradient descent [6] with the step-size of solver to be 10?2 and run till the gradient
+norm of the sub-problem is reduced below 10?3.
+Further Observations The results are presented in Figure 4. The other first order methods like
+ADAM with higher noise could escape relatively faster whereas SVRG with reduced noise stayed
+stuck at the saddle point.
+G.2 Deep Networks
+Methods The parameter selection for all the methods were carried as follows::
+1. ADAM: We performed a grid search over ? and ? parameters of ADAM so as to produce the best
+generalization on a held out test set. We found it to be ? = 10?3, ? = 10?3 for CURVES and
+? = 10?2, ? = 10?1 for MNIST.
+2. APPROXCUBICDESCENT: The regularization parameter M was chosen as the largest value such
+function value does not jump in first 10 epochs. We found it to be M = 103 for both CURVES
+and MNIST. The sub-problem was solved with gradient descent [6] with the step-size of solver to
+be 10?3 and run till the gradient norm of the sub-problem is reduced below 0.1.
+17
+Figure 5: Comparison of various methods on a Deep Autoencoder on CURVES (top) and MNIST
+(bottom). Our mix approach converges faster than the baseline methods and uses relatively few ISO
+calls in comparison to APPROXCUBICDESCENT
+18

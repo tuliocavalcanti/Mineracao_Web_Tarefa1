@@ -1,0 +1,2340 @@
+IJCV manuscript No.
+(will be inserted by the editor)
+Weighted Low-rank Tensor Recovery for Hyperspectral Image
+Restoration
+Yi Chang · Luxin Yan · Houzhang Fang · Sheng Zhong · Zhijun Zhang.
+Received: date / Accepted: date
+Abstract Hyperspectral imaging, providing abundant spa-
+tial and spectral information simultaneously, has attracted a
+lot of interest in recent years. Unfortunately, due to the hard-
+ware limitations, the hyperspectral image (HSI) is vulnera-
+ble to various degradations, such noises (random noise, HSI
+denoising), blurs (Gaussian and uniform blur, HSI deblur-
+ring), and down-sampled (both spectral and spatial down-
+sample, HSI super-resolution). Previous HSI restoration meth-
+ods are designed for one specific task only. Besides, most of
+them start from the 1-D vector or 2-D matrix models and
+cannot fully exploit the structurally spectral-spatial corre-
+lation in 3-D HSI. To overcome these limitations, in this
+work, we propose a unified low-rank tensor recovery model
+for comprehensive HSI restoration tasks, in which non-local
+similarity between spectral-spatial cubic and spectral corre-
+lation are simultaneously captured by 3-order tensors. Fur-
+ther, to improve the capability and flexibility, we formulate
+it as a weighted low-rank tensor recovery (WLRTR) model
+by treating the singular values differently, and study its ana-
+lytical solution. We also consider the exclusive stripe noise
+in HSI as the gross error by extending WLRTR to robust
+principal component analysis (WLRTR-RPCA). Extensive
+experiments demonstrate the proposed WLRTR models con-
+sistently outperform state-of-the-arts in typical low level vi-
+This work was supported in part by the projects of the National Natural
+Science Foundation of China under Grants No. 61571207, 61433007
+and 41501371.
+Yi Chang, Luxin Yan, Sheng Zhong and Zhijun Zhang
+Science and Technology on Multispectral Information Processing Lab-
+oratory, School of Automation, Huazhong University of Science and
+Technology, Wuhan, 430074, China.
+E-mail: yichang, yanluxin, zhongsheng, zhijunzhang@hust.edu.cn
+Houzhang Fang
+National Laboratory of Radar Signal Processing, Xidian University,
+Xi’an, 710071, China E-mail: houzhangfang@gmail.com
+sion HSI tasks, including denoising, destriping, deblurring
+and super-resolution.
+Keywords Low-rank tensor recovery · Hyperspectral
+images · Image restoration and Reweighted sparsity
+1 Introduction
+Hyperspectral image consists of multiple discrete bands at
+specific frequencies. The HSI can deliver additional infor-
+mation the human eye fails to capture for real scenes, and
+has been attracting a lot of interests for the research from
+wide range of application fields, such as anomaly detec-
+tion [24], classification [37], and environmental monitor-
+ing [58]. However, HSI always suffers from various degra-
+dations, such as the random noise (caused by photon ef-
+fects), stripe noise (due to calibration error between adja-
+cent detectors), blurring (on account of atmospheric turbu-
+lence or system motion), and low spatial resolution (because
+of the exposure time). It is economically unsustainable and
+impractical to improve its quality in HSI merely by hard-
+ware scheme. Therefore, it is natural to introduce the im-
+age processing based approaches for obtaining a high qual-
+ity HSI before the subsequent applications. Mathematically,
+the problem of HSI restoration can be generally formulated
+by a linear model as follow:
+Y = Tsa(X ) + E +N , (1)
+where Y ? Rr×c×B is an observed low spatial-resolution
+image,X ? RR×C×B (r  R, c C) represents the orig-
+inal high spatial-resolution image, E ? Rr×c×B denotes the
+sparse error (mainly the stripe noise),N ? Rr×c×B means
+the additive random noise, and Tsa(•) stands for the spa-
+tially linear degradation operator on the clean HSI. With dif-
+ferent settings, Eq. (1) can represent different HSI restora-
+tion problems; When Tsa(•) is an identity tensor, the prob-
+ar
+X
+iv
+:1
+70
+9.
+00
+19
+2v
+1 
+ [
+cs
+.C
+V
+] 
+ 1
+ S
+ep
+ 2
+01
+7
+2 Yi Chang et al.
+lem (1) becomes HSI denoising (only consider N ) or HSI
+destriping (only consider E), or HSI mixed noise removal
+(bothN and E); when Tsa(•) is a blur operator, the problem
+(1) turns into the HSI deblurring; For HSI super-resolution,
+Tsa(•) is a composite operator of blurring and spatial down-
+sampling. Moreover, in HSI super-resolution, there is an-
+other guided low spectral resolution multispectral imageZ ?
+RR×C×b (b  B) (usually RGB image), which can be for-
+mulated as follow:
+Z = Tse(X ) +N , (2)
+where Tse(•) denotes a spectral downsampling procedure,
+which can be expressed asX×3P, and P ? Rb×B is a trans-
+formation matrix mapping the HSI X ? RR×C×B to its
+RGB representation Z ? RR×C×b (b  B). The tensor
+product is defined in Section II.
+To cope with the ill-posed nature of the HSI restoration
+task, various prior knowledge of the HSI is proposed to reg-
+ularize the solution space:
+min
+X
+1
+2
+||Y?Tsa(X )?E||2F +
+1
+2
+||Z?Tse(X )||2F +??(X ),
+(3)
+where || • ||2F stands for the Euclidean norm, the first two
+data fidelity terms represent the spatial and spectral degra-
+dation process respectively, ?(X ) is a regularization term to
+enforce the solution with desired property, and ? is a trade-
+off regularization parameter. The success of the HSI restora-
+tion heavily depends on how we choose proper prior knowl-
+edge. From the perspective of the data format in the prior,
+we classify the existing HSI restoration methods into three
+categories: one-dimensional vector based sparse representa-
+tion methods, two-dimensional matrix based low-rank ma-
+trix recovery methods, and three-dimensional tensor based
+approximation methods.
+Sparse representation methods assumes that the clean
+signals lie in a low-dimensional subspace and can be well
+approximated by the linear combination of a few atoms in
+a dictionary [25]. Othman and Qian [59] presented a hybrid
+spatial-spectral derivative domain wavelet shrinkage model
+with a fixed wavelet dictionary to reduce the noise in HSI.
+In [2,22,72], the authors learned the dictionary directly from
+the observed images for HSI super-resolution. The above
+mentioned methods are synthesis based, while analysis-based
+sparse representation methods transform a signal into spar-
+sity domain through various forward measurements on it [6],
+such as well-known total variation [66] with fixed gradient
+filtering template. Yuan et al. [83] proposed a HSI denois-
+ing algorithm by employing a spectral-spatial adaptive total
+variation model.
+With the development of the robust principle component
+analysis (RPCA) [73], the two-dimensional low-rank matrix
+recovery methods have shown its effectiveness to discover
+the intrinsic low-dimensional structures in high-dimensional
+HSI data. In [85], by lexicographically ordering the 3-D cube
+into a 2-D matrix representation along the spectral dimen-
+sion, Zhang et al. proposed a low-rank matrix restoration
+model for mixed noise removal in HSI. A lot of works fol-
+low this research line [35, 77, 88]. On the contrary, Vegan-
+zones et al. [69] considered that the HSI are spatially lo-
+cal low rank for HSI super-resolution, since spatial neigh-
+borhood pixels represented the same materials span a very
+low-dimensional subspace/manifold. In [14], we proposed a
+globally low-rank decomposition model for HSI destriping,
+since only parts of data vectors are corrupted by the stripes
+but the others are not.
+The tensor based method [43] is quite suitable for multi-
+dimensional HSI processing. The pioneer works [34,44,50]
+have achieved promising results in HSI denoising. Recently,
+when the tensor decomposition meets the sparsity property,
+its potential has been further tapped and enlightened state-
+of-the-arts HSI denoising work. In [60], the authors pro-
+posed a tensor dictionary learning model for the task of HSI
+denoising with enforcing hard constraints on the rank of the
+core tensor. Dong et al. [23] presented a novel low-rank ten-
+sor approximation framework with Laplacian Scale Mixture
+(LSM) modeling in a principle manner, in which the LSM
+parameters and sparse tensor coefficients can be jointly opti-
+mized with closed-form solutions. In [15], we give a detailed
+analysis about the rank properties both in matrix and ten-
+sor cases, a unidirectional low-rank tensor recovery model
+is proposed for HSI denoising.
+However, there are three main drawbacks in the afore-
+mentioned methods. Firstly, transforming the multi-way HSI
+data into a vector or matrix usually leads to lose the spectral-
+spatial structural correlation. The latest work [21, 76] con-
+sistently indicate that the tensor-based methods substantially
+preserve the intrinsic structure correlation with better restora-
+tion results. Besides, some tensor based methods are quite
+heuristic without taking the sparsity prior into consideration,
+which make them hard to be extended to other HSI restora-
+tion tasks. Secondly, compared with natural 2-D images, the
+HSI data could provide us extra multiple spectral informa-
+tion. Unfortunately, many HSI restoration methods fall into
+the ’trap’ of high spectral correlation, while ignoring the
+non-local similarity [35], and vice versa [21]. Thus the re-
+sult of these approaches may be suboptimal. Finally, most
+of previous methods only employ the conventional L1 or
+nuclear norm as the sparsity constraint for HSI restoration.
+As a result, each patch is encoded equally. Such a mecha-
+nism may not take advantage of the image patch structure
+difference sufficiently. The reweighting strategy interprets
+the fine-grained structural discrepancy, and has proven to be
+effective in vector or matrix cases [9, 33, 49, 78], while it
+has received less attention in tensor based methods for HSI
+restorations.
+Weighted Low-rank Tensor Recovery for Hyperspectral Image Restoration 3
+In this work, to overcome the aforementioned drawbacks,
+our starting point is to present a unified HSI restoration model
+from the tensor perspective in which the fine-grained intrin-
+sic low-rank of the constructed tensor is took into considera-
+tion. The tensor format naturally offers a unified understand-
+ing for the vector/matrix-based recovery models. Compared
+with the state-of-the-art HSI restoration methods, the contri-
+butions of the proposed work are as follows:
+– We propose an effective and universal tensor-based low-
+rank prior for HSI image modeling, and validate it on
+several representative HSI image restoration tasks, such
+as denoising, destriping, deblurring, and super-resolution.
+To our knowledge, this is the first work that comprehen-
+sively considers the low-level HSI restoration tasks in a
+unified model.
+– Most of HSI restoration methods encode the spectral or
+spatial information independently, ignores the spatial-
+spectral structural correlation. Our method employs the
+low-rank tensor prior to model the spatial non-local self-
+similarity and spectral correlation property simultane-
+ously, better preserving the intrinsic spectral-spatial struc-
+tural correlation.
+– We extend the idea of the weighted strategy in matrix
+low-rank minimization problem [33] to tensor case, where
+the singular values in the core tensor are with different
+importance and assigned different weights. This simple
+operation has immediate physical interpretation and fa-
+cilitates better restoration results. Meanwhile, the ana-
+lytical solution of the WLRTR model has been given.
+– To handle the real noise case in HSI, including both
+the random and stripe noise, we propose a tensor based
+RPCA decomposition model, in which the structural stripe
+noise is regarded as the gross error. The L211 norm (de-
+fined in section III) is introduced to capture the direc-
+tional and structural property of the stripe noise.
+– For various low-level HSI restoration tasks, the proposed
+WLRTR model consistently outperforms the state-of-the-
+arts by a large marginal. Further, we demonstrate that
+the WLRTR can be well applied to multispectral images,
+such as three channel color image and MRI.
+The remainder of this paper is organized as follows. The
+related HSI restoration methods are introduced in Section II.
+Section III presents the weighted low-rank tensor recovery
+modeling, and analyze its close-formed solution. Section IV
+proposes the concrete objective functional of each individual
+HSI restoration task, and gives the corresponding optimiza-
+tion procedures. Extensive experimental results are reported
+in Section V. Section VI concludes this paper.
+2 Related work
+We discuss the related state-of-the-art work for various HSI
+restoration tasks in detail, including denoising, destriping,
+deblurring, and super-resolution, and compare our work with
+them.
+2.1 HSI Denoising
+Image denoising is a test bed for the various technique. Con-
+sequently, numerous approaches for HSI denoising have been
+proposed [29, 30, 86]. The spectral correlation and nonlocal
+self-similarity are two kinds of intrinsic characteristic under-
+lying a HSI. Most of previous HSI denoising methods focus
+on the spectral correlation such as the wavelet methods [59],
+total variational methods [83], the low-rank matrix recovery
+methods [10, 35, 85, 88], or the nonlocal self-similarity such
+as BM4D [54], HOSVD [62] individually. Recently, Peng et
+al. [60] firstly modeled them simultaneously in tensor for-
+mat. However, the TDL [60] is quite heuristic and short of
+a concise formulation, thus lacking of the flexibility to other
+HSI restoration tasks. Several tensor works [15, 23, 76] fol-
+lowed the research line of [60], and model the sparsity of
+the core tensor coefficients in a principled manner. Inter-
+ested readers could refer to [75] for detailed background of
+HSI denoising. In this work, we further take the fine-grained
+intrinsic sparsity of the core tensor coefficients into consid-
+eration with the reweighting strategy, so as to better encode
+the structural correlation. Moreover, our WLRTR model can
+be well extended to other HSI issues.
+2.2 HSI Destriping
+Stripe noise is a very common structure noise in HSI. Tra-
+ditional HSI destriping methods [3, 13, 53, 68, 85] treated
+this problem as a denoising task and estimate the image di-
+rectly with Gaussian white noise assumption. Further, Meng
+et al. [10, 57] hold the point that the stripe line is a kind
+of structure noise, and introduced the mixture of Gaussians
+(MoG) noise assumption to accommodate the stripe noise
+characteristic. On the contrary, some works started from the
+opposite direction by estimating the stripe noise only [11,
+28, 51]. These methods regard the stripe noise as a kind of
+specific image structure with less variables and regular pat-
+terns, which makes the problem easier to be solved. Our
+recent work [14] proposed to treat the HSI destriping task
+as an image decomposition task, in which the clear image
+and stripe component are treated equally and estimated iter-
+atively. Previous methods are all 2-D matrix based and most
+of them fail to capture the directional characteristic of the
+stripe noise. In this work, we present a tensor based RPCA
+decomposition method to simultaneously estimate the image
+4 Yi Chang et al.
+and stripe, in which directional induced L211 norm (defined
+in section III) is introduced to appropriately capture the sub-
+space of the stripe noise.
+2.3 HSI Deblurring
+Natural image deblurring aims to recover a sharp latent im-
+age from a blurred one [45], which is a classical and active
+research field within the last decade. Numerous HSI deblur-
+ring methods directly learn from the natural single image
+priors by assuming the widely used sparsity of image gra-
+dients, e.g., Huber-Markov prior [67], the total variational
+(TV) [87], and Gaussian mixture model (GMM) [89]. Only
+recently, the spatial-spectral joint total variational has been
+introduced to HSI deblurring [26, 36]. In general, most of
+previous HSI deblurring methods only exploit the spatial in-
+formation, while none of them have utilized the nonlocal
+self-similarity presented in HSI. In our work, we focus on
+the non-blind HSI deblurring, and show that the additional
+spectral correlation and nonlocal information would signifi-
+cantly improve the HSI deblurring performance.
+2.4 HSI Super-resolution
+HSI super-resolution refers to the fusion of a hyperspec-
+tral image (low spatial but high spectral resolution) with
+a panchromatic/multispectral image (high spatial but low
+spectral resolution, usually RGB image). The most popu-
+lar sparsity promoting methods mainly include the sparse
+representation [1, 2, 16, 38, 46, 72] and the matrix factoriza-
+tion approach [22, 39, 42, 74, 82]. In [72], the authors ap-
+plied the dictionary learning embedded in the spectral sub-
+space to exploit the sparsity of hyperspectral images. In [22],
+Dong et al. proposed a non-negative structured sparse repre-
+sentation (NSSR) approach with the prior knowledge about
+spatio-spectral sparsity of the hyperspectral image. Analog
+to classical super-resolution [79], a sparse matrix factoriza-
+tion method [39] borrowed the idea that both the LR hyper-
+spectral image and HR RGB image share the same coding
+coefficients. The HR hyperspectral image was then recon-
+structed by multiplying the learned basis from the HR RGB
+image and sparse coefficients from the LR hyperspectral im-
+age. The interested readers can refer to the survey [52].
+Tensor-based methods in HSI super-resolution is not en-
+tirely new. Very recently, Dian et al. [21] proposed a non-
+local sparse Tucker tensor factorization (NLSTF) model for
+HSI super-resolution. While both NLSTF and our technique
+tackle this problem from the tensor perspective, NLSTF fails
+to make use of an auxiliary HR RGB image. Similar to [60],
+its realization is relatively heuristic, and hard to be incor-
+porate additional information. Our unified WLRTR method
+by-passes the tensor dictionary learning process by using
+NY U
+U
+U
+S
+m
+k
+b
+m
+k
+b
+m
+b
+k
+k
+m
+b
+k
+m
+b
+= +
+1
+2
+3
+Fig. 1: The illustration of the HOSVD.
+high order singular value decomposition (HOSVD) [62], ben-
+efiting us enough flexibility, such as the auxiliary HR RGB
+image. Besides, NLSTF does not apply any sparsity prior
+for the underlying HR HSI. In contrast, we introduce the
+weighted low-rank tensor prior to further refine the solution.
+3 Weighted Low-rank Tensor Recovery Model
+In this section, we first introduce some notations and the
+low-rank approach for 2-D images. Then, we will present
+the advantageous of the tensor based method, and the de-
+tails of our WLRTR model. At last, we offer its analytical
+solution.
+3.1 Notations and Preliminaries
+In this paper, we denote tensors by boldface Euler script let-
+ters, e.g., X . Matrices are represented as boldface capital
+letters, e.g., X; vectors are expressed with boldface lower-
+case letters, e.g., x, and scalars are denoted by lowercase
+letters, e.g., x. The i-th entry of a vector x is denoted by xi,
+element (i, j) of a matrix X is denoted by xij , and element
+(i, j, k) of a third-order tensor X is denoted by xijk.
+Fibers are the higher-order analogue of matrix rows and
+columns. A fiber of an N-dimensional tensor is a 1-D vector
+defined by fixing all indices but one [40]. A Slice of an N-
+dimensional tensor is a 2-D matrix defined by fixing all but
+two indices [40]. For a third order tensor, its column, row,
+and tube fibers, denoted by x:jk, xi:k, andxij:, respectively.
+Definition 1 (Tensor norms) The Frobenius norm of an
+N order tensor X ? RI1×I2×···×IN is the square root of
+the sum of the squares of all its elements, i.e., ||X ||F =??I1
+i1=1
+?I2
+i2=1
+· · ·
+?IN
+iN=1
+x2i1i2···iN . The L1 norm of an N
+order tensor is the sum of the absolute value of all its ele-
+ments, i.e., ||X ||1 =
+?I1
+i1=1
+?I2
+i2=1
+· · ·
+?IN
+iN=1
+|xi1i2···iN |.
+These norms for tensor are analogous to the matrix norm.
+Definition 2 (Tensor matricization) Matricization, also named
+as unfolding or flattening, is the process of reordering the
+elements of an N-order tensor into a matrix. The mode-n
+matricization X(n) ? RIn×(I1···In?1In···IN ) of a tensor X ?
+RI1×I2×···×IN is obtained by taking all the mode-n fibers to
+be the columns of the resulting matrix.
+Weighted Low-rank Tensor Recovery for Hyperspectral Image Restoration 5
+ 
+ 
+0
+50
+100
+150
+200
+250
+ 
+ 
+0
+5
+10
+15
+20
+25
+30
+35
+40
+45
+50
+0 5 10 15 20 25 30 35 40
+0
+50
+100
+150
+200
+250
+300
+Singular Values
+M
+ag
+n
+it
+u
+d
+e
+ 
+ 
+Noisy Data
+Clean Data
+(a) 
+(b) (c) 
+Fig. 2: SVD analysis on 2-D matrix on both clean patch and
+noisy patch. (a) and (b) show the singular values of the noisy
+patch and clean patch, respectively. (c) Plot of the diagonal
+element of the singular value matrix.
+Definition 3 (Tensor product) Here we just consider the
+tensor n-mode product, i.e., multiplying a tensor by a matrix
+in mode n, which will be used in HOSVD latter. Interested
+readers can refer to Bader and Kolda [40] for a full treatment
+of tensor multiplication. For a tensor X ? RI1×I2×···×IN ,
+its n-mode product with a matrix U ? RJ×In is denoted by
+Z = X×nU, and Z ? RI1×···×In?1×J×In+1×···×IN . Each
+element in Z can be represented as
+zi1···in?1jin+1···iN =
+In?
+in=1
+xi1i2···iNujin . (4)
+Definition 4 (Tensor SVD) The Tucker decomposition is a
+kind of higher-order SVD, which decomposes a tensor into
+a core tensor multiplied by a matrix along each mode as fol-
+low [43]:
+X = S×1U1×2U2×3 · · · ×NUN , (5)
+where X ? RI1×I2×···×IN , S ? RI1×I2×···×IN is the core
+tensor similar to the singular values in matrix, and its in-
+tensity shows the level of interaction between the different
+components, Ui ? RIi×Ii is the orthogonal factor matrix
+and can be regarded as the principal components in each
+mode. The main purpose of our work is to estimate the core
+tensors S and the clean image tensor X in presence of the
+degraded tensor Y , as shown in Fig. 1.
+3.2 Low-rank matrix recovery for 2-D image denoising
+Given a degraded matrix Y, low rank matrix recovery aims
+to recover its underlying low-dimensional structure X, which
+has a wide range of applications in computer vision and ma-
+chine learning [7]. In 2-D image denoising, the degraded
+matrix Y ? Rp×(k+1) is usually formed by a group of non-
+local similar vectorization patches, where p is the length of
+the vectorization patches and k is the number of the non-
+local similar patches. Mathematically, the low-rank matrix
+recovery problem is:
+X? = arg min
+X
+1
+2
+||X ? Y||2F + ?rank(X), (6)
+where ? is the regularization parameter to balance the terms.
+Because of the nonconvexity of the rank constraint, the nu-
+clear norm is usually introduced to replace it as its convex
+surrogate functional [27]:
+X? = arg min
+X
+1
+2
+||X ? Y||2F + ?||X||?, (7)
+where ||X||? is defined as the sum of its singular values, i.e.
+||X||? =
+?
+j |?j(X)|1, and ?j(X) means the j-th singular
+value of X. In Fig. 2(a) and 2(b), we show the singular val-
+ues of the noisy patch and clean patch, respectively. We can
+find that the singular values only exist at the diagonal in 2-D
+matrix SVD, and the noisy degradation causes the singular
+values difference. In Fig. 2(c), we can observe that singu-
+lar values of the clean patch exist much more sparsity than
+those of the noisy patch, and follow an exponential decay
+rule. That is why the low-rank prior, namely the singular
+value sparsity, is effective in 2-D matrix recovery.
+According to [8], the nuclear norm is the tightest convex
+relaxation to the non-convex low-rank minimization prob-
+lem. Under suitable conditions, Eq. (6) and (7) are formally
+equivalent in the sense that they have exactly the same unique
+solution. Equation (7) can be easily solved by a soft singular
+values thresholding algorithm [5]:{
+X? = U (shrink L?(?, ?)) VT
+shrink L?(?, ?) = diag{max(?jj ? ?, 0)}j ,
+(8)
+where (U,?,V) = svd(Y) is the singular value decompo-
+sition and ?jj is the diagonal element of the singular value
+matrix ?.
+3.3 WLRTR for 3-D HSI denoising
+In this sub-section, we start the presentation of the intu-
+ition of the proposed denoising algorithm by first introduc-
+ing why sparsity of high order singular values is brought
+to work. Then, we show the detail about how we construct
+the low-rank 3-order tensor. Once this is set, we present the
+low-rank tensor recovery model with weighted sparsity.
+3.3.1 Why Low-rank Tensor Recovery
+One major shortcoming of 2-D low-rank is that it can only
+work in presence of 2-way (matrix) data. However, the real
+6 Yi Chang et al.
+0
+10
+20
+30
+40
+50
+0
+50
+100
+150
+200
+250
+300
+0
+5
+10
+15
+20
+25
+30
+35
+0 1 2 3 4 5 6
+x 105
+0
+50
+100
+150
+200
+250
+Higher-Order Singular Values
+M
+ag
+n
+it
+u
+d
+e
+ 
+ 
+Clean Data
+Noisy Data
+(a) (b)
+Fig. 3: HOSVD analysis on 3-order tensor. (a) Singular val-
+ues of core tensor bigger than 1. (b) Plot of the singular val-
+ues of both clean and noisy tensors.
+data, such as HSIs and color images, are ubiquitously in
+three-dimensional way, also referred to as 3-order tensor. To
+preserve the structural information, we introduce the low-
+rank tensor recovery model to handle the tensor data by tak-
+ing the advantage of its multi-dimensional structure.
+In Fig. 2, we have analyzed the sparsity of the singu-
+lar values of both the noisy patch and clean patch, namely
+their 2-D low-rank properties. Analog to this, given a clean
+3-order low-rank tensor (we will show how to construct this
+low-rank tensor in the next section), we apply the HOSVD
+on it to see how the sparsity of its high order singular value
+distributes in 3-order tensor, namely its higher order low-
+rank property. In Fig. 3, we give a visualization for facilitat-
+ing the understanding of the sparsity in core tensor. There
+are two observations we make here. First, Figure 3(a) shows
+the location of singular values in the core tensor, accord-
+ing to their magnitudes. In Fig. 3(a), we can observe that
+singular value of the core tensor exhibit significant spar-
+sity with different degree along each mode. More specifi-
+cally, the magnitude of the singular value shows a general
+descending tendency along the 2-mode and 3-mode. Along
+the 2-mode, due to the strong redundancy of the non-local
+cubics, the coefficients in the core tensor along this mode
+tends to be decreasing very fast to zero. And along the 3-
+mode, due to the high spectral correlation, the coefficients
+in the core tensor along this mode tends to decrease to zero
+with a relative slow speed. Second, from Fig. 3(b), we can
+observe that singular values of the clean cubic exist much
+more sparsity than that of those noisy cubic, and follow an
+extremely sharp exponential decay rule. Moreover, the in-
+trinsic sparsity of the high order singular values of the the
+3-D cubic is much more apparent than that of the singular
+values of the 2-D patch. Therefore, it is natural to use the
+tensor low-rank model for MSIs recovery problem.
+In Fig. 4, we give a visual comparison between the 3-
+order cubic recovery and 2-order matrix recovery. Figure
+4(b) shows the result of 2-D spatial low-rank recovery re-
+sult, where the low-rank matrix is formed via spatial non-
+local similar patches. Figure 4(c) shows the result of 2-D
+(a) Noisy (b) 2-D Spatial Low-rank (c) 2-D Spectral Low-rank (d) 3-D Tensor Low-rank
+Fig. 4: The advantage of the low-rank tensor recovery
+over low-rank matrix recovery. (a) Simulated noisy image
+(The original image cubic is with size 512*512*31. Here,
+we choose band 15 as an example.) under Gaussian noise
+(sigma=10, PSNR = 28.13dB). (b) 2-D low-rank matrix
+recovery result via spatial non-local similarity (PSNR =
+37.56dB). (c) 2-D low-rank matrix recovery result via spec-
+tral correlation (PSNR = 39.18dB). (d) 3-D low-rank tensor
+recovery result (PSNR = 42.95dB).
+spectral low-rank recovery result, where the low-rank ma-
+trix is formed via spectral similar bands. Figure 4(d) shows
+the result of the proposed low-rank tensor recovery. It can be
+inferred from the visual appearance and PSNR values that
+the proposed low-rank tensor recovery method has obvious
+advantage over low-rank matrix recovery methods in terms
+of both noise reduction and texture preserving.
+3.3.2 Low-rank Tensor Construction
+In Fig. 5, we give an illustration about how we construct the
+3-order tensor as the input for LRTR model. For one key
+cubic with size m × m × b in the whole 3-D images, we
+search for its k nearest neighbors non-local cubics in a local
+window. Then, the constructed 3-order tensor with the size
+m2 × (k + 1)× b is formed by a group of non-local similar
+matricization cubics, where m2 × b is the size of the matri-
+cization cubic and k is the number of the non-local similar
+patches. The constructed 3-order tensor simultaneously uti-
+lizes the spatial local sparsity (mode-1), the non-local sim-
+ilarity between spectral-spatial cubic (mode-2) and spectral
+high correlation (mode-3), which would benefit us from this
+unified framework. The tensor format offers a unified under-
+standing for the matrix-based recovery model. When b = 0
+or k = 0, the constructed tensor degenerates into a matrix
+by taking only non-local self-similarity [Fig. 4(b)] or spec-
+tral correlation [Fig. 4(c)].
+Although it sounds better to construct a 4-order tensor,
+expecting better preservation of the spatially horizontal and
+vertical structural relationship, we found the final denoising
+result is even slightly degenerating. We infer that the length
+of the patches in spatial domain is too small (usually sig-
+nificantly small than the number of bands and also the non-
+local similar cubics) for the HOSVD to exactly extract the
+intrinsic subspace bases of the spatial information. While for
+comparative large length of the patches in spatial horizontal
+Weighted Low-rank Tensor Recovery for Hyperspectral Image Restoration 7
+...
+m
+m
+b
+key cubic
+k-th 
+similairty cubic
+m
+m
+b
+k
+b
+m*m
+Fig. 5: Illustration of the 3-order tensor construction in our
+work.
+and vertical model, we can not afford such huge computa-
+tional and memory load. Therefore, in this work, we choose
+to construct the 3-order tensor for recovery.
+3.3.3 Weighted Low-rank Tensor Recovery Model
+For the problem (3), the variable splitting technique [31,47]
+is usually introduced to decouple the data fidelity term and
+regularization term by introducing an auxiliary variable L.
+Consequently, for the regularization-related subproblem, it
+can be regarded as a image denoising problem as follow:
+?(Li) =
+?
+i
+1
+?2i
+||RiX ?Li||2F + rank(Li), (9)
+where RiX is the constructed 3-order tensor for each ex-
+emplar cubic at location i, our goal is to estimate the corre-
+sponding low-rank approximation Li under noise variance
+?2i .
+The low-rank regularization has been widely used in ma-
+trix recovery, and nuclear norm is usually introduced as the
+surrogate functional of low-rank constraint. In this work, we
+borrow this notion in 2-D matrix to define the tensor nuclear
+norm of Li as ||Li||? =
+?
+j |?j(Li)|1, namely the sum
+of its high order singular values. Then, the low-rank tensor
+Li can be recovered by solving the following optimization
+problem1:
+L?i = arg min
+X i
+1
+?2i
+||RiX ?Li||2F + ||Li||?. (10)
+However, this tensor nuclear norm has not considered
+the fine-grained sparsity configurations inside the coefficient
+tensor. As seen in Fig. 3(b), the singular values of clean
+tensor RiX exhibit strongly sparsity, in which most of the
+singular values are close to zero. For the singular values of
+its corresponding noisy tensor, the larger singular values are
+close to the singular values of clean tensor, while the small
+trivial singular values are obviously larger than the singular
+values of clean tensor. This phenomenon motivates us to pe-
+nalize the larger singular values less and small singular val-
+ues more. Thus, we replace the conventional tensor nuclear
+1 Here, we omit the
+?
+i for simplicity.
+(a) Original (b) Noisy (c) Shrink with fix parameter (d) Shrink with adaptive weight
+Fig. 6: Effectiveness of the adaptive weighted strategy. (a)
+Original clean image. (b) Simulated noisy image band 15
+under Gaussian noise (sigma=30, PSNR = 18.59dB). (c)
+Denoising result of the proposed method without adaptive
+weighted strategy (PSNR = 41.27dB). (d) Denoising result
+of the proposed method (PSNR = 41.85dB).
+norm with the weighted one on Li:
+L?i = arg min
+X i
+1
+?2i
+||RiX ?Li||2F + ||Li||w,?. (11)
+where ||Li||w,? =
+?
+j |wj?j(Li)|1, w = [w1, . . . , wn] and
+wj is a non-negative weight assigned to ?j(Li). The intu-
+ition behind this weighted process are two-folds. For one
+hand, larger singular values corresponding to the major pro-
+jection orientations should be penalized less to preserve the
+major data components. For the other hand, the success of
+the reweighting strategy, where the regularization parame-
+ter is adaptive and inversely proportional to the underlying
+signal magnitude, has been verified in the various computer
+vision task [9,78]. For a small value after t iterations, due to
+the reweighted process in sparsity constraint, it will enforce
+a larger reweighting factor in the next t+1 iteration, which
+would naturally result in a sparser result. In this work, we
+set
+wt+1j =c
+/(???tj(Li)??+ ?), (12)
+where c = 0.04 is a constant, and ? is a small constant to
+avoid dividing by zero. In Fig. 6, we give a visual compar-
+ison between LRTR model with/without the weighted strat-
+egy. The result of Fig. 6(d) shows more clear edge than that
+of without reweighted strategy, which demonstrate the ef-
+fectiveness of the sparsity reweighted strategy in high order
+singular values.
+3.3.4 Analytical solution of (11)
+By replacingLi in (11) with the corresponding HOSVD, we
+obtain the following problem:
+S?i = arg min
+Si
+||RiX ? Si×1U1×2U2×3U3||2F + ?2i ||wi ? Si||1.
+(13)
+where ? denotes the element-wise multiplication. Analog to
+the matrix case [5,33], we can also get its global solution for
+the non-convex problem (13).
+8 Yi Chang et al.
+Theorem 1 GivenX i,Yi ? RI1×I2×···×IN , letYi = S?i×1
+U?1×2U?2×3U?3 be the HOSVD of Yi = RiX and X i =
+S?i×1U?1×2U?2×3U?3 be the HOSVD of X i = Li in (11).
+The global optimum of the weighted tensor low-rank mini-
+mization problem in (13) can be expressed as X i = Swi?2i(
+S?i
+)
+×1U?1×2U?2×3U?3, where S?i = Swi?2i /2
+(
+S?i
+)
+= max
+(S?i ? wi?2i
+/
+2, 0).
+Before proving Theorem 1, we first give two lemmas.
+Lemma 1 (Von Neumann’s Trace Inequality for Tensors)
+[18] For X ,Y ? RI1×I2×···×IN be tensors. Then for all
+n = 1, . . . ,N, we have
+?X ,Y? ?
+?
+?(n)(X ), ?(n)(Y)
+?
+(14)
+where ?(n)(X ) and Y denote the vectorization of singular
+values of X (n) and Y(n), respectively. The equality in (14)
+holds simultaneously for all n = 1, . . . ,N if and only there
+exist orthogonal matrices Un ? RIn×In for n = 1, . . . ,N
+and tensors S, S? ? RI1×I2×···×IN such that
+X = S×1U1×2U2×3 · · · ×NUN ,
+Y = S?×1U1×2U2×3 · · · ×NUN ,
+where S and S? satisfy the following properties:
+– S and S? are block-wise diagonal with the same number
+and size of blocks. The tensor called block-wise diago-
+nal if in the block representation above all off-diagonal
+blocks are zero blocks.
+– Let L be the number of blocks and
+{
+S(l)
+}
+l=1,...,L be the
+blocks on the diagonal of S. Then for each l = 1, . . . ,L,
+the two blocks S(l) and S?(l) are proportional.
+Lemma 2 (Frobenius norm unitarily invariant) [43] let the
+HOSVD ofX be given as in Definition 4; then the following
+holds:
+||X ||2F =
+R1?
+j=1
+(
+?
+(1)
+j (X )
+)2
+= · · · =
+RN?
+j=1
+(
+?
+(N)
+j (X )
+)2
+= ||S||2F , (15)
+Proof of Theorem 1. Based on lemma 2, the following
+derivations hold:
+| |Yi ?X i||2F + ?2i ||wi ? S?i||1
+= ?Yi,Yi? ? 2 ?X i,Yi?+ ?X i,X i?+ ?2i ||wi ? S?i||1
+=
+?
+S?i, S?i
+?
+? 2 ?X i,Yi?+
+?
+S?i, S?i
+?
++ ?2i ||wi ? S?i||1.
+Based on the von Neumann trace inequality for tensors in
+Lemma 1, we know that ?X i,Yi? achieves its upper bound
+if U?1 = U?1, U?2 = U?2 and U?3 = U?3. Thus (13) is equivalent
+to
+S?i = arg min
+S?i
+| |S?i ? S?i||2F + ?2i ||wi ? S?i||1. (16)
+Assume each coefficient in the core tensor as s?ijk and
+s?ijk, respectively. Thus, the problem (16) can convert into
+the scalar format:
+min
+s?ijk
+(s?ijk ? s?ijk)2 + ?2iwis?ijk
+? min
+s?ijk
+(
+s?ijk ?
+(
+s?ijk ? ?
+2
+iwi
+2
+))2
+.
+It is easy to derive its global optimum as:
+s?ijk = max
+(
+s?ijk ?
+?2iwi
+2
+, 0
+)
+.
+The proof is completed. Theorem 1 shows that the prob-
+lem (13) can be solved via the singular value thresholding
+method.
+4 HSI Restoration With WLRTR Model
+In this section, we show the concrete objective functional
+and its optimization procedure of each HSI restoration task.
+4.1 WLRTR for HSI denoising
+For HSI denoising, we only consider the random noise N
+with an identity tensor operator. Thus, by combining the data
+fidelity term 12 ||Y?X ||
+2
+F with the WLRTR prior, the Eq. (3)
+can be formulated as the following minimization problem:{
+X? , S?i
+}
+= arg min
+X ,Si
+1
+2 ||Y ?X ||
+2
+F+
+?
+?
+i
+(
+||RiX ? Si×1U1×2U2×3U3||2F + ?2i ||wi ? Si||1
+)
+.
+(17)
+The alternating minimization strategy is introduced to
+solve (17). The Si-related subproblem (11) can be solved
+via Theorem 1. After solving for eachSi, we can reconstruct
+the whole image X by solving the following sub-problem:
+X? = arg min
+X
+1
+2 ||Y ?X ||
+2
+F + ?
+?
+i ||RiX ? S?i×1U?1×2U?2×3U?3||2F . (18)
+Eq. (18) is a quadratic optimization problem admitting a
+closed-form solution:
+X? = (I + ?
+?
+iRTi Ri)?1(Y + ?
+?
+i (RTi S?i)×1U?1×2U?2×3U?3), (19)
+where ?
+?
+iRTi Ri denotes the number of overlapping cu-
+bics that cover the pixel location, and ?
+?
+i (RTi S?i)×1U?1×2U?2×3U?3
+means the sum value of all overlapping reconstruction cu-
+bics that cover the pixel location. Eq. (19) can be computed
+in tensor format efficiently.
+After obtaining an improved estimate of the unknown
+image, the low-rank tensors S?i can be updated by Eq. (13).
+The updated S?i is fed back to Eq. (19) improving the esti-
+mate of X? . Such process is iterated until the convergence.
+The overall procedure is summarized in Algorithm 1.
+Weighted Low-rank Tensor Recovery for Hyperspectral Image Restoration 9
+Algorithm 1 WLRTR for HSI denoising
+Require: Noisy image Y
+1: procedure DENOISING
+2: Initialize: Set parameters ?; X (1) = Y ;
+3: for n=1:N do
+4: Low-rank tensor construction:similar cubics grouping;
+5: for (Low-rank tensor approximation) i=1:I do
+6: Update the thresholds using Eq. (12);
+7: Solve Eq. (13) for Si;
+8: end for
+9: Reconstruct the whole image X from Si via Eq.(19).
+10: end for
+Ensure: Clean image X
+......unfold
+(a) Original cubic (b) Unfolding matrix
+R
+B
+C
+B*C
+R
+Fig. 7: Illustration of HSI stripe mode-1 unfolding. (a) Orig-
+inal HSI cubic with vertical stripe; (b) Mode-1 unfolding
+matrix.
+4.2 WLRTR-RPCA for HSI destriping
+In real HSI, there always exists system structural noise such
+as stripe noise. The stripes in HSIs via push-broom imag-
+ing spectrometer are always non-periodic, and arise from the
+unstable detectors during a scanning cycle. Therefore, it is
+natural for us to borrow the RPCA model [73] to accom-
+modate the sparse error component, mainly the stripe noise
+E . The RPCA has shown its robustness in presence of the
+sparse error, such as background subtraction [32], structural
+noise removal [14], face recognition under occlusion [17],
+since it has taken the sparse error into consideration.
+In this section, we extend the WLRTR to the WLRTR-
+RPCA for stripe noise removal. For the image prior, we will
+utilize the weighted low-rank tensor prior to model them.
+While for the stripe noise with obviously directional char-
+acteristic, as shown in Fig. 7, we argue the L2,1-norm with
+direction discriminative ability is more appropriate than L1-
+norm. Since L2,1-norm ||E||2,1 =
+?C
+j=1
+??R
+i=1 (Eij)
+2 encour-
+ages the intensity of columns to be zero, the underlying as-
+sumption here is that the corruptions are sample-specific,
+i.e., some data vectors are corrupted and the others are clean,
+just corresponding to the broken and intact detectors, respec-
+tively.
+In this work, we extend the matrix L2,1-norm to its 3-
+order tensor case ||E||2,1,1 =
+?B
+k=1
+?C
+j=1
+??R
+i=1 (Eijk)
+2, and in-
+corporate it into the WLRTR model as follow:{
+X? , S?i, E?
+}
+= arg min
+X ,Si,E
+1
+2 ||Y ?X ? E||
+2
+F + ?||E||2,1,1+
+?
+?
+i
+(
+||RiX ? Si×1U1×2U2×3U3||2F + ?2i ||wi ? Si||1
+)
+,
+(20)
+Algorithm 2 WLRTR-RPCA for HSI destriping
+Require: Noisy image Y
+1: procedure DESTRIPING
+2: Initialize: Set parameters ? and ?; X (1) = Y ;
+3: for n=1:N do
+4: Step 1: Update sparse error E by solving (21);
+5: Step 2: Update clean image X by Algorithm 1.
+6: end for
+Ensure: Clean image X and stripe component E .
+where ? and ? are the regularization parameters for balanc-
+ing each term. The WLRTR-RPCA model (20) is simple and
+easy to understand, in which the local sparsity, non-local
+similarity, and spectral consistency of the images are uti-
+lized via the tensor low-rank prior, whereas the stripe noise
+are well depicted by the L2,1-norm, so that the mixed ran-
+dom and stripe noise can be separating from the images sat-
+isfactorily.
+The procedure of estimation S?i andX is the same as the
+Algorithm 1. Here, we show how we estimate E . Once S?i
+andX has been estimated, we can estimate E by solving the
+following sub-problem:
+S? = arg min
+E
+1
+2
+||Y ?X ? E||2F + ?||E||2,1,1, (21)
+It is hard to directly obtain the final result. However, we have
+the following lemma: Lemma 3 [48]: Let Q = [q1, q2, · · · , qi, · · · ]
+be a given matrix and ?•?F be the Frobenius norm. If W? is
+the optimal solution of
+W? = arg min
+W
+1
+2
+?W ? Q?2F + µ?W?2,1
+then the i-th column of W? is
+W?(:, i) =
+{
+?qi??µ
+?qi?
+qi, ifµ ? ?qi? ,
+0, otherwise.
+Thus, it is natural for us to unfold the tensors into the
+matrix (tensor matricization) so that we can apply Lemma 3
+directly. By unfolding of the tensors into their mode-1, (21)
+is converted into the equivalent problem
+E?(1) = arg minE(1)
+||Y(1) ? X(1) ? E(1)||
+2
+F + ?||E(1)||2,1,
+(22)
+The Eq. (22) can be solved efficiently via Lemma 3. It
+is worth noting that we chose the mode-1 unfolding since
+only in this way the resulting matrix still preserve the direc-
+tional characteristic [Fig. 7(b)], while mode-2 and mode-3
+unfolding may lose this property. After we obtain the sparse
+error matrix E?(1), we fold it into tensor format. The overall
+procedure is summarized in Algorithm 2.
+10 Yi Chang et al.
+4.3 WLRTR-RPCA for HSI deblurring
+For HSI deblurring, we only consider the random noise N
+with the blurring operator. Thus, by combining the data fi-
+delity term 12 ||Y?T (X )||
+2
+F with the WLRTR prior, the Eq.
+(3) can be formulated as the following minimization prob-
+lem:{
+X? , S?i
+}
+= arg min
+X ,Si
+1
+2 ||Y ?X ?H||
+2
+F+
+?
+?
+i
+(
+||RiX ? Si×1U1×2U2×3U3||2F + ?2i ||wi ? Si||1
+)
+,
+(23)
+where? denotes the convolution operator, andH is a linear
+shift-invariant point spread function (PSF). Here, we do not
+take the stripe noise component E into consideration. Joint
+destriping and deblurring for HSI is another much harder
+problem, which is out of the scope of this work. For the
+problem (23), we employ the alternative direction multiplier
+method (ADMM) [47] by introducing auxiliary variableA =
+X to decouple the fidelity from regularization term:
+A? = arg min
+A
+1
+2 ||Y ?A?H||
+2
+F +
+?
+2 ||A?X ?
+J
+? ||
+2
+F (24a)
+X? = arg min
+X
+?
+2 ||A?X ?
+J
+? ||
+2
+F + ?
+?
+i ||RiX ? Si×1U1×2U2×3U3||2F (24b)
+S?i = arg min
+Si
+||RiX ? Si×1U1×2U2×3U3||2F + ?2i ||wi ? Si||1, (24c)
+where J is the corresponding Lagrangian multiplier, and ?
+is a positive scalar. The Eq. (24a) performs the image de-
+convolution, and the remain two terms Eq. (24b) and (24c)
+denotes the image denoising process.
+According to Plancherel’s theorem [4], which states that
+the sum of the square of a function equals the sum of the
+square of its Fourier transform. In view of the convolution
+operator in Eq. (24a), we operate in the frequency domain
+using 3-D fast Fourier transforms (3-D FFT) to make the
+computation efficient2. Thus, we can transform the Eq. (24a)
+into the following:
+ˆF(A) = arg min
+F(A)
+1
+2 ||F(Y)?F(A) ? F(H)||
+2
+F +
+?
+2 ||F(A)?F(X )?F(
+J
+? )||
+2
+F .
+(25)
+The close-formed solution of Eq. (25) can be expressed as:
+A? = F?1
+(
+F?(H)?F(Y)+?F(X )+F(J )
+F?(H)?F(H)+?I
+)
+, (26)
+where F , F? and F?1 denotes the FFT operator, its conju-
+gate and its inverse, respectively. The solution of X in Eq.
+(24b) can be calculated similar to that of Eq. (18), and the
+low-rank tensors S?i can be updated by Eq. (13). Finally, the
+Lagrangian multipliers and penalization parameter are up-
+dated as follows:{
+J k+1 = J k + ?
+(
+X ?Ak+1
+)
+?k+1 = ? · ?k.
+(27)
+The overall procedure is summarized in Algorithm 3.
+2 The PSF kernel and convolutional operator can be computed by
+the Matlab function ‘psf2otf’ and ‘fftn’, respectively.
+Algorithm 3 WLRTR for HSI deblurring
+Require: Blurring image Y and PSFH
+1: procedure DEBLURRING
+2: Initialize: Set parameters ?, ?, ?; X (1) = Y ;
+3: for n=1:N do
+4: Step 1: Image deconvolutionA by solving (24a);
+5: Step 2: Image reconstruction X by solving (24b);
+6: for (Low-rank tensor approximation) i=1:I do
+7: Step 3: Core tensor estimation Si by solving (24c);
+8: end for
+9: Step 4: Lagrangian multipliers update via (27);
+10: end for
+Ensure: Clean image X .
+4.4 WLRTR-RPCA for HSI super-resolution
+For HSI super-resolution, we consider the random noiseN
+with both the blurring and downsampling in spatial domain
+Y and downsampling in spectral domain Z . Thus, the Eq.
+(3) can be formulated as the following minimization prob-
+lem:{
+X? , S?i
+}
+= arg min
+X ,Si
+1
+2 ||Y ? Tsa(X )||
+2
+F +
+1
+2 ||Z ? Tse(X )||
+2
+F
++?
+?
+i
+(
+||RiX ? Si×1U1×2U2×3U3||2F + ?2i ||wi ? Si||1
+)
+.
+(28)
+since the variable splitting methods could seperate each
+term with physical meanings, for the problem HSI super-
+resolution with both spatial and spectral degradations, we
+also employ the ADMM [47] by introducing two auxiliary
+variables Q = X and G = X to decouple the two data
+fidelity term from the regularization term as follow:
+Q? = arg min
+Q
+1
+2 ||Y ? Tsa(Q)||
+2
+F +
+?
+2 ||Q?X ?
+J 1
+? ||
+2
+F (29a)
+G? = arg min
+G
+1
+2 ||Z ? Tse(G)||
+2
+F +
+?
+2 ||G ?X ?
+J 2
+? ||
+2
+F (29b)
+X? = arg min
+X
+?
+?
+i ||RiX ? Si×1U1×2U2×3U3||2F
++?2 ||Q?X ?
+J 1
+? ||
+2
+F +
+?
+2 ||G ?X ?
+J 2
+? ||
+2
+F
+(29c)
+S?i = arg min
+Si
+||RiX ? Si×1U1×2U2×3U3||2F + ?2i ||wi ? Si||1. (29d)
+where J 1 and J 2 are the corresponding Lagrangian multi-
+pliers, and ? and ? are positive scalars. The Eq. (29a) and
+Eq. (29b) performs the HSI super-resolution, respectively,
+and the remain two terms Eq. (29c) and (29d) denotes the
+image denoising process. Each subproblem has the close-
+formed solution. For Eq. (29a) and Eq. (29b), the subprob-
+lems can be solved by computing:
+Tcomp(Q) = T Tsa(Y) + ?X +J 1, (30)
+G×3(PTP + ?I) = Z×3PT + ?X +J 2, (31)
+where Tcomp = T TsaTsa + ?I is the composite operator on
+Q, and T Tsa(Y) means the transposed blurring and down-
+sampling on Y . Since it is hard for us to calculate the Eq.
+Weighted Low-rank Tensor Recovery for Hyperspectral Image Restoration 11
+Algorithm 4 WLRTR for HSI super-resolution
+Require:Spatial and spectral LR image {Y,Z}, PSFH
+1: procedure SUPER-RESOLUTION
+2: Initialize: Set parameters ?, ?, ?, ?; X (1) =?upsampling
+(Y);
+3: for n=1:N do
+4: Step 1: Spatial super-resolutionQ by solving (29a);
+5: Step 2: Spectral super-resolution G by solving (29b);
+6: Step 3: Image reconstruction X by solving (29c);
+7: for (Low-rank tensor approximation) i=1:I do
+8: Step 4: Core tensor estimation Si by solving (29d);
+9: end for
+10: Step 5: Lagrangian multipliers update via (32);
+11: end for
+Ensure: Clean image X .
+(30) and Eq. (31) directly, in our implementation, we un-
+fold the 3-D tensors along the mode-3 to the 2-D matrixes
+as [22]. The solution of X in Eq. (29c) can be calculated
+similar to that of Eq. (18), and the low-rank tensors S?i can
+be updated by Eq. (13). Finally, the Lagrangian multipliers
+and penalization parameter are updated as follows:???????
+J 1k+1 = J 1k + ?
+(
+X ?Qk+1
+)
+J 2k+1 = J 2k + ?
+(
+X ? Gk+1
+)
+?k+1 = ? · ?k, ?k+1 = ? · ?k.
+(32)
+The overall procedure is summarized in Algorithm 4.
+5 Experimental results
+In this section, extensive experiments are presented to eval-
+uate the performance of the proposed methods. We will first
+introduce the experimental setting about the competing state-
+of-the-art HSIs restoration methods and also the evaluation
+indexes. Then, the results of both simulated and real bench-
+mark datasets are presented. At last, we give a discussion
+about the details of our methods.
+5.1 Experimental Setting
+Benchmark Datasets. In our work, we test various datasets,
+including HSIs, color images (3 channel), and MRIs:
+– Columbia Multispectral database (CAVE) [80]. The whole
+dataset consisting of 32 noiseless hyperspectral images
+of size 512*512*31 are captured with the wavelengths
+in the range of 400-700 nm at an interval of 10 nm.
+– Berkeley Segmentation Dataset (BSD) [56]. The whole
+clean color image dataset consists of 200 training image
+and 100 test images of the size 481*321*3. A subset (68
+images) of the test section of the BSD is used to evaluate
+the denoising performance [65].
+– Harvard real-world hyperspectral datasets (HHD) [12].
+The whole dataset consisting of 50 noisy hyperspectral
+images of size 1040*1392*31 are captured with the wave-
+lengths in the range of 420-720 nm at an interval of 10.
+– Prostate MRI Dataset (PMRI)3. The whole dataset con-
+sists of prostate samples of 230 patients with varying
+image bands, due to the different observation days on
+the patients. One thing is worth to note that the content
+in this dataset gradually varies from each frame to the
+other.
+– Remotely Sensed HSIs4. Two remotely sensed hyper-
+spectral datasets are used in this paper, i.e. Salinas, and
+Gulf Wetlands.
+Pre-processing. First, before the restoration process, all the
+original images were coded to an 8-bit scale for display con-
+venience and uniform parameter setting. Second, for the non-
+local similarity cubic matching, we do not directly searching
+from the 3-D cubics in the noisy data. Instead, for reducing
+computational load and matching accuracy, we proposed to
+average each bands of the cubic, which can be regarded as
+an uniform filtering procedure, so that we can obtain a quite
+clean 2-D matrix. Note that, the non-local similarity match-
+ing processing is on this 2-D matrix, while our restoration
+process is still on the whole 3-D cubics.
+Baselines. For the HSI denoising methods, we compare with
+block-matching and 3D filtering (BM3D) [20], parallel fac-
+tor analysis (PARAFAC) [50], low-rank tensor approxima-
+tion (LRTA) [63], low-rank matrix recovery (LRMR) [85],
+adaptive non-local means denoising (ANLM) [55], nonneg-
+ative matrix factorization (NMF) [81], block-matching and
+4D filtering (BM4D) [54], tensor dictionary learning (TDL)
+[60], intrinsic tensor sparsity regularization (ITSReg) [76];
+for HSI deblurring, the competing methods include single
+image based deblurring method hyper-Laplacian (HL) [41],
+and two HSI deblurring methods fast positive deconvolution
+(FPD) [36] and spectral-spatial total variation (SSTV) [26];
+for HSI super-resolution, we compare with coupled nonneg-
+ative matrix factorization (CNMF) [82], non-negative struc-
+tured sparse representation (NSSR) [22] and non-local sparse
+tensor factorization (NLSTF) [21].
+We use the codes provided by the authors downloaded
+from their homepages, and fine tune the parameters by de-
+fault or following the rules in their papers to achieve the best
+performance. And the Matlab code of our methods can be
+downloaded from the homepage of the author5. For param-
+eter setting of our method, the most important parameter is
+the number of non-local cubic, which is set between [100,
+200] in correspondence with the noise level, respectively.
+3 http://prostatemrimagedatabase.com
+4 http://www.ehu.eus/ccwintco/index.php?
+title=Hyperspectral_Remote_Sensing_Scenes
+5 http://www.escience.cn/people/changyi/
+index.html
+12 Yi Chang et al.
+Table 1: Quantitative results of differnent methods under several noise levels on CAVE dataset.
+Sigma Index
+Methods
+Noisy BM3D PARAFAC LRTA LRMR ANLM NMF BM4D TDL ITSReg WLRTR
+10
+PSNR 28.13 42.09 35.43 41.36 39.27 41.52 43.15 44.59 44.30 45.77 46.85
+SSIM 0.4371 0.9665 0.8767 0.9499 0.9094 0.9576 0.9702 0.9784 0.9797 0.9802 0.9873
+ERGAS 236.40 45.06 108.37 49.53 64.81 47.78 39.65 33.33 34.86 30.53 25.91
+SAM 0.7199 0.1395 0.2360 0.1719 0.3343 0.2184 0.1358 0.1295 0.1025 0.1086 0.0863
+20
+PSNR 22.11 38.46 34.53 38.04 34.38 37.42 39.02 41.02 41.06 42.54 43.67
+SSIM 0.1816 0.9339 0.8574 0.9119 0.7807 0.8936 0.9169 0.9550 0.9638 0.9650 0.9769
+ERGAS 472.88 68.38 115.81 72.16 113.47 76.15 63.61 50.38 50.47 44.12 37.64
+SAM 0.9278 0.1984 0.2838 0.2139 0.5009 0.3358 0.1946 0.1981 0.1284 0.1171 0.1067
+30
+PSNR 18.59 36.40 33.59 36.15 31.36 34.77 36.53 38.90 39.03 40.51 41.68
+SSIM 0.0988 0.9034 0.8261 0.8787 0.6451 0.8060 0.8565 0.9277 0.9486 0.9488 0.9666
+ERGAS 709.29 88.29 128.07 91.40 157.65 104.95 86.25 65.38 63.54 53.05 47.36
+SAM 1.0414 0.2489 0.3455 0.2479 0.6021 0.4376 0.2465 0.2598 0.1520 0.1374 0.1248
+50
+PSNR 14.15 32.66 30.22 32.44 26.67 30.74 31.98 35.96 36.42 37.75 39.06
+SSIM 0.0432 0.8320 0.7051 0.7932 0.4000 0.6057 0.7113 0.8666 0.9175 0.9271 0.9457
+ERGAS 1181.95 115.06 155.84 118.64 264.28 164.55 123.23 91.51 85.58 70.16 63.83
+SAM 1.1741 0.2877 0.4460 0.2843 0.7534 0.5806 0.3148 0.3575 0.2000 0.1619 0.1580
+100
+PSNR 8.13 29.27 26.01 29.20 20.84 24.90 26.95 30.82 32.91 33.01 35.15
+SSIM 0.0122 0.7460 0.4346 0.6945 0.1850 0.2826 0.4643 0.6956 0.8344 0.8648 0.8876
+ERGAS 2364.05 171.94 253.70 175.91 469.26 324.48 225.55 141.18 128.22 120.77 100.44
+SAM 1.3271 0.3938 0.6843 0.3381 0.9306 0.7972 0.4321 0.5014 0.3079 0.2376 0.2300
+The patch size is between [6, 8]. And another important fac-
+tor is the regularization parameter ? for the HSI deblurring
+and super-resolution, which is set as 10?8 and 10?5, respec-
+tively.
+Evaluation Indexes. In order to give an overall evaluation
+of the denoising performance, four quantitative quality in-
+dices are employed, including peak signal-to-noise ratio (PSNR),
+structure similarity (SSIM [71]), erreur relative globale adi-
+mensionnelle de synthese (ERGAS [70]) and spectral angle
+map (SAM [84]). PSNR and SSIM are two conventional
+indexes, which is used to evaluate the similarity between
+the restored image and the reference image based on MSE
+and structural consistency, respectively. ERGAS measures
+fidelity of the restored image based on the weighted sum of
+MSE in each band. SAM is introduced to measure the spec-
+tral fidelity between the restored image and the reference im-
+age across all spatial positions. The PSNR and SSIM evalu-
+ate the spatial quality, and the ERGAS and SAM assess the
+spectral qualtiy. The larger PSNR and SSIM values are, the
+smaller ERGAS and SAM values are, the better the restored
+images are.
+5.2 HSI Denoising
+To visually illustrate the denoising performance of WLRTR,
+we choose two images toy and watercolor of band 510nm
+under different noise level, as shown in Figs. 8 and 9. In Fig.
+8 (the green demarcated window), we can clearly see from
+the enlarged region that the proposed method has obtained
+more clear result, compared with other competing methods.
+Moreover, looking at the red demarcated window in Fig. 8,
+the proposed WLRTR is capable of well reconstructing the
+tiny hair texture. When the noise level is high, other meth-
+ods generate much more artifacts, as shown in Fig. 9. And
+the result of WLRTR shows more art taste for this painting
+in Fig. 9. We also test the proposed WLRTR method on real
+noisy HSI. Since the noise level is unknown for real noisy
+images, we adopted an estimation method from [61] to es-
+timate the noise level beforehand. In Fig. 10, from the de-
+marcated window, we can observe that WLRTR method ob-
+tains smoother image with clearer texture and line pattern. In
+summary, WLRTR has obtained better performance in terms
+of noise suppression, detail preserving, artifacts-free, visual
+pleasure and PSNR value under differnent noise level.
+We also present the overall quantitative assessments of
+all competing methods on CAVE in Table 1. The highest
+PSNR and SSIM values and lowest ERGAS and SAM val-
+ues are highlighted in bold. We have the following observa-
+tions. First, WLRTR consistently achieves the best perfor-
+mance in four assessments, which highly demonstrate the
+effectiveness of WLRTR for HSIs. Second, for random noise
+in CAVE, with the increasing of noise level, the advantage
+of our method over other methods becomes bigger, almost
+exceed 4.3dB than BM4D at ? = 100.
+For each scene in CAVE, we compute the average PSNR
+value of all the competing methods, as shown in Fig. 11.
+The WLRTR method obtains the highest average PSNR val-
+ues among each scene in term of different image contents.
+Furthermore, we plot the PSNR values of each band of one
+single image toy in CAVE as an example, as shown in Fig.
+12. It can be observed that the PSNR values of all the bands
+Weighted Low-rank Tensor Recovery for Hyperspectral Image Restoration 13
+(a) Original Image (b) Noisy Image (d) PARAFAC (e) LRTA(c) BM3D
+(l) WLRTR(i) BM4D (j) TDL(h) NMF
+(f) LRMR
+(g) ANLM (k) ITSReg
+(PSNR, SSIM) (18.59, 0.0988) (33.98, 0.9055) (30.31, 0.8038) (33.87, 0.8535) (31.60, 0.6904)
+(33.82, 0.8260) (35.72, 0.8632) (37.63, 0.9379) (37.07, 0.9334) (39.36, 0.9566) (40.51, 0.9718)
+Fig. 8: Simulated random noise removal results under noise level ? = 30 on CAVE dataset. (a) Original image toy at band
+510nm. (b) Noisy image. Denoising results by (c) BM3D, (d) PARAFAC, (e) LRTA, (f) LRMR, (g) ANLM, (h) NMF, (i)
+BM4D, (j) TDL, (k) ITSReg, and (l) WLRTR.
+(a) Original Image (b) Noisy Image (d) PARAFAC (e) LRTA(c) BM3D
+(l) WLRTR(i) BM4D (j) TDL(h) NMF
+(f) LRMR
+(g) ANLM (k) ITSReg
+(PSNR, SSIM) 
+(35.31, 0.9365) (34.03, 0.9263) 
+(14.15,  0.0432) (29.56, 0.8536) (28.35, 0.7730) (30.33, 0.7856) (26.30, 0.5087) 
+(29.31, 0.6873) (30.90, 0.7444) (32.82, 0.8876) (32.49, 0.8825) 
+Fig. 9: Simulated random noise removal results under noise level ? = 50 on CAVE dataset. (a) Original image watercolors at
+band 510nm. (b) Noisy image. Denoising results by (c) BM3D, (d) PARAFAC, (e) LRTA, (f) LRMR, (g) ANLM, (h) NMF,
+(i) BM4D, (j) TDL, (k) ITSReg, and (l) WLRTR.
+obtained by WLRTR are significantly higher than those of
+the other methods.
+5.3 Color Image Denoising
+Although WLRTR is proposed for HSIs which possess dozens
+or hundreds of continuous bands, it can be also well ex-
+tended to various multiple images with less bands, such as
+RGB color image. Most of the previous color image pro-
+cessing methods usually handle the RGB images in lumi-
+nance space or restore each channel separately, while ingor-
+ing the spectral correlation between channel in RGB images.
+On the contrary, the WLRTR jointly processes the R, G and
+B channel. In this section, we compared WLRTR method
+with WNNM [33], which handles the color image in each
+channel, and state-of-the-arts color image denoising meth-
+ods, such as LSCD [64], color BM3D [19] (CBM3D). Fig-
+ure 13 shows representative color images denoising result
+on BSD under noise level ? = 40. Compared with WNNM,
+WLRTR exhibits much more details in texture regions or
+edges. Also, when compared with other competing color im-
+age denoising methods, WLRTR could better preserve the
+image details while with less chrominance color artifacts,
+with better human perception and higher PSNR values. The
+14 Yi Chang et al.
+(a) Noisy (b) BM3D (c) PARAFAC (d) LRTA (e) ANLM
+(i) ITSReg(f) NMF (h) TDL(g) BM4D (j) WLRTR
+Fig. 10: Real random noise removal results on HHD dataset. (a) Noisy image. Denoising results by (b) BM3D, (c) PARAFAC,
+(d) LRTA, (e) ANLM, (f) NMF, (g) BM4D, (h) TDL, (i) ITSReg, (j) WLRTR.
+0
+5
+10
+15
+20
+25
+30
+35
+40
+45
+50
+PS
+NR
+ V
+al
+ue
+BM3D PARAFAC ANLM LRTA NMF BM4D TDL ITSReg WLRTR
+Image Index
+Fig. 11: Quantitative index PSNR value comparison under noise level ? = 50 on the dataset CAVE of all scenes.
+Table 2: Quantitative results of differnent methods under
+several noise levels on BSD.
+Sigma Index
+Methods
+Noisy LSCD CBM3D WLRTR
+10
+PSNR 28.13 33.85 35.90 35.91
+SSIM 0.7020 0.9188 0.9501 0.9511
+20
+PSNR 22.17 30.26 31.85 31.94
+SSIM 0.4580 0.8469 0.8923 0.8953
+30
+PSNR 18.58 28.22 29.69 29.87
+SSIM 0.3223 0.7854 0.8402 0.8444
+40
+PSNR 16.08 27.00 28.10 28.47
+SSIM 0.2388 0.7417 0.7872 0.7973
+PSNR and SSIM values on BSD are reported in Table 2.
+From Table 2, we can conclude that the joint utilization of
+RGB multichannel manner in color image really improves
+the denoising performance.
+5.4 HSI Destriping
+In this section, we evaluate the WLRTR-RPCA model on the
+very common mixed noise in HSIs: random noise and stripe
+noise. We randomly added the stripe on HSI Salinas, and
+the locations of the stripes between the neighbor bands were
+different. It is worth noting that we are blind to the location
+of the stripes. Figure 14 displays the noise removal results
+of the competing methods. It is obvious that there still exist
+some residual stripes in Fig. 14(c), (e), (h), (h), (i), and (k),
+which means these methods only work well for the random
+noise. In Fig. 14(l), the stripes are perfectly removed, and the
+Weighted Low-rank Tensor Recovery for Hyperspectral Image Restoration 15
+0 5 10 15 20 25 30 35
+15
+20
+25
+30
+35
+40
+45
+Band Index
+P
+S
+N
+R
+ V
+al
+u
+e
+ 
+ 
+Noisy
+BM3D
+PARAFAC
+LRTA
+LRMR
+ANLM
+NMF
+BM4D
+TDL
+WLRTR
+ITSReg
+Fig. 12: PSNR values of each band of image toy under noise
+level ? = 30 on CAVE dataset.
+Table 3: Quantitative results of the competing methods un-
+der mixed noise on Salinas dataset.
+Method PSNR SSIM ERGAS SAM
+Noisy 21.57 0.2706 185.21 0.1787
+BM3D 29.16 0.7468 50.93 0.0288
+PARAFAC 31.25 0.8220 66.52 0.0291
+LRTA 28.42 0.6911 41.85 0.0235
+LRMR 35.28 0.8755 41.79 0.0276
+ANLM 33.99 0.8704 42.40 0.0278
+NMF 29.11 0.6781 35.30 0.0204
+BM4D 36.18 0.9155 32.44 0.0198
+TDL 38.80 0.9526 26.81 0.0117
+ITSReg 33.32 0.8551 32.14 0.0234
+WLRTR-RPCA 39.38 0.9594 23.30 0.0104
+detailed structure information in each images are well pre-
+served without the introduction of any noticeable artifacts.
+We also test the real stripe noise including the multi-
+plicative stripe, as shown in Fig. 15. The multiplicative stripes
+are signal-dependent, while the additive stripes are signal-
+independent. We can observe that only PARAFAC, LRMR
+and WLRTR-RPCA work well in presence of stripe noise,
+while other methods fail to remove the stripe noise. Unfor-
+tunately, the PARAFAC has damaged the image details, and
+LRMR have introduced some false artifacts in Fig. 15(f).
+The proposed WLRTR-RPCA could fully decoupled the stripe
+noise (sparse error component) and image components (low-
+rank component), which is very applicable to this mixed
+noise removal task.
+5.5 HSI Deblurring
+There is relative fewer research paying attention on HSI de-
+blurring. We compare the proposed DB-WLRTR method
+with single image based deblurring method hyper-Laplacian
+Table 4: Quantitative results of the competing methods un-
+der different blur levels on CAVE dataset.
+Methods HL FPD SSTV DB-WLRTR
+Gaussian (8*8, Sigma = 3)
+PSNR 37.28 38.84 37.61 55.68
+SSIM 0.9460 0.9617 0.9527 0.9979
+ERGAS 83.88 68.48 80.91 9.9635
+SAM 0.0676 0.0734 0.0658 0.0250
+Gaussian (17*17, Sigma = 7)
+PSNR 32.59 33.16 33.08 49.42
+SSIM 0.8819 0.9114 0.8944 0.9926
+ERGAS 137.14 125.11 129.84 20.87
+SAM 0.1075 0.1163 0.0989 0.0439
+Table 5: Quantitative results of the competing methods un-
+der different downsampling cases on CAVE dataset.
+Methods CNMF NLSTF NSSR SR-WLRTR
+Gaussian (s = 8, 8*8, Sigma = 3)
+PSNR 46.15 44.56 46.99 47.39
+SSIM 0.9901 0.9816 0.9921 0.9931
+ERGAS 35.15 41.89 30.21 29.26
+SAM 0.0591 0.0961 0.0528 0.0500
+Uniform (s = 8)
+PSNR 46.49 45.00 47.51 47.57
+SSIM 0.9909 0.9847 0.9931 0.9934
+ERGAS 34.56 39.06 28.84 28.82
+SAM 0.0568 0.0869 0.0512 0.0493
+(HL) [41], and two HSI deblurring methods FPD [36] and
+SSTV [26]. The CAVE dataset is used for the comparison
+study. The Gaussian blur with different blur levels are tested.
+We assume the point spread function is known (nonblind de-
+convolution). From Table 4, we can see that the proposed
+DB-WLRTR has overwhelming advantage over the other
+methods under different Gaussian blur levels. The visual
+comparisons of the deblurring methods are shown in Figs.
+16, from which we can see that the DB-WLRTR method
+produces much cleaner and sharper image edges and tex-
+tures than other methods. It is noteworthy that the lost de-
+tails, such as the text and the artificial flower, can be well
+recovered by our method.
+5.6 HSI Super-resolution
+We also test the proposed SR-WLRTR model on HSI super-
+resolution. The CAVE dataset is used for the comparison
+study. Both the Gaussian and uniform blur are tested with
+scaling factors s = 8. We compare the SR-WLRTR with the
+representative state-of-the-arts methods, including both the
+matrix based CNMF [82], NSSR [22] and tensor based NL-
+STF [21]. The quantitative results are shown in Table 5. It
+16 Yi Chang et al.
+(a) Original (b) Noisy (c) WNNM (d) LSCD (e) CBM3D (f) WLRTR
+(PSNR, SSIM) (16.09, 0.1942) (27.60, 0.8063) (29.37, 0.8363)(29.04, 0.8353)(26.74, 0.7820)
+Fig. 13: Simulated color image results under noise level ? = 40 on BSD dataset. (a) Original image castle. (b) Noisy image.
+Denoising results by (c) WNNM, (d) LSCD, (e) CBM3D, and (f) WLRTR.
+(a) Original Image (b) Noisy Image
+(k) ITSReg
+(e) LRTA(c) BM3D (d) PARAFAC (f) LRMR
+(g) ANLM (j) TDL (l) WLRTR-RPCA(h) NMF (i) BM4D
+Fig. 14: Simulated mixed noise removal results under heavy
+noise level on Salinas data. (a) Original image at band
+80. (b) Noisy image. Denoising results by (c) BM3D, (d)
+PARAFAC, (e) LRTA, (f) LRMR, (g) ANLM, (h) NMF, (i)
+BM4D, (j) TDL, (k) ITSReg, and (l) WLRTR-RPCA .
+can be seen that the results of proposed method are supe-
+rior to the competing methods both the spatial and spec-
+tral aspects, especially the Gaussian blur case. One visual
+comparison results at 700nm of the flower by all compet-
+ing methods are shown in Fig. 17. All the competing meth-
+ods can well recover the HR spatial structures of the scene,
+but the proposed method achieves the smallest reconstruc-
+tion errors, especially for the sharp edges. In conclusion,
+compared with the matrix based methods, the SR-WLRTR
+could better preserve the spatial-spectral structures with bet-
+ter recovering the spatial details and less spectral distortion;
+compared with the tensor based methods NLSTF [21], the
+SR-WLRTR utilizes the low-rank tensor prior in HSI, thus
+(a) Noisy (b) BM3D
+(h) TDL
+(c) PARAFAC
+(d) LRMR (e) ANLM
+(g) BM4D
+(f) NMF
+(i) WLRTR-RPCA
+Fig. 15: Real stripe noise removal results on Gulf Wetlands
+dataset. (a) Noisy image. Denoising results by (b) BM3D,
+(c) PARAFAC, (d) LRMR, (e) ANLM, (f) NMF, (g) BM4D,
+(h) TDL, (i) WLRTR-RPCA.
+resulting in better visual pleasing result, while there is obvi-
+ous gridding artifacts in the result of NLSTF.
+5.7 Discussion
+5.7.1 Number of Bands
+Since the number of the band of input data is different, in
+this section, we present an analysis about the effect of the
+Weighted Low-rank Tensor Recovery for Hyperspectral Image Restoration 17
+(a) Original  Image (b) Degraded (c) HL (d) FPD (e) SSTV (f) DB-WLRTR
+(PSNR, SSIM) 
+(PSNR, SSIM) 
+(40.97, 0.9793) (42.16, 0.9837) (41.23, 0.9818) (58.73, 0.9992) (35.79, 0.9613) 
+(33.29, 0.8813) (35.16, 0.9177) (34.28, 0.9056) (48.69, 0.9940) (23.62, 0.4690) 
+L
+ig
+h
+t 
+B
+lu
+r
+H
+ea
+v
+y
+ B
+lu
+r
+Fig. 16: Simulated deblurring results under different blur level on CAVE dataset. The first row shows the light blur case
+(8*8, Sigma = 3), and second row displays the heavy blur case (17*17, Sigma = 7). (a) Original image at band 510nm. (b)
+Degraded image, Deblurring results by (c) HL, (d) FPD, (e) SSTV, (f) DB-WLRTR.
+(b) LR Image(a) Original Image (c) CNMF (e) NSSR (f) SR-WLRTR(d) NLSTF
+(PSNR, SSIM) (46.57, 0.9894) (47.00, 0.9840) (48.22, 0.9940) (48.80, 0.9942)
+0 2 4 6 8 10 12 14 16 18 20
+Fig. 17: Simulated SR results on CAVE dataset. The first row shows the SR results. The second row is the corresponding
+error map. From the first column to the last one is (a) Original image at band 700nm, (b) Low-resolution image (s = 8, 8*8,
+Sigma = 3), SR results by (c) CNMF, (d) NLSTF, (e)NSSR, (f) SR-WLRTR.
+band number6. In Fig. 18, we show the changes of the PSNR
+values with the different numbers of bands. From Fig. 18,
+we can observe that the denoising results become gradu-
+ally better with larger number of bands. More specifically,
+when the number of band is smaller than 20, the PSNR val-
+ues increase rapidly. After the number of band is bigger than
+20, the growing speed of the curve becomes relatively slow.
+It is worth noting that the curve still shows its tendency to
+6 We take the HSI denoising as an example, as are the following
+analysis.
+grow up slowly. However, with the increasing size of the im-
+age bands, the memory and computational consumption also
+grow rapidly. Therefore, in our experiments, we empirically
+set the number of the bands smaller than 40. Normally, for
+an 512*512*31 images, it would cost about 23 minutes of
+running our algorithm on the personal computer with MAT-
+LAB 2014a, an Intel i7 CPU at 3.6 GHz, and 32-GB mem-
+ory.
+18 Yi Chang et al.
+0 5 10 15 20 25 30
+38.5
+39
+39.5
+40
+40.5
+41
+41.5
+42
+42.5
+43
+Number of Bands
+P
+S
+N
+R
+ V
+a
+lu
+e
+s
+Fig. 18: Effects of the band numbers on denoising results.
+Frame1 Frame 5 Frame 10 Frame 20Frame 15
+ N
+o
+is
+y
+ I
+m
+ag
+es
+W
+L
+R
+T
+R
+Fig. 19: The robustness of WLRTR method under the band
+inconsistency situation. The first row shows the original
+PMRI images from frame 1 to frame 20. The second row
+shows the corresponding results of WLRTR.
+5.7.2 Band Consistency
+Most HSIs restoration methods performs well when neigh-
+bor band consistency is guaranteed. What if this condition is
+not provided? We performed another experiment to demon-
+strate how WLRTR still works well. Figure 19 shows the
+denoising results of PMRIs image from frame 1 to 20 with
+far spectral difference at an interval of 5 frame. It can be
+seen that the original image of each frame in the first row
+varies sharply. The second row shows the corresponding de-
+noising results of WLRTR. We can observe that not only the
+random noise is removed satisfactorily, but also the differ-
+ent structural edges of each frame has been preserved well.
+The main reason why WLRTR works well in this situation
+is that WLRTR utilizes the low-rank properties of the con-
+structed 3-order tensor which contains both the band consis-
+tency and non-local cubic redundancy. Even when the band
+consistency cannot be guaranteed, the constructed 3-order
+tensor still has low-rank property induced by the non-local
+cubic redundancy, facilitating to obtain satisfactory denois-
+ing result.
+0 2 4 6 8 10 12 14 16 18 20
+20
+30
+40
+50
+60
+70
+80
+90
+100
+Frame Index
+In
+te
+n
+si
+ty
+ V
+al
+u
+es
+ 
+ 
+Noisy
+WLRTR
+Fig. 20: Spectral reflectance at one location from PMRI im-
+ages before and after denoising.
+50 100 150 200 250 300
+41.6
+41.8
+42
+42.2
+42.4
+42.6
+42.8
+Number of Non?local Similar Cubics
+P
+S
+N
+R
+ V
+a
+lu
+e
+s
+Fig. 21: Effects of the numbers of the non-local similarity
+cubics on denoising results.
+To further verify that WLRTR can preserve the useful
+spectral/frame information while removing the noise in pres-
+ence of low band consistency, in Fig. 20, we show the re-
+flectance spectra of one pixel (corresponding to Fig. 19) be-
+fore and after denoising as an example. It can be seen that
+the interframe information has been satisfactorily preserved
+with slightly difference due to the noise reduction.
+5.7.3 Number of Non-local Similarity Cubics
+We discuss another important parameter for the restoration
+performance: number of non-local similarity cubics. In Fig.
+21, we show the changes of the PSNR values with the dif-
+ferent numbers of non-local similarity cubics. From Fig. 21,
+we can observe that the denoising results become gradually
+better with larger number of bands. More specifically, when
+the number of band is smaller than 100, the PSNR values
+increase extremely fast. After the number of band is bigger
+than 100, the growing speed of the curve becomes relatively
+Weighted Low-rank Tensor Recovery for Hyperspectral Image Restoration 19
+Table 6: A comparison of state-of-the-art HSI restoration methods and their properties.
+Method Input Paradigm Task Scalability Sparsity Speed Performance
+BM3D [20] single image 3-D tensor denoising no spatial+nonlocal 2
+PARAFAC [50] multiple image 3-D tensor denoising+destriping no spatial+spectral 157
+LRTA [63] multiple image 3-D tensor denoising no spatial+spectral 9
+LRMR [85] multiple image 2-D matrix denoising+destriping yes spatial+spectral 561
+ANLM [55] multiple image 1-D vector denoising no spatial+spectral+nonlocal 163
+NMF [81] multiple image 2-D matrix denoising yes spatial+spectral 258
+BM4D [54] multiple image 4-D tensor denoising no spatial+spectral+nonlocal 263
+TDL [60] multiple image 3-D tensor denoising no spatial+spectral+nonlocal 58
+ITSReg [76] multiple image 3-D tensor denoising yes spatial+spectral+nonlocal 2454
+HL [41] single image 1-D vector deblurring yes spatial 7
+FPD [36] multiple image 3-D tensor deblurring yes spatial+spectral 207
+SSTV [26] multiple image 3-D tensor deblurring yes spatial+spectral 157
+CNMF [82] multiple image 2-D matrix super-resolution yes spatial+spectral 41
+NLSTF [21] multiple image 3-D tensor super-resolution no spatial+spectral+nonlocal 400
+NSSR [22] multiple image 2-D matrix super-resolution yes spatial+nonlocal 132
+WLRTR multiple image 3-D tensor comprehensive yes spatial+spectral+nonlocal 1421
+1 2 3 4 5 6 7 8
+0
+2
+4
+6
+8
+10
+*10
+11
+Iteration Number
+F
+u
+n
+ct
+io
+n
+al
+ E
+n
+er
+g
+y
+30
+32
+34
+36
+38
+40
+P
+S
+N
+R
+ V
+al
+u
+es
+PSNR  -- Iteration
+Energy -- Iteration
+Fig. 22: The empirical analysis of algorithm convergence.
+slow, and the PSNR value achieves its highest between 150
+to 200. When the number of band is bigger than 230, the
+performance of WLRTR even deteriorates a little. We sup-
+pose it is due to the insufficient similarity between the target
+cubic and searching cubics. Therefore, in our work, we set
+the number of the non-local similarity cubics between 100
+to 200.
+5.7.4 Empirical Convergence
+We provide an empirical analysis for the convergence of
+the proposed algorithm. Figure 22 illustrates the evolutional
+curve of functional energy and PSNR values versus the iter-
+ations, whose result is shown in Fig. 9. We can observe that
+the functional energy curve rapidly and monotonically de-
+creases to zero and the PSNR values curve rapidly increases
+to the stable value in a few iteration numbers. The algo-
+rithm often converges in just few iterations (empirically 3
+or 4 step) in our implementation.
+5.7.5 Overall Comparison
+In Table 6, we give a detailed comparison between WLRTR
+and the state-of-the-art HSI restoration methods. Overall,
+the WLRTR and its extensions are consistent for all kinds of
+HSIs tasks, also other multispectral images (color image and
+MRIs), and obtain better visual pleasure result with fewer
+artifacts than the results obtained by the compared meth-
+ods. Although the various tested images are much related
+to the particular imaging platform and degradation mecha-
+nism, our method captures the intrinsic low-rank property
+of the constructed 3-order tensor in three aspects: the spa-
+tial sparsity (mode-1), non-local cubic redundancy (mode-
+2), and band consistency (mode-3), and the weighted spar-
+sity of the coefficients in the core tensor. Every MSI main-
+tains these sparsity properties, no matter where it comes
+from. The WLRTR explicitly utilize this sparsity with low-
+rank tensor prior, which makes it applicable for different
+tasks.
+6 Conclusion
+In this paper, we have proposed a unified weighted low-
+rank tensor recovery method for HSIs restoration. The pro-
+posed WLRTR explicitly utilizes the spatial sparsity, non-
+local spatial-spectral cubic redundancy, and spectral consis-
+tency via high order low-rank property of each constructed
+3-order sub-tensor. We overcome the barriers of classical
+HSIs restoration methods that they are not able to preserve
+20 Yi Chang et al.
+the spatial-spectral structures correlation and can only be ap-
+plied to one specific task. On one hand, we clearly reveal the
+fact that tensor based sparsity model indeed fits for the HSIs
+processing; on the other hand, thanks to the variable splitting
+methods, we show that various HSIs restoration problem can
+be unified in a framework, and transformed into several eas-
+ier subproblem with closed-form solution. Further, for the
+low-rank tensor prior related subproblem, we introduce the
+weighted strategy to improve the performance, in which its
+closed-form solutions has been analyzed. In addition, we
+consider the very common stripe noise in HSIs, ultilize its
+structural and directional property, and extend WLRTR to
+the WLRTR-RPCA model.
+Extensive simulated and real experiment results have been
+carried out against a number of competing state-of-the-art
+methods on various HSIs restoration tasks. The proposed
+methods have consistently outperform state-of-the-art meth-
+ods in both quantitative assessments and visual appearance,
+especially in HSI destriping, deblurring, and super-resolution
+domain, where few tensor based methods have been pro-
+posed. Due to the efficiency of the low-rank tensor prior,
+the proposed WLRTR can be applied to other 3-D data ap-
+plications, such as color image and MRIs.
+In the future, we will try to speed up the proposed method
+via paralleled implementation and reducing the computa-
+tional complexity. It is also possible to apply our WLRTR
+model for HSI compress sensing, unmixing and also the
+video applications.
+References
+1. Akhtar, N., Shafait, F., Mian, A.: Bayesian sparse representation
+for hyperspectral image super resolution. In: Proc. IEEE Conf.
+CVPR, pp. 3631–3640 (2015)
+2. Akhtar, N., Shafait, F., Mian, A.S.: Sparse spatio-spectral repre-
+sentation for hyperspectral image super-resolution. In: Proc. IEEE
+Conf. ECCV, pp. 63–78 (2014)
+3. Bouali, M., Ladjal, S.: Toward optimal destriping of modis data
+using a unidirectional variational model. IEEE Trans. Geosci. Re-
+mote Sens. 49(8), 2924–2935 (2011)
+4. Bracewell, R., Kahn, P.B.: The fourier transform and its applica-
+tions. American Journal of Physics 34(8), 712–712 (1966)
+5. Cai, J.F., Cande?s, E.J., Shen, Z.: A singular value thresholding
+algorithm for matrix completion. SIAM J. on Optim. 20(4), 1956–
+1982 (2010)
+6. Cai, J.F., Dong, B., Osher, S., Shen, Z.: Image restoration: Total
+variation, wavelet frames, and beyond. J. Am. Math. Soc. 25(4),
+1033–1089 (2012)
+7. Cande?s, E.J., Li, X., Ma, Y., Wright, J.: Robust principal compo-
+nent analysis? J. ACM 58(3), 11 (2011)
+8. Cande?s, E.J., Recht, B.: Exact matrix completion via convex opti-
+mization. Found. Computat. Math. 9(6), 717–772 (2009)
+9. Candes, E.J., Wakin, M.B., Boyd, S.P.: Enhancing sparsity by
+reweighted l1 minimization. Journal of Fourier analysis and ap-
+plications 14(5), 877–905 (2008)
+10. Cao, X., Chen, Y., Zhao, Q., Meng, D., Wang, Y., Wang, D., Xu,
+Z.: Low-rank matrix factorization under general mixture noise dis-
+tributions. In: Proc. IEEE Conf. ICCV, pp. 1493–1501 (2015)
+11. Carfantan, H., Idier, J.: Statistical linear destriping of satellite-
+based pushbroom-type images. IEEE Trans. Geosci. Remote Sens.
+48(4), 1860–1871 (2010)
+12. Chakrabarti, A., Zickler, T.: Statistics of real-world hyperspectral
+images. In: Proc. IEEE Conf. CVPR, pp. 193–200 (2011)
+13. Chang, Y., Yan, L., Fang, H., Luo, C.: Anisotropic spectral-spatial
+total variation model for multispectral remote sensing image de-
+striping. IEEE Trans. Image Process. 24(6), 1852–1866 (2015)
+14. Chang, Y., Yan, L., Wu, T., Zhong, S.: Remote sensing im-
+age stripe noise removal: from image decomposition perspective.
+IEEE Trans. Geosci. Remote Sens. 54(12), 7018–7031 (2016)
+15. Chang, Y., Yan, L., Zhong, S.: Hyper-laplacian regularized unidi-
+rectional low-rank tensor recovery for multispectral image denois-
+ing. In: Proc. IEEE Conf. CVPR, pp. 4260–4268 (2017)
+16. Chen, C., Li, Y., Liu, W., Huang, J.: Image fusion with local spec-
+tral consistency and dynamic gradient sparsity. In: Proc. IEEE
+Conf. CVPR, pp. 2760–2765 (2014)
+17. Chen, C.F., Wei, C.P., Wang, Y.C.F.: Low-rank matrix recovery
+with structural incoherence for robust face recognition. In: Proc.
+IEEE Conf. CVPR, pp. 2618–2625 (2012)
+18. Chrtien, S., Wei, T.: Von neumann’s trace inequality for tensors.
+Linear Algebra Appl. 482, 149–157 (2015)
+19. Dabov, K., Foi, A., Katkovnik, V., Egiazarian, K.: Color image
+denoising via sparse 3d collaborative filtering with grouping con-
+straint in luminance-chrominance space. In: Proc. IEEE Conf.
+ICIP, vol. 1, pp. I–313 (2007)
+20. Dabov, K., Foi, A., Katkovnik, V., Egiazarian, K.: Image denois-
+ing by sparse 3-d transform-domain collaborative filtering. IEEE
+Trans. Image Process. 16(8), 2080–2095 (2007)
+21. Dian, R., Fang, L., Li, S.: Hyperspectral image super-resolution
+via non-local sparse tensor factorization. In: Proc. IEEE Conf.
+CVPR, pp. 5344–5353 (2017)
+22. Dong, W., Fu, F., Shi, G., Cao, X., Wu, J., Li, G., Li, X.: Hyper-
+spectral image super-resolution via non-negative structured sparse
+representation. IEEE Trans. Image Process. 25(5), 2337–2352
+(2016)
+23. Dong, W., Li, G., Shi, G., Li, X., Ma, Y.: Low-rank tensor ap-
+proximation with laplacian scale mixture modeling for multiframe
+image denoising. In: Proc. IEEE Conf. ICCV, pp. 442–449 (2015)
+24. Du, B., Zhang, L.: A discriminative metric learning based anomaly
+detection method. IEEE Trans. Geosci. Remote Sens. 52(11),
+6844–6857 (2014)
+25. Elad, M., Aharon, M.: Image denoising via sparse and redundant
+representations over learned dictionaries. IEEE Trans. Image Pro-
+cess. 15(12), 3736–3745 (2006)
+26. Fang, H., Luo, C., Zhou, G., Wang, X.: Hyperspectral image de-
+convolution with a spectral-spatial total variation regularization.
+Canadian Journal of Remote Sensing (2017)
+27. Fazel, M.: Matrix rank minimization with applications. Ph.D. the-
+sis, PhD thesis, Stanford University (2002)
+28. Fehrenbach, J., Weiss, P., Lorenzo, C.: Variational algorithms
+to remove stationary noise: applications to microscopy imaging.
+IEEE Trans. Image Process. 21(10), 4420–4430 (2012)
+29. Fu, Y., Dong, W.: 3d magnetic resonance image denoising us-
+ing low-rank tensor approximation. Neurocomputing 195, 30–39
+(2016)
+30. Fu, Y., Lam, A., Sato, I., Sato, Y.: Adaptive spatial-spectral dictio-
+nary learning for hyperspectral image restoration. Int. J. Comput.
+Vis 122(2), 228–245 (2017)
+31. Goldstein, T., Osher, S.: The split bregman method for l1-
+regularized problems. SIAM journal on imaging sciences 2(2),
+323–343 (2009)
+32. Gu, S., Xie, Q., Meng, D., Zuo, W., Feng, X., Zhang, L.: Weighted
+nuclear norm minimization and its applications to low level vision.
+Int. J. Comput. Vis pp. 1–26 (2016)
+33. Gu, S., Zhang, L., Zuo, W., Feng, X.: Weighted nuclear norm min-
+imization with application to image denoising. In: Proc. IEEE
+Conf. CVPR, pp. 2862–2869 (2014)
+Weighted Low-rank Tensor Recovery for Hyperspectral Image Restoration 21
+34. Guo, X., Huang, X., Zhang, L., Zhang, L.: Hyperspectral image
+noise reduction based on rank-1 tensor decomposition. ISPRS J.
+of Photogrammetry and Remote Sens. 83, 50–63 (2013)
+35. He, W., Zhang, H., Zhang, L., Shen, H.: Total-variation-
+regularized low-rank matrix factorization for hyperspectral image
+restoration. IEEE Trans. Geosci. Remote Sens. 54(1), 178–188
+(2016)
+36. Henrot, S., Soussen, C., Brie, D.: Fast positive deconvolution of
+hyperspectral images. IEEE Trans. Image Process. 22(2), 828–
+833 (2013)
+37. Ji, R., Gao, Y., Hong, R., Liu, Q., Tao, D., Li, X.: Spectral-spatial
+constraint hyperspectral image classification. IEEE Trans. Geosci.
+Remote Sens. 52(3), 1811–1824 (2014)
+38. Jiang, Y., Ding, X., Zeng, D., Huang, Y., Paisley, J.: Pan-
+sharpening with a hyper-laplacian penalty. In: Proc. IEEE Conf.
+CVPR, pp. 540–548 (2015)
+39. Kawakami, R., Matsushita, Y., Wright, J., Ben-Ezra, M., Tai, Y.W.,
+Ikeuchi, K.: High-resolution hyperspectral imaging via matrix fac-
+torization. In: Proc. IEEE Conf. CVPR, pp. 2329–2336 (2011)
+40. Kolda, T.G., Bader, B.W.: Tensor decompositions and applica-
+tions. J. SIAM Rev. 66(4), 294–310 (2005)
+41. Krishnan, D., Fergus, R.: Fast image deconvolution using hyper-
+laplacian priors. In: NIPS, pp. 1033–1041 (2009)
+42. Lanaras, C., Baltsavias, E., Schindler, K.: Hyperspectral super-
+resolution by coupled spectral unmixing. In: Proc. IEEE Conf.
+ICCV, pp. 3586–3594 (2015)
+43. Lathauwer, L.D., Moor, B.D., Vandewalle, J.: A multilinear sin-
+gular value decomposition. SIAM J. Matrix Anal. Appl. 21(4),
+1253–1278 (2000)
+44. Letexier, D., Bourennane, S.: Noise removal from hyperspectral
+images by multidimensional filtering. IEEE Trans. Geosci. Re-
+mote Sens. 46(7), 2061–2069 (2008)
+45. Levin, A., Weiss, Y., Durand, F., Freeman, W.T.: Understanding
+and evaluating blind deconvolution algorithms. In: Proc. IEEE
+Conf. CVPR, pp. 1964–1971. IEEE (2009)
+46. Li, S., Yin, H., Fang, L.: Remote sensing image fusion via sparse
+representations over learned dictionaries. IEEE Trans. Geosci. Re-
+mote Sens. 51(9), 4779–4789 (2013)
+47. Lin, Z., Liu, R., Su, Z.: Linearized alternating direction method
+with adaptive penalty for low-rank representation. In: NIPS, pp.
+612–620 (2011)
+48. Liu, G., Lin, Z., Yan, S., Sun, J., Yu, Y., Ma, Y.: Robust recovery
+of subspace structures by low-rank representation. IEEE Trans.
+Pattern Anal. Mach. Intell. 35(1), 171–184 (2013)
+49. Liu, Q., Lai, Z., Zhou, Z., Kuang, F., Jin, Z.: A truncated nuclear
+norm regularization method based on weighted residual error for
+matrix completion. IEEE Trans. Image Process. 25(1), 316–330
+(2016)
+50. Liu, X., Bourennane, S., Fossati, C.: Denoising of hyperspectral
+images using the parafac model and statistical performance analy-
+sis. IEEE Trans. Geosci. Remote Sens. 50(10), 3717–3724 (2012)
+51. Liu, X., Lu, X., Shen, H., Yuan, Q., Jiao, Y., Zhang, L.: Stripe
+noise separation and removal in remote sensing images by con-
+sideration of the global sparsity and local variational properties.
+IEEE Trans. Geosci. Remote Sens. 54(1), 3049–3060 (2016)
+52. Loncan, L., de Almeida, L.B., Bioucas-Dias, J.M., Briottet, X.,
+Chanussot, J., Dobigeon, N., Fabre, S., Liao, W., Licciardi, G.A.,
+Simoes, M., et al.: Hyperspectral pansharpening: A review. IEEE
+Geosci. Remote Sens. Mag. 3(3), 27–46 (2015)
+53. Lu, X., Wang, Y., Yuan, Y.: Graph-regularized low-rank represen-
+tation for destriping of hyperspectral images. IEEE Trans. Geosci.
+Remote Sens. 51(7), 4009–4018 (2013)
+54. Maggioni, M., Katkovnik, V., Egiazarian, K., Foi, A.: Nonlocal
+transform-domain filter for volumetric data denoising and recon-
+struction. IEEE Trans. Image Process. 22(1), 119–33 (2012)
+55. Manjo?n, J.V., Coupe?, P., Mart??-Bonmat??, L., Collins, D.L., Rob-
+les, M.: Adaptive non-local means denoising of mr images with
+spatially varying noise levels. J. Magn. Resonance Imag. 31(1),
+192–203 (2010)
+56. Martin, D., Fowlkes, C., Tal, D., Malik, J.: A database of human
+segmented natural images and its application to evaluating seg-
+mentation algorithms and measuring ecological statistics. In: Proc.
+IEEE Conf. ICCV, vol. 2, pp. 416–423 (2001)
+57. Meng, D., De La Torre, F.: Robust matrix factorization with un-
+known noise. In: Proc. IEEE Conf. ICCV, pp. 1337–1344 (2013)
+58. Moroni, M., Lupo, E., Marra, E., Cenedese, A.: Hyperspectral im-
+age analysis in environmental monitoring: setup of a new tunable
+filter platform. Procedia Environmental Sciences 19, 885–894
+(2013)
+59. Othman, H., Qian, S.E.: Noise reduction of hyperspectral imagery
+using hybrid spatial-spectral derivative-domain wavelet shrinkage.
+IEEE Trans. Geosci. Remote Sens. 44(2), 397–408 (2006)
+60. Peng, Y., Meng, D., Xu, Z., Gao, C., Yang, Y., Zhang, B.: De-
+composable nonlocal tensor dictionary learning for multispectral
+image denoising. In: Proc. IEEE Conf. CVPR, pp. 2949–2956
+(2014)
+61. Pyatykh, S., Hesser, J., Zheng, L.: Image noise level estimation by
+principal component analysis. IEEE Trans. Image Process. 22(2),
+687–699 (2013)
+62. Rajwade, A., Rangarajan, A., Banerjee, A.: Image denoising us-
+ing the higher order singular value decomposition. IEEE Trans.
+Pattern Anal. Mach. Intell. 35(4), 849–862 (2013)
+63. Renard, N., Bourennane, S., Blanc-Talon, J.: Denoising and di-
+mensionality reduction using multilinear tools for hyperspectral
+images. IEEE Geosci. Remote Sens. Lett. 5(2), 138–142 (2008)
+64. Rizkinia, M., Baba, T., Shirai, K., Okuda, M.: Local spectral com-
+ponent decomposition for multi-channel image denoising. IEEE
+Trans. Image Process. 25(7), 3208–3218 (2016)
+65. Roth, S., Black, M.J.: Fields of experts: A framework for learning
+image priors. In: Proc. IEEE Conf. CVPR, vol. 2, pp. 860–867
+(2005)
+66. Rudin, L.I., Osher, S., Fatemi, E.: Nonlinear total variation based
+noise removal algorithms. Phys. D, Nonlinear Phenom. 60(1),
+259–268 (1992)
+67. Shen, H., Du, L., Zhang, L., Gong, W.: A blind restoration method
+for remote sensing images. IEEE Geosci. Remote Sens. Lett. 9(6),
+1137–1141 (2012)
+68. Shen, H., Zhang, L.: A map-based algorithm for destriping and in-
+painting of remotely sensed images. IEEE Trans. Geosci. Remote
+Sens. 47(5), 1492–1502 (2009)
+69. Veganzones, M.A., Simoes, M., Licciardi, G., Yokoya, N.,
+Bioucas-Dias, J.M., Chanussot, J.: Hyperspectral super-resolution
+of locally low rank images from complementary multisource data.
+IEEE Trans. Image Process. 25(1), 274–288 (2016)
+70. Wald, L.: Data fusion: definitions and architectures: fusion of im-
+ages of different spatial resolutions. Presses des MINES (2002)
+71. Wang, Z., Bovik, A.C., Sheikh, H.R., Simoncelli, E.P.: Image
+quality assessment: from error visibility to structural similarity.
+IEEE Trans. Image Process. 13(4), 600–612 (2004)
+72. Wei, Q., Bioucas-Dias, J., Dobigeon, N., Tourneret, J.Y.: Hyper-
+spectral and multispectral image fusion based on a sparse repre-
+sentation. IEEE Trans. Geosci. Remote Sens. 53(7), 3658–3668
+(2015)
+73. Wright, J., Ganesh, A., Rao, S., Peng, Y., Ma, Y.: Robust prin-
+cipal component analysis: exact recovery of corrupted low-rank
+matrices via convex optimization. In: Proc. NIPS, pp. 2080–2088
+(2009)
+74. Wycoff, E., Chan, T.H., Jia, K., Ma, W.K., Ma, Y.: A non-
+negative sparse promoting algorithm for high resolution hyper-
+spectral imaging. In: ICASSP, pp. 1409–1413 (2013)
+75. Xie, Q., Zhao, Q., Meng, D., Xu, Z.: Kronecker-basis-
+representation based tensor sparsity and its applications to tensor
+recovery. IEEE Trans. Pattern Anal. Mach. Intell. (2017)
+22 Yi Chang et al.
+76. Xie, Q., Zhao, Q., Meng, D., Xu, Z., Gu, S., Zuo, W., Zhang, L.:
+Multispectral images denoising by intrinsic tensor sparsity regu-
+larization. In: Proc. IEEE Conf. CVPR, pp. 1692–1700 (2016)
+77. Xie, Y., Qu, Y., Tao, D., Wu, W., Yuan, Q., Zhang, W.: Hy-
+perspectral image restoration via iteratively regularized weighted
+schatten-norm minimization. IEEE Trans. Geosci. Remote Sens.
+54(8), 4642–4659 (2016)
+78. Yan, R., Shao, L., Liu, Y.: Nonlocal hierarchical dictionary learn-
+ing using wavelets for image denoising. IEEE Trans. Image Pro-
+cess. 22(12), 4689–98 (2013)
+79. Yang, J., Wright, J., Huang, T.S., Ma, Y.: Image super-resolution
+via sparse representation. IEEE Trans. Image Process. 19(11),
+2861–2873 (2010)
+80. Yasuma, F., Mitsunaga, T., Iso, D., Nayar, S.K.: Generalized as-
+sorted pixel camera: postcapture control of resolution, dynamic
+range, and spectrum. IEEE Trans. Image Process. 19(9), 2241–
+2253 (2010)
+81. Ye, M., Qian, Y., Zhou, J.: Multitask sparse nonnegative matrix
+factorization for joint spectral–spatial hyperspectral imagery de-
+noising. IEEE Trans. Geosci. Remote Sens. 53(5), 2621–2639
+(2015)
+82. Yokoya, N., Yairi, T., Iwasaki, A.: Coupled nonnegative matrix
+factorization unmixing for hyperspectral and multispectral data fu-
+sion. IEEE Trans. Geosci. Remote Sens. 50(2), 528–537 (2012)
+83. Yuan, Q., Zhang, L., Shen, H.: Hyperspectral image denoising em-
+ploying a spectral–spatial adaptive total variation model. IEEE
+Trans. Geosci. Remote Sens. 50(10), 3660–3677 (2012)
+84. Yuhas, R.H., Boardman, J.W., Goetz, A.F.: Determination of semi-
+arid landscape endmembers and seasonal trends using convex ge-
+ometry spectral unmixing techniques. In: Summaries of the 4th
+Annual JPL Airborne Geoscience Workshop (1993)
+85. Zhang, H., He, W., Zhang, L., Shen, H., Yuan, Q.: Hyperspectral
+image restoration using low-rank matrix recovery. IEEE Trans.
+Geosci. Remote Sens. 52(8), 4729–4743 (2014)
+86. Zhang, L., Wei, W., Zhang, Y., Shen, C., van den Hengel, A., Shi,
+Q.: Cluster sparsity field for hyperspectral imagery denoising. In:
+Proc. IEEE Conf. ECCV, pp. 631–647. Springer (2016)
+87. Zhao, X.L., Wang, F., Huang, T.Z., Ng, M.K., Plemmons, R.J.:
+Deblurring and sparse unmixing for hyperspectral images. IEEE
+Trans. Geosci. Remote Sens. 51(7), 4045–4058 (2013)
+88. Zhao, Y.Q., Yang, J.: Hyperspectral image denoising via sparse
+representation and low-rank constraint. IEEE Trans. Geosci. Re-
+mote Sens. 53(1), 296–308 (2015)
+89. Zhong, P., Peng, N., Wang, R.: Learning to diversify patch-based
+priors for remote sensing image restoration. IEEE J. Sel. Topics
+Appl. Earth Observ. Remote Sens. 8(11), 5225–5245 (2015)

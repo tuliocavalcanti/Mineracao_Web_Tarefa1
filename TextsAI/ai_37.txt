@@ -1,0 +1,1001 @@
+R3: Reinforced Reader-Ranker for Open-Domain Question Answering
+Shuohang Wang?1, Mo Yu2, Xiaoxiao Guo2, Zhiguo Wang2, Tim Klinger2, Wei Zhang2,
+Shiyu Chang2, Gerald Tesauro2, Bowen Zhou2, and Jing Jiang1
+1School of Information System, Singapore Management University
+2AI Foundation Group, IBM, Yorktown Height
+shwang.2014@smu.edu.sg, yum@us.ibm.com, xiaoxiao.guo@ibm.com
+Abstract
+In recent years researchers have achieved
+considerable success applying neural net-
+work methods to question answering
+(QA). These approaches have achieved
+state of the art results in simplified closed-
+domain settings1 such as the SQuAD (Ra-
+jpurkar et al., 2016) dataset, which pro-
+vides a pre-selected passage, from which
+the answer to a given question may be ex-
+tracted. More recently, researchers have
+begun to tackle open-domain QA, in which
+the model is given a question and access
+to a large corpus (e.g., wikipedia) instead
+of a pre-selected passage (Chen et al.,
+2017a). This setting is more complex as
+it requires large-scale search for relevant
+passages by an information retrieval com-
+ponent, combined with a reading compre-
+hension model that “reads” the passages to
+generate an answer to the question. Per-
+formance in this setting lags considerably
+behind closed-domain performance.
+In this paper, we present a novel open-
+domain QA system called Reinforced
+Ranker-Reader (R3), based on two algo-
+rithmic innovations. First, we propose a
+new pipeline for open-domain QA with a
+Ranker component, which learns to rank
+retrieved passages in terms of likelihood
+of generating the ground-truth answer to
+a given question. Second, we propose a
+novel method that jointly trains the Ranker
+?This work has been done during the 1st author’s intern-
+ship with IBM.
+1In the QA community, “openness” can be interpreted
+as referring either to the scope of question topics or to the
+breadth and generality of the knowledge source used to an-
+swer each question. Following Chen et al. 2017a we adopt
+the latter definition.
+along with an answer-generation Reader
+model, based on reinforcement learning.
+We report extensive experimental results
+showing that our method significantly im-
+proves on the state of the art for multiple
+open-domain QA datasets.
+1 Introduction
+Open-domain question answering (QA) is a key
+challenge in natural language processing. A suc-
+cessful open-domain QA system must be able
+to effectively retrieve and comprehend one or
+more knowledge sources to infer a correct answer.
+Knowledge sources can be knowledge bases (Be-
+rant et al., 2013) or structured or unstructured text
+passages (Ferrucci et al., 2010; Baudis? and S?edivy?,
+2015).
+Recent deep learning-based research has fo-
+cused on open-domain QA based on large text
+corpora such as wikipedia, applying a two-step-
+process of information retrieval (IR) to extract pas-
+sages and reading comprehension (RC) to select
+an answer phrase from them (Chen et al., 2017a;
+Dhingra et al., 2017b). These methods, which we
+call QA with Search-and-Reading (SR-QA), are
+a simple yet powerful approach for open-domain
+QA. Dividing the pipeline into IR and RC stages
+leverages an enormous body of research in both IR
+and RC, including recent successes in RC via neu-
+ral network techniques (Wang and Jiang, 2017b;
+Yu et al., 2016; Wang et al., 2016; Xiong et al.,
+2017; Wang et al., 2017).
+The main difference between training SR-QA
+and standard RC models is in the passages used for
+training. In standard RC model training, passages
+are manually selected to guarantee that ground-
+truth answers are contained and annotated within
+the passage (Rajpurkar et al., 2016). 2 By con-
+2This forms a closed-domain QA by our adopted defini-
+tion where the domain consists of the given passage only.
+ar
+X
+iv
+:1
+70
+9.
+00
+02
+3v
+1 
+ [
+cs
+.C
+L
+] 
+ 3
+1 
+A
+ug
+ 2
+01
+7
+Q: What is the largest island in the Philippines?
+A: Luzon
+P1 Mindanao is the second largest and easternmost island
+in the Philippines.
+P2 As an island, Luzon is the Philippine’s largest at
+104,688 square kilometers, and is also the world’s 17th
+largest island.
+P3 Manila, located on east central Luzon Island, is the na-
+tional capital and largest city.
+Table 1: An open-domain QA training example.
+Q: question, A: answer, P: passages retrieved by
+an IR model and ordered by IR score.
+trast, in SR-QA approaches such as (Chen et al.,
+2017a; Dhingra et al., 2017b), the model is given
+only QA-pairs and uses an IR component to re-
+trieve passages similar to the question from a large
+corpus. Depending on the quality of the IR com-
+ponent, retrieved passages may not contain or en-
+tail the correct answer, making RC training more
+difficult. Table 1 shows an example which illus-
+trates the difficulty. This ordering was produced
+by an off-the-shelf IR engine using the BM25 al-
+gorithm. The correct answer is contained in pas-
+sage P2. The top passage (P1), despite being
+ranked highest by the IR engine, is ineffective for
+answering the question, since it fails to capture the
+semantic distinction between “largest” and “sec-
+ond largest”. Passage P3 contains the answer text
+(“Luzon”) but does not semantically entail the cor-
+rect answer (“Luzon is the largest island in the
+Philippines”). Including passages such as P1 and
+P3 in the text used for the RC component intro-
+duces noise which can degrade training.3
+In this paper we propose a different approach to
+the problem which explicitly separates the tasks
+of predicting the likelihood that a passage pro-
+vides the answer (Ranking) and reading those
+passages to extract the correct answer (Reading).
+Specifically we propose an end-to-end framework
+consisting of two components: A Ranker and
+a Reader (i.e. RC model). The Ranker se-
+lects the passage most likely to entail the an-
+swer and passes it to the Reader, which reads
+and extracts from that passage. The Reader is
+trained using SGD/backprop to maximize the like-
+lihood of the span containing the correct answer
+(if one exists). The Ranker is trained using RE-
+INFORCE (Williams, 1992) with a reward de-
+3Passage ranking models for non-factoid QA (Wang et al.,
+2007; Yang et al., 2015) are able to learn to rank these pas-
+sages; but these models are trained using human annotated
+answer labels, which are not available here.
+termined by how well the Reader extracts an-
+swers from the top ranked passages. In this way
+the Ranker is optimized with an objective deter-
+mined by the end-performance on answer predic-
+tion, which provides a strong signal to distinguish
+passages lexically similar to but semantically dif-
+ferent from the question.
+We discuss the Ranker-Reader model in detail
+in the next section but briefly, the Ranker and
+Reader are implemented as variants of Match-
+LSTM models (Wang and Jiang, 2016). These
+models were originally designed for solving the
+text entailment problem. To adapt them to this
+task, different non-linear layers have been added
+for either selecting the passages or predicting the
+start and end positions of the answer in the pas-
+sage.
+We evaluate our model on five different datasets
+and achieve the state-of-the-art results on four of
+the them. Our results also show the merits of em-
+ploying a separate REINFORCE-trained ranking
+component over several challenging fully super-
+vised baselines.
+2 Framework
+Problem Definition We assume that we have
+available a factoid question q to be answered and
+a set of passages which may contain the ground-
+truth answer ag. Those passages4 are the top N
+retrieved from a corpus by an IR model supplied
+with the question, for N a hyper-parameter. Dur-
+ing training we are given only the (q,ag) pairs,
+together with an IR model with index built on an
+open-domain corpus.
+Framework Overview An overview of the
+Ranker-Reader model is shown in Figure 1. It
+shows two key components: a Ranker, which
+selects passages from which an answer can be
+extracted, and a Reader which extracts answers
+from supplied passages. Both the Ranker and
+Reader compare the question to each of the pas-
+sages to generate passage representations based on
+how well they match the question. The Ranker
+uses these “matched” representations to select a
+single passage which is most likely to contain the
+answer. The selected passage is then processed by
+the Reader to extract an answer sequence. We train
+the reader using SGD/backprop and produce a re-
+ward to train the Ranker via REINFORCE.
+4In this paper we use sentence-level index thus each pas-
+sage is an individual sentence. See the experimental setting.
+3 R3: Reinforced Ranker-Reader
+In this section, we first review the Match-
+LSTM (Wang and Jiang, 2016) which provides in-
+put for both the Reader and Ranker. We then detail
+the Reader and Ranker components, and the pro-
+cedure for joint training, including the objective
+function used for RL training.
+Passage Representation Using Match-LSTM
+To effectively rank and read passages they must
+be matched to the question. This comparison is
+performed with a Match-LSTM, a state-of-the-
+art model for text entailment, shown on the right
+in Figure 1. Match-LSTMs use an attention mech-
+anism to compute word similarities between the
+passage and question sequences. These are first
+encoded as matrices Q and P, respectively, by
+a Bidirectional LSTM (BiLSTM) with hidden di-
+mension l. With Q words in question Q and P
+words in passage P we can write:
+Hp = BiLSTM(P), Hq = BiLSTM(Q), (1)
+where Hp ? Rl×P and Hq ? Rl×Q are the hidden
+states for the passage and the question. In order to
+improve computational efficiency without degrad-
+ing performance, we simplify the attention mech-
+anism of the original Match-LSTM by computing
+the attention weights G as follows:
+G = SoftMax
+(
+(WgHq + bg ? eQ)THp
+)
+where Wg ? Rl×l and bg ? Rl are the learnable
+parameters. The outer product (· ? eQ) repeats
+the column vector bg Q times to form an l× l ma-
+trix. The i-th column of G ? RQ×P represents the
+normalized attention weights over all the question
+words for the i-th word in passage.
+We can use this attention matrix G to form rep-
+resentations of the question for each word in pas-
+sage:
+H
+q
+= HqG,
+(2)
+Next, we produce the word matching represen-
+tations M ? R2l×P using Hp and Hq as follows:
+M = ReLU
+????Wm
+????
+Hp
+H
+q
+Hp
+?
+H
+q
+Hp ?Hq
+????
+???? , (3)
+where Wm ? R2l×4l are learnable parameters;
+[
+·
+·
+]
+is the column concatenation of matrices; Element-
+wise operations (·
+?
+·) and (· ? ·) are also used to
+represent word-level matching (Wang and Jiang,
+2017a; Chen et al., 2017b).
+Finally, we aggregate the word matching repre-
+sentations through another bi-directional LSTM:
+Hm = BiLSTM(M), (4)
+where Hm ? Rl×P is the sequence matching rep-
+resentation between a passage and a question.
+To produce the input for the Ranker and Reader
+described next, we apply Match-LSTMs to the
+question and each of the passages. To reduce
+model complexity, the Ranker and Reader share
+the same M but have separate parameters for the
+aggregation stage shown in Eqn.(4), resulting dif-
+ferent Hm, denoted as HRank and HRead respec-
+tively.
+Ranker The role of the Ranker in our model is
+to select a passage for reading by the Reader. To
+do this, we train the Ranker using reinforcement
+learning, to output a policy or probability distri-
+bution over passages. At training time that pol-
+icy will be sampled while at test time we take
+the argmax passage. First, we create a fixed-size
+vector representation for each passage from the
+matching representations HRanki , i ? [1, N ], us-
+ing a standard max pooling operation. The result
+ui is a representation of the i-th passage. We then
+concatenate the individual passage representations
+and apply a non-linear transformation followed by
+a normalization to compute the passage probabili-
+ties ?. Specifically:
+ui = MaxPooling(HRanki ),
+C = Tanh (Wc[u1; u2; ...uN ] + bc ? eN ) ,
+? = Softmax(wcC), (5)
+where Wc ? Rl×l and bc,wc ? Rl are the pa-
+rameters to optimize; ui ? Rl represents how the
+ith passage matches the question; C ? Rl×N is
+a non-linear transformation of passage represen-
+tations; and ? ? RN is a vector of the predicted
+probabilities that each passage entails the answer.
+The action policy is then defined as follows:
+?(? |q; ?r) = ?? (6)
+where ?? is the probability of passage ? being se-
+lected, computed through Eqn.(5); ?r represents
+Figure 1: Overview of training our model, comprising a Ranker and a Reader based on Match-LSTM
+as shown on the right side. The Ranker selects a passage ? and the Reader predicts the start and end
+positions of the answer in ? . The reward for the Ranker depends on similarity of the extracted answer
+with the ground-truth answer ag. To accelerate Reader convergence, we also sample several negative
+passages without ground-truth answer.
+parameters to learn. In the rest of the paper we de-
+note the policy ?(? |q) = ?(? |q; ?r) for simplicity.
+In this way, the action is to sample a passage ac-
+cording to its policy ?(? |q) as the input of Reader.
+Reader Our Reader extracts an answer span
+from the passage ? selected by the Ranker. As
+in previous work (Wang and Jiang, 2017b; Xiong
+et al., 2017; Seo et al., 2017; Wang et al., 2017),
+the Reader is used to predict the start and end po-
+sitions of the answer phrase in the passage.
+First we process the output of Match-LSTMs on
+all the passages to produce the probability of the
+start position of the answer span ?s:
+Fs = Tanh
+(
+Ws[HRead? ;H
+Read
+neg1 ; ...;H
+Read
+negn ] + b
+s ? eV
+)
+,
+?s = SoftMax (wsFs) ,
+(7)
+where negn is the id of a sampled passage not con-
+taining ground-truth answer during training; V is
+the total number of words in these passages; eV
+is thus a V -dimension vector with ones; [·; ·] is
+the column concatenation operation; Ws ? Rl×l
+and bs,ws ? Rl are the parameters to optimize;
+?s ? RV is the probability of the start point of the
+span.
+We similarly compute the probability of the
+ending position, ?e ? RV , using separate parame-
+ters We,be and we. The loss function can then be
+expressed as follows:
+L(ag|?,q) = ?log(?sas? )? log(?
+e
+ae?
+), (8)
+where ag is the ground-truth answer; ? is sampled
+according to Eqn.(6), and during training, we keep
+sampling until passage ? contains ag; ?sas? and ?
+e
+ae?
+represents the probability of the start and end po-
+sitions of ag in passage ? .
+Training To train the Ranker-Reader model
+(R3) we must train both the Ranker, which pro-
+duces a passage selection, and the Reader which
+consumes it. We adopt a joint training strategy
+shown in Algorithm 1. Because the Ranker makes
+a hard selection of the passage, it is trained us-
+ing the REINFORCE algorithm. The Reader is
+trained using standard stochastic gradient descent
+and backpropagation.
+Our training objective is to minimize the follow-
+ing loss function
+J(?) = ?E???(? |q) [L(ag|?,q)] , (9)
+where L is the loss of the Reader defined in Eqn.
+(8); ?(? |q) is the action policy defined in Eqn.(6);
+and ? are parameters to be learned. During train-
+ing, action sampling is limited solely to passages
+containing the ground-truth answer, to guarantee
+Reader updating (line 10 in Algorithm 1) based on
+5Baseline method SR2, described in Experimental Set-
+tings.
+6For computational efficency, we sample 10 passages dur-
+ing training, and make sure there are at least 2 negative pas-
+sages and as many positive passages as possible.
+Algorithm 1 Reinforced Ranker-Reader (R3)
+1: Input: ag, q, passages from IR
+2: Output: ?
+3: Initialize:
+?? pre-trained ? with a baseline
+method5
+4: for each q in dataset do
+5: For question q, sample K passages from
+the top N passages retrieved by IR model for
+training. 6
+6: Randomly sample a positive passage ? ?
+?(? |q)
+7: Extract the answer arc through RC model
+8: Get reward r according to R(ag,arc|?).
+9: Updating Ranker (ranking model) through
+policy gradient r ??? log(?(? |q))
+10: Updating Reader (RC model) through su-
+pervised gradient ???L(a
+g|?,q)
+11: end for
+the sampled passages with supervised gradients.
+The gradient of J(?) with respect to ? is:
+??J(?) = ???
+?
+?
+?(? |q)L(ag|?,q)
+= ?
+?
+?
+(L(ag|?,q)???(? |q)
++ ?(? |q)??L(ag|?,q))
+= ?E???(? |q) [L(ag|?,q)?? log(?(? |q))
++ ??L(ag|?,q)]
+? ?E???(? |q) [R(ag,arc|?)?? log(?(? |q))
++ ??L(ag|?,q)]
+(10)
+So in training, we first sample a passage ? ac-
+cording to the policy ?(? |q). Then the Reader
+updates its parameters given the passage ? using
+standard Backprop and the ranker updates its pa-
+rameters via policy gradient using L(a|?,q) as re-
+wards. However, L(a|?,q) is not bounded and in-
+troduces a large variance in gradients (similar to
+what was reported in Mnih et al. 2014). To ad-
+dress this, we replace L(a|?,q) with a bounded
+reward R(ag,arc|?), which captures how well
+the answer extracted by the Reader matches the
+ground-truth answer. Specifically:
+R(ag,arc|?) =
+??? 2, if a
+g == arc
+f1(ag,arc), else if ag ? arc! = ø
+?1, else
+(11)
+where ag is the ground-truth answer; arc is the
+answer extracted by Reader; f1(·, ·) ? [0, 1] is
+the function to compute word-level F1 score be-
+tween two sequences. The F1 score is used as re-
+ward when the two answers ag and arc share some
+words but do not exactly match; an exact match is
+given a larger reward of 2. We give negative re-
+ward -1 when there is no overlap.
+Prediction During testing, we combine the
+Ranker and Reader for answer extraction as fol-
+lows:
+Pr(a, ?) = Pr(a|?) Pr(?) = e?L(a|?,q)?(? |q),
+(12)
+where Pr(a, ?) is the probability of extracting the
+answer a from passage ? . We select the answer
+with the largest Pr(a, ?) as the final prediction.
+4 Experimental Settings
+To evaluate our model we have chosen five
+challenging datasets under the distant super-
+vision setting following (Chen et al., 2017a)’s
+work, including Quasar-T (Dhingra et al.,
+2017b), SQuAD (Rajpurkar et al., 2016),
+WikiMovie (Miller et al., 2016), Curat-
+edTREC (Baudis? and S?edivy?, 2015), and
+WebQuestion (Berant et al., 2013). Based
+on these datasets, we compare to three public
+baseline models: GA (Dhingra et al., 2017a,b),
+BiDAF (Seo et al., 2017), and DrQA (Chen et al.,
+2017a). We also compare to two internal baselines
+as described below.
+4.1 Datasets
+We experiment with five different data sets whose
+statistics are shown in Table 2.
+Quasar-T (Dhingra et al., 2017b) is a dataset
+for SR-QA, with question-answer pairs from var-
+ious internet sources. Each question is com-
+pared to 100 sentence-level candidate passages,
+retrieved by their IR model from the ClueWeb09
+data source, to extract the answer.
+The other four datasets we consider are:
+SQuAD (Rajpurkar et al., 2016), the Stanford QA
+dataset, where each question-answer pair is gener-
+ated by annotators using a given Wikipedia para-
+graph; WikiMovie (Miller et al., 2016) which
+contains movie-related questions from the OMDb
+and MovieLens databases and where the questions
+can be answered using Wikipedia pages; Curat-
+edTREC (Baudis? and S?edivy?, 2015), based on
+TREC (Voorhees and Tice, 2000) and designed
+for open-domain QA; and WebQuestion (Berant
+#q(train) #q(test) #p(train) #p(test)
+Quasar-T 28496 3000 14.8 / 100 1.9 / 50
+SQuAD 82271 10570 35.1 / 200 2.3 / 50
+WikiMovies 93935 9,952 68.5 / 200 1.8 / 50
+CuratedTREC 1204 694 14.6 / 200 4.8 / 50
+WebQuestion 3272 2,032 57.2 / 200 4.1 / 50
+Table 2: Statistics of the datasets. #q represents
+the number of questions. For the training dataset,
+we ignore the questions without any answer in all
+the retrieved passages. In the special case that
+there’s only one answer for the question, during
+training, we combine the question with the answer
+as the query to improve IR recall. Otherwise we
+use only the question. #p represents the number of
+passages and 14.8 / 100 means there are 14.8 pas-
+sages containing the answer on average out of the
+100 passages. We use top50 passages retrieved by
+the IR model for testing.
+et al., 2013) which is designed for knowledge-base
+QA with answers restricted to Freebase entities.
+For these four datasets under the distant super-
+vision setting, no candidate passages are provided
+so we build a similar sentence-level Search In-
+dex based on English Wikipedia, following (Chen
+et al., 2017a). To provide a small yet sufficient
+search space for our model, we employ a tra-
+ditional IR method to retrieve relevant passages
+from the whole of Wikipedia. We use the 2016-12-
+21 dump of English Wikipedia as our sole knowl-
+edge source, and build an inverted index with
+Lucene7. We then take each input question as
+a query to search for top-200 articles, rank them
+with BM25, and split them into sentences. The
+sentences are then ranked by TF-IDF and the top-
+200 sentences for each question retained.
+4.2 Baselines
+We consider three public baseline models8:
+GA (Dhingra et al., 2017a,b), a gated-attention
+reader for text comprehension; BiDAF (Seo et al.,
+2017), a reader with bidirectional attention flow
+for machine comprehension; and DrQA (Chen
+et al., 2017a), a document reader for question an-
+swering. We also compare our model R3 with two
+internal baselines:
+Single Reader (SR) This model is trained in
+the same way as Chen et al. 2017a and Dhingra
+7https://lucene.apache.org/
+8We only compare to the results from the public papers.
+et al. 2017b. We find all the answer spans that
+exactly match the ground-truth answers from the
+retrieved passages and train the Reader using the
+objective of Eqn.(8). Here ? is randomly sampled
+from [1, N ] instead of using Eqn.(6).
+Simple Ranker-Reader (SR2) This Ranker-
+Reader model is trained by combining the two dif-
+ferent objective functions for the Single Reader
+and the Ranker models together. In order to train
+the Ranker, we treat all the passages that contain
+the ground-truth answer as positive cases and use
+the following for the Ranker loss:
+N?
+n=1
+yn (log(yn)? log(?n)) , (13)
+which is the KL divergence between ? computed
+through Eqn.(5) and a probability vector y, where
+yi = 1/Np when the passage i contains the
+ground-truth answer, and yi = 0/Np otherwise.
+Np is the total number of passages which contain
+the ground-truth answer in the top-N passage list.
+4.3 Implementation Details
+In order to increase the likelihood that question-
+related context will be contained in the retrieved
+passages for the training dataset, if the answer is
+unique, we combine the question with the answer
+to form the query for information retrieval. For
+the testing dataset, we use only the question as a
+query and collect the top 50 passages for answer
+extraction.
+During training, our R3 model is first initial-
+ized by pre-training the model using the Simple
+Ranker-Reader (R2), to encourage convergence.
+As discussed earlier, the pre-processing and
+matching layers, Eqn.(1-3), are shared by both
+Ranker and Reader. The LSTM layer in Eqn.(4)
+is set to 3 for the Reader and 1 for the Ranker.
+Our model is optimized using Adamax (Kingma
+and Ba, 2015). We use fixed GloVe (Pennington
+et al., 2014) word embeddings. We set l to 300,
+batch size to 30, learning rate to 0.002 and we tune
+the dropout probability only9.
+5 Results and Analysis
+In this section, we will show the performance of
+different models on five QA datasets and offer fur-
+ther analysis.
+9Our code will be released under https://github.
+com/shuohangwang/mprc
+Quasar-T SQuAD WikiMovies CuratedTREC WebQuestions
+F1 EM F1 EM F1 EM F1 EM F1 EM
+GA (Dhingra et al., 2017a) 26.4 26.4 - - - - - - - -
+BiDAF (Seo et al., 2017) 28.5 25.9 - - - - - - - -
+DrQA (Chen et al., 2017a) - - - 28.4 - 34.3 - 25.7 - 19.5
+Single Reader (SR) 38.5.2 31.5.2 35.4.2 26.9.2 38.8.1 37.7.1 33.6.6 27.4.4 22.0.2 15.2.3
+Simple Ranker-Reader (SR2) 38.8.2 31.9.2 35.8.2 27.2.2 39.3.1 38.1.1 33.4.6 27.7 .5 22.5.3 15.6.4
+Reinforced Ranker-Reader (R3) 40.9.3 34.2.3 37.5.2 29.1.2 39.9.1 38.8.1 34.3.6 28.4.6 24.6.3 17.1.3
+DrQA-MTL (Chen et al., 2017a) - - - 29.8 - 36.5 - 25.4 - 20.7
+YodaQA (Baudis? and S?edivy?, 2015) - - - - - - - 31.3 - 39.8
+Table 3: Experiment results. All the results are trained under a distant supervision setting by making use
+of the passages returned from the IR model. The results show the average of 5 runs, together with the
+standard error in the superscript. The models for CuratedTREC and WebQuestions datasets are initialized
+by the model trained on SQuAD first. On the bottom, YodaQA and DrQA-MTL use additional resources
+(usage of KB for the former and usage of multiple training data sets for the latter), so are not a true
+apple-to-apple comparison to the other methods. EM: Exact Match.
+5.1 Overall Results
+Our results are shown in Table 3. We use F1
+score and Exact Match (EM) evaluation met-
+rics10. We first observe that on Quasar-T, the
+Single Reader can exceed state-of-the-art perfor-
+mance. Moreover, unlike DrQA, our models are
+all trained using distant supervision and, with-
+out pre-training on the original SQuAD dataset11,
+our Single Reader model still achieves better per-
+formance on the WikiMovie and CuratedTREC
+datasets.
+Next we observe that the Reinforced Ranker-
+Reader (R3) achieves the best performance on the
+Quasar-T, WikiMovies, and CuratedTREC datests
+and achieves significantly better performance than
+our internal baseline model Simple Ranker-Reader
+(SR2) on all datasets except CuratedTREC. These
+results demonstrate the effectiveness of using RL
+to jointly train the Ranker and Reader both as com-
+pared to competing approaches and the non-RL
+Ranker-Reader baseline.
+5.2 Further Analysis
+In this subsection, we first present an analysis
+of the improvement of both Ranker and Reader
+trained with our method, and then discuss ideas
+for further improvement.
+10Evaluation tooling is from SQuAD (Rajpurkar et al.,
+2016).
+11The performance of our Single Reader model on the orig-
+inal SQuAD dev set is F1 77.0, EM 67.6 which is close to the
+BiDAF model, F1 77.3, EM 67.7 and DrQA model, F1 78.8,
+EM 69.5.
+F1 EM
+Single Reader (SR) 38.3 31.4
+SR + Ranker (from SR2) 38.9 31.8
+SR + Ranker (from R3) 40.0 33.1
+SR2 38.7 31.9
+R3 40.8 34.1
+Table 4: Effects of rankers from SR2 and R3 (on
+Quasar-T test dataset). Here we use the same sin-
+gle reader model (SR) as the reader, combined
+with two different rankers. The performance of the
+two runs of SR2 and R3 (that provide the rankers)
+is listed at bottom.
+Quantitative Analysis First, we examine
+whether our RL approach could help the Ranker
+overcome the absence of any ground-truth ranking
+score. To control everything but the change in
+Ranker, we conduct two experiments combin-
+ing the same Single Reader with two different
+Rankers trained from SR2 and R3, respectively.
+Table 4 shows the results on the Quasar-T test
+dataset. Note that the Single Reader combined
+with the Ranker trained from R3 model achieves
+an EM 1.3 higher performance than combined
+with the Ranker from SR2 which treats all pas-
+sages containing ground-truth answer as positive
+cases. That means our proposed Ranker is better
+than the Ranker normally trained in the distant
+supervision setting.
+We also find that the performance of R3 can still
+achieve an EM 1.0 higher than the Single Reader
+combined with the Ranker from R3 through Ta-
+TOP-k F1 EM
+Single Reader (SR) 1 38.3 31.4
+Single Reader (SR) 3 51.7 43.7
+Single Reader (SR) 5 58.7 49.2
+SR + Ranker (from R3) 1 40.0 33.1
+Table 5: Potential improvement on QA perfor-
+mance by improving the ranker. The performance
+is based on the Quasar-T test dataset. The TOP-
+3/5 performance is used to evaluate the further po-
+tential improvement by improving rankers (see the
+“Potential Further Improvement” section).
+ble 4. In this setting, the Ranker is the same, while
+the Reader is trained differently. We infer from
+this that our proposed methods R3 can not only
+improve the Ranker but also the Reader.
+Potential Further Improvement We offer a
+statistical analysis to approximate the upper bound
+achievable by only improving the ranking mod-
+els. This is evaluated by computing the QA per-
+formance with the best passage among the top-k
+ranked passages. Specifically, for each question,
+we extract one answer from each of the top-50 pas-
+sages retrieved from the IR system, and take the
+top-k answers with the highest scores according to
+Eqn.(12) from these. Based on the k answer can-
+didates, we compute the TOP-k F1/EM by eval-
+uating on the answer with highest F1/EM score
+for each question. This is equivalent to having
+an oracle ranker that assigns a +? score to the
+passage (from the passages providing top-k candi-
+dates) yielding the best answer candidate.
+Table 5 shows a clear gap between TOP-3/5 and
+TOP-1 QA performances (over 12-20%). Accord-
+ing to our evaluation approach of TOP-k F1/EM
+and since the same SR model is used, this gap
+is only from the contribution of the oracle ranker.
+Although our model is far from the oracle perfor-
+mance, it still provides a useful upper bound for
+improvement.
+Ranker Performance Analysis Next we show
+the intermediate performance of our method on the
+ranking step. Since we do not have the ground-
+truth for the ranking task, we evaluate on pseudo
+labels: a passage is considered positive if it con-
+tains the ground-truth answer. Then a ranker’s top-
+k output is considered accurate if any of the k pas-
+sages contain the answer (i.e. top-k recall). Note
+that this way of evaluation on top-1 is consistent
+with the training objective of the ranker in SR2.
+From the results in Table 7, the Ranker from
+R3 performs significantly better than the one from
+SR2 on top-1 and top-3 performance, despite the
+fact that it is not directly trained to optimize this
+pseudo accuracy. Given the evaluation bias that
+favors the SR2, this indicates that our R3 model
+could make Ranker training easier, compared to
+training on the objective in Eqn.13 with pseudo
+labels.
+Starting from top-5, the Ranker from R3 gives
+slightly lower recall. This is because the two
+Rankers have a similar ability to rank the poten-
+tially useful passages in the top-5, but the evalua-
+tion bias benefits the SR2 Ranker. Overall, our R3
+could successfully rank the potentially more use-
+ful passages to the highest positions (top 1-3), im-
+proving the overall QA performance.
+In Table 6 we show an example which illustrates
+the importance of good ranking. The passages on
+the left are from the R3 Ranker and the ones on
+the right from the SR2 Ranker. If SR2 ranked P2
+or P3 higher, it could also have extracted the right
+answer. In general, if passages that can entail the
+answer are ranked more accurately, both models
+could be improved.
+6 Related Work
+The task of Open domain question answering
+dates back to as early as (Green Jr et al., 1961) and
+was popularized with TREC-8 (Voorhees, 1999).
+The task is to produce the answer to a ques-
+tion by exploiting resources such as documents
+(Voorhees, 1999), webpages (Kwok et al., 2001)
+or structured knowledge bases (Berant et al., 2013;
+Bordes et al., 2015; Yu et al., 2017). An early con-
+sensus since TREC-8 has produced an approach
+with three major components: question analysis,
+document retrieval and ranking, and answer ex-
+traction. Although question analysis is relatively
+mature, answer extraction and document ranking
+still represent significant challenges.
+Very recently, information retrieval plus ma-
+chine reading comprehension (SR-QA) become a
+promising solution to open-domain QA, especially
+after datasets created specifically for the multiple-
+passage RC setting (Nguyen et al., 2016; Chen
+et al., 2017a; Joshi et al., 2017; Dunn et al., 2017;
+Dhingra et al., 2017b). These datasets deal with
+the end-to-end open-domain QA setting, where
+Q Apart from man what is New Zealand ’s only native mammals
+A bats
+Reinforced Ranker-Reader (R3) Simple Ranker-Reader (SR2)
+P1 New Zealand has no native land mammals apart from
+some rare bats .
+New Zealand ’s native species were sitting ducks !
+P2 New Zealand ’s native species were sitting ducks ! 1080 is a commonly used pesticide since it is very effec-
+tive on mammals and New Zealand has no native land
+mammals apart from two species of bat .
+P3 -LSB- edit -RSB- Fauna Bats were the only mammals of
+New Zealand until the arrival of humans .
+Previously it had been thought that bats were the only
+terrestrial mammals native to New Zealand .
+Table 6: An example of the answers extracted by the R3 and SR2 methods, given the question. The words
+in bold are the extracted answers. The passages are ranked by the highest score (Ranker+Reader) of the
+answer span in each passage.
+TOP-1 TOP-3 TOP-5
+IR 19.7 36.3 44.3
+Ranker from SR2 28.8 46.4 54.9
+Ranker from R3 40.3 51.3 54.5
+Table 7: The performance of Rankers (recall
+of the top-k ranked passages) on the Quasar-T
+test dataset. This evaluation is simply based on
+whether the ground-truth appears in the TOP-N
+passages. IR directly uses the ranking score from
+raw dataset.
+only question-answer pairs provide supervision.
+Similarly to previous work on open-domain QA,
+existing deep learning based solutions to the above
+datasets also rely on a document retrieval mod-
+ule to retrieve a list of passages for RC models
+to extract answers. Therefore, these approaches
+suffer from the limitation that the passage ranking
+scores are determined by n-gram matching (with
+tf-idf weighting), which is not ideal for the goal of
+question answering.
+Our ranker module in R3 could help to alleviate
+the above problem, and RL is a natural fit to jointly
+train the ranker and reader since the passages do
+not have ground-truth labels. Our work is related
+to the idea of soft or hard attentions (usually with
+reinforcement learning) for hierarchical or coarse-
+to-fine decision sequences making in NLP, where
+the attentions themselves are latent variables. For
+example, (Lei et al., 2016) propose to first ex-
+tract informative text fragments then feed them to
+text classification and question retrieval models.
+(Cheng and Lapata, 2016) and (Choi et al., 2017)
+proposed coarse-to-fine frameworks with an ad-
+ditional sentence-level prediction followed by the
+original word-level prediction for text summariza-
+tion and reading comprehension, respectively. To
+the best of our knowledge, we are the first apply
+this kind of framework to the open-domain ques-
+tion answering.
+7 Conclusion
+We have proposed and evaluated R3, a new open-
+domain QA framework which combines IR with a
+deep learning based Ranker and Reader. First the
+IR model retrieves the top-N passages (N a hyper-
+parameter) conditioned on the question. Then the
+Ranker and Reader are trained jointly using rein-
+forcement learning to directly optimize the expec-
+tation of extracting the ground-truth answer from
+the retrieved passages. To predict, the scores com-
+puted from Ranker and Reader are summed for the
+final answer extraction. Our model outperforms
+a baseline model which jointly trains Ranker and
+Reader using supervised learning, and R3 achieves
+the best performance on several datasets.
+References
+Petr Baudis? and Jan S?edivy?. 2015. Modeling of the
+question answering task in the yodaqa system. In In-
+ternational Conference of the Cross-Language Eval-
+uation Forum for European Languages, pages 222–
+228. Springer.
+Jonathan Berant, Andrew Chou, Roy Frostig, and Percy
+Liang. 2013. Semantic parsing on freebase from
+question-answer pairs. In Proceedings of the Con-
+ference on Empirical Methods in Natural Language
+Processing.
+Antoine Bordes, Nicolas Usunier, Sumit Chopra, and
+Jason Weston. 2015. Large-scale simple question
+answering with memory networks. Proceedings of
+the International Conference on Learning Represen-
+tations.
+Danqi Chen, Adam Fisch, Jason Weston, and Antoine
+Bordes. 2017a. Reading Wikipedia to answer open-
+domain questions. In Proceedings of the Conference
+on Association for Computational Linguistics.
+Qian Chen, Xiaodan Zhu, Zhenhua Ling, Si Wei, Hui
+Jiang, and Diana Inkpen. 2017b. Enhanced lstm
+for natural language inference. In Proceedings of
+the Annual Meeting of the Association for Computa-
+tional Linguistics.
+Jianpeng Cheng and Mirella Lapata. 2016. Neural
+summarization by extracting sentences and words.
+In Proceedings of the Annual Meeting of the Associ-
+ation for Computational Linguistics.
+Eunsol Choi, Daniel Hewlett, Jakob Uszkoreit, Illia
+Polosukhin, Alexandre Lacoste, and Jonathan Be-
+rant. 2017. Coarse-to-fine question answering for
+long documents. In Proceedings of the 55th Annual
+Meeting of the Association for Computational Lin-
+guistics.
+Bhuwan Dhingra, Hanxiao Liu, Zhilin Yang,
+William W Cohen, and Ruslan Salakhutdinov.
+2017a. Gated-attention readers for text comprehen-
+sion. Proceedings of the Conference on Association
+for Computational Linguistics.
+Bhuwan Dhingra, Kathryn Mazaitis, and William W
+Cohen. 2017b. QUASAR: Datasets for question
+answering by search and reading. arXiv preprint
+arXiv:1707.03904.
+Matthew Dunn, Levent Sagun, Mike Higgins, Ugur
+Guney, Volkan Cirik, and Kyunghyun Cho. 2017.
+SearchQA: A new q&a dataset augmented with
+context from a search engine. arXiv preprint
+arXiv:1704.05179.
+David Ferrucci, Eric Brown, Jennifer Chu-Carroll,
+James Fan, David Gondek, Aditya A Kalyanpur,
+Adam Lally, J William Murdock, Eric Nyberg, John
+Prager, et al. 2010. Building watson: An overview
+of the deepqa project. AI magazine, 31(3):59–79.
+Bert F Green Jr, Alice K Wolf, Carol Chomsky, and
+Kenneth Laughery. 1961. Baseball: an automatic
+question-answerer. In Papers presented at the May
+9-11, 1961, western joint IRE-AIEE-ACM computer
+conference, pages 219–224. ACM.
+Mandar Joshi, Eunsol Choi, Daniel S. Weld, and Luke
+Zettlemoyer. 2017. Triviaqa: A large scale distantly
+supervised challenge dataset for reading comprehen-
+sion. In Proceedings of the Annual Meeting of the
+Association for Computational Linguistics.
+Diederik Kingma and Jimmy Ba. 2015. Adam: A
+method for stochastic optimization. In Proceedings
+of the International Conference on Learning Repre-
+sentations.
+Cody Kwok, Oren Etzioni, and Daniel S Weld. 2001.
+Scaling question answering to the web. ACM Trans-
+actions on Information Systems (TOIS), 19(3):242–
+262.
+Tao Lei, Regina Barzilay, and Tommi Jaakkola. 2016.
+Rationalizing neural predictions. Proceedings of the
+Conference on Empirical Methods in Natural Lan-
+guage Processing.
+Alexander Miller, Adam Fisch, Jesse Dodge, Amir-
+Hossein Karimi, Antoine Bordes, and Jason We-
+ston. 2016. Key-value memory networks for directly
+reading documents. In Proceedings of the Confer-
+ence on Empirical Methods in Natural Language
+Processing.
+Volodymyr Mnih, Nicolas Heess, Alex Graves, et al.
+2014. Recurrent models of visual attention. In
+Advances in neural information processing systems,
+pages 2204–2212.
+Tri Nguyen, Mir Rosenberg, Xia Song, Jianfeng Gao,
+Saurabh Tiwary, Rangan Majumder, and Li Deng.
+2016. MS MARCO: A human generated machine
+reading comprehension dataset. arXiv preprint
+arXiv:1611.09268.
+Jeffrey Pennington, Richard Socher, and Christopher D
+Manning. 2014. GloVe: Global vectors for word
+representation. In Proceedings of the Conference on
+Empirical Methods in Natural Language Process-
+ing.
+Pranav Rajpurkar, Jian Zhang, Konstantin Lopyrev, and
+Percy Liang. 2016. SQuAD: 100,000+ questions
+for machine comprehension of text. In Proceedings
+of the Conference on Empirical Methods in Natural
+Language Processing.
+Minjoon Seo, Aniruddha Kembhavi, Ali Farhadi, and
+Hannaneh Hajishirzi. 2017. Bidirectional attention
+flow for machine comprehension. In Proceedings of
+the International Conference on Learning Represen-
+tations.
+Ellen M. Voorhees. 1999. The trec-8 question answer-
+ing track report. In Trec, volume 99, pages 77–82.
+Ellen M Voorhees and Dawn M Tice. 2000. Building
+a question answering test collection. In Proceedings
+of the 23rd annual international ACM SIGIR confer-
+ence on Research and development in information
+retrieval, pages 200–207. ACM.
+Mengqiu Wang, Noah A Smith, and Teruko Mita-
+mura. 2007. What is the jeopardy model? a quasi-
+synchronous grammar for qa. In Proceedings of the
+Conference on Empirical Methods in Natural Lan-
+guage Processing.
+Shuohang Wang and Jing Jiang. 2016. Learning natu-
+ral language inference with LSTM. In Proceedings
+of the Conference on the North American Chapter of
+the Association for Computational Linguistics.
+Shuohang Wang and Jing Jiang. 2017a. A compare-
+aggregate model for matching text sequences. In
+Proceedings of the International Conference on
+Learning Representations.
+Shuohang Wang and Jing Jiang. 2017b. Machine com-
+prehension using match-LSTM and answer pointer.
+In Proceedings of the International Conference on
+Learning Representations.
+Wenhui Wang, Nan Yang, Furu Wei, Baobao Chang,
+and Ming Zhou. 2017. Gated self-matching net-
+works for reading comprehension and question an-
+swering. In Proceedings of the Conference on Asso-
+ciation for Computational Linguistics.
+Zhiguo Wang, Haitao Mi, Wael Hamza, and Radu
+Florian. 2016. Multi-perspective context match-
+ing for machine comprehension. arXiv preprint
+arXiv:1612.04211.
+Ronald J. Williams. 1992. Simple statistical gradient-
+following algorithms for connectionist reinforce-
+ment learning. Machine Learning.
+Caiming Xiong, Victor Zhong, and Richard Socher.
+2017. Dynamic coattention networks for question
+answering. In Proceedings of the International Con-
+ference on Learning Representations.
+Yi Yang, Wen-tau Yih, and Christopher Meek. 2015.
+Wikiqa: A challenge dataset for open-domain ques-
+tion answering. In Proceedings of the Conference on
+Empirical Methods in Natural Language Process-
+ing.
+Mo Yu, Wenpeng Yin, Kazi Saidul Hasan, Cicero dos
+Santos, Bing Xiang, and Bowen Zhou. 2017. Im-
+proved neural relation detection for knowledge base
+question answering. Proceedings of the Conference
+on Association for Computational Linguistics.
+Yang Yu, Wei Zhang, Kazi Hasan, Mo Yu, Bing Xiang,
+and Bowen Zhou. 2016. End-to-end answer chunk
+extraction and ranking for reading comprehension.
+arXiv preprint arXiv:1610.09996.

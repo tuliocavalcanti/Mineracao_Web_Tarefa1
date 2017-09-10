@@ -1,0 +1,2753 @@
+A Compressive Sensing Approach to Community Detection
+with Applications
+Ming-Jun Lai? Daniel Mckenzie †
+September 1, 2017
+Abstract
+The community detection problem for graphs asks one to partition the n vertices V of a
+graph G into k communities, or clusters, such that there are many intracluster edges and few
+intercluster edges. Of course this is equivalent to finding a permutation matrix P such that, if
+A denotes the adjacency matrix of G, then PAP> is approximately block diagonal. As there
+are kn possible partitions of n vertices into k subsets, directly determining the optimal clustering
+is clearly infeasible. Instead one seeks to solve a more tractable approximation to the clustering
+problem. In this paper we reformulate the community detection problem via sparse solution of a
+linear system associated with the Laplacian of a graph G and then develop a two-stage approach
+based on a thresholding technique and a compressive sensing algorithm to find a sparse solution
+which corresponds to the community containing a vertex of interest in G. Crucially, our approach
+results in an algorithm which is able to find a single cluster of size n0 in O(n ln(n)n0) operations
+and all k clusters in fewer than O(n2 ln(n)) operations. This is a marked improvement over the
+classic spectral clustering algorithm, which is unable to find a single cluster at a time and takes
+approximately O(n3) operations to find all k clusters. Moreover, we are able to provide robust
+guarantees of success for the case where G is drawn at random from the Stochastic Block Model,
+a popular model for graphs with clusters. Extensive numerical results are also provided, showing
+the efficacy of our algorithm on both synthetic and real-world data sets.
+1 Introduction
+The clustering problem for a graph G = (V,E) is to divide the vertex set V into subsets V =
+C1? . . .?Ck such that there are many intracluster edges (edges between vertices in the same cluster)
+and few intercluster edges (edges between vertices in different clusters) in E. This is a widely studied
+problem in exploratory data analysis, as one can reasonably assume that vertices in the same cluster
+a ‘similar’, in some sense. We refer the reader to the survey article [20] for further details and a
+thorough overview of existing algorithmic approaches. We note that [20] refers to the clustering
+problem as the community detection problem, and we shall use these two phrases interchangeably.
+As is well-known, detecting clusters in G is equivalent to finding a permutation matrix P such that
+if A is the adjacency matrix of G, then PAP> is almost block diagonal. Thus, we can think of the
+clustering problem as a special case of the matrix reduction problem where the matrix in question
+has binary entries.
+?mjlai@uga.edu. Department of Mathematics, University of Georgia, Athens, GA 30602. This research is partially
+supported by the National Science Foundation under the grant #DMS 1521537.
+†mckenzie@math.uga.edu. Department of Mathematics, University of Georgia, Athens, GA 30602. The second
+author gratefully acknowledges the financial support of the NRF of South Africa while this research was conducted
+1
+ar
+X
+iv
+:1
+70
+8.
+09
+47
+7v
+1 
+ [
+cs
+.I
+T
+] 
+ 3
+0 
+A
+ug
+ 2
+01
+7
+One class of robust and accurate algorithms used to solve the clustering problem are the spectral
+algorithms. Loosely, they work as follows. Suppose that |V | = n and let L denote the graph Lapla-
+cian, while 1Ca denotes the indicator vector of the a-th cluster (both to be defined in §3). Suppose
+further that it is known a priori that G has k clusters. Let v1, . . . ,vk be orthogonal eigenvectors
+associated to the k smallest eigenvalues of L, and consider the subspace span{v1, . . . ,vk} ? Rn. One
+can show that, under certain conditions, this subspace is ‘close’ to span{1C1 , . . . ,1Ck} and hence one
+can use the basis {v1, . . . ,vk} to infer the supports of the basis {1C1 , . . . ,1Ck} , thus determining
+the clusters C1, . . . , Ck (of course supp(1Ca) = Ca). We refer the reader to [41], [35] or [37] for details.
+Despite its theoretical and experimental success,the spectral approach has three main drawbacks:
+1. The number of clusters k, needs to be known a priori. Clearly this is not always the case for
+real data sets.
+2. The algorithm cannot be used to find only a few clusters. As in many applications one is only
+interested in finding one or two clusters ( thinking of the problem of identifying friends or
+associates of a given user from a social network data set). Moreover in other cases where the
+data set is extremely large, or only partially known, it might be computationally infeasible to
+identify all clusters.
+3. Computing an eigen decomposition of L typically requires O(n3) operations, making spectral
+methods prohibitively slow for truly large data sets, such as those arising from electronic social
+networks like Facebook or LinkedIn, or those arising from problems in Machine Learning.
+However, in many situations (the social network example being one such case), the expected size
+of the clusters, n0, is small compared to n, and hence the indicator vectors 1Ca will be sparse. Our
+approach is to adapt sparse recovery algorithms from the compressive sensing study to solve the
+following problem:
+arg min ||Lx||2 : subject to xi = 1 and ||x||0 ? n0 (1.1) eq: CompClustering
+to determine, directly, an approximation to the indicator vector of the cluster containing the vertex
+of interest vi. One can then recover the cluster by considering the support of this vector. If desired,
+one can iterate the algorithm to find all the remaining clusters of G.
+Adapting compressive sensing algorithms to solve (1.1) proves challenging, as L is a poorly
+conditioned sensing matrix. In general, a greedy type algorithm such as orthogonal matching pursuit
+or iterative hard thresholding (cf. [21]) work very well when there are no intercluster edges (in this
+case finding clusters reduces to finding connected components). Unfortunately, in the presence of
+even a small number of intercluster edges, the first few iterations of a greedy algorithm are likely
+to pick some indices outside the desired cluster. To overcome this difficulty, we propose a novel two
+stage algorithm (see Algorithm 4 in §8) in which the first stage identifies a subset ? ? V which
+contains the cluster of interest with high probability. The second stage then extracts the cluster
+of interest from ? using a greedy algorithm (we use Subspace Pursuit cf. [14]). In addition to the
+aforementioned algorithm, the main contributions of this paper are the following:
+1. An analysis of the Restricted Isometry and Coherence properties of the graph Laplacian. In
+particular, we provide a series of probabilistic bounds on the restricted isometry constants and
+coherence of Laplacians of graphs drawn from a well-studied model of random graphs (the
+Stochastic Block Model (SBM)). See §5 and §6.
+2. A proof that the Optimal Matching Pursuit (OMP) algorithm can be successfully used to detect
+connected components of any graph, by solving (1.1) (see §7.)
+2
+3. A proof that, given a vertex vi, our Single Cluster Pursuit (SCP) Algorithm 4 successfully
+finds the cluster containing vi when G is drawn from the Stochastic Block Model (SBM), for a
+certain range of parameters and with probability tending to 1 as n ? ?. We achieve this by
+combining the bounds of contribution with the theory of totally perturbed compressive sensing,
+e.g. in [28].
+4. An analysis of the computational complexity of Algorithm 4, showing that it finds a single
+cluster in O(n2 + ln(n)nn0) time and all clusters in O(kn2 + ln(n)n2) time.
+The structure of this paper is as follows. After briefly reviewing related work in §2, in §3 and
+§4 we acquaint the reader with the necessary concepts from spectral graph theory and compressive
+sensing, respectively. In §5 and §6 we study the restricted isometry property and coherence property
+of Laplacians of random graphs. In §7 and §8, we describe two algorithms to handle graphs from
+the Stochastic Block Model G(n, k, p, q) for q = 0 and q > 0, with respectively. We shall show that,
+under certain mild assumptions on the graph G, the algorithms will indeed find the correct clustering
+with high probability. §9 contains the computational complexity analysis, some possible extensions
+and several future research directions. Finally, in §10 we present the results of several numerical
+experiments to demonstrate the accuracy and speed of our algorithm and its powerful performance.
+2 Related Work
+The notion of community detection in graphs arises independently in multiple fields of applied
+science, such as Sociology ([47],[40]), Computer Engineering ([26]), Machine Learning ([43]) and
+Bioinformatics ([13]). In addition, many data sets can be represented as graphs by considering data
+points as vertices and attaching edges between vertices that are ‘close’ with respect to an appropriate
+metric. Thus, community detection algorithms can also be used to detect clusters in general data
+sets, and indeed they have been shown to be superior to other clustering algorithms (for example
+k-means) at detecting non-convex clusters ([30]).
+The canonical probabilistic model of a graph containing communities is the Stochastic Block Model
+(SBM), first explicitly introduced in the literature in the early 1980’s by Holland, Laskey, and
+Leinhardt in [29]. Since then, there has been an explosion of interest in the SBM, driven in large part
+by its many applications. In [1], Abbe identifies three forms of the community detection problem,
+based on the kind of asymptotic accuracy we require (here, as in the rest of the paper, when we
+speak of asymptotics we are considering the situation where the number of vertices, n, goes to
+?). In this paper we shall be concerned with the Exact Recovery Problem, where we require that
+P (#misclassified vertices > 0) = o(1). A fundamental information theoretic barrier to exact recovery
+is given by the following result (cf. [3]):
+Theorem 2.1. The exact recovery problem , i.e. P (#misclassified vertices > 0) = o(1) with respect
+to n for the symmetric SBM G(n, k, p, q) is solvable in polynomial time if, writing p = P ln(n)/n and
+q = Q ln(n)/n:
+1
+k
+(?
+P ?
+?
+Q
+)
+> 1 (2.1) eq:DetectionBound
+and not solvable if:
+1
+k
+(?
+P ?
+?
+Q
+)
+< 1 (2.2)
+Remark 2.2. This result was proved in [3] (and see also [1]). We note that in the cases our
+algorithm is guaranteed to solve the exact recovery problem (see Theorem 8.2), we assume that
+1
+k
+(?
+P ?
+?
+Q
+)
+??, well above this theoretical bound.
+3
+Given the bound (2.1), the challenge then is to construct efficient algorithms to solve the Exact
+Recovery Problem. There are myriad algorithmic approaches, such as the spectral approach (origi-
+nally proposed by Fiedler in [19] for the two cluster case), hierarchical approaches like the DIANA
+algorithm popular in bioinformatics ([31]) and message passing algorithms ([24]), to name a few.
+Recently, two new classes of algorithms, namely degree-profiling ([3]) and semidefinite progamming
+approaches ([2], [36], [27] and [33] among others) have been shown to solve the exact recovery prob-
+lem with high probability right down to the theoretical bound (2.1). Degree-profiling even runs in
+quasi-linear time, although it requires the parameters p, q and k as inputs, making it less than ideal
+for analysing real world data sets. As the new algorithm we propose is most closely related to the
+spectral approach, let us recall this algorithm here (as formulated by Ng, Jordan and Weiss in [41]).
+Algorithm 1 The Spectral Clustering Algorithm (SC)
+algorithm:SC
+Input: the adjacency matrix A.
+(1) Form the degree matrix D = diag (d1, . . . , dn) and Laplacian L := D
+?1/2AD?1/2
+(2) Find the k (orthogonal) eigenvectors v1, . . . ,vk corresponding to the k largest eigenvalues of
+L.
+(3) Form the matrix U = [v1, . . . ,vk] and normalize the rows to get V
+(4) Sort the rows of V into k clusters B1, . . . , Bk using k-means.
+(5) Assign vertex i to community Cj if and only if row i is in Bj .
+Output: Communities C1, . . . , Ck.
+We mention that notions from Compressive Sensing have been applied to community detection
+before, notably in the semidefinite programming approaches mentioned above, and in [45] where
+signal processing techniques for functions defined on a graph G are used to speed up the computation
+of the eigenvectors of L. Our approach is distinct from these. To the best of the authors’ knowledge,
+the study in this paper is the first attempt to find the indicator vectors 1Ci directly using sparse
+recovery.
+3 Preliminary on Graph Theory
+section:GraphTheory
+3.1 Some Elementary Notions and Definitions
+Formally, by a graph G we mean a set of vertices V together with a subset E ? {{u, v} : u, v ? V }
+of edges1. As we are only concerned with finite graphs, we shall always identify the vertex set V
+with a finite set of consecutive natural numbers: V = [n] := {1, 2, . . . , n}. The degree of any vertex
+i ? G is the total number of edges incident to i, that is di = |{{i, j} ? E}|.
+A subgraph G
+?
+ofG is a subset of vertices V
+? ? V together with a subset of vertices E? ? E ? V ? × V ? .
+Given any subset S ? V , we denote by GS the subgraph with vertex set S and edge set all edges
+{i, j} with i, j ? S. A path in G is a set of ‘linked’ edges {{i1, i2}, {i2, i3}, . . . , {ik?1, ik}, and we say
+that G is connected if there is a path linking any two vertices i, j ? V , and disconnected otherwise.
+If G is disconnected, any subgraph GS ? G which is connected and maximal with respect to the
+property of being connected is called a connected component.
+If G is connected, we define the diameter of G to be the length of (i.e. the number of edges in)
+the longest path. Given any i ? V and any non-negative integer j, we define the ball Bj(i) ? V
+to be the set of all vertices connected to i be a path of length j or shorter. A good reference on
+elementary graph theory is [5].
+1We only consider undirected graphs
+4
+3.2 The Graph Laplacian
+To any graph G with |V | = n we associate a symmetric, n × n, non-negative matrix called the
+adjacency matrix A, defined as Aij = Aji = 1 if {i, j} ? E and Aij = 0 otherwise. The graph
+Laplacians of G are defined as follows.
+Definition 3.1. Let A denote the adjacency matrix of a graph G and let D denote the matrix
+diag(d1, . . . , dn) where di is the degree of the i-th vertex. We define the normalized, symmetric graph
+Laplacian of G as Ls := I ? D?1/2AD?1/2 and the normalized, random walk graph Laplacian as
+Lrw := I?D?1A.Laplace_defn
+We first have a few basic properties of graph Laplacians.
+Theorem 3.2. Suppose that L = Ls or Lrw. We have the following properties:thm:SpectralProp
+1. The eigenvalues of L are real and non-negative.
+2. ?n?1 ? 2
+3. Let ?1 ? ?2 ? . . . ? ?n denote the eigenvalues of L in ascending order. Let k denote the
+number of connected components of G. Then ?i = 0 for i ? k and ?i > 0 for i > k.
+Proof. For L = Ls, Items 1 to 3 follow from Lemma 1.7 in [12]. If L = Lrw, observe that
+Lrw = D
+?1/2LsD
+1/2, and so the eigenvalues of Lrw and Ls coincide. Hence the above hold for Lrw
+as well. 
+For any subset S ? [n] we define its indicator vector, denoted 1S ? Rn, by (1S)i = 1 if i ? S and
+zero otherwise. Let C1, · · · , Ck be the clusters of G. One can check (and see also [35] proposition 2)
+that Lrw1Ci = 0 for i = 1, · · · , k. Thus we have the following:
+thm:IndicatorVecsKernel Theorem 3.3. The indicator vectors of the connected components of G, 1C1 , . . . ,1Ck , form a basis
+for the zero eigenspace (i.e. the kernel) of Lrw.
+For the rest of this paper, by L we shall mean Lrw. We shall refer to the i-th column of L as `i.
+One can easily check that:
+(`i)k = ?ik ?
+Aik
+dk
+.
+Finally, we shall denote by L?i the submatrix of L obtained by dropping the column `i.
+3.3 Random Graph Theory
+sec:RandomGraphTheory
+As outlined in §2, the Stochastic Block Model (SBM) is a widely used mathematical model of a
+random graph with clusters.
+Definition 3.4. Given n = kn0, fix a partition of V := [n] into k subsets C1, . . . , Ck of equal size
+n0. We say G is drawn from the SBM G(n, k, p, q) if, for all i, j ? [n] with i 6= j , the edge {i, j} is
+inserted independently and with probability p if i, j ? Ca for some a = 1, · · · , k and q otherwise.
+As we area interested in clustering we assume that q << p. We emphasize that the partition
+V = C1?C2?. . .?Ck is fixed before any edges are assigned. We note that the subgraphs GCa are i.i.d
+instances of a simpler random graph model, the Erdo?s-Re?nyi (ER) model G(n0, p), first introduced
+in [18]
+Definition 3.5. We say H is drawn from the ER model G(n0, p) if H has n0 vertices and for all
+i, j ? [n0] the edge {i, j} is inserted independently and with probability p.
+5
+Returning to the SBM, for any vertex i in community Ca, we define its in-community degree as
+d0i = #{{i, j} ? E : j ? Ca} and its out-of-community degree as di := #{{i, j} ? E : j /? Ca}. One
+can easily see that
+E[d0i ] = p(n0 ? 1) and E[di ] = q(n? n0)
+and by definition di = d
+0
+i +d
+
+i . In fact d
+0
+i is the degree of i considered as a vertex in the ER subgraph
+GCa . An important fact about degrees in ER random graphs is that they concentrate around their
+mean:
+Theorem 3.6. Suppose G is drawn from G(n, k, p, q).
+1. For any ? > 0, if p ? 4 ln(n)
+?2n0
+then with probability at least 1? 1/n:
+(1? ?)n0p ? d0i ? (1 + ?)n0p for all i ? {1, 2, · · · , n} (3.1) eq:AlphaDegBound
+2. In particular, if p ? 4k(ln(n))
+2
+n
+then (3.1) holds, with probability at least 1 ? 1/n, for ? =
+1/
+?
+ln(n) = o(1).
+lemma:AlphaDegBound
+Proof. This theorem is a variation on a well known result for ER graphs (e.g. theorem 3.6 in
+[25]). Each d0i follows the binomial distribution with parameters n0 ? 1 and p, so by the Chernoff
+bound: P
+[
+|d0i ? n0p| ? ?n0p
+]
+? e??2n0p/2. Hence:
+P
+[
+max
+i?[n]
+|d0i ? n0p| ? ?n0p
+]
+= P
+[
+|d01 ? n0p| ? ?n0p or |d02 ? n0p| ? ?n0p or . . . or |d0n ? n0p| ? ?n0p
+]
+?
+n?
+i=1
+P
+[
+|d0i ? n0p| ? ?n0p
+]
+= ne??
+2n0p/2
+Thus P
+[
+max
+i?[n0]
+|d0i ? n0p| ? ?n0p
+]
+= 1? ne??2n0p/2 If p ? 4 ln(n)
+?2n0
+=
+2 ln(n2)
+?2n0
+then:
+1? ne??2n0p/2 ? 1? ne? ln(n2) = 1? 1/n
+This proves part 1. Part 2 follows by taking ? = 1/
+?
+ln(n), in which case the lower bound on p
+becomes:
+4 ln(n)
+?2n0
+=
+4(ln(n))2
+n0
+=
+4(ln(n))2
+n/k
+=
+4k(ln(n))2
+n
+
+The second remarkable property of the ER model is that the eigenvalues of L also concentrate
+around their mean:
+theorem:ChungLuVu Theorem 3.7. Let L be the Laplacian of a random graph drawn from G(n0, p) with p >> (ln(n0))2/n0
+and let ?1 ? ?2 ? . . . ? ?n0 denote its eigenvalues. Then almost surely 2:
+max
+i 6=1
+|1? ?i| ? (1 + o(1))
+4
+?
+pn0
++
+g(n0) log
+2(n0)
+pn0
+where g(n0) is a function tending to infinity arbitrarily slowly.
+2Given a family of random graph models Gn we say that some graph property P holds almost surely if
+P[G ? Gn, G does not have P] = o(1) with respect to n
+6
+Proof. Given that the expected degree of each vertex in G is pn0, this is just Theorem 3.6 in [11]
+
+remark:LambdaMin Remark 3.8. For our purposes, it will be enough to note that this gives:
+?2 ? 1?
+4/
+?
+p
+?
+n0
+? o( 1?
+n0
+) and ?n0 ? 1 +
+4/
+?
+p
+?
+n0
++ o(
+1
+?
+n0
+)
+almost surely.
+4 Preliminaries on Compressive Sensing
+section:SparseRecovery
+Let ? ? Rm×N and y ? Rm with m < N . We say that a vector x is sparse if it has few non-zero
+entries relative to its length. We follow the convention of defining the ‘0 quasi-norm’ as:
+?x?0 = #{xi : xi 6= 0}
+and we say x is s-sparse if ?x?0 ? s. Compressive sensing is concerned with solving
+arg min{?x?0 : x ? RN , ?x = y} (4.1) eq:SparseRecovery
+in the case where m < N (that is, when the linear system is underdetermined). We call (4.1)
+the Sparse Recovery Problem. One also considers the Perturbed Sparse Recovery Problem where
+y = ?x? + e with ?e?2 ? ? << ?y?2 and we wish to solve:
+x# := arg min{?x?0 : x ? RN , ??x? y?2 ? ?} (4.2) eq:SparseRecoveryPerturbedFirst
+while guaranteeing that x# is a good approximation to x? by bounding ?x# ? x??2? We remark
+that problem (4.2) is equivalent to the dual problem:
+x# := arg min{??x? y?2 : x ? RN , ?x?0 ? n0} (4.3) eq:SparseRecoveryPerturbed
+We refer the reader to [21] for an excellent introduction to the area.
+4.1 Computational Algorithms
+Many numerical algorithms have been invented for solving (4.1) and (4.3), for example, `1 convex
+minimization and its variations, hard thresholding iteration and its variations, greedy approaches
+such as orthogonal matching pursuit (OMP) as well as more exotic approaches like `q nonconvex
+minimization. See, for example, [10], [8], [6], [46], [7], [22], [23]. Due to its efficiency, we shall focus
+on the greedy approach in this paper, specifically the Orthogonal Matching Pursuit (OMP) and
+Subspace Pursuit (SP) algorithms, see Algorithms 2 and 3, respectively. For notational convenience,
+we shall follow [21] and denote by ?S the column submatrix of ? consisting of the columns indexed
+by the subset S ? [N ]. For a vector x ? RN we denote by xS either the subvector in R|S| consisting
+of the entries xi for i indexed by S, or the vector
+(xS)i =
+{
+xi if i ? S
+0 if i /? S
+It should always be clear from the context which definition we are referring to. We also remind the
+reader of the following operations on vectors v ? Rn, defined in [21]:
+Ls(v) = index set of s largest absolute entries of v and Hs(v) = vLs(v) =
+{
+vi if i ? S
+0 if i /? S
+7
+where Hs is sometimes referred to as the Hard Thresholding Operator.
+Algorithm 2 The OMP Algorithm
+algorithm:OMP
+Inputs: y and ?
+Initialize: r(0) = y, S(0) = ?, x(0) = 0 and ? = 0.
+while True do
+?? ?+ 1
+i(?) := L1(?>r??1)
+S(?) = S(??1) ? {i(?)}
+x(?) := arg min{||?S(?)zS(?) ? y||2 : z ? RN and supp(z) ? S(?)}
+r(?) := y ? ?x(?)
+if Stopping Criterion met then
+Output x# := x?
+Break
+end if
+end while
+Algorithm 3 The SP algorithm ([14])
+algorithm:SP
+Inputs: y, ? and an integer s ? 1
+Initialization:
+(1) T 0 = Ls(?>y).
+(2) x0 = arg min{?y ? ?T 0x?2 : supp(x) ? T 0}
+(3) r0 = y ? ?T 0x0
+Iteration:
+for k = 1 : kmax do
+(1) T? k = T k?1 ? Ls
+(
+?>rk?1
+)
+(2) u = arg min{?y ? ?T?kx?2 : x ? R
+N and supp(x) ? T? k}
+(3) T k = Ls(u) and xk = Hs(u)
+(4) rk = y ? ?Tkxk
+end for
+The most common stopping criteria for Algorithm 2 are ? = k, or ?r(?)?2 <  for a given k or .
+A sufficient condition to guarantee the convergence of Algorithm 2 is the following
+Theorem 4.1. For any S ? [N ], if ?S is injective and satisfies
+??†S?Sc?1?1 < 1, (4.4) Tropp
+where ?†S is the pseudo-inverse of ?S, then any vector x with support S is recovered in at most
+s = |S| steps of OMP.thm:ExactRecovCond
+We refer to [46] for a proof. See also Remark 3.6 in [21].
+Remark 4.2. In [14] where the SP algorithm is introduced, they suggest solving the least squares
+problems (that is (2) in Initialization and (2) in Iteration) exactly. In our implementation, we use
+MATLAB’s lsqr algorithm to solve them approximately, to a high precision. As pointed out by [38]
+in their analysis of CoSaMP, a very similar algorithm, this does not affect the convergence analysis
+of the algorithm.
+8
+4.2 Fundamental Concepts
+A very important concept, the restricted isometry property (RIP), introduced by Cande?s and Tao
+([10]) plays a critical role in the study of the existence and uniqueness of a sparse solution from
+a sensing matrix and whether the solution of an `1 minimization is the sparse solution. Another
+concept, mutual coherence, introduced by Donoho and his collaborators in ([17] is also used in this
+study.
+RIPdef Definition 4.3. Letting 0 < s < m < N be an integer and ?S be a submatrix of ? which consists
+of columns of ? whose column indices are in S ? [N ]. The restricted isometry constant (RIC) ?s of
+? is the smallest quantity such that
+(1? ?s)?x?22 ? ??Sx?22 ? (1 + ?s)?x?22 (4.5) RIP
+for all subsets S with with cardinality |S| ? s. If a matrix ? has such a constant ?s < 1 for some s,
+? is said to possesses RIP of order s. It is known that
+?s = min
+S?{1,··· ,n}
+|S|?s
+??>S?S ? Is?2?2, (4.6) Foucart
+where Is is the identity matrix of size s× s.
+Definition 4.4. The coherence of a matrix ?, denoted µ, is the largest normalized inner product
+between its columns:
+µ := max
+i 6=j
+|??i, ?j?|
+??i?2??j?2
+.
+4.3 Totally Perturbed Compressive Sensing
+section:PerturbedCS
+Frequently it is useful to modify problem (4.3) further to allow for small perturbations in the observed
+measurement matrix. That is, suppose that y = ?x? + e and let ?? = ? + E, where E is a small
+perturbation matrix. Denoting again:
+x# := arg min{???x? y?2 : x ? RN , ?x?0 ? s}, (4.7) eq:SparseRecoveryTotallyPerturbed
+can we still guarantee that x# is a good approximation to x? by bounding ?x#?x??2? Problem (4.7)
+is called the Totally Perturbed Sparse Recovery Problem. Analyzing (4.7) is often more important for
+applications than analyzing (4.3), as frequently we only know the measurement matrix ? to within
+a certain error tolerance.
+thm:PerturbedRIC Theorem 4.5 (Herman and Strohmer, [28]). Suppose that ?? = ? + E. Let ?s and ??s denote the s
+restricted isometry constants of ? and ?? respectively. Define3 s? := ?E?2,s/???2,s. Then:
+??s ? (1 + ?s) (1 + s?)
+2 ? 1
+To bound the error ?x# ? x??2, we need the following result. Define y = ?x and suppose that
+y? = ?x + e is the observed (perturbed) measurement vector. Suppose further that we only have
+access to ?? = ? + E, a small perturbation of the measurement matrix. Define y := ?e?2/?y?2,
+? = ?E?2/???2 and let s? be as above.
+3For a matrix ? we denote by ???p the induced operator norm ???p = maxx 6=0 ??x?p?x?p By ???p,s we mean the
+semi-norm max
+S?[n]
+|S|=s
+??S?p
+9
+thm:PerturbedSP Theorem 4.6. Suppose that x is s-sparse. Define the following constants:
+?? =
+?
+2??23s(1 + ??
+2
+3s)
+1? ??23s
+and ?? =
+(
+?
+2 + 2)??3s?
+1? ??23s
+(1? ??3s)(1? ??) +
+2
+?
+2 + 1
+(1? ??3s)(1? ??)
+.
+Suppose that ??3s ? 0.4859. Then after m = ln(? + y)/ ln(??) iterations of Subspace Pursuit (Algo-
+rithm 3) applied to problem (4.7), we have
+?x? xm?2
+?x?2
+?
+(
+??
+?
+1 + ??s
+1? s?
++ 1
+)
+(s? + y).
+Remark 4.7. This is Theorem 2 in [34], adapted to the case the x is s-sparse (the result in. loc.
+sit. is for the more general case where x is compressible).
+5 The RIP of Laplacian of Random Graphs
+section:RIPLaplacian
+We first study the RIP for the Laplacian of a connected ER graph drawn from G(n0, p). We then
+extend this to a result on the RIP for graphs drawn from the SBM G(n, k, p, 0), as these can be
+thought of as a disjoint union of k ER graphs. Finally, we extend to graphs drawn from G(n, k, p, q)
+for 0 < q << p using a perturbation argument.
+5.1 RIP for Laplacian of G(n0, p)
+lemma:Laplacian1Comp Lemma 5.1. Let L be the Laplacian of a connected graph G with n0 vertices. Let S ? [n0] with
+|S| = s < n0. Then ?min(LS) ? (1 ? s/n0)?2 and ?s = max{1 ? (1? s/n0)?22, ?2n0 ? 1}, where ?i
+denotes the i-th eigenvalue of L, ordered from smallest to largest.
+Proof. Let w1, . . . ,wn0 be an orthonormal basis of eigenvectors of L with eigenvalues ?1 ? · · · ?
+?n0 , where ?1 = 0 and ?2 > 0. For any v supported on S with ?v?2 = 1, write v =
+?n0
+i=1 ?iwi. Note
+that w1 =
+1?
+n0
+1 and ker(L) = span(w1). Then:
+?Lv?22 =
+?????L
+(
+n?
+i=1
+?iwi
+)?????
+2
+2
+=
+?????
+n?
+i=2
+?i?iwi
+?????
+2
+2
+=
+n?
+i=2
+?2i?
+2
+i ?
+(
+n?
+i=2
+?2i
+)
+?22
+Because
+?n0
+i=1 ?
+2
+i = ?v?22 = 1 we have that
+?n0
+i=2 ?
+2
+i = 1 ? ?21. Thus ?Lv?22 ? ?22(1 ? ?21) and so
+clearly this quantity is minimized by making ?1 as large as possible. Observe that:
+?1 =
+(
+1
+?
+n0
+1
+)
+· v ? 1?
+n0
+?v?1 ?
+1
+?
+n0
+(
+?
+s?v?2) =
+?
+s
+?
+n0
+.
+We remark that this bound on ?1 is sharp, and is achieved by taking v =
+1?
+s
+1S . Hence:
+?min(LS) = min
+supp(v)?S
+?v?2=1
+?Lv?22 ?
+(
+1?
+(?
+s
+n0
+)2)
+?22 =
+(
+1? s
+n0
+)
+?22.
+On the other hand:
+max
+supp(v)?S
+?v?2=1
+?Lv?22 ? max?v?2=1
+?Lv?22 = ?2n0 .
+10
+Hence for any S ? [n] with |S| = s, and any v with supp(v) ? S and ?v?2 = 1, we have:(
+1? s
+n0
+)
+?22 ? ?Lv?22 ? ?2n0
+and the claim about ?s follows. 
+thm:RIPER Theorem 5.2 (RIP for Laplacian of ER graphs). Suppose that G ? G(n0, p) with Laplacian L and
+suppose that p >> (ln(n0))
+2/n0. If s = ?n0 with ? ? (0, 1) then
+?s ? ? + (1? ?)
+8p?1/2
+?
+n0
++ o(
+1
+?
+n0
+)
+almost surely 4
+Proof. By Theorem 3.7, and Remark 3.8,
+?2 ? 1?
+4p?1/2
+?
+n0
+? o( 1?
+n0
+) and ?n0 ? 1 +
+4p?1/2
+?
+n0
++ o(
+1
+?
+n0
+)
+almost surely. Combining this with Lemma 5.1, we get that:
+?s ? 1? (1? s/n0)
+(
+1? 4p
+?1/2
+?
+n0
+? o( 1?
+n0
+)
+)2
+= 1? (1? ?)
+(
+1? 8p
+?1/2
+?
+n0
++ o(
+1
+?
+n0
+)
+)
+= 1?
+(
+1? ? ? (1? ?)8p
+?1/2
+?
+n0
++ o(
+1
+?
+n0
+)
+)
+= ? + (1? ?)8p
+?1/2
+?
+n0
++ o(
+1
+?
+n0
+).
+as claimed. 
+We conclude this subsection with a lower bound for ?L?2,s (see §4.3 for the definition of ? · ?2,s),
+where L is the Laplacian of a connected graph.
+lemma:LowerBoundSemiNorm Lemma 5.3. If L is the Laplacian of a connected graph G with n0 vertices, then ?L?2,s ? ?s?1,.
+Proof. Recall that:
+?L?2,s := max
+S?[n]
+|S|=s
+?LS?2 = max
+S?[n]
+|S|=s
+?max(LS) (5.1) newnorm
+We shall apply Theorem 5.4 below. For a matrix such as L which is conjugate to a symmetric non-
+negative definite matrix, the eigenvalues coincide with the singular values. Translating the notation
+of this Theorem 5.4 into the current situation, for p = n, q = s, ?i = ?i(LS) and ?i = ?i(L). Clearly,
+min(m,n) = min(n, n) = n and min(p, q) = min(n, s) = s. We use Theorem 5.4 again to get:
+?max(LS) ? ?s?1.
+And so max
+S?[1,··· ,n]
+|S|=s
+?max(LS) ? ?s?1. 
+In the proof above, we have used the following classic interpolation Theorem for singular values:
+4Recall that here and throughout this paper we say that a property holds almost surely if the probability that it
+does not hold is o(1) with respect to n0 (or sometimes n)
+11
+thm:interlacingEigs Theorem 5.4. Let A be an m× n matrix with singular values ?1 ? ?2 ? . . . ? ?min(m,n). Suppose
+that B is a p× q submatrix of A, with singular values ?1 ? ?2 ? . . . ? ?min(p.q) Then:
+?min(m,n)?i ? ?min(p,q)?i for i = 0, 1, . . . ,min(p, q)? 1
+and
+?i ? ?min(m,n)?min(p,q)?(m?p)?(n?q)?1+i
+for integer i satisfying min(p, q) + (m? p) + (n? q) + 2?min(m,n) ? i ? min(m,n).
+Proof. This is Theorem 1 in [44]. Note that they use the opposite notational convention:
+?1 ? ?2 ? . . . ? ?min(m,n) and ?1 ? ?2 ? . . . ? ?min(p.q). 
+5.2 RIP for Laplacian of Graphs from G(n, k, p, 0)
+lemma:LaplacianManyComp Lemma 5.5. Suppose that a graph G has k connected components C1, · · · , Ck, all of size n0 (for
+example, G ? G(n, k, p, 0)). Let GC1 , . . . , GCk denote the subgraphs on these components and let Li
+denote their Laplacians. Then for any s < n0, ?s(LG) = maxi ?s(L
+i).
+Proof. Suppose S ? Ci for some i. For simplicity we assume i = 1, but the other cases are
+identical. In this case LS =
+[
+L1S
+0
+]
+where L1 denotes the Laplacian of GC1 and 0 here is the zero
+matrix of the appropriate size. If supp(v) ? S, then ?LSv?22 = ?L1Svs?22 and so:
+(1? ?s(L1))?v?22 ? ?LSv?22 ? (1 + ?s(L1))?v?22 (5.2) eq:ScontainedC
+It follows that, for all index sets S contained in a single component (i.e. S ? Ci for some i), we have:
+(1?max
+i
+(
+?s(L
+i)
+)
+)?v?22 ? ?LSv?22 ? (1 + max
+i
+(
+?s(L
+i)
+)
+)?v?22.
+Now suppose that S 6? Ci. Write S = ?iSi where Si := S ? Ci. Given any v with supp(v) = S, we
+can write v =
+?k
+i=1 vi with vi = HSi(v). Then:
+?LSv?22 =
+?????
+k?
+i=1
+LSivi
+?????
+2
+2
+Crucially, observe that all the terms LSivi have disjoint support. Hence:
+?LSv?22 =
+??????
+i
+LSivi
+?????
+2
+2
+=
+?
+i
+?LSivi?
+2
+2 ?
+?
+i
+(
+1? ?si(Li)
+)
+?vi?22 by (5.2)
+? min
+i
+(
+1? ?si(Li)
+)?
+i
+?vi?22 = min
+i
+(
+1? ?si(Li)
+)
+?v?22
+=
+(
+1?max
+i
+?si(L
+i)
+)
+?v?22 ?
+(
+1?max
+i
+?s(L
+i)
+)
+?v?22
+with the final inequality holding as si ? s for all i and ?t is non-decreasing in t. An identical argument
+yields that:
+?LSv?22 ?
+(
+1 + max
+i
+?s(L
+i)
+)
+?v?22
+12
+and so we have
+(1?max
+i
+(
+?s(L
+i)
+)
+)?v?22 ? ?LSv?22 ? (1 + max
+i
+(
+?s(L
+i)
+)
+)?v?22.
+This completes the proof. 
+thm:RIPBoundq0 Theorem 5.6 (RIP for Laplacian of Graphs from Stochastic Block Model). Suppose G ? G(n, k, p, 0),
+with n0 = n/k and Laplacian L. Suppose further that p >> (ln(n0))
+2/n0 and that k is O(1) with
+respect to n. If s = ?n0 with ? ? (0, 1) then:
+?s(L) ? ? + (1? ?)
+8p?1/2
+?
+n0
++ o(
+1
+?
+n0
+) (5.3)
+almost surely.
+Proof. Because q = 0, G will have k connected components with probability 1. Note that each
+subgraph Gi is an i.i.d ER graph, drawn from G(n0, p). Let Li denote the Laplacian of GCi . By
+Theorem 5.2
+?s(L
+i) ? ? + (1? ?)8p
+?1/2
+?
+n0
++ o(
+1
+?
+n0
+) (5.4) eq:OneBlockRIP
+almost surely. That is, there exists a function f(n0) going to 0 as n0 ?? such that (5.4) holds with
+probability 1? f(n0). As the GCi are i.i.d:
+max
+1?i?k
+?s(L
+i) ? ? + (1? ?)8p
+?1/2
+?
+n0
++ o(
+1
+?
+n0
+) (5.5) eq:ManyBlockRIP
+with probability (1? f(n0))k. As long as k is eventually bounded with respect to n0 (i.e. k is O(1)
+with respect to n), (1? f(n0))k ? 1 as n0 ??. Hence (5.5) holds almost surely. 
+Again, we conclude this subsection with a lower bound for ?L?2,s.
+Lemma 5.7. Suppose that a graph G has k connected components C1, · · · , Ck, all of size n0. Let
+GC1 , . . . , GCk denote the subgraphs on these components and let L
+i denote their Laplacians. Then
+?L?2,s ? maxa?[k] ?s?1(La).lemma:LoweBoundSemiNorm2
+Proof. We leave the proof to the interested reader. 
+5.3 RIP for Laplacian of Graphs from G(n, k, p, q) with q > 0
+sectionRIP_q_nonzero
+Finally, we study the RIP for Laplacian of graphs from G(n, k, p, q) with q > 0. Observe that for
+G ? G(n, k, p, q) we may write A = A0 + A where A0 contains the intracluster edges and A
+contains the intercluster edges:
+A0ij =
+{
+1 if {i, j} ? E and i, j ? Ca for an a ? {1, · · · , k}
+0 otherwise
+Aij =
+{
+1 if {i, j} ? E and i ? Ca and j ? Cb for some a 6= b
+0 otherwise.
+Assuming that q << p, there are much fewer intercluster than intracluster edges, and thus A is
+much sparser than A0. Observe further that we can regard A0 as the adjacency matrix of a subgraph
+G0 ? G, obtained by removing all the intercluster edges. In fact, G0 ? G(n, k, p, 0). Let L0 denote
+the Laplacian of the underlying graph G0. It is tempting to assume that L = L0 + L, where L is a
+13
+Laplacian associated to A, but unfortunately this is not the case. However, one can still regard L as
+a small perturbation of L0, i.e. L = L0 + E. In order to establish bounds on the restricted isometry
+constants of L, we need to bound the size of the perturbation E, which we do in Theorem 5.8. First,
+recall that, as in §3.3, for any i ? Ca, d0i denotes the in-community degree (equivalently the degree of
+i in GCa or G
+0) and di denotes the out-of-community degree. In terms of A
+0 and A, d0i =
+?
+j A
+0
+ij
+and di =
+?
+j A
+
+j . Define ri = d
+
+i/d
+0
+i . We can assume that d
+
+i << d
+0
+i , equivalently ri << 1, for all i.
+thm:EBoundsMain Theorem 5.8. Let L be the Laplacian of a graph drawn at random from G(n, k, p, q) with p ?
+4k(ln(n))2/n and let ? be as in part 2 of Theorem 3.6. Suppose further that max1?i?n ri ? r << 1.
+Then L = L0 + E where L0 is the Laplacian of G0 and E = E1 + E2 such that supp(E1) = supp(A0)
+and supp(E2) = supp(A) and the following bounds hold:
+1. ?E1??, ?E2?? ? r +O(r2).
+2. ?E1?1, ?E2?1 ? ?2r +O(r2)
+3. ?E1?2, ?E2?2 ? ?r +O(r2).
+4. for any s < n, ?E1?2,s, ?E2?2,s ? ?r +O(r2) and ?E?2,s ? 2?r +O(r2)
+where ?2 = (1 + ?)/(1? ?).
+The proof of Theorem 5.8 uses the following lemma:
+lemma:ComputeLaplError Lemma 5.9. Suppose that L is the Laplacian of a graph G drawn from G(n, k, p, q), and let L0
+denote the Laplacian of the underlying (disconnected) graph G0, thought of as drawn from G(n, k, p, 0).
+Suppose further that max1?i?n ri ? r << 1. Then L = L0 + E, where:
+Eij =
+{
+1
+d0i
+(
+ri +O(r2)
+)
+A0ij if i, j ? Ca
+1
+d0i
+(
+(ri ? 1) +O(r2)
+)
+Aij if i ? Ca and j ? Cb for a 6= b
+Proof. By definition Lij = ?ij ? Aijdi where ?ij = 1 if i = j and zero otherwise. Observe
+that
+1
+di
+=
+1
+d0i + d
+
+i
+=
+1
+d0i
+1
+1 +
+di
+d0i
+=
+1
+d0i
+1
+1 + ri
+Because ri << 1 for all i, by Taylor’s Theorem
+1
+di
+=
+1
+d0i
+(
+1? ri +O(r2i )
+)
+. Direct computation reveals that, for i, j ? Ca:
+Lij = ?ij ?
+1
+d0i
+(
+1? ri +O(r2i )
+)
+A0ij =
+(
+?ij ?
+A0ij
+d0i
+)
++
+1
+d0i
+(
+ri +O(r2)
+)
+A0ij
+= L0ij +
+1
+d0i
+(
+ri +O(r2)
+)
+A0ij
+as 1/d0i ? ri = O(r). The calculation for i, j in different clusters is similar. 
+Let us write E = E1 + E2 where E1 will contain the ‘on-diagonal’ perturbation, and E2 will
+contain the ‘off diagonal’ perturbation:
+E1ij =
+{
+Eij if i, j ? Ca, a ? [k]
+0 otherwise
+and E2ij =
+{
+Eij if i ? Ca and j ? Cb for a 6= b, a, b ? [k]
+0 otherwise
+We are now ready to prove Theorem 5.8.
+14
+Proof. [Proof of theorem 5.8] By definition, ? · ?? is the maximum absolute row sum of the matrix
+in question. For any i, let Ca be the cluster to which it belongs. Then:?
+j
+|E1ij | =
+?
+j?Ca
+ri +O(r2)
+d0i
+A0ij =
+ri +O(r2)
+d0i
+?
+j?Ca
+A0ij =
+ri +O(r2)
+d0i
+(d0i ) = ri +O(r2).
+Hence, we have
+?E1?? = max
+i
+???
+j
+|E1ij |
+?? = max
+i
+(ri) +O(r2) ? r +O(r2).
+Similarly:?
+j
+|E2ij | =
+?
+j /?Ca
+??(ri ? 1) +O(r2)??
+d0i
+Aij ?
+1 +O(r2)
+d0i
+?
+j /?Ca
+Aij =
+1 +O(r2)
+d0i
+(di) ? ri +O(r2)
+as ri := d
+
+i/d
+0
+i , and so again:
+?E2?? = max
+i
+???
+j
+|E2ij |
+?? = max
+i
+(ri) +O(r2) ? r +O(r2)
+Before continuing, recall that as p ? 4k(ln(n))2/n we may choose an ? = o(1) with respect to n such
+that (1 ? ?)n0p ? d0i ? (1 + ?)n0p almost surely for all i ? [n], by part 2 of Theorem 3.6. Now,
+because ? · ?1 is the maximum absolute column sum, for any j in cluster Ca, we have?
+1?i?n
+|E1ij | =
+?
+i?Ca
+ri +O(r2)
+d0i
+A0ij ?
+r +O(r2)
+d0min
+?
+i?Ca
+A0ij ?
+r +O(r2)
+d0min
+(d0max)
+? (r +O(r2))(1 + ?)n0p
+(1? ?)n0p
+=
+r(1 + ?)
+(1? ?)
++O(r2) = ?2r +O(r2)
+and so:
+?E1?1 = max
+j
+(?
+i
+|E1ij |
+)
+? ?2r +O(r2).
+Similarly; ?
+1?i?n
+|E2ij | =
+?
+i/?Ca
+??(ri ? 1) +O(r2)??
+d0i
+Aij ?
+1 +O(r2)
+d0min
+?
+i/?Ca
+Aij = (1 +O(r2))
+dj
+d0min
+? (1 +O(r2))1 + ?
+1? ?
+dj
+d0max
+? (1 +O(r2))1 + ?
+1? ?
+dj
+d0j
+? ?2rj +O(r2)
+and so again we have
+?E2?1 = max
+j
+(?
+i
+|E2ij |
+)
+? ?2 max
+j
+(rj) +O(r2) ? ?2r +O(r2).
+Now, by the Riesz-Thorin interpolation theorem:
+?E1?2 ? ?E1?1/21 ?E
+1?1/2? ?
+(
+?2r +O(r2)
+)1/2
+(r +O(r2))1/2 = ?r +O(r2)
+15
+and by an identical argument ?E2?2 ? ?r +O(r2). Part 4 follows from the simple fact that for any
+matrix B, ?B?2,s ? ?B?2, and the bound for ?E?2,s follows from the fact that E = E1 + E2 and the
+triangle inequality. 
+We are now ready to state and prove the main result of this section.
+thm:Twostory Theorem 5.10. Suppose that G ? G(n, k, p, q), with block sizes n0 = n/k and Laplacian L. Suppose
+further that:
+1. p >> (ln(n0))
+2/n0
+2. k is O(1) with respect to n.
+3. max
+1?i?n
+ri ? r << 1.
+If t = ?n0 with ? ? (0, 1) then:
+?t(L) ? ? +D1r +
+D2?
+n0
++D3
+r
+?
+n0
++O(r2) + o( 1?
+n0
+) (5.6) eq:Twostory
+almost surely, where D1, D2 and D3 are O(1) with respect to n0
+Proof. As above, we write L = L0 + E, where L0 is the Laplacian of the subgraph G0, thought of
+as drawn from G(n, k, p, 0). We define ?t := ?t(L0) and ??t := ?t(L). By Theorem 4.5:
+??t ? (1 + ?t)(1 + tL)2 ? 1. (5.7) eq:deltaTilde
+As defined in a previous section, tL := ?E?2,t/?L0?2,t. Theorem 5.8 gives us that ?E?2,t ? 2?r +
+O(r2), while Lemma 5.7 gives ?L0?2,t ? max1?a?k ?t?1(La) (recall that La denotes the Laplacian of
+the subgraph GCa). By a similar argument to that of Theorem 5.6, we can apply Lemma 3.7 (and
+see also remark 3.8) to get:
+max
+1?a?k
+?t?1(L
+a) ? 1? 4p
+?1/2
+?
+n0
+? o( 1?
+n0
+)
+almost surely, assuming that k is eventually bounded with respect to n0. For convenience, choose n0
+large enough such that 4p?1/2/
+?
+n0 + o(
+1?
+n0
+) ? 1/4. Under this assumption:
+tL0 =
+?E?2,t
+?L0?2,t
+? 2?r +O(r
+2)
+1? 1/4
+=
+8?r
+3
++O(r2)
+Combining this with (5.7) and Theorem 5.6:
+??s ?
+(
+1 + ? + (1? ?)8p
+?1/2
+?
+n0
++ o(
+1
+?
+n0
+)
+)(
+1 +
+8?r
+3
++O(r2)
+)2
+? 1
+=
+(
+1 + ? + (1? ?)8p
+?1/2
+?
+n0
++ o(
+1
+?
+n0
+)
+)(
+1 +
+16?r
+3
++O(r2)
+)
+? 1
+= ? + r
+(
+16?(1 + ?)
+3
+)
++
+1
+?
+n0
+(
+8(1? ?)p?1/2
+)
++
+r
+?
+n0
+(
+128(1? ?)p?1/2?
+3
+)
++O(r2) + o( 1?
+n0
+)
+and letting D1 = 16?(1 + ?)/3, D2 = 8(1? ?)p?1/2, D3 = 128(1? ?)p?1/2?2/3 gives equation (5.6).
+Finally, because ? ? 1 as n??, we indeed have that D1, D2 and D3 are O(1) with respect to n0.
+
+16
+6 The Coherence Properties for Laplacians of Random Graphs
+section:CoherenceProperties
+In this section we study the coherence properties of Laplacians of random graphs. Mainly, we
+compute a lower bound for |?`i, `j?| when i and j are in the same cluster and hence a lower bound
+for µ(L?1). We begin with a basic result for graphs from G(n, k, p, 0).
+Theorem 6.1. Let A be the adjacency matrix of a graph G0 drawn at random from G(n, k, p, 0) and
+define ?i,j =
+?
+k AikAkj. Suppose further that there exists an ? ? (0, 1) such that (1??)pn0 ? d0i ?
+(1 + ?)pn0. Then for any i, j ? C1 with i 6= j:
+(1? ?)n0p2 ?
+?
+(1 + ?)n0p ln(1/?)
+2
+? ?i,j ? (1 + ?)n0p2 +
+?
+(1 + ?)n0p ln(1/?)
+2
+(6.1)
+with probability 1? ?.thm:chi1bound
+Proof. Let B1(i) denote the ball of radius 1 centered at i. That is, B1(i) := {k ? [n] : {i, k} ? E}.
+By definition |B1(i)| = di. Observe that:
+?i,j =
+?
+k
+AikAkj =
+?
+k?B1(i)
+Akj
+Each Akj is an i.i.d. Bernoulli random variable with parameter p. Applying the Chernoff bound to
+this sum:
+P
+?? ?
+k?B1(i)
+Akj ? pdi ?
+?
+di ln(1/?)
+2
+?? ? exp
+??????
+2
+(?
+di ln(1/?)
+2
+)2
+di
+????? = ?
+and (1? ?)pn0 ? di ? (1 + ?)pn0 so:
+P
+[
+?i,j ? (1? ?)n0p2 ?
+?
+(1 + ?)n0p ln(1/?)
+2
+]
+? P
+[
+?i,j ? pdi ?
+?
+di ln(1/?)
+2
+]
+? ?
+The upper bound on ?i,j is proved analogously. 
+We now provide a bound on the inner product |?`0i , `0j ?| when i and j are in the same cluster:
+thm:singleL1bound Theorem 6.2. Let L0 be the Laplacian of a graph G0 drawn at random from G(n, k, p, 0). As in
+Theorem 6.1, suppose that there exists an ? ? (0, 1) such that (1 ? ?)pn0 ? d0i ? (1 + ?)pn0 but
+in addition assume that ? is o(1) with respect to n. Define ?2 = (1 + ?)/(1 ? ?). Then for any
+? ? (0, 1) and for any i, j ? Ca, a ? [k], with i 6= j:
+|?`0i , `0j ?| ?
+1
+n0
+(
+?2
+(1 + ?)
+)
+? 1
+n
+3/2
+0
+?
+ln(1/?)
+2(1 + ?)3p3
+with probability 1? ? for n large enough.
+Proof. Recall that ???`0i , `0j ??? =
+??????
+(
+1
+di
++
+1
+dj
+)
+Aij +
+n?
+k=1
+AikAjk
+d2k
+?????
+17
+There are two possibilities; either i and j are connected ({i, j} ? E) or they are not ({i, j} /? E).
+We treat these cases separately. Suppose first that {i, j} /? E. In this case, Aij = 0 and so:???`0i , `0j ??? = n?
+k=1
+AikAjk
+d2k
+? 1
+d2max
+?ij
+by assumption, dmax ? (1 + ?)pn0 and by so by Theorem 6.1:???`0i , `0j ??? ? 1(1 + ?)2p2n20
+(
+(1? ?)n0p2 ?
+?
+?(1 + ?)n0p ln(?)
+2
+)
+=
+1
+n0
+(
+1
+(1 + ?)?2
+)
+? 1
+n
+3/2
+0
+?
+? ln(?)
+2(1 + ?)3p3
+(6.2) eq:LeadingTerm1
+Alternatively, suppose that {i, j} ? E. Then Aij = 1 and by Theorem 6.1:
+|?`0i , `0j ?| ?
+2
+dmax
+? 1
+d2min
+?ij ?
+2
+(1 + ?)pn0
+? 1
+(1? ?)2p2n20
+?ij
+? 2
+(1 + ?)pn0
+? 1
+(1? ?)2p2n20
+(
+(1 + ?)n0p
+2 +
+?
+?(1 + ?)n0p ln(?)
+2
+)
+=
+1
+n0
+(
+2
+(1? ?)p
+? ?
+2
+(1 + ?)
+)
+? 1
+n
+3/2
+0
+?
+? ln(?)?2
+2(1? ?)3p3
+(6.3) eq:LeadingTerm2
+Let us compare the leading terms in (6.2) and (6.3). Because ? ? 0 as n ? ?, ? ? 1 and thus
+1/((1 + ?)?) ? 1. On the other hand, 2/((1 ? ?)p) ? ?2/(1 ? ?) ? 2/p ? 1 > 1, assuming p < 1.
+Thus, for n large enough, the right hand side of (6.3) is larger than the right hand side of (6.2), and
+so we can summarize both bounds as:
+|?`0i , `0j ?| ?
+1
+n0
+(
+?2
+(1 + ?)
+)
+? 1
+n
+3/2
+0
+?
+? ln(?)
+2(1 + ?)3p3
+for large enough n. 
+Next we consider the case where intercluster edges are present, i.e. where q > 0.
+thm:NoisyInnerProdBound Theorem 6.3. Let L be the Laplacian of G drawn from G(n, k, p, q), q > 0, and suppose that i, j ?
+C1. Assume further that:
+1. p ? 4k(ln(n))2/n
+2. maxi ri ? r with r = r0/
+?
+n0 where r0 = O(1) with respect to n0.
+Then almost surely:
+|?`i, `j?| ?
+1
+n0
+(
+?2
+1 + ?
+)
+? o( 1
+n0
+).
+where ? is o(1) with respect to n and ?2 = (1 + ?)/(1? ?).
+Proof. As before, let e1i (resp. e
+1
+j ) denote the i-th (resp. j-th) column of E
+1, while e2i (resp. e
+2
+j )
+denote the i-th (resp. j-th) column of E2. Then:
+?`i, `j? = ?`0i + e1i + e2i , `0j + e1j + e2j ?
+= ?`0i , `0j ?+ ?`0i , e1j ?+ ?`0i , e2j ?+ ?e1i , `0j ?+ ?e1i , e1j ?+ ?e1i , e2j ?+ ?e2i , `0j ?+ ?e2i , e1j ?+ ?e2i , e2j ?
+18
+By construction, e1i and e
+2
+j have disjoint support (and similarly for e
+1
+j and e
+2
+i ), as do `
+0
+i and e
+2
+j (and
+similarly `0j and e
+2
+i ). Hence:
+?`0i , e2j ? = ?e1i , e2j ? = ?e2i , `0j ? = ?e2i , e1j ? = 0
+and so:
+|?`i, `j?| ?
+???`0i , `0j ???? ???`0i , e1j ???? ???e1i , `0j ???? ???e1i , e2j ???? ???e2i , e2j ??? (6.4) eq:InnerProdAbsBound
+Now `0i and `
+0
+j can be thought of as columns in the Laplacian of a graph drawn at random from
+G(n, k, p, 0). By part 2 of Theorem 3.6 we may choose an ? = o(1) with respect to n such that
+(1? ?)pn0 ? d0i ? (1 + ?)pn0 for all i, with probability 1? 1/n. Now we apply Theorem 6.2 to get:
+|?`0i , `0j ?| ?
+1
+n0
+(
+?2
+(1 + ?)
+)
+? 1
+n
+3/2
+0
+?
+? ln(?)
+2(1 + ?)3p3
+with probability 1? ? ? 1/n. Taking ? = e?p3
+?
+n0 (and noting e?p
+3?n0 < 1/n0 for large enough n0)
+1
+n0
+(
+?2
+(1 + ?)
+)
+? 1
+n
+3/2
+0
+?
+? ln(?)
+2(1 + ?)3p3
+=
+1
+n0
+(
+?2
+(1 + ?)
+)
+? 1
+n
+3/2
+0
+?
+n
+1/2
+0
+2(1 + ?)3
+=
+1
+n0
+(
+?2
+1 + ?
+)
+? 1
+n
+5/4
+0
+1?
+2(1 + ?)3/2
+=
+1
+n0
+(
+?2
+1 + ?
+)
+? o(1/n0)
+with probability at least 1? 1/n0 ? 1/n = 1? (k + 1)/n. Next, we consider the term ?`0i , e1j ?.
+|?`0i , e1j ?| =
+??????
+m
+(
+?im ?
+A0im
+d0m
+)(
+rmA
+0
+mj
+d0m
++O(r3)
+)????? =
+?????riA0ijd0i ?
+?
+m
+rmA
+0
+imA
+0
+mj
+(d0m)
+2
++O(r3)
+?????
+? r
+d0min
++
+r
+(d0min)
+2
+?
+m
+A0imA
+0
+mj +O(r3) ?
+r
+d0min
++
+r
+(d0min)
+2
+min{d0i , d0j}+O(r3)
+? r
+d0min
+(
+1 +
+d0max
+d0min
+)
++O(r3)
+As stated earlier, d0min ? (1? ?)pn0 and d0max ? (1 + ?)pn0 with probability 1? 1/n, and so:
+|?`0i , e1j ?| ?
+r
+(1? ?)pn0
+(
+1 +
+(1 + ?)pn0
+(1? ?)pn0
+)
++O(r3) = r
+(1? ?)pn0
+(
+1 + ?2
+)
++O(r3)
+Clearly the same bound holds for |?e1i , `0j ?|. Finally, consider |?e1i , e1j ?|. A similar calculation to the
+one above reveals that:
+|?e1i , e1j ?| ?
+r2
+n0
+(
+?4
+(1? ?)p
+)
++O(r4)
+as well as:
+|?e2i , e2j ?| ?
+r
+(1? ?)pn0
++O(r3)
+Putting all these bounds back in to equation (6.4), we get:
+|?`i, `j?| ?
+1
+n0
+(
+?2
+1 + ?
+)
+? o( 1
+n0
+)?
+(
+2r(1 + ?2)
+(1? ?)pn0
++O(r3) + r
+2
+n0
+(
+?4
+(1? ?)p
+)
++O(r4) + r
+(1? ?)pn0
++O(r3)
+)
+=
+1
+n0
+(
+?2
+1 + ?
+)
+? r
+n0
+(
+2(1 + ?2)
+(1? ?)p
++
+r?4
+(1? ?)p
++
+1
+(1? ?)p
+)
++O(r3)
+19
+Using the assumption that r = r0/
+?
+n0, we see that r/n0 = r0/n
+3/2
+0 which is of order o(1/n0).
+Similarly r3 = r30/n
+3/2
+0 which is also of order o(1/n0). Thus:
+|?`i, `j?| ?
+1
+n0
+(
+?2
+1 + ?
+)
+? o( 1
+n0
+)
+with probability 1?O(1/n0), as claimed. 
+remark:coherence Remark 6.4. Since the coherence µ of L is defined as µ = maxi 6=j |?`i, `j?|. Theorem 6.3 also implies
+thatµ ? 1n0
+(
+?2
+1+?
+)
+? o( 1n0 ).
+7 Compressive Sensing Clustering for Graphs from G(n, k, p, 0)
+section:CompClustforq_zero
+In this section, we consider graphs from G(n, k, p, 0). This is the case that there are no inter-cluster
+edges. We may safely assume that each GCi is connected, as long as p > ln(n0)/n0.
+Lemma 7.1. Let L be the Laplacian of a graph with k connected components C1, . . . , Ck. Assume,
+without loss of generality, that vertex 1 ? C1. Define x# as:
+x# := arg min{?x?0 : x ? Rn, Lx = 0 and x1 = 1} (7.1) eq:ConnComponent1
+Then x# = 1C1
+Proof. From Theorem 3.3, ker(L) = span{1C1 , . . . ,1Ck} and hence any x with Lx = 0 can be
+written as: x =
+?k
+i=1 ci1Ci . If x1 = 1 (recall we are assuming that 1 ? C1) then c1 = 1 and so
+x = 1C1 +
+?k
+i=2 ci1Ci . Recall that all the 1Ci have disjoint support, and so clearly the sparsest
+solution x such that Lx = 0 is that x has c2 = c3 = . . . = ck = 0. Hence indeed x
+# = 1C1 
+One can rephrase this slightly as a standard compressed sensing problem. Recall `i is the i-th
+column of L and L?i := [`1, . . . , `i?1, `i+1, . . . , `n] in which case:
+xi = 1 ? L?ix?i = ?`i,
+where if x = [x1, x2, . . . , xn]
+> ? Rn, x?i = [x1, . . . , xi?1, xi+1, . . . , xn]> ? Rn?1. Thus problem (7.1)
+becomes:
+x# := arg min{?x?0 : x ? Rn?1, Lx = ?`1}. (7.2) eq:ConnComponent2
+We now show that problem (7.2) can be efficiently solved using OMP (Algorithm 2 in §4)
+thm:Successq0 Theorem 7.2. Suppose that G ? G(n, k, p, 0) has k connected components C1, . . . , Ck ? V each of
+size n0. OMP (Algorithm 2) applied to the sparse recovery problem (7.2) will return x
+# = 1C1\{1}
+after n0 ? 1 iterations. C1 can then be recovered as {1} ? supp(x#).
+Remark 7.3. Note that the assumption that G ? G(n, k, p, 0) is not necessary; this theorem holds
+for all graphs with k connected components. Also, observe that this theorem is not probabilistic. It
+holds with certainty for all graphs G.
+We shall appeal to the exact recovery condition, Theorem 4.1 to establish Theorem 7.2. Let us
+begin with
+lemma:LaplacianInjective Lemma 7.4. If C1 ? V is a connected component then LC1\{1} is injective, where LC1\{1} is the
+submatrix from L with column indices in C1 \ {1}.
+20
+Proof. First, observe that LC1\{1} =
+[
+L1?1
+0
+]
+, where L1 is the Laplacian of GC1 . It suffices to
+show that L1?1 is injective. As GC1 is connected, ker(L
+1) = span{1}, by Theorem 3.2. Suppose
+there exists a u ? Rn0?1, u 6= 0 such that L1?1u = 0. Then [0,u>]> is in ker(L1) = span{1}, a
+contradiction. 
+thm:MainConnectedComponent Theorem 7.5. With notation as above (i.e. C1 is the connected component of G containing the first
+vertex) we have that:
+?L†C1\{1}LCc1?1 = 0 (7.3) eq:Zero
+Proof. By Lemma 7.4 LC1\{1} is injective so its pseudo-inverse is given by:
+L†C1\{1} =
+(
+L>C1\{1}LC1\{1}
+)?1
+L>C1\{1}
+As observed in the proof of Lemma 7.4, LC1\{1} =
+[
+L1?1
+0
+]
+. Similarly, LCc1 =
+[
+0
+L?
+]
+, where L? denotes
+the Laplacian of GCc1 . In both cases 0 denotes the zero matrix of appropriate size. To show (7.3) it
+will suffice to show that L>C1\{1}LC
+c
+1
+= 0, but this follows easily as:
+[
+(L1?1)
+> 0>
+] [0
+L?
+]
+= (L1?1)
+>0 + 0>L? = 0
+This completes the proof.  Theorem 7.2 now follows easily:
+Proof. [Proof of Theorem 7.2] By Theorem 7.5 the exact recover condition (Theorem 4.1) holds ,
+and thus the result follows. 
+8 Compressive Sensing Clustering for Graphs from G(n, k, p, q)
+section:CompClustforq_nonzero
+We now turn our attention to the same problem for G(n, k, p, q) with 0 < q << p. We follow the
+notation established in §5.3, and decompose A as A = A0 + A where A contains the intercluster
+edges and A0 is the adjacency matrix of the subgraph G0 with k connected components. Denoting
+the i-th column of L0 as `0i and the i-th column of E as ei, observe that
+`1 = `
+0
+1 + e1 = ?L01C1\{1} + e1 or ? `1 = L1C1\{1} ? e1.
+Defining x# as:
+x# := arg min{?L?1x? (?`1)?2 : x ? Rn?1, ?x?0 ? n0}. (8.1) eq:CompressedClustering
+Then x# ? 1C1\{1}. We recognize this as a totally perturbed sparse recovery problem (4.7), with
+? = L0, ?? = L0 + E = L, y = ?`1 = ?`01 ? e1. We shall show that, provided E is small enough,
+supp(x#) = supp(1C1\{1}) = C1 \ {1}. Hence, solving problem (8.1) is equivalent to finding the
+community C1.
+Unfortunately, a straightforward application of Algorithm 2 to (8.1) does not work. Empirically,
+it is observed that the first several greedy steps in Algorithm 2 invariably pick up wrong indices due
+to the presence of noise E. We need a new approach. Let us start with the following
+thm:Mckenzie Theorem 8.1. Let L be the Laplacian of a graph G ? G(n, k, p, q) with p ? 4k(ln(n))2/n. Suppose
+that
+max
+i?{1,...,n}
+ri := max
+i?{1,··· ,n}
+di/d
+0
+i ? r, (8.2) as
+where r = r0/
+?
+n0 with r0 a constant independent of n0. Define ? := Ld10(n0?1)/9e(L>?1`1). For n0
+large enough, we have that C1 \ {1} ? ? almost surely.
+21
+Proof. Suppose otherwise, then there exists an i? ? C1 \ {1} not in ?. Let ? = ??Cc1. As we are
+assuming that C1 \ {1} 6? ?, we have that |?| ? n0/9. Moreover, by definition of i?, we have that
+|?`1, `i??| ? |?`1, `j?| for all j ? ?, and in particular:
+|?`1, `i??| ? |?`1, `j?| for all j ? ?
+Summing over ? we get:
+|?||?`1, `i??| ?
+?
+j??
+|?`1, `j?| = ?L>?`1?1 (8.3) eq:ForceContradiction
+We shall show that equation (8.3) cannot hold for n0 large enough. Because p ? 4k(ln(n))2/n and
+r << 1, we may use Theorem 5.8, which we shall do repeatedly. By this theorem, we have that
+L = L0 + E = L0 + E1 + E2 with ?Ej?? ? r = O(r2) for j = 1, 2. Moreover by construction
+L0? =
+[
+0
+L??
+]
+where L? denotes the Laplacian of the subgraph GCc1 and 0 is the zero matrix of size
+n0 × |?|. Similarly, `1 = `01 + e1 and we may write `01 =
+[
+`11
+0
+]
+where `11 ? Rn0 is the first column of
+L1, the Laplacian of the subgraph GC1 and 0 is the zero vector of length n? n0. Thus:
+?L>?`1?1 ? ?(L0?)>`01?1 + ?(L0?)>e1?1 + ?E>`1?1
+=
+????[0> L?>?] [`110
+]????+ ?(L0?)>e1?1 + ?E>`1?1
+? 0 + ?(L0?)>?1?e1?1 + ?E>?1?`1?1 (8.4) eq:ReturnToThis
+Now ?(L0?)>?1 = ?L0???, as these are dual norms. As ? · ?? is equal to the maximum absolute row
+sum, it is clear that ?L0??? ? ?L0??. Now:
+?L0?? = max
+i
+?
+j
+??????ij ? A0ijd0i
+????? = maxi
+??1 + 1
+d0i
+?
+j 6=i
+A0ij
+?? = max
+i
+(
+1 +
+1
+d0i
+(d0i )
+)
+= 2
+Moreover, ?e1?1 ? maxi ?ei?1 = ?E?1, hence ?e1?1 ? 2?2r + O(r2), while ?E>?1 = ?E?? ?
+?E1?? + ?E2?? = 2r + O(r2) both by Theorem 5.8. Finally, `1 = `01 + e1 as above, so ?`1? ?
+?`01?1 + ?2r +O(r2). We compute ?`01?1:
+?`01?1 =
+n?
+i=1
+?????i1 ? A0i1d0i
+???? = 1 + n?
+i=2
+A0i1
+d0i
+? 1 + 1
+dmin
+(d01) ? 1 +
+(1 + ?)pn0
+(1? ?)pn0
+= 1 + ?2
+Returning to equation (8.4):
+?L>?`1?1 ? (2)(2?2r) + (2r)(1 + ?2) +O(r2) = (2 + 6?2)r +O(r2) =
+(2 + 6?2)r0?
+n0
++O(r2)
+On the other hand, by Theorem 6.3 we have that:
+|?`1, `i??| ?
+1
+n0
+(
+?2
+1 + ?
+)
+? o( 1
+n0
+)
+22
+almost surely, and so we can bound the left hand side of (8.3) as:
+|?||?`1, `i??| ?
+n0
+9
+(
+1
+n0
+(
+?2
+1 + ?
+)
+? o( 1
+n0
+)
+)
+=
+?2
+9(1 + ?)
+? o(1)
+Thus, if inequality (8.3) were true, it would imply that:
+?2
+9(1 + ?)
+? o(1) ? (2 + 6?
+2)r0?
+n0
++O(r2)
+which cannot be true for n0 large enough, as ? and r are o(1) with respect to n0 and ?
+2 is O(1), thus
+?2/(9(1 +?))? o(1)? 1/9 while (2 + 6?2)r0/
+?
+n0 ? 0. Hence we may always take n0 large enough
+so that, with probability at least 1? 1/n0, inequality (8.3) cannot hold. Thus no such i? which is in
+C1 \ {1} but not in ? can be found, and so the Theorem 8.1 is proved. 
+With the result of Theorem 8.1 in mind, we are able to derive a new algorithm to find the
+communities from G ? G(n, k, p, q) for p >> q > 0:
+Algorithm 4 Single Cluster Pursuit (SCP)
+algorithm:CompClust
+Input: The adjacency matrix A of a graph G, and estimate of the size of clusters n0
+(1) Initialization Compute L = I ?D?1A.
+(2) Trimming
+Let ? = Ld10(n0?1)/9e(L>?1`1)
+(3) Perturbed Sparse Recovery
+(a) y =
+?
+i?? `i + `1
+(b) Solve z# = arg min{?L?z? y?2 s.t. z ? R|?| and ?z?0 ? n0/9} using the SP algorithm
+(c) ?# = supp(z#).
+Output: C#1 = {1} ?
+(
+? \ ?#
+)
+.
+Next we show that Algorithm 4 succeeds almost surely.
+thm:MainSuccess Theorem 8.2. Let G be a graph drawn at random from the G(n, k, p, q) model. Suppose that k =
+O(1) with respect to n and either:
+1. q = Qn and p =
+P ln(n)?
+n ln(ln(n))
+with Q and P being constants and P > 979, or
+2. q = Q ln(n)n with Q ? ? as n ? ? and p =
+P ln(n)?
+n
+with P ? ? as n ? ? and QP <
+1
+979 for
+large enough n.
+Then Algorithm 4 will recover C1 (that is, C
+#
+1 = C1) almost surely.
+Proof. For notational convenience let s := (n0 ? 1)/9. In both cases, p ? 4k(ln(n))2/n and so by
+part 2 of Theorem 3.6, d0min ? (1 ? ?)n0p almost surely for ? = o(1) with respect to n. In case 1,
+by (i) of Theorem 3.4 in [25], dmax ? ln(n)/(ln(ln(n)) ? ln(ln(ln(n))) almost surely. Ignoring the
+triple-logarithmic term:
+max
+i
+di
+d0i
+? d
+
+max
+d0min
+? 1
+P (1? ?)?n0
+=:
+r0?
+n0
+with r0 < 1/979 for large enough n as ? = o(1). In case 2, by (ii) of Theorem 3.4 in [25], d
+
+max ?
+Q ln(n) almost surely, and so:
+max
+i
+di
+d0i
+? d
+
+max
+d0min
+? Q/P
+(1? ?)?n0
+=:
+r0?
+n0
+23
+and again r0 < 1/979 for large enough n. We may thus apply Theorem 8.1 to get that C1 \ {1} ? ?
+almost surely. As before we define ? := ??Cc1; it is easy to see |?| ? n0/9. The challenge in step (3)
+of Algorithm 4 is to separate C1 \ {1} from ?. We do this by solving for 1? = 1? ? 1C1\{1} instead
+of 1C1\{1}, as:
+L0?1? = L
+0
+?
+(
+1? ? 1C1\{1}
+)
+= L0?1? ? L0?1C1\{1} =
+?
+i??
+`0i ? (?`01) =: y0 (8.5) eq:switch
+and noting that ?1??0 ? n0/9, we see that 1? is the unique solution to
+arg min{?L0?z? y0?2 : z ? Rd10n0/9e, ?z?0 ? n0/9} (8.6) eq:unpeturbed
+Defining y to be a perturbation of y0and writing, as in §5.3, L? = L0? + E?:
+y :=
+?
+i??
+`i + `1 =
+?
+i??
+`0i +
+?
+i??
+ei + `
+0
+1 + e1 = y
+0 +
+(
+e1 +
+?
+i??
+ei
+)
+Defining e = e1 +
+?
+i?? ei we recognize the problem:
+z# = arg min{?L?z? y?2 : z ? Rd10n0/9e, ?z?0 ? n0/9} (8.7) eq:Perturbed2
+as a totally perturbed version of (8.6). Thus, we may apply the results of §4.3 to bound ?z#?1??2.
+As in §4.3, we define ?t := ?t(L0) and ??t := ?t(L). (We refer the reader to §4.3 for the definitions of
+sL0 , y, ?? and ?? .) Let us bound on these quantities. Observe that in both cases, p >> (ln(n0))
+2/n0
+and by assumption k is O(1) with respect to n, thus as in the proof of Theorem 5.10 we get sL0 =
+8?r/3 = 8?r0/(3
+?
+n0), for n0 large enough. Applying the result of Theorem 5.10 with t = 3s = n0/3:
+??3s ?
+1
+3
++D1r +
+D2?
+n0
++
+D3r?
+n0
++O(r2) + o( 1?
+n0
+)
+=
+1
+3
++
+(D1r0 +D2)?
+n0
++
+D3r0
+n0
++O( 1
+n0
+) + o(
+1
+?
+n0
+) =
+1
+3
++
+(D1r0 +D2)?
+n0
++ o(
+1
+?
+n0
+).
+Hence for large enough n0, we certainly have ??3s ? 0.4859 as required. In fact, let us take n0 large
+enough such that ??3s ? 1/3 + 1/18 = 7/18 ? 0.39. Choosing n0 larger if necessary, we shall also
+assume that sL0 < 1/3. In this case, a straightforward, but tedious calculation will reveal that
+?? ? 0.7 and similarly ?? < 166 (see the statement of Theorem 4.6 for the definitions of ?? and ??). We
+now turn our attention to y.
+?y0?2 = ?L0?11??2 ?
+?
+1? ?s?1??2 =
+?
+1? ?s
+?
+s
+while
+?e?2 = ?E1? + e1?2 ? ?E?2?1??{1}?2 ?
+(
+2?r +O(r2)
+)?
+10s.
+So we have
+y :=
+?e?2
+?y0?2
+=
+2
+?
+10
+(
+2?r +O(r2)
+)
+?
+1? ?s
+=
+2
+?
+10?r0?
+n0(1? ?s)
++ o(
+1
+?
+n0
+)
+Appealing to Theorem 5.10 with s = n0/9:
+?s ? 1/9 +
+64p?1/2
+9
+?
+n0
++ o(
+1
+?
+n0
+).
+24
+Again, we will assume that n0 is large enough such that ?s ? 2/9 ? 0.22. Under this assumption:
+y ?
+2
+?
+10?
+7/9
+?r0?
+n0
+? 8 ?r0?
+n0
+Finally, we use Theorem 5.10 again, this time with t = s = n0/9:
+??s ? 1/9 +
+D1r0 +D2?
+n0
++ o(
+1
+?
+n0
+)
+and take n0 large enough such that ??s ? 2/9 (this is possible as D1 and D2 are O(1) with respect to
+n0). Now Theorem 4.6 guarantees that
+?xm ? 1??2
+?1??2
+?
+(
+??
+?
+1 + ??s
+1? s
+L0
++ 1
+)
+(sL0 + y)
+Where m := ln(sL0 + y)/ ln(??) = O(ln(n0)). Substituting in for the various constants:
+?xm ? 1??2
+?1??2
+<
+(
+(166)
+?
+1 + 2/9
+1? 1/3
+)(
+8?r0
+3
+?
+n0
++
+8?r0?
+n0
+)
+=
+166(
+?
+11)(32)
+6
+?r0?
+n0
+??xm ? 1??2 <
+(?
+n0
+3
+)
+2937
+?r0?
+n0
+= 979?r0
+As the Lemma 8.3 below, as long as ?xm ? 1??2 < 1, we have that supp(xm) = supp(1?). Because
+? ? 1 and r0 < 1/979, this will hold for large enough n0. 
+cp Lemma 8.3. Suppose that x? ? Rn is a binary vector with ?x??0 = t, and x ? Rn is any other
+vector that also has ?x?0 = t. If ?x? ? x?2 < 1 then supp(x) = supp(x?).
+Proof. Suppose otherwise. Then there exists an i ? supp(x?) \ supp(x). Clearly:
+?x? ? x?2 ? |x?i ? xi| = |1? 0| = 1
+which contradicts the hypotheses. 
+As mentioned in the introduction, we may iterate Algorithm 4 to find all the clusters of G. We
+call this algorithm Iterated Single Cluster Pursuit, or ISCP.
+9 Computational Complexity and Extensions
+In this section we bound the computational complexity and explain some extensions.
+9.1 Computational Complexity
+In this subsection we show that Algorithm 4 is faster than existing spectral methods. We do this by
+determining the approximate number of operations required in each step of Algorithm 4. Throughout,
+we shall assume that A and L are sparse matrices.
+1. Computing di =
+?
+j Aij requires di operations. We can safely assume that di = d
+0
+i + d
+
+i ? n0
+so the cost of computing each di is at most O(n0) This needs to be done a total of n times to
+compute D = diag(d1, . . . , dn), giving a total cost of O(nn0).
+25
+2. The cost of the thresholding step is dominated by the matrix-vector multiply L>?1`1. Because
+`1 has d1 + 1 ? n0 non-zero entries, the cost of this is bounded by O(nn0).
+3. The computational cost of solving the perturbed sparse recovery problem in step 3 using SP
+is equal to the number of iteration times the cost of each iteration. As shown in the proof of
+Theorem 8.2, it suffices to perform O(ln(n0)) = O(ln(n)) iterations. The cost of each iteration
+is determined by calculating the cost of each step in the iterative part of SP (see Algorithm 3):
+(a) Computing Ls(L>?rk?1) is dominated by the cost of the matrix-vector multiply L>?rk?1,
+hence is O(nn0).
+(b) Solving the least square problem in step (2) using a good numerical solver (we used
+MATLAB’s lsqr algorithm) is on the order of the cost of a matrix-vector multiply, i.e.
+O(nn0), as explained in [38].
+(c) The cost of sorting and thresholding (step (3)) is O(n ln(n)).
+(d) Finally the cost of computing the new residual rk in step (4) is dominated by the matrix
+vector multiply L>?1r
+k, hence is O(nn0).
+We conclude that the cost of a single iteration of the SP Algorithm is O(nn0), and so the cost
+of step 3 of Algorithm 4 is O(n ln(n)n0)
+Thus, the number of computations required to find a single cluster using Algorithm 4 is O(n ln(n)n0).
+To find all the clusters C1, . . . , Ck one can iterate Algorithm 4 k ? 1 times. The cost of this is
+certainly less than O(kn ln(n)n0) = O(n2 ln(n)).
+9.2 Extensions
+section:Extensions
+1. Our Algorithm 4 can be extended to deal with the communities of non-equal size. Hence, our
+study can be extended too. A numerical example is included in the next section to demonstrate
+this extension. For simplicity, we leave the study for the interested reader.
+2. Although Algorithm 4 works on binary adjacency matrices, it handles weighted adjacency
+matrices just as well (see §10.2.2).
+3. As mentioned in the introduction, graph clustering can also be applied to more general data
+sets. Given any (finite) set of points X = {x1, . . . ,xn} in some metric space (M,d), there
+are several ways to associate a graph on n vertices to X. For example, we could attach an
+edge between vertices i and j whenever d(xi,xj) ? C for some constant C. Alternatively, for
+each vertex i we could determine the K closest points to xi, say {xj1 , . . . ,xjK}, and insert the
+edges {i, j1}, . . . , {i, jK} to obtain the K-nearest neighbours graph GK . Empirically, we have
+found the latter approach to perform better, as dmin(G
+K) = K giving better control over the
+quantities ri crucial to the analysis of Algorithm 4. See §10.2.2 for an example of this approach.
+4. Algorithm 4 can easily be extended to the co-clustering problem, as described in [15]. Briefly
+suppose that we are given two categorically different sets of variables X = {x1, . . . ,xn} and
+Y = {y1, . . . ,ym} as well as a n × m matrix B such that the Bij-th entry represents the
+correlation between xi and yj . The goal of co-clustering is to simultaneously partition X
+and Y into subsets X = X1 ? . . .Xk and Y = Y1 ? . . . ? Yk such that the correlations
+between x ? Xi and y ? Yi are strong while the correlations between x ? Xi and y ? Yj for
+i 6= j are weak. As pointed out by Dhillon in [15], one can regard this as a graph clustering
+26
+problem for a weighted5 bipartite graph with vertex set V = {u1, . . . , un, v1, . . . , vm} and
+weights w(ui, vj) = Bij , w(ui, uj) = w(vi, vj) = 0. The adjacency matrix and Laplacian of G
+are:
+A =
+[
+0 B
+B> 0
+]
+L =
+[
+In×n ?D?1X B
+?D?1Y B> Im×m
+]
+where DX represents the row sums of B while DY represents the column sums. Assume
+temporarily that instead of clusters G has k connected components C1, . . . , Ck. Each GCi will
+be a bipartite graph, and Ci splits as Ci = C
+X
+i ?CYi where CXi corresponds to Xi and similarly
+CYi corresponds to Yi. The indicator vector will split similarly: 1Ci = [1
+>
+Xi
+1>Yi ]
+> and:
+0 = L1Ci =
+[
+1Xi ?D
+?1
+X B1Yi
+1Yi ?D
+?1
+Y B
+>1Xi
+]
+We may convert these two ‘first-order’ equations into a single ‘second-order’ equation as 1Yi =
+D?1Y B
+>1Xi and so:
+0 = 1Xi ?D
+?1
+X BD
+?1
+Y B
+>1Xi =
+(
+I?D?1X BD
+?1
+Y B
+>
+)
+1Xi
+Defining the ‘bi-partite Laplacian’ as LBP = I?D?1X BD
+?1
+Y B
+> we see that if x1 ? X1 then the
+indicator vector 1X1 is the unique solution to:
+arg min{?z?0 : z ? Rn, LBP z = 0 and z1 = 1}
+once we have found 1X1 we can recover 1Y1 as 1Y1 = D
+?1
+Y B
+>1X1 . Returning to the clustering
+problem, we see that we may approximate 1X1 ( and hence 1Yi) by solving the problem
+arg min{?LBP?1 z? (?`BP,1)?2 : z ? Rn?1, ?z?0 ? nX0 ? 1}
+using Algorithm 4, where nX0 is the size of the clusters Xi. We leave the technical analysis of
+this approach to the interested reader.
+5. In future work, we intend to show how Algorithm 4 can be adapted into an ‘online’ algorithm
+which allows one to rapidly update the community assignments as more vertices are added to
+the graph.
+10 Numerical Examples
+10.1 Synthetic Data
+We tested Single Cluster Pursuit (SCP, Algorithm 4) on graphs drawn from the SBM. We imple-
+mented this algorithm in MATLAB 2016b and run on a mid-2010 iMac computer with 8 GB of RAM and
+a 3.06 GHz Intel Core i3 processor. For comparison we used the Trembley, Puy, Gribonval and Van-
+dergheynst implementation of Spectral Clustering (SC, Algorithm 1) included in their Compressive
+Spectral Clustering toolbox available at http://cscbox.gforge.inria.fr/ ([45]).
+5We assume that the correlations Bij are non-negative
+27
+10.1.1 Example 1
+Typical output of SCP applied to randomly drawn graphs from the SMB G(n, k, p, q) with p =
+P ln(n)/
+?
+n and q = Q ln(n)/n as in case 2 of Theorem 8.2 is shown in the third frame of figure 1.
+Both SCP and SC succeed in finding cluster 1 without error (indeed SC finds all clusters without
+error) but SCP is faster, taking 0.0262 seconds compared to the 0.1018 seconds required by SC. We
+remark that even for Q, P such that Q/P >> 1/979 SCP is successful, suggesting that the bounds
+in Theorem 8.2 are too conservative.
+Figure 1: The adjacency matrix of a graph drawn from G(1000, 5, 2 ln(n)?
+n
+, 2 ln(n)n ) is shown in the top
+left. The same matrix, with its rows and columns randomly permuted (using the same permutation
+for both) is shown in the top right. The output of SCP applied to the permuted matrix is shown in
+the bottom left, while the output of SC on the same matrix is shown on the bottom right.fig:OneCluster
+10.1.2 Example 2
+We then tested Iterated SCP (ISCP) for graphs randomly drawn from the SBM G(n, k, p, q) with
+p = P ln(n)/
+?
+n and q = Q ln(n)/n. Typical output is shown in Figure 2. Again, both algorithms
+are successful (that is, both find all 10 communities without error).
+28
+Figure 2: The adjacency matrix of a graph drawn at random from G(5000, 10, 4 ln(n)?
+n
+, 4 ln(n)n ) is shown
+in the top left. The same matrix, with its rows and columns randomly permuted (using the same
+permutation for both) is shown in the top right. The output of SCP applied to the permuted matrix
+is shown in the bottom left, while the output of SC on the same matrix is shown on the bottom
+right.fig:full_compare
+10.1.3 Example 3
+Next, we tested the resilience of SCP to noise by running it onG drawn at random from G(2400, 6, 0.5, q)
+with q increasing from 0 to 150/2000. For each q, we ran SCP on 10 different G drawn indepen-
+dently and at random from G(2400, 6, 0.5, q) and computed the average fraction of indices that were
+misclassified. Figure 3 shows the result of this experiment, with E[di ] = q(n ? n0) on the x-axis.
+As observed in Experiment 1, SCP performs much better than theoretically guaranteed by Theorem
+8.2. Indeed, Figure 3 demonstrates that SCP detects community 1 without error up until E[di ] = 40,
+at which r ? 40/200 = 1/5.
+29
+Figure 3: Fraction of indices misclassified by SCP, for G ? G(2400, 6, 0.5, Q/2000). The horizontal
+axis represents Q, that is, the level of ‘noise’ in the graph. The vertical axis represents the fraction
+of misclassified vertices = |C#1 \C1|/|C
+#
+1 |. As can be seen, SCP performs without error until Q ? 40,
+well beyond the theoretical guarantees given by Theorem 8.2fig:ResTest
+10.1.4 Example 5
+In our final example, we use ISCP to solve the co-clustering problem, as discussed in §9.2. Typical
+output is shown in image 4
+Figure 4: A 2000 × 1000 binary matrix with 10 equally sized block, randomly permuted and then
+co-clustered using ISCP, applied as discussed in §9.2.fig:RectangleCluster
+10.1.5 Example 4
+Finally we compared the run times of SCP, SC and ISCP on G(n, k, p, q) for increasing n. We studied
+three regimes: constant k, constant n0 (cluster size) and k, n0 = O(
+?
+n). In all three cases we fixed
+p = 2 log(n)/
+?
+n and q = 2 log(n)/n. The results of these experiments are presented in figures 5c
+- 5b (the run times are in seconds, and are the average of ten independent trials for the same n).
+As is clear, SCP significantly outperforms SC in finding a single cluster. Moreover, when k is large
+enough compared to the number of vertices (n), ISCP finds all clusters faster than SC.
+30
+fig:CompareTimevaryK
+(a) Varying k from 20 to 120 and n accordingly, while fixing n0. G ? G
+(
+400k, k, 2 log(n)?
+n
+, 2 log(n)
+n
+)
+fig:CompareTimevaryKAndN0
+(b) Varying k, n0 and n. G ? G
+(
+kn0, k,
+2 log(n)?
+n
+, 2 log(n)
+n
+)
+fig:CompareTime20Clusters
+(c) Varying n and n0 while fixing k. G ? G
+(
+n, 40, 2 log(n)?
+(n)
+, 2 log(n)
+n
+)
+Figure 5: Comparing SCP, ISCP and SC for graphs drawn from the SBM of increasing size. As can
+be seen, SCP is significantly faster than SC
+31
+10.2 Real Data Sets
+We now present two examples of SCP and ISCP applied to real-world data sets.
+10.2.1 Political Blogs Data Set
+The polblogs data set is a collection of 1494 political weblogs, or blogs, collected by Adamic and
+Glance ([4]) prior to the 2004 American presidential election. The data is presented as an unweighted,
+undirected graph, with vertices corresponding to the blogs, and edges between blogs i and j if there
+is a hyperlink from i to j, or vice versa. This data set is well-studied (see, for example [32], [39] and
+[42], amongst others), and is a good test case for at least two reasons:
+1. In addition to a natural division into two roughly equally sized clusters (liberal vs. conserva-
+tive), the data set exhibits additional clustering at smaller scales. That is, within the set of
+all liberal blogs, one can identify subclusters of blogs, and similarly for the conservative blogs.
+This is explored further in [42].
+2. The ground truth for the division into liberal vs. conservative is known, as Adamic and Glance
+([4]) manually labelled the data set. This provides an opportunity to verify one’s results that
+is rare for real-world data sets.
+Our methodology was as follows. We follow Olhede and Wolfe ([42]) in using only the 1224 blogs
+with links to at least one other blog in the data set. As SCP can be thrown off by low degree vertices
+( these will have high values of ri) we experimented with different thresholds. That is, we discarded
+vertices of degree lower than dthresh for varying values of dthresh. We then used SCP to detect a
+cluster containing an arbitrary liberal blog, of size approximately equal to the number of liberal
+blogs. We call this cluster Cluster 1 (C1). We call the remaining vertices Cluster 2 C2. The results
+are tabulated in ??. We record the number of vertices left after thresholding, the percentage of the
+first cluster consisting of liberal blogs, the percentage of the second cluster consisting of conservative
+blogs and the time taken. The values shown are the averages of ten independent runs.
+dthresh # of vertices % of C1 liberal % of C2 conservative time (in seconds)
+0 1224 63.71 66.93 0.0380
+2 1087 71.57 75.68 0.0928
+4 903 81.45 83.86 0.0467
+6 813 89.12 91.06 0.0479
+8 735 91.95 93.69 0.0428
+10 693 93.14 94.57 0.0411
+12 644 93.95 95.32 0.0256
+14 596 93.05 94.66 0.0377
+16 547 94.24 95.39 0.0379
+18 505 93.97 94.87 0.0225table:polblogs
+Table 1: Results of SCP applied to the polblogs data set for varying degree thresholds. When
+dthresh = 10 the fraction of cluster 1 classified as liberal, and the fraction of cluster 2 identified as
+conservative, closely resemble the compositions reported by Newman in [39]
+As is clear, increasing dthresh above 10 makes little difference. Our results also agree with the
+clusters found by Newman in [39], where he finds one cluster which is 93% liberal, and a second
+32
+cluster which is 97% conservative. Of course, to achieve this accuracy we have had to discard over
+40% of our data points. An interesting future line of research would be to improve the handling of
+low degree vertices by SCP.
+To detect clustering at a finer scale, we ran SCP to find a cluster of size 80 containing a randomly
+selected liberal blog (smithersmpls.com). The output of this is shown in figure 7. As can be seen
+by the increased density of the top-left hand corner, our algorithm finds a subset of blogs containing
+smithersmpls.com that are more densely connected to each other than they are to the rest of the
+data set. We remark that this experiment took approximately 0.06 seconds, so with even modest
+computational resources one could investigate clustering at a large range of scales in such a data set.
+Figure 6: Typical Output of SCP applied to the polblogs data set with dthresh = 10.fig:PolBlogsLibCon
+Figure 7: Detecting fine scale structure in the polblogs data set. The top left hand corner represents
+a sub-cluster of 80 liberal blogs containing a given randomly selected liberal blog.fig:PolBlogsSmallScale
+33
+10.2.2 Gene Expression Data Set
+section:GeneExpression
+Our second data set consists of Gene Expression values collected via Microarray for a sample of
+Neurospora crassa at 13 different time points, originally studied in [16]. The data consists of 2436
+time series, one for each Gene of interest, consisting of 13 scaled expression readings. Each scaled
+expression reading is a floating point number between 4 and 13. We treat this data as a set of 2436
+data points X = {x1, . . . ,x2436} in R13. We then constructed an Affinity Matrix A1 as suggested
+in [41] defined as A1ij = exp(??xi ? xj?22/?2). Here ? was chosen to be
+?
+10 although we note that
+experimenting with other values of ? did not qualitatively change the results.
+To promote sparsity, we added the additional step of constructing a K-nearest-neighbours ad-
+jacency matrix from A1 by retaining the (weighted) edge {i, j} if and only if xj is among the K
+nearest neighbours of xi or vice versa. Call the resulting adjacency matrix A
+2,K . We remark that,
+much like the parameter ? used in constructing A1, varying K did not qualitatively affect the results
+obtained. Thus, we shall fix K = 100 and refer to A2,100 simply as A2. Figure 8 shows the results
+of this preprocessing in reverse-grayscale (that is, larger values are darker).
+Figure 8: The adjacency matrix A2, resulting from preprocessing the Gene Expression Data set
+originally studied in [16].fig:Gene_Expression_Before
+We used ISCP to look for clusters on two different scales, informed by the underlying biology of
+34
+the data set6. First, we looked for clusters of size 90 ? 100, as this is around the number of genes
+targeted by a single regulator in N. crassa. The results of this experiment are shown in figure 9.
+In a well studied organism such as N. crassa, the functions of many genes are known. In fact of the
+2436 genes in this data set, more than half of them (1442) have been assigned a MIPS label, which is
+an hierarchical system for labelling genes by function. Moreover, in [16], the genes in this data set are
+grouped into twelve categories according to their functions, for example ‘signaling’ or ‘transcriptional
+control and regulation’. Biologically, an interesting question is which functional categories cluster
+together. Thus, for our second numerical experiment we used ISCP to detect clusters of size 450?550
+(results pictured in Figure 10) and recorded the number of genes of each category 7 occurring in each
+cluster. We can assess the biological significance of this clustering by performing a chi-squared test.
+The null hypothesis is that there is no relation between the clusters and the functional categories,
+in which the expected number of genes in Category j contained in Cluster i, in the notation of
+Table ??, is Eij = T
+C
+j × (TRi /1442). For example, E12 = 164 × (321/1442) = 36.51 Denoting the
+observed counts by Oij (i.e. O12 = 32, O21 = 19 and so on) we compute the chi-squared test statistic
+as
+?
+i
+?
+j(Eij ? Oij)2/Eij = 73.87. From a table of values for the ?2 distribution8, we get that
+assuming the null hypothesis there is a 0.1% chance that this statistic is greater than 73.40. Thus,
+we may safely reject the null hypothesis, and assume that the Clustering found by ISCP is related
+to the functions of the genes in the data set.
+Cluster
+Category
+1 2 3 4 5 6 7 8 9 10 11 TR Cluster size
+1 13 32 15 22 42 46 36 19 8 20 68 321 527
+2 19 36 18 28 24 37 11 10 12 25 70 290 513
+3 13 23 21 33 34 57 10 13 11 32 71 318 452
+4 15 32 14 17 22 27 17 2 5 22 47 220 554
+5 20 41 19 31 35 26 18 15 9 13 66 293 390
+TC 80 164 87 131 157 193 92 59 45 112 322 1442 2436
+Table 2: The number of genes in each category present in each cluster. The row totals represent
+the number of genes with a MIPS classifier present in each cluster (the total number of genes with
+a MIPS classifier is 1442). Anomalously high or low counts are shown in bold.table:Gene_Expression
+6and the authors gratefully acknowledge many informative discussions with Professor Jonathan Arnold and his lab
+7For a description of the categories the reader is referred to [16]. The counts are displayed in Table ??. The
+categories are numbered by the order in which they appear in figure 15 in [16], omitting the category ‘clock’ as there
+are no MIPS codes associated with this category.
+8Note that there are (#rows? 1)(#columns? 1) = 40 degrees of freedom here
+35
+Figure 9: Output of ISCP applied to A2, set to find clusters of size 90? 100.fig:Gene_Expression_Small_Cluster
+Figure 10: Output of ICSP applied to A2, set to find clusters of size 450? 550.fig:Gene_Expression_Large_Cluster
+36
+References
+Abbe2017 [1] E. Abbe, Community detection and stochastic block models: recent developments, arXiv
+preprint arXiv:1703.10146 (2017).
+Abbe2016 [2] E. Abbe, A.S. Bandeira, and G. Hall, Exact recovery in the stochastic block model, IEEE
+transactions on Information Theory Vol. 62 no. 1, pp. 471-487 (2016).
+Abbe2015 [3] E. Abbe and C. Sandon, Community detection in general stochastic block models: Fundamental
+limits and efficient algorithms for recovery. Foundations of Computer Science (FOCS), 2015
+IEEE 56th Annual Symposium on, pp. 670-688 (2015).
+Adamic2005 [4] L. A. Adamic and N. Glance, The political blogosphere and the 2004 us election: divided they
+blog. Proceedings of the 3rd international workshop on Link discovery, pp. 36-43 (2005).
+Aldous2000a [5] J. M. Aldous and R. J. Wilson, Graphs and Applications: An Introductory Approach, Springer
+Science & Business Media (2000).
+BT09 [6] A. Beck and M. Teboulle, A fast iterative shrinkage-thresholding algorithm for linear inverse
+problems, SIAM J. Image Sciences, Vol. 2, pp. 183–202 (2009).
+BD09 [7] T. Blumensath and M. E. Davies, Iterative hard thresholding for compressed sensing, Appl.
+Comput. Harmon. Anal., Vol. 27, pp.265–274 (2009).
+CWB08 [8] E. J. Cande?s, M. B. Wakin, and S. Boyd, Enhancing sparsity by re-weighted `1 minimization,
+Journal of Fourier Analysis and Applications, Vol. 14, pp. 877-905 (2008).
+Candes2006 [9] E. J. Cande?s, J. K. Romberg, and T. Tao, Stable signal recovery from incomplete and inaccurate
+measurements, Communications on Pure and Applied Mathematics, Vol. 59 issue 8, pp. 1207-
+1223 (2006).
+CT05 [10] E. J. Cande?s and T. Tao, Decoding by linear programming, IEEE Transactions on Information
+Theory, Vol 51, pp. 4203–4215 (2005).
+Chung2003 [11] F. R. K. Chung, L. Lu, and V. Vu. The spectra of random graphs with given expected degrees,
+Proceedings of the National Academy of Sciences, Vol. 100 issue 11, pp. 6313-6318 (2003).
+Chung1999 [12] F. R. K. Chung, Spectral graph theory, No. 92, American Mathematical Soc. (1997).
+Cline2007 [13] M. S. Cline, M. Smoot, E. Cerami, A. Kuchinsky, N. Landys, C. Workman, R. Christmas, I.
+Avila-Campilo, M. Creech, B. Gross et al., Integration of biological networks and gene expression
+data using cytoscape, Nature protocols, Vol. 2 issue 10, pp. 2366-2382 (2007).
+Dai2009 [14] W. Dai and O. Milenkovic, Subspace pursuit for compressive sensing signal reconstruction, IEEE
+Transactions on Information Theory, Vol. 55 issue 5, pp. 2230-2249 (2009).
+Dhillon2001 [15] I. S. Dhillon, Co-clustering documents and words using spectral graph partitioning, Proceed-
+ings of the seventh ACM SIGKDD International Conference on Knowledge Discovery and Data
+Mining, pp. 269-274 (2001).
+Dong2008 [16] W. Dong, X. Tang, Y. Yu, R. Nilsen, R. Kim, J. Griffith, J. Arnold and H-B. Schu?ttler, Systems
+biology of the clock in Neurospora crassa, PloS one, 3.8, e3105 (2008).
+37
+Donoho2003 [17] D. L. Donoho and M. Elad, Optimally sparse representation in general (nonorthogonal) dictio-
+naries via `1 minimization, Proceedings of the National Academy of Sciences, Vol. 100 issue 5,
+pp. 2197-2202 (2003).
+Erdos59 [18] P. Erdo?s and A. Re?nyi, On Random Graphs 1, Publicationes Mathematicae Debrecen, Vol. 6,
+pp. 290-297 (1959).
+Fiedler1975 [19] M. Fiedler, A property of eigenvectors of nonnegative symmetric matrices and its application
+to graph theory, Czechoslovak Mathematical Journal Vol 25.4, pp. 619-633 (1975).
+Fortunato2010 [20] S. Fortunato, Community detection in graphs, Physics reports, Vol. 486 issues 3-5 , pp. 75-174
+(2010).
+Foucart2013 [21] S. Foucart and H. Rauhut, A Mathematical Introduction to Compressive Sensing, Birka?us Verlag
+(2013).
+F11 [22] S. Foucart, Hard thresholding pursuit: an algorithm for compressive sensing, SIAM Journal on
+Numerical Analysis, Vol. 49 issue 6, pp. 2543-2563 (2011).
+FL09 [23] S. Foucart and M-J. Lai, Sparsest solutions of underdetermined linear Systems via `q-
+minimization for 0 ? q ? 1, Applied and Computational Harmonic Analysis, Vol. 26 issue
+3, pp. 395-407 (2009).
+Frey2007 [24] B. J. Frey and D. Dueck, Clustering by passing messages between data points, Science Vol. 315
+no. 5814, pp. 972-976 (2007).
+Frieze2016 [25] A. Frieze and M. Karon?ski, Introduction to Random Graphs, Cambridge University Press (2015).
+Hagen1992 [26] L. Hagen and A. B. Kahng, New spectral methods for ratio cut partitioning and clustering,
+IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems, Vol. 11 issue
+9, pp.1074-1085 (1992).
+Hajek2016 [27] B. Hajek, Y. Wu, and J. Xu, Achieving exact cluster recovery threshold via semidefinite pro-
+gramming, IEEE Transactions on Information Theory Vol. 62.5, pp. 2788-2797 (2016).
+Herman2010 [28] M. A. Herman and T. Strohmer, General deviants: An analysis of perturbations in compressed
+sensing, IEEE Journal on Selected Topics in Signal Processing, Vol. 4 issue 2, pp. 342-349 (2010).
+Holland1983 [29] P. W. Holland, K. B. Laskey, and S. Leinhardt, Stochastic block models: First steps, Social
+Networks, Vol. 5 issue 2, pp.109-137 (1983).
+Jain2010 [30] A. K. Jain, Data clustering: 50 years beyond K-means, Pattern Recognition Letters, Vol. 31
+issue 8, pp. 651-666 (2010).
+Kaufman1990 [31] L. Kaufman and P. J. Rousseeuw, Fitting Groups in Data. An Introduction to Cluster Analysis,
+Wiley, New York (1990).
+Krzakala2013 [32] F. Krzakala, C. Moore, E. Mossel, J. Neeman, A. Sly, L. Zdeborova? and P. Zhang, Spectral
+Redemption in clustering sparse networks Proceedings of the National Academy of Sciences,
+Vol. 110 no. 52, pp. 20935-20940 (2013).
+Le2015 [33] C. M. Le, E. Levina, and R. Vershynin, Sparse random graphs: regularization and concentration
+of the Laplacian, arXiv preprint arXiv:1502.03049 (2015).
+38
+Li2016 [34] H. Li, Improved analysis of SP and CoSaMP under total perturbations, EURASIP Journal on
+Advances in Signal Processing 2016, no. 1, pp. 112 (2016).
+Luxburg2007 [35] U. Von Luxburg, A tutorial on spectral clustering, Statistics and Computing, Vol. 17 issue 4,
+pp. 395-416 (2007).
+Montanari2015 [36] A. Montanari and S. Sen, Semidefinite programs on sparse random graphs, arXiv preprint
+arXiv:1504.05910 (2015).
+Nascimento2011 [37] M. C. V. Nascimento and A. De Carvalho, Spectral methods for graph clustering - A survey,
+European Journal of Operational Research, Vol. 211 issue 2, pp. 221-231 (2011).
+Needell2009 [38] D. Needell and J. A. Tropp, CoSaMP: Iterative signal recovery from incomplete and inaccurate
+samples, Applied and Computational Harmonic Analysis, Vol. 26 issue 3, pp. 301-321 (2009).
+Newman2006 [39] M. E. J. Newman, Modularity and community structure in networks, Proceedings of the National
+Academy of Sciences, Vol. 103 no. 23, pp 8577-8582 (2006).
+Newman2002 [40] M. E. J. Newman, D. J. Watts, and S. H. Strogatz, Random graph models of social networks,
+Proceedings of the National Academy of Sciences, Vol. 99 suppl. 1, pp. 2566-2572 (2002).
+Ng2001 [41] A. Y. Ng, M. I. Jordan, and Y. Weiss, On spectral clustering: analysis and an algorithm,
+Advances in Neural Information Processing Systems, pp. 849-856 (2002).
+Olhede2014 [42] S. C. Olhede and P. J. Wolfe, Network histograms and universality of block model approximation,
+arXiv preprint arXiv:312-5306v3 (2014).
+Shi2000 [43] J. Shi and J. Malik, Normalized cuts and image segmentation, IEEE Transactions on Pattern
+Analysis and Machine Intelligence, Vol. 22 issue 8, pp. 888-905 (2000).
+Thompson1972 [44] R. C. Thompson, Principal submatrices IX: Interlacing inequalities for singular values of sub-
+matrices, Linear Algebra and Its Applications, Vol. 5 issue 1, pp. 1-12 (1972).
+Tremblay2016 [45] N. Tremblay, G. Puy, R. Gribonval and P. Vandergheynst, Compressive spectral clustering,
+Machine Learning, Proceedings of the Thirty-third International Conference (ICML 2016), pp.
+20-22 (2016).
+Tropp2004 [46] J. A. Tropp, Greed is good: Algorithmic results for sparse approximation, IEEE Transactions
+on Information Theory, Vol. 50 issue 10, pp. 2231-2242 (2004).
+Zachary1977 [47] W. W. Zachary, An Information flow model for conflict and fission in small groups, Journal of
+Anthropological Research, Vol. 33 issue 4, pp. 452-473 (1977).
+39

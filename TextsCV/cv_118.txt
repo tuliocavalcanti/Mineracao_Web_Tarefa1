@@ -1,0 +1,894 @@
+Video Captioning with Guidance of Multimodal Latent Topics
+Shizhe Chen?
+Renmin University of China
+cszhe1@ruc.edu.cn
+Jia Chen*
+Carnegie Mellon University
+jiac@cs.cmu.edu
+Qin Jin†
+Renmin University of China
+qjin@ruc.edu.cn
+Alexander Hauptmann
+Carnegie Mellon University
+alex@cs.cmu.edu
+Abstract
+?e topic diversity of open-domain videos leads to various vocabu-
+laries and linguistic expressions in describing video contents, and
+therefore, makes the video captioning task even more challeng-
+ing. In this paper, we propose an uni?ed caption framework, M&M
+TGM, which mines multimodal topics in unsupervised fashion from
+data and guides the caption decoder with these topics. Compared to
+pre-de?ned topics, the mined multimodal topics are more semanti-
+cally and visually coherent and can re?ect the topic distribution of
+videos be?er. We formulate the topic-aware caption generation as a
+multi-task learning problem, in which we add a parallel task, topic
+prediction, in addition to the caption task. For the topic prediction
+task, we use the mined topics as the teacher to train a student topic
+prediction model, which learns to predict the latent topics from
+multimodal contents of videos. ?e topic prediction provides inter-
+mediate supervision to the learning process. As for the caption task,
+we propose a novel topic-aware decoder to generate more accurate
+and detailed video descriptions with the guidance from latent topics.
+?e entire learning procedure is end-to-end and it optimizes both
+tasks simultaneously. ?e results from extensive experiments con-
+ducted on the MSR-VTT and Youtube2Text datasets demonstrate
+the e?ectiveness of our proposed model. M&M TGM not only
+outperforms prior state-of-the-art methods on multiple evaluation
+metrics and on both benchmark datasets, but also achieves be?er
+generalization ability.
+Keywords
+Video Captioning; Multimodal; Latent Topics; Multi-task
+1 Introduction
+Videos have become increasingly popular on the Internet, for
+example, hundreds of hours of video contents are uploaded on
+YouTube every minute. It is impossible to watch these overwhelm-
+ing amounts of videos, therefore, automatic techniques to search
+and analyze video contents are highly desired. Generating natural
+language descriptions for video contents (a.k.a. video captioning) is
+one of such important techniques for this challenge. It can bene?t
+a wide range of applications such as assisting the visually impaired
+people and improving the quality of online video retrieval.
+Although there have been signi?cant breakthroughs recently in
+image captioning [9, 30, 41, 43, 44, 46], video captioning remains
+?contributed equally.
+†corresponding author.
+very challenging due to the diversity and complexity of video con-
+tents. ?e open-domain videos contain a broad range of topics,
+such as sports, music, food and so on, which results in very di?er-
+ent vocabularies and expression styles to describe video contents
+across topics. For example, sports terms frequently occur in the
+sports topic while the typical words in the food topic are about
+cooking and ingredients. ?e key contents in descriptions for the
+sports topic are o?en the action verbs, while they are object nouns
+for the food topic and descriptive adjectives for the people topic.
+?us, being aware of the topic information can dramatically narrow
+down general sentence distributions and enable the caption model
+to focus on the discriminative video contents under the topic, such
+as the detailed actions in the sports topic.
+However, most of the existing caption models ignore the topic
+information and mainly try to maximize the overall likelihood for
+videos in all topics, which have a tendency to seek the most com-
+mon mode in training sentences as indicated by Lee et al. [20]. Such
+models not only are prone to generate plain descriptions without
+details, but also unable to distinguish confusing concepts in a topic.
+Although a few works [8, 13, 33] have exploited the topic infor-
+mation for video description generation, there are still three main
+challenges in employing the topic information in video captioning.
+First, there are no direct topic representations in common video cap-
+tion datasets, so how can we construct and predict the latent topics
+of videos? Second, what is an e?ective and e?cient way to employ
+the latent topics to guide the caption model for generating topic-
+oriented descriptions? And third, how to train the topic-guided
+caption model to achieve optimal captioning performance?
+In this paper, we bring three innovations to deal with the above
+challenges. First, we propose a multimodal topic mining approach
+to discover latent video topics from video-sentence pairs. ?e mul-
+timodal latent topics are more semantically coherent and visually
+consistent than the expert-de?ned or textual latent topics in pre-
+vious work. We then use the teacher-student learning strategy
+to predict latent topics with multimodal video features. Second,
+in order to exploit the topic e?ectively, we propose a novel topic-
+aware language decoder, which implicitly functions as an ensemble
+of topic-speci?c decoders for each topic, but is computationally
+more e?cient and requires less training data. ?e predicted video
+topic automatically modi?es weights in the decoder, enabling to
+generate topic-oriented video descriptions. ?ird, to optimize the
+topic-guided caption performance, we develop a multi-task learning
+architecture to jointly train the caption system with the topic pre-
+diction loss and sentence generation loss in an end-to-end manner.
+ar
+X
+iv
+:1
+70
+8.
+09
+66
+7v
+2 
+ [
+cs
+.C
+V
+] 
+ 2
+ S
+ep
+ 2
+01
+7
+It can strengthen the coupling of the two parts to generate be?er
+latent topics and sentence descriptions simultaneously. ?e overall
+model is called M&M TGM (Topic-Guided Model with Multimodal
+latent topic guidance and Multi-task learning).
+?e main contributions of this paper are as follows:
+• We present an uni?ed framework M&M TGM for video caption-
+ing, which can automatically discover and predict the underlying
+video topics and exploit the topic guidance to generate be?er
+topic-oriented video descriptions. ?e topic prediction and topic-
+aware sentence generation can be trained jointly with multi-task
+learning end-to-end.
+• ?e proposed M&M TGM requires no additional labelling for
+video topics and can exploit the limited video caption data e?ec-
+tively. For the latent topic generation, we propose unsupervised
+multimodal topic mining for topic discovery and teacher-student
+learning for topic prediction. For the topic-oriented sentence
+generation, the topic-aware decoder shares data and parameters
+among di?erent topics which is e?cient in both computation
+and data.
+• Our proposed model is evaluated on two benchmark video cap-
+tion datasets: MSR-VTT [42] and Youtube2Text [11]. Both quan-
+titative and qualitative analysis show superior performances
+of using the multimodal latent topic guidance and multi-task
+learning strategy. ?e M&M TGM not only outperforms prior
+state-of-the-art methods, but also has be?er generalization abil-
+ity.
+?e rest of the paper is organized as follows: Section 2 introduces
+the related work. Section 3 presents the problem formulation. ?e
+solution for M&M TGM is described in Section 4. Section 5 presents
+experimental results and analysis. Section 6 concludes the paper.
+2 Related Work
+Image Captioning has a?racted growing interests recently.
+Early works are mainly based on rule systems [17, 19] and suf-
+fer from generating ?exible and accurate descriptions. So more
+researches have been focusing on the encoder-decoder framework
+[2, 35] for caption generation. ?e deep convolutional neural net-
+works (CNNs) [36] function as the encoder to transform image con-
+tents into dense vectors. ?en the decoder, typically the Long-short
+Term Memory [12] (LSTM), is utilized to generate sequential words
+conditioned on image features [41]. Xu et al. [43] propose the spa-
+tial a?ention mechanism based on the basic encoder-decoder. You
+et al. [46] and Gan et al. [9] propose the semantic a?ention model
+and semantic compositional networks (SCN) respectively to ex-
+ploit detected concepts from the image. Our topic-aware language
+decoder is inspired by SCN but with di?erent aims of producing
+topic-oriented video descriptions, which is more suitable for video
+captioning task as shown in Section 5.4.
+Video Captioning is more challenging compared with image
+captioning due to the temporal dynamics, multiple modalities, and
+more diverse contents in videos. Yao et al. [45] propose the tempo-
+ral a?ention mechanism, and Pan et al. [25] utilize the hierarchical
+LSTM encoder to explore the temporal structures. Most previous
+works only focus on the visual modality [26, 40], but recently Jin
+et al. [13, 14] and Ramanishka et al. [29] have shown improvement
+of multimodal fusion for video captioning. To promote the video
+captioning research for open-domain videos, several large-scale
+videos with various topic are collected such as MSR-VTT [42] and
+TGIF [22]. Jin et al. [13] encode expert-de?ned topics with mul-
+timodal features, which results in their winning of the MSR-VTT
+challenge [31]. Dong et al. [8] utilize the textual mined topics to
+learn interpretable features. Shen et al. [33] train separate language
+decoders for each expert-de?ned topic. Chen et al. [4] explore
+the guidance from textual minded topics to generate topic-aware
+sentences. In our work, we address the topic diversity challenge
+in open-domain videos and propose the novel M&M TGM model
+to jointly generate the latent video topics and topic-oriented video
+descriptions with multimodal features in a multi-task framework.
+Latent Topic Mining has been a long-standing problem. ?e
+latent Dirichlet allocation (LDA) proposed by Blei [3] is one of the
+most classic models to automatically inference the latent topics
+for textual documents. Doersch et al. [7] utilize a discriminative
+clustering approach to discover the visual topics. For multimodal
+data, Li et al. [21] apply the association rule mining algorithm
+on image-caption pairs to discover the multimodal topics. In our
+work, we take the multimodal topic mining perspective on video-
+sentence pairs by a weighted multimodal clustering method to
+obtain semantically coherent and visually consistent latent topics.
+3 Problem Formulation
+Our goal is to leverage the underlying video topic information
+to make the model more pro?cient in using vocabularies and ex-
+pressions within the topic when describing a video.
+Suppose we have a videoV along with a set ofNd textual descrip-
+tions Y = {y1, y2, ..., yNd }. Each y ? Y is a sentence with Ns words,
+denoted as y = {w1,w2, ...,wNs }, where w is a word from vocabu-
+lary W. We encode the video contentV into a ?xed-dimensional
+video representation x. Conditioned on the multimodal video rep-
+resentation x, a caption decoder aims to generate the sentence y
+with probability
+Pr(y|x) =
+Ns?
+t=1
+Pr(wt |x,w<t ) (1)
+where w<t denotes the sequential words before the time step t .
+We abbreviate this as conditional sentence probability. We use RNN
+as decoder and parameterize the probability Pr(wt |x,w<t ) by the
+recurrent units shared across time steps, which can be expressed
+as: [
+Pr(wt |x,w<t ;?d )
+ht
+]
+= ?d (ht?1,wt?1;?d ) (2)
+where ?d is the recurrent unit function, ?d are the parameters
+of the recurrent unit and ht is the hidden state of the recurrent
+unit at time step t . We de?ne w0 as the start token and h0 as the
+initialized hidden state. For notation simplicity, we abbreviate eq
+(2) to Pr(wt |x,w<t ;?d ) = ?d (ht?1,wt?1;?d ). Substituting this
+abbreviation to eq (1), we get:
+Pr(y|x;?d ) =
+Ns?
+t=1
+?d (ht?1,wt?1;?d ) (3)
+As mentioned earlier, videos in di?erent topics have quite di?er-
+ent vocabularies and expression styles in their video descriptions,
+and di?erent topics can coexist in one video. Based on this observa-
+tion, we introduce the latent topic variables {zi }i=1, ...,K , where K
+is the number of topics. ?en the conditional sentence probability,
+Pr(y|x) is actually the marginal probability of the joint sentence
+and topic distribution conditioned on video content:
+Pr(y |x) =
+?
+z1, . . .,zK
+Pr(y, z1, . . . , zK |x)
+=
+?
+z1, . . .,zK
+Pr(y |z1, . . . , zK , x)?                   ??                   ?
+topic-aware
+sentence distribution
+Pr(z1, . . . , zK |x)?                ??                ?
+latent topic
+distribution
+(4)
+In the second step of eq (4), we factorize the joint distribution to
+latent topic distribution and topic-aware sentence distribution.
+We come to parameterize the probability in eq (4). For latent topic
+distribution, we parameterize it by topic predictor ?z as follows:
+Pr(z1, . . . , zK |x) = ?z (x;?z ) (5)
+where ?z are parameters in the topic predictor. To parameterize
+the topic-aware sentence distribution by RNN, we need to intro-
+duce the topic-related parameter ??z in addition to ?d in eq (3) as
+now the probability we are modelling is also conditioned on topics
+z1, . . . , zK :
+Pr(y |z1, . . . , zK , x;?d , ??z ) =
+Ns?
+t=1
+Pr(wt |w<t , x, z1, . . . , zK ;?d , ??z )
+=
+Ns?
+t=1
+?d (ht?1, wt?1, z1, . . . , zK ;?d , ??z ) (6)
+Pu?ing all these together, we get the parameterization for topic-
+aware conditional sentence probability as:
+Pr(y |x) = Pr(y |x;?d , ??z, ?z )
+=
+?
+z1, . . .,zK
+?z (x;?z )
+Ns?
+t=1
+?d (ht?1, wt?1, z1, . . . , zK ;?d , ??z )
+(7)
+Contrasting with conditional sentence probability parameterization
+in eq (3), we see that we have additional parameters ?z for topic
+prediction and ?d ,??z for topic-aware sentence modelling in the
+parameterization of topic-aware conditional sentence probability.
+?e standard loss function for caption generation task is to max-
+imize the log probability of the conditional sentence probability:
+Lcaption (y, y?) = ?
+Ns?
+t=1
+?
+w?t ?W
+?wt ,w?t log Pr(w?t |x, w<t ;?d ) (8)
+where ?wt ,w?t is the indicator function. We could directly use this
+loss to train our topic-aware parameterized model in eq (4) as it
+is a special form of the general conditional sentence probability.
+However in training, it requires large amount of data for the model
+to discover latent topics from scratch and to learn topic-aware
+sentence distribution simultaneously. ?e training data of caption
+task is limited, and as the labelling cost of such training data is very
+high, the amount of the training data is not likely to grow very fast
+in the near future. To solve this problem, we introduce an auxiliary
+task, topic prediction, to guide the caption task. In this task, we
+leverage the existing topic mining approaches to generate a set
+of topics as the teacher topics z. ?e details of the topic mining
+approach are given in Section 4.2. We use the teacher topics to
+guide the latent topic learning by an additional topic loss function
+Ltopic (z, z?) on the topic predictor ?t (x;?z ), which penalizes the
+latent topic predictions that are far away from the teacher z. ?e
+details ofdist function in Ltopic (z, z?)will be discussed in section 4.1.
+?e two losses are combined by the trading o? hyper-parameter
+Figure 1: Framework of M&M TGM. ?e green boxes are in-
+puts; blue boxes are modules; gray boxes are outputs; red
+boxes are loss functions. ?e topic mining module is only
+used in the training stage while other modules are used in
+both training and testing.
+? ? [0, 1):
+L(y, z, y?, z?) = (1 ? ?)Lcaption (y, y?) + ?Ltopic (z, z?) (9)
+Lcaption (y, y?) = ?
+Ns?
+t=1
+?
+w?t ?W
+?wt ,w?t log Pr(w?t |x, w<t ;?d , ??z, ?z )
+(10)
+Ltopic (z, z?) = dist (z, z?) (11)
+In this way, we weave the video latent topics into video description
+generation as guidance.
+4 M&M Topic-Guided Model
+In this section, we present our solutions for the topic-guided
+video captioning. Figure 1 illustrates the overall framework. Our
+proposed M&M TGM consists of three components: topic mining,
+topic predictor and topic-aware decoder, which is optimized by
+multi-task training. We will ?rst present the overall multi-task
+training scheme and then introduce the three modules in details.
+4.1 Multi-task Training Scheme
+It is intractable to integrate the topic-aware conditional sentence
+probability in eq (7) over the latent topic space. But since the latent
+topic is highly dependent on the video content, usually the latent
+topic distributions of the video could be very skew with massive
+likelihood on the peak point. ?erefore, it is reasonable that we use
+the maximum latent topic likelihood to approximate the summation
+over the latent topic space to gain e?ciency without losing much
+accuracy. ?e approximation for eq (7) is as follows:
+Pr(y|x) =
+?
+z1, ...,zK
+Pr(y|z1, . . . , zK , x)Pr(z1, . . . , zK |x) (12)
+? Pr(y|z1 = z?1, . . . , zK = z?K , x)Pr(z1 = z?1, . . . , zK = z?K |x)
+where z?1, . . . , ˜zK = arg maxz1, ...,zK Pr(z1, . . . , zK |x). Our experi-
+ments show such approximation leads us to good results.
+(a) (b)
+Figure 2: (a) Expert-de?ned topic schema on the YouTube
+website. (b) An example video in MSR-VTT dataset with its
+top frequent caption words.
+?e multi-task training scheme is conducted as follows:
+1. We ?rst pretrain the topic predictor using the topic loss
+Ltopic , and use it to initialize ?z in the M&M TGM (as shown
+in eq (7)). For the dist in topic loss, we choose two widely used
+distances: l2-distance l2(z, z?) =? z ? z? ?22 and KL-divergence
+KL(z, z?) = ?Kk=1 z?k lo?(z?k/zk ).
+2. We then pretrain the topic-aware decoder using the caption
+loss Lcaption (as shown in eq (10)) with the topic guidance from
+the ?xed topic predictor in the above step, and use it as a good
+initialization for ??z and ?d in the M&M TGM (as shown in eq (7)).
+3. Finally, based on the parameters initialization in the above
+two steps, we use the multi-task loss L(y, z, y?, z?) (as shown in eq (9))
+to further train both models jointly, which ?ne-tunes all the param-
+eters ?z , ??z and ?d to optimize the caption performance.
+4.2 Topic Mining and Prediction
+We ?rst brie?y present two topic structures adopted in previ-
+ous works, and then propose our multimodal latent topic mining
+approach and the topic prediction model.
+Expert-de?ned Topics: ?e online video websites o?en pro-
+vide an expert-de?ned topic schema as shown in Figure 2(a). Video
+uploaders can select one of the topics to be?er organize their videos.
+Such topics can re?ect the topic variety to some extent, but have
+the following drawbacks: 1) ?e user assigned labels are noisy with
+labelling mistakes; 2) ?e topic distributions are exclusive which
+ignores the topic diversity inside the video; and 3) ?ere might exist
+di?erent semantic meanings and visual appearances within a topic,
+which is suboptimal as latent topics.
+Textual Latent Topics: ?e annotated descriptions in video
+caption datasets provide rich and accurate information about the
+video content, which can also re?ect more appropriate latent topic
+distributions. ?us, our previous work [4] mined topics from the
+annotated video captions on the training set. ?e main idea is to
+cluster the video captions and each cluster can represent a latent
+topic. We use the kernel K-means algorithm [6] for clustering. We
+group all the groundtruth captions of a video as one data sample.
+Stopwords are removed and the bag-of-words are used as our text
+features. ?e cosine kernel is adopted to generate nonlinear cluster
+separations. Since a video might contain several topics, we utilize
+the so? assignment according to the distance between samples and
+clusters to generate topic distributions.
+Multimodal Latent Topics: Although the textual latent topics
+may be?er ?t with the videos’ underlying topic distributions, the
+mined topics purely based on textual data still su?er from the
+following problems:
+1) Polysemy phenomena: Words can convey several di?erent
+meanings, which might lead to improper assignment of the video.
+As shown in Figure 2(b), the most frequent word court can either
+mean tribunal or sports ?eld, so the video could mistakenly peak
+at some sports related topics.
+2) Certain messy clusters: ?e unsupervised clustering method
+cannot perfectly generate meaningful latent topics, which could
+produce some semantically unclear topics with dissimilar visual
+appearances. ?is brings great harm for the topic prediction model
+to learn from those messy topics.
+To address these issues, we further propose to combine the de-
+scription texts and visual features to learn the multimodal latent
+topic representation. ?e textual features are preprocessed in the
+same way as in textual latent topics and the visual features are
+elaborated in Section 5.2. We use the weighted kernel K-means
+algorithm to fuse the textual and visual features with weights of 1
+and 0.2 respectively, because we consider the textual features are
+more accurate than the visual features to unveil an eligible latent
+topic structure.
+Topic Predictor: We take the teacher-student perspective [1]
+to train the topic predictor?z . ?e distributions of the above mined
+latent topics serve as the teacher z to guide the?z to generate latent
+topic predictions with the topic prediction loss Ltopic . In this work,
+we adopt a two-layer perception as the topic predictor based on
+inputs of multimodal video featuresm1,m2,m3:
+?z (x;?z ) = so f tmax(W2(?(W1[m1;m2;m3] + b1) + b2) (13)
+whereWi ,bi (i = 1, 2) are parameters, [·] denotes feature concate-
+nation and ? is the RELU nonlinear function [10].
+4.3 Topic-aware Decoder
+In this section, we ?rst brie?y introduce the standard LSTM, and
+then describe our proposed topic-aware decoder based on the LSTM
+model to employ the topic guidance during sentence generation.
+?e LSTM model addresses the vanishing gradients problem in
+traditional RNN by employing a memory cell and three gates to
+control the information ?ow in the network. ?e formulas of the
+LSTM cell?d (ht ,wt ;?d ) at timestep t are given below:
+input ?ate : it = ? (Wiwwt +Uihhhiddent?1 + bi ) (14)
+f or?et ?ate : ft = ? (Wf wwt +Uf hhhiddent?1 + bf ) (15)
+output ?ate : ot = ? (Wowwt +Uohhhiddent?1 + bo ) (16)
+cell input : ?t = ?(W?wwt +U?hhhiddent?1 + b?) (17)
+cell state : hcellt = it  ?t + ft  hcellt?1 (18)
+cell output : hhiddent = ot  ?(hcellt ) (19)
+wherehhiddent is the hidden state,hcellt is the cell state, ? is sigmoid
+function, ? is tanh function,  denotes element-wise production,
+and ?d = {W?w ,U?h ,b?} are parameters.
+Recall that in Section 3, when we use LSTM cell to parameter-
+ize Pr(y|z1, . . . , zK , x), we need to change the LSTM cell function
+to?d (wt ,ht , z1, . . . , zK ;?d ,??z ) to employ the topic dependency.
+Inspired by Gan et al. [9], we extend each weight matrix of the
+conventional LSTM to be an ensemble of a set of topic-dependent
+weight matrices.
+Let us take one of the input gate weight matricesWiw as an ex-
+ample, and transformation for other parameters in LSTM model are
+alike. We de?ne the ensemble 3D weight matrix Wi? ? Rnh×nw×K ,
+where nh is the number of hidden units and nw is the dimension
+of input vectors. Wi? [k] denotes the k-th slice of Wi? , which
+represents the 2D weight matrix belonging to the LSTM model
+for the k-th topic. ?erefore, we explicitly specify K language de-
+coders, which is, for each topic there is a pair of topic-speci?c LSTM
+weights. Given the latent topic z?, we can de?ne the mixture topic
+LSTM weight matrix Wi (z?) ? Rnh×nw as
+Wi (z?) =
+K?
+k=1
+z?kWi? [k] (20)
+where z?k is the k-th topic in z?. When z? is not the exclusive one-hot
+topic distribution, the video data is shared among di?erent topics.
+However, the parameters still grow linearly with the number of
+topics K and no parameters are shared among di?erent video topics
+which can easily result in over-??ing. So the 3-way factorization
+method [16, 24] is used to share parameters. We re-represent Wi?
+in terms of three matrices Wia ? Rnh×nf , Wib ? Rnf ×K and
+Wic ? Rnf ×nw , where nf is the number of factors, such that
+Wi (z) =Wia · dia?(Wib z?) ·Wic (21)
+Wia and Wic are shared among all topics, while Wib can be viewed
+as the latent vectors of topics.
+?erefore, the transformation from input vectors to input gates
+is changed from Wiw · wt to Wia · (Wib z?  Wicwt ). ?e topic
+distribution z? a?ects the LSTM parameters associated to the video
+when decoding, which implicitly works as an ensemble of K topic-
+aware language decoders.
+5 Experiments
+5.1 Datasets
+To validate the e?ectiveness, robustness and generalization of
+our proposed methods, we conduct extensive experiments on two
+benchmark video captioning datasets: MSR-VTT [42] and Youtube2Text
+[11].
+MSR-VTT: ?e MSR-VTT corpus [42] is currently the largest
+open-domain video captioning dataset with a wide variety of video
+topics. It consists of 10,000 video clips with 20 human annotated
+captions per clip. Each clip also contains a noisy expert-de?ned
+topic label crawled from YouTube, the distribution of which is
+shown in Figure 3. Following the standard data split in the MM2016
+challenge [31], we use 6,513 videos for training, 497 videos for
+validation and the remained 2,990 for testing.
+Youtube2Text: ?e Youtube2Text corpus [11] contains 1970
+Youtube video clips with around 40 human annotated sentences
+per clip. For fair comparison, we crawl the expert-de?ned topics
+from YouTube for the whole dataset as shown in Figure 3, which
+are also noisy. We adopt the same data splits as provided in Yao
+et al. [45], with 1,200 videos for training, 100 videos for validation
+and 670 videos for testing.
+Description Preprocessing: We convert all descriptions to
+lower case and remove all punctuations. We add begin-of-sentence
+Figure 3: ?e distribution of noisy expert-de?ned topics in
+MSR-VTT and Youtube2Text datasets.
+tag <BOS> and end-of-sentence tag <EOS> to our vocabulary. We
+preserve words that appear more than twice for MSR-VTT, resulting
+in a vocabulary size of 10,868, and words that appear more than
+once for Youtube2Text, resulting in a vocabulary size of 7,245.
+5.2 Implementation Details
+Multi-modality Features: We extract features from image, mo-
+tion and aural modalities. For image features, we extract activations
+from the penultimate layer of the inception-resnet [36] pre-trained
+on the ImageNet, the dimensionality of which is 1,536. For motion
+features, we extract activations from the last 3D convolution layer
+of the C3D model [37] pre-trained on the Sports-1M dataset. We
+perform max-pooling on the spatial dimension (width and height),
+resulting in 512 dimensional features. For aural features, We ex-
+tract the Mel-Frequency Cepstral Coe?cients (MFCCs) [5] and use
+Bag-of-Audio-Words [27] and Fisher Vector [32] encoding methods
+to generate video-level features, with dimensionality of 1,024 and
+624 respectively. We simply pad zeros for videos without the sound
+track.
+Training Settings: We empirically set the hidden layer of the
+topic prediction model with 512 units. ?e dimension of the LSTM
+hidden size is set to be 512. ?e output weights to predict the words
+are the transpose of the input word embedding matrix. We apply
+dropout with rate of 0.5 on the input and output of LSTM and use
+ADAM algorithm [15] with learning rate of 10?4. Beam search
+with beam width of 5 is used to generate sentences during testing
+process.
+Evaluation Metrics: We evaluate the caption results compre-
+hensively on all major metrics, including BLEU [28], METEOR [18],
+ROUGE-L [23] and CIDEr [38].
+5.3 Evaluation of M&M TGM
+In this subsection, we introduce two baselines to show the ef-
+fectiveness of topic guidance and our multi-task learning for video
+captioning. ?e ?rst baseline, Vanilla, consists of the multimodal en-
+coder and the standard LSTM decoder. ?is baseline doesn’t involve
+any topic information. ?e second baseline is TGM, a trimmed ver-
+sion of our M&M TGM. We discard the multi-task joint optimization
+step (last step) in section 4.1.
+To evaluate the e?ectiveness of topic guidance, we compare
+the caption performance of the Vanilla and TGMs using di?erent
+latent topic guidance in Table 1. ?e numbers of textual and multi-
+modal latent topics are optimized on the validation set (50 topics
+for MSR-VTT and 5 topics for Youtube2Text). We can see that
+TGMs outperform Vanilla model consistently on all four metrics
+Table 1: Caption performance comparison betweenVanilla (no topic guidance) and TGM (using di?erent latent topic guidance)
+on the MSR-VTT and Youtube2Text datasets. ?e best results are marked in bold and the second best results with underline.
+model topic guidance MSR-VTT Youtube2Text
+BLEU4 METEOR ROUGEl CIDEr BLEU4 METEOR ROUGEl CIDEr
+Vanilla no topic 42.23 28.68 61.44 46.06 46.05 32.97 69.94 72.12
+TGM
+pred expert-de?ned topic 42.36 28.51 61.57 46.37 47.42 33.51 69.61 77.36
+pred textual latent topic 43.38 29.08 62.11 48.38 47.45 34.11 70.59 79.45
+pred multimodal latent topic 43.81 29.26 62.13 48.50 47.56 34.21 70.45 79.57
+assigned expert-de?ned topic 42.75 29.07 61.77 48.59 46.47 32.99 69.20 74.24
+Table 2: Caption performance of TGM (single-task learn-
+ing) and M&M TGM (multi-task learning) on MSR-VTT and
+Youtube2Text datasets.
+dataset model BLEU4 METEOR CIDEr
+MSR-
+VTT
+TGM 43.81 29.26 48.50
+M&M TGM 44.33 29.37 49.26
+Youtube
+2Text
+TGM 47.56 34.21 79.57
+M&M TGM 48.76 34.36 80.45
+across MSR-VTT and Youtube2Text datasets, which demonstrates
+that exploiting topic information is bene?cial to generate video
+descriptions.
+?e ?rst three rows in the TGM block in Table 1 shows a fair
+comparison of the impact from di?erent predicted latent topics on
+caption performance. We can see that the automatically mined top-
+ics (both textual and multimodal latent topics), outperform expert-
+de?ned topics by a large margin on all four metrics and two datasets,
+such as over 2% absolute gain on the CIDEr score. ?e multimodal
+latent topics further achieve be?er performance than textual la-
+tent topics consistently on multiple metrics across datasets. ?e
+improvement is also proved to be signi?cant in the Student’s t-test
+such as p-value of 0.03 on the BLEU@4 score. ?ese results sug-
+gest that the multimodal topic mining approach can discover be?er
+underlying topics as guidance for TGM, and such improvement is
+prominent and robust for di?erent evaluation metrics and datasets.
+Since video uploaders can manually assign expert-de?ned topic
+labels on online websites, we also compare our automatically pre-
+dicted multimodal latent topics with the user assigned expert-
+de?ned topics in the last two rows of Table 1. However, the assigned
+expert-de?ned topics are very noisy, because the annotations are
+labelled on the entire videos but the caption generation is only ap-
+plied on the short segments and the users may also make labelling
+mistakes. For almost all metrics, the performances of our predicted
+latent topics are superior to the noisy assigned expert-de?ned top-
+ics on both MSR-VTT and Youtube2Text datasets, which shows that
+the latent topics learned in an unsupervised approach are compet-
+itive or even be?er than the assigned expert-de?ned topics with
+noise.
+To validate the in?uence of joint training strategy, we compare
+the caption performance of TGM and M&M TGM. As shown in
+Table 2, M&M TGM consistently improves TGM on all datasets and
+metrics, with signi?cance p-value < 0.05 for di?erent metrics in
+Student’s t-test, which proves the bene?ts brought by the multi-task
+learning.
+Table 3: Caption performance of M&M TGM and state-of-
+the-art methods on MSR-VTT and Youtube2Text datasets.
+dataset model BLEU4 METEOR CIDEr
+MSR-
+VTT
+M&M TGM 44.33 29.37 49.26
+Aalto [34] 39.80 26.90 45.70
+v2t navigator [13] 40.80 28.20 44.80
+dense caption [33] 41.40 28.30 48.90
+Youtube
+2Text
+M&M TGM 48.76 34.36 80.45
+LSTM-YT [40] 33.30 29.10 -
+S2VT [39] - 29.80 -
+LSTM-I [8] 44.60 31.10 -
+SA [45] 41.92 29.60 51.67
+LSTM-E [26] 45.30 31.00 -
+h-RNN decoder [47] 49.90 32.60 65.80
+h-RNN encoder [25] 43.80 33.10 -
+SCN-LSTM [9] 50.20 33.40 77.70
+5.4 Comparison with the State-of-the-art
+Table 3 presents our M&M TGM with several state-of-the-art
+methods applied on the two video caption datasets. Our method
+achieves signi?cant be?er performance than prior works on MSR-
+VTT dataset, for example, the BLEU@4 achieves 7.08% relative im-
+provement than the previous best performance. For Youtube2Text
+dataset, the METEOR and CIDERr scores improved signi?cantly
+but our performance on BLEU@4 is lower than the SCN-LSTM.
+?e BLEU@4 metric focuses on the syntactic agreement, while ME-
+TEOR and CIDEr concern more about semantic meanings. ?ere-
+fore, we consider the sentence generated from M&M TGM are more
+semantically relevant with the video content.
+To be noted, the semantic concepts used in SCN-LSTM are
+trained with additional image data because they claim Youtube2Text
+corpus is too small to train reliable concept classi?ers, but our M&M
+TGM is purely trained on Youtube2Text for latent topic prediction
+and sentence generation. Hence, we argue that for video captioning,
+the guidance from latent topics might be superior than detected
+semantic concepts for the following reasons: 1) videos contain more
+objects than images but many might be irrelevant to the description;
+2) topics contain additional information besides concepts such as
+actions from motion modality and words from speech modality;
+and 3) the prediction accuracy is important for the decoder and
+topics are easier to be classi?ed than concepts.
+winner of the MM16 VTT challenge.
+Table 4: Comparison of generalization ability of the vanilla
+model and our proposed M&M TGM model. ?e models
+are trained on MSR-VTT training set and evaluated on the
+Youtube2Text testing set.
+BLEU4 METEOR ROUGEl CIDEr
+Vanilla 32.92 30.16 62.51 51.02
+M&M TGM 34.67 30.68 63.68 55.39
+Table 5: Caption performance comparison of di?erent topic
+prediction losses.
+dataset loss BLEU4 METEOR ROUGEl CIDEr
+MSR-
+VTT
+l2 43.81 29.26 62.13 48.50
+KL 43.40 29.11 62.01 48.64
+Youtube
+2Text
+l2 47.56 34.21 70.45 79.57
+KL 45.98 33.65 69.76 78.06
+(a) MSR-VTT (b) Youtube2Text
+Figure 4: CIDEr scores with number of topics on (a) MSR-
+VTT and (b) Youtube2Text datasets.
+5.5 Experimental Analysis
+Generalization Ability: To evaluate the generalization ability
+of our proposed method, we conduct the cross dataset experiment.
+We train M&M TGM on MSR-VTT dataset and test its performance
+on the Youtube2Text dataset. Results are presented in Table 4. We
+can see that the proposed M&M TGM works signi?cantly be?er
+than Vanilla model for cross datasets evaluation on all four metrics,
+which demonstrates that our method not only can improve the
+caption performance for in-domain videos but also generalize well
+on videos in the wild.
+Topic Loss Selection: We compare the caption performance
+using l2-distance or KL-divergence as Ltopic in the TGM model.
+Table 5 presents the results. ?e l2-distance consistently surpasses
+the KL-divergence across datasets and metrics. So unless otherwise
+speci?ed, we use l2-distance as the topic prediction loss.
+?eNumber of Topics K : We also explore di?erent number of
+topics on each dataset and the results are shown in Figure 4. ?e
+best number of topics for MSR-VTT is 50 and for Youtube2Text is 5,
+which shows that the more diverse the dataset is, the more amount
+of topics is required.
+?eMulti-task Parameter ?: Since caption generation is our
+main goal, we consider that the weight on topic prediction loss
+should not surpass the weight on caption generation loss. ?erefore,
+we search the best multi-task hyper parameter ?1?? in range [0.1, 1]
+with step of 0.1. To save space, we present the sum of all the metrics
+in Figure 5 and the trends are similar for di?erent metrics. ?e multi-
+task learning with di?erent ? > 0 all achieves be?er performance
+(a) MSR-VTT (b) Youtube2Text
+Figure 5: ?e caption performance (sum of all metrics) with
+di?erent multi-task hyper-parameter ?.
+Figure 6: Examples onMSR-VTT testing set. M&MTGM can
+generate more accurate descriptions than Vanilla model.
+than single-task learning (? = 0), which proves the robustness of
+our multi-task training with respect to the hyper-parameter.
+5.6 ?alitative Analysis
+To gain an intuition of the improvement on generated video
+descriptions from M&M TGM model, we present some video exam-
+ples with the video description from Vanilla model and M&M TGM
+on testing set of MSR-VTT.
+In Figure 6, we can see that M&M TGM can generate more accu-
+rate video descriptions than Vanilla model even though they utilize
+the same multimodal features. In Figure 7, though the descriptions
+from Vanilla and M&M TGM are both correct, M&M TGM model
+can produce more detailed information about the video contents.
+We also observe that M&M TGM employs more unique words with
+493 compared to the 391 unique words in Vanilla model.
+?e reason behind these quality improvements could be that
+M&M TGM can narrow down the sentence generation space ac-
+cording to the predicted latent topics. ?is enables the model to
+focus on subtler di?erences between similar concepts such as the
+soccer and rugby sports in the upper row of Figure 6, and cover
+more detailed descriptions under the topic such as making airplane
+vs. folding paper in the upper row of Figure 7 with more specialized
+words.
+5.7 Human Interaction in Captioning
+Besides the improvement on the caption performance, our topic-
+guided model can provide an interface for users to be involved in
+the caption generation. For example, users could simply assign
+a category tag to the uploaded videos with minimum costs to re-
+?ne the automatic generated video descriptions. To evaluate the
+Figure 7: Examples onMSR-VTT testing set. M&MTGM can
+generate more detailed descriptions than Vanilla model.
+Table 6: ?e in?uence of human interactions on
+Youtube2Text dataset with noisy and clean expert-de?ned
+topics assignment.
+BLEU4 METEOR ROUGEl CIDEr
+noisy topic 46.47 32.99 69.20 74.24
+clean topic 49.35 35.10 71.14 82.79
+performance boosts with the human enhancement to our topic-
+guided model, we manually re-annotate the expert-de?ned topics
+for Youtub2Text dataset as the clean version and compare its cap-
+tion performance with the noisy assigned topics. Results are shown
+in Table 6 which demonstrates that a huge gain can be achieved
+with the manual correction of the topics in low cost.
+6 Conclusions
+In this paper, we propose a novel topic-guided caption model to
+address the topic diversity challenge for open-domain video cap-
+tioning task. ?e proposed model can predict the latent topics of
+videos and then generate topic-oriented video descriptions with
+the topic guidance jointly in an end-to-end manner. We utilize
+the multimodal topic mining approach to construct video topics
+automatically and take a teacher-student learning perspective to
+predict the latent topics purely from video multimodal contents.
+?e topic-aware decoder can exploit the predicted topics to ad-
+just its weights to ?t the topic-dependent sentence distributions.
+Our experimental results on two public video caption benchmark
+datasets show that the proposed model can generate more accurate
+and detailed descriptions within di?erent topics and improves the
+performance consistently on all metrics on both datasets. Further-
+more, we show that our model has very good generalization ability
+across datasets. ?e proposed topic-guided caption model can be
+considered as a generic framework, which could be integrated with
+other techniques such as temporal a?ention or hierarchical video
+encoder. We will study such integration in the future.
+7 Acknowledgments
+?is work is supported by National Key Research and Develop-
+ment Plan under Grant No. 2016YFB1001202.
+References
+[1] Jimmy Ba and Rich Caruana. 2014. Do deep nets really need to be deep?. In NIPS.
+2654–2662.
+[2] Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Bengio. 2014. Neural ma-
+chine translation by jointly learning to align and translate. arXiv preprint
+arXiv:1409.0473 (2014).
+[3] David M Blei, Andrew Y Ng, and Michael I Jordan. 2003. Latent dirichlet alloca-
+tion. Journal of machine Learning research 3, Jan (2003), 993–1022.
+[4] Shizhe Chen, Jia Chen, and Qin Jin. 2017. Generating Video Descriptions with
+Topic Guidance. In ICMR. 5–13.
+[5] Steven Davis and Paul Mermelstein. 1980. Comparison of parametric representa-
+tions for monosyllabic word recognition in continuously spoken sentences. IEEE
+transactions on acoustics, speech, and signal processing 28, 4 (1980), 357–366.
+[6] Inderjit S Dhillon, Yuqiang Guan, and Brian Kulis. 2004. Kernel k-means: spec-
+tral clustering and normalized cuts. In Proceedings of the tenth ACM SIGKDD
+international conference on Knowledge discovery and data mining. ACM, 551–556.
+[7] Carl Doersch, Saurabh Singh, Abhinav Gupta, Josef Sivic, and Alexei Efros. 2012.
+What makes paris look like paris? ACM Transactions on Graphics 31, 4 (2012).
+[8] Yinpeng Dong, Hang Su, Jun Zhu, and Bo Zhang. 2017. Improving Inter-
+pretability of Deep Neural Networks with Semantic Information. arXiv preprint
+arXiv:1703.04096 (2017).
+[9] Zhe Gan, Chuang Gan, Xiaodong He, Yunchen Pu, Kenneth Tran, Jianfeng Gao,
+Lawrence Carin, and Li Deng. 2016. Semantic Compositional Networks for Visual
+Captioning. arXiv preprint arXiv:1611.08002 (2016).
+[10] Xavier Glorot, Antoine Bordes, and Yoshua Bengio. 2011. Deep Sparse Recti?er
+Neural Networks.. In Aistats, Vol. 15. 275.
+[11] Sergio Guadarrama, Niveda Krishnamoorthy, Girish Malkarnenkar, Subhashini
+Venugopalan, Raymond Mooney, Trevor Darrell, and Kate Saenko. 2013.
+Youtube2text: Recognizing and describing arbitrary activities using semantic
+hierarchies and zero-shot recognition. In ICCV. 2712–2719.
+[12] Sepp Hochreiter and Ju?rgen Schmidhuber. 1997. Long short-term memory. Neural
+computation 9, 8 (1997), 1735–1780.
+[13] Qin Jin, Jia Chen, Shizhe Chen, Yifan Xiong, and Alexander Hauptmann. 2016.
+Describing Videos using Multi-modal Fusion. In Proceedings of the 2016 ACM on
+Multimedia Conference. ACM, 1087–1091.
+[14] Qin Jin and Junwei Liang. 2016. Video description generation using audio
+and visual cues. In Proceedings of the 2016 ACM on International Conference on
+Multimedia Retrieval. ACM, 239–242.
+[15] Diederik Kingma and Jimmy Ba. 2014. Adam: A method for stochastic optimiza-
+tion. arXiv preprint arXiv:1412.6980 (2014).
+[16] Alex Krizhevsky, Geo?rey E Hinton, and others. 2010. Factored 3-way restricted
+boltzmann machines for modeling natural images. In International conference on
+arti?cial intelligence and statistics. 621–628.
+[17] Girish Kulkarni, Visruth Premraj, Sagnik Dhar, Siming Li, Yejin Choi, Alexan-
+der C Berg, and Tamara L Berg. 2011. Baby talk: Understanding and generating
+image descriptions. In Proceedings of the 24th CVPR. Citeseer.
+[18] Michael Denkowski Alon Lavie. 2014. Meteor universal: Language speci?c
+translation evaluation for any target language. ACL (2014), 376.
+[19] Re?mi Lebret, Pedro H. O. Pinheiro, and Ronan Collobert. 2015. Phrase-based
+Image Captioning. In ICML. 2085–2094.
+[20] Stefan Lee, Senthil Purushwalkam Shiva Prakash, Michael Cogswell, Viresh
+Ranjan, David Crandall, and Dhruv Batra. 2016. Stochastic Multiple Choice
+Learning for Training Diverse Deep Ensembles. In NIPS. 2119–2127.
+[21] Hongzhi Li, Joseph G Ellis, Heng Ji, and Shih-Fu Chang. 2016. Event speci?c
+multimodal pa?ern mining for knowledge base construction. In Proceedings of
+the 2016 ACM on Multimedia Conference. ACM, 821–830.
+[22] Yuncheng Li, Yale Song, Liangliang Cao, Joel Tetreault, Larry Goldberg, Alejandro
+Jaimes, and Jiebo Luo. 2016. Tgif: A new dataset and benchmark on animated
+gif description. In CVPR. 4641–4650.
+[23] Chin-Yew Lin. 2004. Rouge: A package for automatic evaluation of summaries.
+In Text summarization branches out: Proceedings of the ACL-04 workshop, Vol. 8.
+Barcelona, Spain.
+[24] R Memisevic and G Hinton. 2007. Unsupervised Learning of Image Transforma-
+tions. In CVPR. 1–8.
+[25] Pingbo Pan, Zhongwen Xu, Yi Yang, Fei Wu, and Yueting Zhuang. 2016. Hier-
+archical recurrent neural encoder for video representation with application to
+captioning. In CVPR. 1029–1038.
+[26] Yingwei Pan, Tao Mei, Ting Yao, Houqiang Li, and Yong Rui. 2016. Jointly
+Modeling Embedding and Translation to Bridge Video and Language. In CVPR.
+4594–4602.
+[27] Stephanie Pancoast and Murat Akbacak. 2014. So?ening quantization in bag-of-
+audio-words. In ICASSP. IEEE, 1370–1374.
+[28] Kishore Papineni, Salim Roukos, Todd Ward, and Wei-Jing Zhu. 2002. BLEU: a
+method for automatic evaluation of machine translation. In Proceedings of the
+40th annual meeting on association for computational linguistics. Association for
+Computational Linguistics, 311–318.
+[29] Vasili Ramanishka, Abir Das, Dong Huk Park, Subhashini Venugopalan,
+Lisa Anne Hendricks, Marcus Rohrbach, and Kate Saenko. 2016. Multimodal
+Video Description. In Proceedings of the 2016 ACM on Multimedia Conference.
+ACM, 1092–1096.
+[30] Steven J Rennie, Etienne Marcheret, Youssef Mroueh, Jarret Ross, and Vaibhava
+Goel. 2016. Self-critical Sequence Training for Image Captioning. arXiv preprint
+arXiv:1612.00563 (2016).
+[31] Microso? Research. 2016. ACM Multimedia MSR video to language chal-
+lenge. h?p://www.acmmm.org/2016/wp-content/uploads/2016/04/ACMMM16
+GC MSR Video to Language Updated.pdf (2016).
+[32] Jorge Sa?nchez, Florent Perronnin, ?omas Mensink, and Jakob Verbeek. 2013.
+Image classi?cation with the ?sher vector: ?eory and practice. International
+journal of computer vision 105, 3 (2013), 222–245.
+[33] Zhiqiang Shen, Jianguo Li, Zhou Su, Minjun Li, Yurong Chen, Yu-Gang Jiang, and
+Xiangyang Xue. 2017. Weakly Supervised Dense Video Captioning. In CVPR.
+[34] Rakshith She?y and Jorma Laaksonen. 2016. Frame-and segment-level features
+and candidate pool evaluation for video caption generation. In Proceedings of the
+2016 ACM on Multimedia Conference. ACM, 1073–1076.
+[35] Ilya Sutskever, Oriol Vinyals, and ?oc V Le. 2014. Sequence to sequence learning
+with neural networks. In NIPS. 3104–3112.
+[36] Christian Szegedy, Sergey Io?e, Vincent Vanhoucke, and Alex Alemi. 2016.
+Inception-v4, Inception-ResNet and the Impact of Residual Connections on
+Learning. (2016).
+[37] Du Tran, Lubomir Bourdev, Rob Fergus, Lorenzo Torresani, and Manohar Paluri.
+2015. Learning spatiotemporal features with 3d convolutional networks. In ICCV.
+IEEE, 4489–4497.
+[38] Ramakrishna Vedantam, C Lawrence Zitnick, and Devi Parikh. 2015. Cider:
+Consensus-based image description evaluation. In CVPR. 4566–4575.
+[39] Subhashini Venugopalan, Marcus Rohrbach, Je?rey Donahue, Raymond Mooney,
+Trevor Darrell, and Kate Saenko. 2015. Sequence to sequence-video to text. In
+ICCV. 4534–4542.
+[40] Subhashini Venugopalan, Huijuan Xu, Je? Donahue, Marcus Rohrbach, Raymond
+Mooney, and Kate Saenko. 2014. Translating Videos to Natural Language Using
+Deep Recurrent Neural Networks. Computer Science (2014).
+[41] Oriol Vinyals, Alexander Toshev, Samy Bengio, and Dumitru Erhan. 2015. Show
+and tell: A neural image caption generator. In CVPR. 3156–3164.
+[42] Jun Xu, Tao Mei, Ting Yao, and Yong Rui. 2016. Msr-v?: A large video description
+dataset for bridging video and language. In CVPR. 5288–5296.
+[43] Kelvin Xu, Jimmy Ba, Ryan Kiros, Kyunghyun Cho, Aaron Courville, Ruslan
+Salakhutdinov, Richard S Zemel, and Yoshua Bengio. 2015. Show, a?end and tell:
+Neural image caption generation with visual a?ention. arXiv:1502.03044 (2015).
+[44] Zhilin Yang, Ye Yuan, Yuexin Wu, William W Cohen, and Ruslan R Salakhutdinov.
+2016. Review networks for caption generation. In NIPS. 2361–2369.
+[45] Li Yao, Atousa Torabi, Kyunghyun Cho, Nicolas Ballas, Christopher Pal, Hugo
+Larochelle, and Aaron Courville. 2015. Describing videos by exploiting temporal
+structure. In ICCV. 4507–4515.
+[46] ?anzeng You, Hailin Jin, Zhaowen Wang, Chen Fang, and Jiebo Luo. 2016.
+Image captioning with semantic a?ention. arXiv:1603.03925 (2016).
+[47] Haonan Yu, Jiang Wang, Zhiheng Huang, Yi Yang, and Wei Xu. 2016. Video
+Paragraph Captioning Using Hierarchical Recurrent Neural Networks. In CVPR.
+4584–4593.

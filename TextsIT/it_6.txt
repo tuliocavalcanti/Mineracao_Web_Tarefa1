@@ -1,0 +1,1588 @@
+1
+A Scalable and Statistically Robust Beam
+Alignment Technique for mm-Wave Systems
+Xiaoshen Song, Saeid Haghighatshoar, Member, IEEE, Giuseppe Caire, Fellow, IEEE
+Abstract—Millimeter-Wave (mm-Wave) band provides orders
+of magnitude higher bandwidth compared with the traditional
+sub-6 GHz band. Communication at mm-Waves is, however,
+quite challenging due to the severe path loss. To cope with this
+problem, a directional beamforming both at the Base Station
+(BS) side and the user side is necessary to find a strong path
+connecting the BS and the user. Finding such beamforming
+directions is referred to as the Beam Alignment (BA) and is
+known to be a challenging problem. In this paper, we propose
+a new BA scheme that finds a strong path connecting the
+BS and the user by estimating the second order statistics of
+the channel. As a result, our proposed algorithm is highly
+robust to variations of the channel statistics compared with the
+other works in the literature. In our proposed scheme, the BS
+probes the channel in the Downlink (DL) letting each user to
+estimate its own channel (i.e., a strong path connecting the user
+to the BS), where all the users within the BS coverage are
+trained simultaneously. Thus, the complexity of our proposed
+BA (channel estimation) is independent of the number of users
+in the system. We pose the channel estimation at the user side as
+a Compressed Sensing (CS) of a non-negative signal and use the
+recently developed Non-Negative Least Squares (NNLS) technique
+to solve it efficiently. We use numerical simulation to assess the
+performance of our proposed algorithm and compare it with the
+performance of other competitive methods in the literature. The
+results illustrate that our approach incurs less training overhead,
+exhibits higher efficiency in multi-user scenarios, and is highly
+robust to variations in channel statistics.
+Index Terms—Millimeter-Wave, Beam Alignment, Compressed
+Sensing, Non-Negative Least Squares (NNLS).
+I. INTRODUCTION
+Millimeter-wave (mm-Wave) provides an opportunity to fulfill
+the demand for high data rates in the next generation
+communication networks because of the huge bandwidth
+available at high frequency bands [1]. A critical challenge to
+signaling at mm-Waves compared with sub-6 GHz spectrum is
+the severe propagation loss and poor penetration into buildings
+[2]. Therefore, large antenna arrays yielding a high-gain
+directional beamforming at both the Base Station (BS) side
+and the user side are necessary to boost the Signal-to-Noise
+Ratio (SNR) to sufficiently high levels, such that small-cell
+outdoor communication is possible. Moreover, due to the large
+propagation loss at mm-Waves the communication between
+the BS and the user occurs only via a very sparse collection
+of scatterers in the angle domain [3–6]. This implies that to
+establish a reliable communication, the BS and the user need
+to focus their beam pattern in the direction of a strong path.
+The authors are with the Communications and Information Theory
+Group, Technische Universita?t Berlin (xiaoshensong@yahoo.com,
+{saeid.haghighatshoar, caire}@tu-berlin.de).
+For example, in the case of Line-of-Sight (LoS) propagation,
+the beams typically point at each other since the LoS path is
+typically the strongest one. More in general, we refer to the
+problem of finding a narrow beam direction at both the BS
+and the user side yielding an SNR after beamforming above a
+desired threshold as the Beam Alignment (BA) problem. This
+problem is quite well studied in the literature [3, 4, 6–15]. In
+particular, it is known to be a challenging problem since in
+mm-Waves the SNR before beamforming is typically very low,
+especially in outdoor non-LoS conditions. Moreover, systems
+operating at mm-Waves have large arrays with many antennas
+but typically only a limited number of Radio Frequency (RF)
+chains [7]. This implies that, at each time slot, only a limited
+span of Angle-of-Departures (AoDs) and Angle-of-Arrivals
+(AoAs) can be simultaneously probed to search for the location
+of strong scatterers. In particular, a naive exhaustive search
+over the whole AoA-AoDs is very time consuming and
+unfeasible in practice.
+This has motivated the development of efficient BA
+algorithms based on hierarchical adaptive search, interactive
+search, and Compressed Sensing (CS) techniques [8–15]. The
+fundamental idea of hierarchical methods is to use wider
+beam patterns at the start and to refine them in several
+consecutive stages. In [11], for example, the authors develop
+a bisection algorithm in which the range of AoDs and AoAs
+are divided by a factor of 2 at each step and is refined by
+probing the resulting 2×2 sections and identifying the section
+with the maximum received power. A similar idea via using
+overlapping beam patterns is used in [12]. Such hierarchical
+techniques, however, require the interaction of a BS with a
+single user at each stage. Therefore, it is not obvious how to
+extend/adapt these approaches to a multiuser scenario, where
+a BS has to train the beams of many users. In [13], a novel
+method for BA is proposed where a BS and a user iteratively
+and collaboratively identify the dominant eigen-vector of their
+channel matrix via the well-known Power method, which
+gives an estimate of the location of strong scatterers. This
+requires, however, having many RF chains at the BS and
+the user and is difficult to implement in practical scenarios.
+In recent works, considering the natural channel sparsity in
+the AoA-AoD domain [3–6], CS-based algorithms have been
+widely used for BA in mm-Waves [14–18]. These algorithms
+are efficient and particularly attractive for multi-user scenarios,
+but they are typically based on the assumption that the
+instantaneous channel remains invariant during the whole
+probing/measurement stage (the same assumption is also
+adopted in [11, 12]), which is difficult to fulfill due to the
+large carrier frequency and Doppler spread, and fast channel
+ar
+X
+iv
+:1
+70
+8.
+09
+43
+3v
+1 
+ [
+cs
+.I
+T
+] 
+ 3
+0 
+A
+ug
+ 2
+01
+7
+2
+BS with M antennas
+Scatterer clusters
+UE1 with N antennas
+UE2 with N antennas
+{
+Random codebook
+NNLS estimation
+{
+Random codebook
+NNLS estimation
+{
+BS ? UEs
+Pseudo-random codebook
+Fig. 1: Illustration of the physical channel model and our
+proposed Beam Alignment (BA) scheme.
+variation in mm-Waves [19, 20]. Moreover, a naive application
+of the conventional CS techniques typically results in a wide
+spread of the power of the transmitted signal during the
+probing stage in the angle domain and diminishes the SNR
+of the resulting measurements. This is not problematic in
+sub-6 GHz but seems to be a big issue in mm-Waves due to the
+very low-SNR nature of the channel, and is widely overlooked
+in the literature.
+A. Contributions
+In this paper, we propose a novel BA scheme that has the
+following advantages compared with the existing works in the
+literature:
+1) System-level Scalability: In our proposed approach,
+during the channel estimation, only the BS probes (via a
+beamforming codebook) the channel and all the users are in the
+listening mode. In particular, the BS transmits simultaneously
+to all the user a sufficient number of measurements to let them
+estimate their channel (i.e., AoA-AoD of a strong scatterer
+connecting them to the BS) reliably. Since there is no need
+for interaction between the BS and each user, the channel
+estimation is highly scalable and its complexity does not grow
+with the number of active users in the system.
+2) User-specific codebook: In our scheme, although the BS
+probing codebook at the transmitter side is common to all the
+users, each user can still use its own probing codebook at
+the receiver side. We propose a technique in which each user
+selects its codebook based on its number of RF chains and
+its channel quality. In brief, when a user is close to the BS
+and has a sufficient SNR before beamforming, it uses wide
+beams as motivated by the conventional CS to speed up the
+channel estimation by taking less measurements (exploration)
+whereas a user far from the BS with a very low SNR
+before beamforming applies narrower probing beams to obtain
+measurements with a sufficiently large SNR (exploitation). In
+particular, we shall see that for a specific SNR level before
+beamforming, there is an optimal beam spreading factor that
+results in the fastest channel acquisition.
+3) Robustness to Variations in Channel Statistics: As
+explained before, most of the existing works in the literature
+use the assumption that the instantaneous channel coefficients
+remain invariant during the whole BA phase. This is difficult
+to meet in mm-Waves due to the large carrier frequency, large
+Doppler spread, and fast channel variations [19, 20]. In this
+paper, we develop a novel technique that uses the second order
+statistics of the channel and is highly robust to variations in
+channel statistics. We also illustrate via numerical simulations
+that CS-based algorithms fail to estimate the channel when the
+channel is not invariant, whereas our scheme performs quite
+well in all ranges of channel variations.
+4) Low-complexity Channel Estimation: In our scheme,
+each user needs to estimate the channel from its received
+measurements, thus, all the computation necessary for channel
+estimation is done at the user side. We show that the
+resulting channel estimation boils down to a Non-Negative
+Least Squares (NNLS) problem, which can be solved with an
+affordable complexity via standard techniques in the literature.
+B. Notation
+We denote vectors by boldface small (e.g., a) and matrices
+by boldface capital (e.g., A) letters. Scalars are denoted
+by non-boldface letters (e.g., a, A). We represent sets by
+calligraphic letter A and their cardinality with |A|. We denote
+the empty set by ?. We use E for the expectation, ? for the
+Kronecker product of two matrices, and ? for the convolution
+operator. We use AT for transpose and AH for conjugate
+transpose of a matrix A. The output of an optimization
+problem such as arg minx?X f(x) is denoted by x
+?. The
+complex circularly symmetric Gaussian distribution with a
+mean µ and a variance ? is denoted by CN (µ, ?). For an
+integer k ? Z, we use the shorthand notation [k] for the set
+of non-negative integers {1, ..., k}.
+II. BASIC SETUP
+A. Channel Model
+We consider a mm-Wave system with a BS with Uniform
+Linear Array (ULA) with M antennas and m RF chains where
+typically m  M . We consider a generic user denoted by
+UE and assume that it has also a ULA with N antennas and
+n  N RF chains. We assume that both BS and UE arrays
+have the antenna spacing d = ?2 , where ? is the wavelength
+given by ? = c0f0 , where c0 is the speed of the light and where
+f0 is the carrier frequency. We denote by ?, ? ? [??2 , ?2 ] the
+steering angles with respect to the BS and UE arrays. We
+represent the array response of the BS and UE arrays to a
+planar wave coming from the angles ? and ? with respect
+to the BS and UE with the M -dim and N -dim array vectors
+a(?) ? CM and b(?) ? CN respectively, where
+[a(?)]k = e
+j(k?1)? sin(?), k ? [M ], (1)
+[b(?)]l = e
+j(l?1)? sin(?), l ? [N ]. (2)
+We assume that the communication between the BS and the
+UE occurs via a collection of sparse multi-path components
+3
+(MPCs) in the AoA-AoD and delay domain [1], where the
+M ×N low-pass equivalent impulse response of the channel
+at a time slot s is given by
+Hs(?) =
+L?
+l=1
+?s,la(?l)b(?l)
+H?(? ? ?l), (3)
+where ?s,l is the random channel gain of a MPC at
+AoA-AoD-delay (?l, ?l, ?l), l ? [L], where typically L 
+max{M,N} [21]. Note that in (3), and also in (1) and (2),
+we made the implicit assumption that the communication
+bandwidth denoted by B is much smaller than the carrier
+frequency f0 (i.e., B  f0) such that the array response
+is approximately frequency-invariant. We adopt a block
+fading model, where the channel gains ?s,l, l ? [L],
+remain invariant over the coherence time of the channel
+of duration ?tc but change i.i.d. randomly across different
+coherence times. We also assume that each MPC is a
+superposition of several smaller components such that the
+channel gains ?s,l ? CN (0, ?l) have a zero-mean complex
+Gaussian distribution. The channel model (3) can be extended
+to the case where there is a continuum of MPCs connecting
+the BS and the UE, where the channel model is given by
+Hs(d?) = ?s(d?, d?, d?)a(?)b(?)
+H, (4)
+where ?s(d?, d?, d?) denotes the angle-delay random impulse
+response of the channel. Our result in this paper holds for
+the general case (4) but for simplicity, we will use the
+discrete channel model in the sequel. We also assume that
+the AoA-AoDs of the scatterers {(?l, ?l)}Ll=1 change in a
+time-scale much longer that the channel coherence time ?tc
+such that they can be treated as constant during the whole
+communication across many coherence blocks.
+B. Signaling Model
+Assume that the BS is going to communicate with a generic
+UE. Since the BS has m RF chains, it can transmit up to m
+different data streams as follows. Let xs,i(t), t ? [0, t0], be
+the continuous-time low-pass equivalent signal corresponding
+to the i-th data stream, where t0 denotes the duration of a slot.
+We assume that the channel gains remain invariant over the
+channel coherence time, but can change i.i.d. randomly across
+different coherence times. Moreover, each coherence time is
+divided into several slots of duration t0, where t0  ?tc, thus,
+the channel gains remain invariant over each slot. To transmit
+the i-th data stream, the BS applies a beamforming vector
+us,i ? CM , where the corresponding vector-valued signal is
+given by xs,i(t) := xs,i(t)us,i for t ? [0, t0]. We always
+assume that the beamforming vectors are normalized such that
+?us,i? = 11. The transmitted signal at time slot s is given by
+xs(t) =
+m?
+i=1
+xs,i(t) =
+m?
+i=1
+xs,i(t)us,i. (5)
+1Also, note that here we are assuming that each beamforming vector us,i,
+i ? [m], is implemented in the RF domain via an analog beamforming
+network and it is frequency flat, i.e., it is the same across the whole bandwidth
+(e.g., along all subcarriers in an OFDM symbol).
+The received low-pass equivalent signal at the UE array is
+rs(t) = H(t)
+H ? xs(t) =
+?
+Hs(d?)
+Hxs(t? ?) (6)
+=
+L?
+l=1
+?s,lb(?l)a(?l)
+Hxs(t? ?l) (7)
+=
+L?
+l=1
+m?
+i=1
+?s,lxs,i(t? ?l)b(?l)a(?l)Hus,i (8)
+=
+L?
+l=1
+m?
+i=1
+gBSs,l,i?s,lxs,i(t? ?l)b(?l) (9)
+where gBSs,l,i := a(?l)
+Hus,i denotes the beamforming gain
+along the l-th MPC at the BS side for the i-th RF chain. As
+stated before, we assume that the UE is also equipped with n
+RF chains. The noisy received signal at the output of the j-th
+RF chain at the UE side is given by
+ys,j(t) = v
+H
+s,jrs(t) + zs,j(t)
+=
+L?
+l=1
+m?
+i=1
+gBSs,l,i?s,lxs,i(t? ?l)vHs,jb(?l) + zs,j(t)
+=
+L?
+l=1
+m?
+i=1
+gBSs,l,ig
+UE
+s,l,j?s,lxs,i(t? ?l) + zs,j(t) (10)
+=:
+m?
+i=1
+rs,i,j(t) + zs,j(t) (11)
+where vs,j ? CN denotes the normalized beamforming vector
+of the j-th RF chain at the UE side, where gUEs,l,j = v
+H
+s,jb(?l)
+denotes the array gain of the j-th RF chain along the l-th MPC,
+where rs,i,j(t) :=
+?L
+l=1 g
+BS
+s,l,ig
+UE
+s,l,j?s,lxs,i(t? ?l) denotes a
+fraction of the i-the data stream received at the j-th RF chain at
+the UE side, and where zs,j(t) is the continuous-time complex
+Additive White Gaussian Noise (AWGN) at the output of the
+j-th RF chain at the UE side with a one-sided Power Spectral
+Density (PSD) of N0 Watt/Hz.
+C. Beam Alignment
+We assume that the signal corresponding to different data
+streams xs,i(t) are orthogonal, i.e.,
+?xs,i, xs,i?? :=
+1
+t0
+? t0
+0
+xs,i(t)
+?xs,i?(t)dt = 0, i 6= i?, (12)
+thus, separable at the UE side. This holds, for example, when
+different data streams occupy disjoint frequency bands. We
+define the Signal-to-Noise Ratio (SNR) after beamforming
+(ABF) for the i-th data stream received at the j-th RF chain
+at the UE by
+SNRCOABF
+i,j
+:=
+1
+t0
+E[
+?
+|rs,i,j(t)|2dt]
+N0Bi
+=
+Es,i
+t0
+?L
+l=1 ?l|gUEs,l,j |2|gBSs,l,i|2
+N0Bi
+=
+Ps,i
+?L
+l=1 ?l|gUEs,l,j |2|gBSs,l,i|2
+N0Bi
+, (13)
+where Bi denotes the bandwidth of xs,i(t), where Es,i :=? t0
+0
+|xs,i(t)|2dt and Ps,i = Es,it0 denote the energy and the
+4
+average power of xs,i(t). We have
+?
+i?[m] Ps,i = Ptot,
+where Ptot is the overall transmit power at the BS, which is
+distributed over m data streams. It is worthwhile to mention
+that the appropriate definition of SNRCOABF depends on the
+application and on the number of independent data streams
+communicated between the BS and the UE. In most relevant
+cases, the UE and the BS communicate over a single data
+stream, where
+SNRCOABF =
+Ptot
+?L
+l=1 ?l|gUEs,l |2|gBSs,l|2
+N0B?
+, (14)
+where gUEs,l and g
+BS
+s,l are the array gains at the UE and BS
+via beamforming vectors vs and us along the l-th MPC, and
+where B? < B is a part of bandwidth B devoted to the data
+stream. We define the SNR before beamforming (BBF) by
+SNRCOBBF :=
+Ptot
+?L
+l=1 ?l
+N0B?
+. (15)
+This is the SNR obtained when the signal xs(t) is transmitted
+through a single BS antenna and is received in a single
+UE antenna and can be simply obtained by setting us =
+(1, 0, . . . , 0) ? CM and vs = (1, 0, . . . , 0) ? CN in (14). One
+of the challenges of communicating over mm-Waves is that
+the SNR before beamforming SNRCOBBF in (15) is very low.
+In theory, one can always improve the SNR by increasing
+the transmit power Ptot (loss in power) but this is not
+always feasible due to physical device constraints, or standard
+regulations on the maximum allowed transmit power. Another
+option is to communicate over a smaller bandwidth B?  B to
+reduce the noise power at the cost of reducing the rate (loss in
+multiplexing gain and degree-of-freedom). A third alternative
+which seems viable is to use arrays with large number of
+antennas at the BS and UE. In such a setting, via suitable beam
+alignment one can hope to find good beamforming vectors us
+and vs at the BS and the UE respectively to boost SNRCOBBF by
+a factor M at the BS and a factor N at the UE by beamforming
+along the AoA-AoD of strong MPCs in the channel.
+D. Channel Model under OFDM Signaling
+In this paper, we adopt an OFDM signaling between the BS
+and the UEs. For simplicity, we again consider a fixed UE and
+denote by xs,i(t) the continuous-time waveform corresponding
+to the i-th data stream transmitted from the BS to this UE at
+time slot s. In OFDM signaling, each xs,i(t) corresponds to an
+OFDM symbol and has a duration of t0, to which we append
+a Cyclic Prefix (CP) of duration ??c, where ??c denotes the
+effective delay spread of the channel. Thus, the frequency
+separation between the subcarriers is given by ?f = 1t0 and
+the total number of subcarriers is given by F = Bt0, where
+B denotes the whole communication bandwidth as before. For
+simplicity, and due to the linearity of the channel, we focus
+on a communication between the i-th RF chain at the BS and
+j-th RF chain at the UE, where the received signal is given
+by rs,i,j(t) =
+?L
+l=1 g
+BS
+s,l,ig
+UE
+s,l,j?s,lxs,i(t??l) as in (10), which
+corresponds to the output of a channel with a time-variant
+impulse response hs(?) =
+?L
+l=1 g
+BS
+s,l,ig
+UE
+s,l,j?s,l?(? ? ?l) for
+the input xs,i(t). After removing the CP, this is represented as
+h?s(f) =
+L?
+l=1
+gBSs,l,ig
+UE
+s,l,j?s,le
+?j2?f?l . (16)
+We define the matrix-valued frequency response by
+H?s(f) =
+L?
+l=1
+?s,lb(?l)a(?l)
+He?j2?f?l , (17)
+which corresponds to the Fourier transform of the impulse
+response of the channel H(?) in (3). Note that h?s(f) =
+uHs H?s(f)vs is obtained by projecting the channel response
+H?s(f) along the beamforming vectors us and vs at the BS and
+the UE respectively. In OFDM, the frequency response h?s(f)
+or more generally H?s(f) are sampled at F discrete frequencies
+f? =
+?
+t0
+, ? ? [F ], corresponding to F subcarriers, where we
+denote the resulting channel matrix by
+Hs[?] := H?s(f?) =
+L?
+l=1
+?s,lb(?l)a(?l)
+He?j2?
+?
+t0
+?l (18)
+E. Quantized Channel Model
+The AoA-AoD (?l, ?l) and the delay parameters ?l in
+(17) take continuous values. For later applications in the
+paper, we need a finite-dim representation of the channel. We
+obtain such a representation by quantizing the matrix-valued
+channel response (17) in a discrete quantized dictionary in the
+AoA-AoD domain. We consider the discrete set of AoA-AoDs
+? := {?? : (1 + sin(??))/2 = k ? 1
+M
+,k ? [M ]}, (19)
+? := {?? : (1 + sin(??))/2 = k
+? ? 1
+N
+, k? ? [N ]}, (20)
+and use the corresponding array responses A := {a(??) : ?? ?
+?} and B := {b(??) : ?? ? ?} as a discrete dictionary to
+quantize the channel response. For the ULAs considered in
+this paper, the dictionary A and B after suitable normalization
+correspond to the M ×M and N ×N DFT matrices FM and
+FN [5], where
+[FM ]k,k? =
+1?
+M
+ej2?(k?1)(
+k??1
+M ? 12 ), k, k? ? [M ] (21)
+[FN ]k,k? =
+1?
+N
+ej2?(k?1)(
+k??1
+N ? 12 ), k, k? ? [N ]. (22)
+Using the discrete dictionaries FM and FN , we quantize the
+channel matrix in (18) as Hs[?] = FMH?s[?]FHN , where
+H?s[?] = F
+H
+MHs[?]FN (23)
+=
+L?
+l=1
+?s,le
+?j2? ?t0 ?l
+(
+FHMa(?l)
+) (
+FHNb(?l)
+)H
+(24)
+=
+L?
+l=1
+?s,le
+?j2? ?t0 ?l a?(?l)b?(?l)
+H, (25)
+where a?(?) = FHMa(?), and b?(?) = F
+H
+Nb(?) denote the
+projection of the array responses at the discrete dictionaries
+5
+0
+2
+4
+0
+2
+4
+0
+0.5
+1
+MN
+(a)
+0
+5
+0
+5
+0
+0.5
+1
+MN
+(b)
+0
+10
+0
+10
+0
+0.5
+1
+MN
+(c)
+0
+20
+0
+20
+0
+0.5
+1
+MN
+(d)
+Fig. 2: Illustration of the sparsity of the channel matrix H?s[?]
+at an arbitrary subcarrier ? consisting of 3 off-grid AoA-AoDs
+with increasing number of antennas for M = N = 4 (a),
+M = N = 8 (b), M = N = 16 (c), M = N = 32 (d).
+A and B respectively. From the expressions of FM and a(?l),
+the m?-th entry of a?(?l) is given by
+[ a?(?l) ]m? =
+1?
+M
+M?1?
+i=0
+e?j2?i(
+m??1
+M ? 12 )ej?i sin(?l) (26)
+=
+1?
+M
+1? e?j?( 2(m
+??1)
+M ?sin(?l)?1)M
+1? e?j?( 2(m
+??1)
+M ?sin(?l)?1)
+(27)
+=
+1?
+M
+ej??lM ? e?j??lM
+ej??l ? e?j??l e
+?j??l(M?1) (28)
+=
+1?
+M
+sin(??lM)
+sin(??l)
+e?j??l(M?1), (29)
+where ?l = m
+??1
+M ? 12 sin(?l)? 12 . A similar expression holds
+for b?(?l). It is seen from (29) that
+|[ a?(?l) ]m? | =
+1?
+M
+| sin(??lM)|
+| sin(??l)|
+, (30)
+is a localized kernel around ?l = sin?1[
+2(m??1)
+M ? 1] with a
+resolution of 1M . In general, the AoA-AoDs of the MPCs are
+not aligned with the discrete grid G = ?×?. However, as the
+number of antennas M at the BS and N at the UE increases,
+the discrete dictionaries FM and FN provide a good quantizer
+of the underlying channel giving a sparse approximation of
+the channel in the AoA-AoD domain. This is illustrated for
+a sparse channel with L = 3 off-grid AoA-AoD components
+in Fig. 2. It is seen that for a small M and N , the resulting
+representation H?s[?] is far from sparse, but becomes highly
+sparse as M and N increase.
+Large separation
+? ? F1
+? ? F2
+?
+T0
+Pseudo-random beam sweeping (BS beacon)
+Random access slot (random access control channel)
+Data slots
+Fig. 3: Frame structure of the proposed Beam Alignment (BA)
+scheme at the BS side, where the beam training is done during
+the initial sweeping slots. The channel is always probed in the
+Downlink (DL), after which, the user feeds back its estimated
+AoA-AoD information to the BS during the random access
+slot. Having received the feedback message, the BS sends
+an Acknowledgment (ACK) packet to the user followed by
+a data transmission stage. Different data streams are assigned
+to disjoint sets of subcarriers ? ? Fi, i ? [m]. The beam
+sweeping phase consists of T0 time slots.
+III. PROPOSED BEAM-ALIGNMENT ALGORITHM
+A. Basic Setup
+In this section, we describe our proposed scheme briefly. In
+our scheme, the channel is always probed in the Downlink
+(DL) and all the UEs stay in the listening mode. The BS
+broadcasts its pseudo-random beam patterns periodically over
+periods of T time slots, where a standard BS beacon (pilot
+signal) [11–18] is transmitted per subcarrier per time slot. This
+is illustrated in Fig. 3. The pseudo-random transmit codebook
+of the BS is shared among all the users in the system. However,
+each user can adopt its own receive codebook. The users
+gather channel measurements during the training until they
+obtain enough measurements to be able to estimate their
+channel. When a user finally estimates its channel, i.e., a
+strong AoA-AoD direction connecting it to the BS (details are
+given in the following sections), it feeds back this information
+in a random access slot, where the BS is in the listening
+mode. During a random access slot, each user transmits its
+signal by beamforming along its AoA-AoD estimate (user-side
+beamforming), where we assume that the SNR with one-sided
+beamforming gain at the user side and coarse beams at the
+BS side is sufficient for the feedback signal to be correctly
+received/decoded at the BS when there are no collisions
+between the users. At this stage, the BS knows which beam
+pattern to apply to each user, and will respond to the user on
+6
+??2
+?
+2
+BS with AoD subset Us,i
+(a)
+??2
+?
+2
+UE with AoA subset Vs,j
+(b)
+Fig. 4: An example of the probing beam patterns
+(counter-clockwise) at the BS side (s-th time slot, i-th RF
+chain) and the UE side (s-th time slot, j-th RF chain)
+side, where (a) corresponds to the quantized AoD subset
+Us,i = [1, 3, 4, 6, 8, 10]T and the probing vector u?s,i =
+1?
+6
+[1, 0, 1, 1, 0, 1, 0, 1, 0, 1]T, and where (b) corresponds to the
+quantized AoA subset Vs,j = [2, 4, 5, 7, 9]T and the probing
+vector v?s,j = 1?5 [0, 1, 0, 1, 1, 0, 1, 0, 1, 0]
+T.
+a data slot with an Acknowledgment (ACK) packet and the
+reliable communication with beamforming gain at both sides
+continues afterwards. In the following sections, we provide a
+specific description of the proposed BA scheme.
+B. BS Downlink (DL) Channel Probing
+In this section, we consider the Gaussian channel given by
+Hs[?] as in Section II-E and its quantization H?s[?] at time
+slot s ? [T ] and subcarrier ? ? [F ], where T ? T0 is the
+effective period of training. We assume that the geometry of
+the channel given by the locations of the scatterers and their
+second order strengths (covariance) remains invariant across
+many coherence blocks [1, 13, 19].
+As mentioned before, in our proposed approach, the channel
+is always probed in the DL via the BS and all the UEs
+stay in the listening mode. At each training time slot s, the
+BS uses its m RF chains to probe the channel along m
+beamforming vectors us,i, i ? [m], by transmitting an OFDM
+symbol xs,i(t) along each us,i. We assume that each OFDM
+symbol xs,i(t) probes only a subset Fi ? [F ] of subcarriers
+of size Fi = |Fi| and that different waveforms xs,i(t) have
+disjoint sets of subcarriers, i.e., Fi ? Fi? = ? for i 6= i?.
+This is illustrated Fig. 3, We make the additional assumption
+that the comb of non-adjacent subcarriers in each subset Fi
+are sufficiently separated from each other (beyond channel
+coherence bandwidth) such that their corresponding channel
+matrices Hs[?], ? ? Fi, are uncorrelated, thus, independent
+due to Gaussian assumption.
+Consider a specific UE as before and suppose that the UE
+has n RF chains. Assume that the UE applies beamforming
+vectors vs,j via its j-th RF chain, where it receives
+rs,i,j [?] = v
+H
+s,jHs[?]us,ix?s,i[?] + z?s[?], ? ? Fi, (31)
+where x?s,i[?] ? C denotes the pilot symbol transmitted at
+?-th subcarrier of the OFDM symbol xs,i(t) and where z?s[?]
+denotes the noise at subcarrier ? ? Fi. Note that in (31), we
+used the fact that the signals corresponding to different OFDM
+symbols have disjoint set of subcarriers and are separable at
+the UE side. We can also write (31) directly in terms of the
+quantized channel model as follows
+rs,i,j [?] = v?
+H
+s,jH?s[?]u?s,ix?s,i[?] + z?s[?], ? ? Fi, (32)
+where v?s,j = FHNvs,j and u?s,i = F
+H
+Mus,i are representations
+of the channel vectors vs,j and us,i in the DFT basis FN
+and FM respectively. A main ingredient of our proposed BA
+scheme is a pseudo-random probing (transmit) codebook at
+the BS given by the parameters
+CBS := (Ptot,Fi, Fi,us,i, ?u, {x?s,i[?]}??Fi , s ? [T ]), (33)
+where Ptot denotes the total probing power, and where T is the
+effective probing length, i.e., the period (in slots) over which
+the probing is repeated. For simplicity, we will assume that
+Fi = F
+? is the same for all transmitted OFDM symbols and
+that the pilot sequence {x?s,i[?]}??Fi at each time slot s ? [T ]
+have a uniform power distribution with E[|x?s,i[?]|2] = PtotmF ? .
+We will also assume that each beamforming vector us,i probes
+a random subset of quantized AoDs of size ?u as in (33). In
+particular, denoting by Us,i such a subset of AoDs of size
+|Us,i| = ?u, we will set u?s,i =
+1Us,i?
+?u
+, where 1Us,i denotes a
+vector with 1 at components belonging to Us,i and 0 elsewhere.
+A simple example is illustrated in Fig. 4. We assume that
+the spreading factor ?u and the probing subsets Us,i are
+appropriately designed to guarantee a good channel estimation
+performance for all the UEs in the system. In particular, by
+varying ?u the BS has the option to spread/focus its transmit
+power over AoDs of different sizes2. In this paper, we consider
+a random design for Us,i leaving the suitable design of the
+codebook Us,i for a future work. We assume that the codebook
+CBS is shared across the whole system and is known to all the
+UEs. This can be done, for example, by sharing a random
+seed sequence such that each UE can reproduce locally the
+pseudo-random codebook of the BS from its own local clock,
+which is assumed to be globally distributed across the whole
+system.
+Remark 1: Note that in our scheme the pseudo-random
+beam patterns can be regarded as a generalization of the
+classical “coarse beam sweeping”, where in the classical
+approach, the probing vector packs all directions in adjacent
+blocks [11, 12]. We show in later section that we can achieve
+a much better and more accurate estimation of the channel by
+using random beam patterns instead of classical coarse beam
+sweeping.
+Remark 2: In our proposed scheme only the BS probes
+the channel and all the UEs are in the receiving mode,
+2This corresponds to the well-known exploration-exploitation trade-off in
+statistics. For larger ?u, the BS is able to explore a larger set of AoDs but
+the measurements received at the UEs have a low SNR. For smaller ?u, in
+contrast, the BS focuses its transmit power on a small subset of AoDs and
+the resulting measurements have a high SNR when the beamforming vector
+of the BS hits a strong scatterer but the drawback is that due to very small
+?u and the very sparse nature of the channel in mm-Waves the probability
+of hitting such a strong scatterer is quite low.
+7
+thus, the channel estimation is quite different than the
+interactive channel estimation schemes in which both the
+UE and the BS can probe the channel. All the interactive
+schemes require some coordination among the UEs, which
+is difficult to establish in the acquisition mode. In the absence
+of such a coordination, the simultaneous transmission of
+those UEs interested in joining the system might create huge
+non-coherent interference to the UEs already in the system.
+C. UE Probing Scheme
+The second ingredient of our proposed BA algorithm is a
+local receive codebook at each UE. In contrast with the BS
+codebook, which is shared among all the UEs, each UE can
+have its own local codebook CUE := (vs,j , s ? [T ]). This has
+the advantage that each UE can change its codebook according
+to its channel state, e.g., its receive SNR, to speed up its
+channel estimation. In this paper, we assume that v?s,j is given
+by v?s,j =
+1Vs,j?
+?v
+, where Vs,j denotes a subset of AoAs of size
+?v probed at the UE side, where Vs,j is selected completely
+randomly. Similar to the ?u parameter which controls the
+spread of power along the AoDs at the BS side, the parameter
+?v controls the spread of probing window at the UE side. This
+is illustrated in Fig. 4.
+D. Probing SNR
+During the probing stage, the BS spreads its transmit power
+Ptot across m OFDM symbols transmitted via m RF chains,
+where only a subset of subcarriers Fi of size F ? = |Fi| is
+used to transmit the pilot signal in each OFDM symbol. We
+define the probing SNR per subcarrier by
+SNRCEABF :=
+MNPtot
+?L
+l=1 ?l
+?u?vB?N0
+=
+MNPtot
+?L
+l=1 ?l
+?u?vmF ??fN0
+=
+MNPdim
+?L
+l=1 ?l
+?u?v?fN0
+=
+Pdim
+?2
+MN
+?L
+l=1 ?l
+?u?v
+(34)
+where B? = mF ??f = mF
+?
+t0
+is the fraction of bandwidth
+occupied by the transmitted probing signal, where Pdim = PtotmF ?
+denotes the power per orthogonal dimension (subcarrier),
+where N0 is the one-sided noise PSD, and where ?2 = N0?f
+denotes the noise power per subcarrier with ?f = 1t0 denoting
+the frequency separation between the subcarriers. Note that
+(34) gives the maximum SNR that one can have in each
+subcarrier in Fi and corresponds to the case where the probing
+window of AoA-AoDs Us,i × Vs,j contains all the scatterers
+in Fi. In the spacial case where ?u = M and ?v = N , thus,
+the transmit power is uniformly spread over all AoDs at the
+BS side and there is effectively no beamforming gain at the
+UE side, this reduces to SNR before beamforming in (15) for
+a signaling bandwidth B? = mF ??f . We also define the SNR
+per subcarrier before beamforming by
+SNRCEBBF :=
+SNRCEABF
+MN
+=
+Pdim
+?2
+?L
+l=1 ?l
+?u?v
+(35)
+E. Channel Statistics in Time
+In this paper, our goal is to design a BA scheme that is
+robust to variations in channel statistics. So, we assume that
+the channel H?s[?] might vary quite drastically in time s ? [T ],
+which is highly motivated due to the very short channel
+coherence time at mm-Waves due to high carrier frequency
+and high Doppler spread. For the rest of the paper, we consider
+an extreme case where the channel H?s[?] varies i.i.d. in time
+slot s ? [T ], where for a fixed s, H?s[?] is also independent
+across the subcarriers ? ? Fi due to the large frequency
+separation (beyond the channel coherence bandwidth) as
+illustrated in Fig. 3. Under such channel statistics, we can
+assume without any loss of generality that the pilot sequences
+x?s,i[?], ? ? Fi, satisfy x?s,i[?] =
+?
+Ptot
+mF ? , where
+Ptot
+mF ? denotes
+the transmit power uniformly distributed among the set of all
+mF ? subcarriers.
+F. Proposed Channel Estimation at the UE side
+In this section, we explain our proposed channel estimation
+algorithm. We consider the signal model as in (32)
+rs,i,j [?] = v?
+H
+s,jH?s[?]
+Hu?s,ix?s,i[?] + z?s[?] (36)
+=
+?
+Ptot
+mF ?
+v?Hs,jH?s[?]
+Hu?s,i + z?s[?] (37)
+=
+?
+Pdim(u?s,i ? v?s,j)Hh?s[?] + z?s[?] (38)
+=
+?
+Pdim g
+H
+s,i,j h?s[?] + z?s[?], (39)
+where x?s,i[?] denotes the pilot symbol transmitted along
+subcarrier ? ? Fi, where E[|x?s,i[?]|2] = PtotmF ? = Pdim, where
+for simplicity, we assume that x?s,i[?] =
+?
+Ptot
+mF ? =
+?
+Pdim
+as explained in Section III-E where Pdim = PtotmF ? denotes the
+average power per orthogonal dimension (subcarrier), where
+z?s[?] ? CN (0, N0?f) is the AWGN noise at subcarrier ?,
+where h?s[?] = vec(H?s[?]H) denotes the vectorized channel
+at subcarrier ? ? Fi with vec denoting the vec operator,
+where we used the well-known identity vec(ABC) = (CT?
+A)vec(B) for the vec operator, and where for simplicity of
+the notation we define the combined probing vector consisting
+of the beamforming vector u?s,i at the BS and beamforming
+vector v?s,j at the UE by gs,i,j = u?s,i ? v?s,j ? CMN , which
+is common across all the subcarriers ? ? Fi but differs for
+different pairs of RF chains (i, j) at the BS and the UE.
+We define the average instantaneous received power at the
+j-th RF chain at the UE from the signal transmitted from the
+i-th RF chain at the BS by
+q?s,i,j =
+1
+F ?
+?
+??Fi
+|rs,i,j [?]|2
+= Pdimg
+H
+s,i,j(
+1
+F ?
+?
+??Fi
+h?s[?]h?s[?]
+H)gs,i,j
++
+1
+F ?
+?
+??Fi
+|zs[?]|2 +
+1
+F ?
+?
+??Fi
+?s[?], (40)
+where the first and the second term correspond to the signal
+part and the noise part, and where
+?s[?] =
+?
+Pdimg
+H
+s,i,j h?s[?]zs[?]
+H +
+?
+Pdimzs[?]h?s[?]
+Hgs,i,j
+8
+denotes the signal-noise cross term. Note that when the
+number of subcarriers F ? in Fi is very large such that the
+cross term is negligible and the empirical covariance
+1
+F ?
+?
+??Fi
+h?s[?]h?s[?]
+H ? E[hs[?]hs[?]H] =: ?h, (41)
+(40) gives a 1-dim noisy projection of the covariance matrix
+?h. It is important to note that ?h := E[hs[?]hs[?]H] is
+independent of the subcarrier index ? ? Fi due to the channel
+stationarity in the frequency domain. We can write (40) as
+q?s,i,j ? PdimgHs,i,j?hgs,i,j + ?2, (42)
+where ?2 = N0?f denotes the noise variance in each
+subcarrier. When all the AoA-AoDs lie on a discrete grid,
+h?s[?] is a sparse vector with i.i.d. components with only a
+few nonzero coefficients corresponding to the scatterers. Due
+to the independence of the channel gain of the scatterers,
+the covariance matrix of h?s[?] would be a diagonal MN ×
+MN matrix with only a few nonzero diagonal elements
+corresponding to the scatterers. ?h is still sparse and
+approximately diagonal for sufficiently large M and N (as
+illustrated in Fig. 2) even if the AoA-AoDs of the scatterers
+do not lie on the discrete grid.
+In this paper, we use equally weighted beamforming vectors
+u?s,i =
+1Us,i?
+?u
+at the BS and v?s,j =
+1Vs,j?
+?v
+at the UE, for which
+(42) can be simplified to
+q?s,i,j ?
+PdimMN
+?u?v
+?
+(r,c)?Ns,i,j
+??r,c + ?
+2, (43)
+where Ns,i,j = Us,i × Vs,j denotes a subset of AoA-AoDs
+probed by the beamforming vectors u?s,i and v?s,j and where
+?? is an M ×N with ??r,c denoting the channel gain (second
+order) of the scatterer located at the AoD r at the BS and
+the AoA c at the UE (if there is any) after the discrete
+quantization and is zero elsewhere. This is illustrated in Fig. 5.
+We define the normalized matrix ? = PdimMN???u?v and apply the
+vectorization to write (43) as
+q?s,i,j ? bTs,i,j? + ?2, (44)
+where bs,i,j = 1Vs,j ? 1Us,i is a normalized binary vector
+containing 1 at the AoA-AoDs probed by Vs,j × Us,i and
+is 0 elsewhere, and where ? = vec(?) ? RMN+ . In
+general, for a finite number of subcarriers, (42) and (44) hold
+only approximately since the statistical fluctuations are not
+negligible. We consider this as a residual noise w?s,i,j and write
+(44) as
+q?s,i,j = b
+T
+s,i,j? + ?
+2 + w?s,i,j . (45)
+Overall, when the BS transmits along m RF chain in each
+acquisition slot (over an OFDM symbol) and UE has n RF
+chains to probe the channel, the UE obtains mn equations for
+the unknown vector ? as in (45). Thus, over T acquisition
+slots the UE obtains mnT equations given by
+q? = B? + ?21 + w?, (46)
+where the vector q? = [q?1,1,1, . . . q?1,m,n, . . . , q?T,1,1, . . . , q?T,m,n]T
+consists of all mnT measurements, where the mnT ×MN
+matrix B = [b1,1,1, . . . ,b1,m,n, . . . ,bT,1,1, . . . ,bT,m,n]T has
+the set of vectors bs,i,j , and where w? ? RmnT is the residual
+noise in the measurements. Some remarks are in order here.
+Remark 3: In our proposed scheme, at each acquisition
+slot, each UE extracts its own set of measurements from
+its received signal. An implicit assumption, however, is that
+each UE is synchronized with the BS and knows the BS
+codebook CBS such that it can construct the equations (46)
+and estimate the channel parameter ?. In contrast with the
+BS codebook CBS, which is common to all the UEs, the
+probing codebook CUE := (vs,j , s ? [T ]) or equivalently
+CUE := (Vs,j , s ? [T ]) can be different for the UEs. In
+particular, by changing the probing width ?v , each UE is
+able to control its training SNR according to its channel state:
+strong users with a very good channel can select larger ?v
+to explore the channel better and estimate ? faster, whereas
+weak users with a very bad channel should select a smaller ?v
+to attain a reasonable training SNR. Although the weak users
+might need to wait longer to take more measurements before
+they are able to estimate their channels, (46) remains still valid
+since the channel gains (second order channel statistics) ?
+are stable across many coherence blocks. This is in contrast
+with the conventional CS-based techniques used for BA via
+estimating the instantaneous complex channel gains, where
+the underlying channel might change drastically while taking
+the measurements, especially when only very few number of
+RF chains m,n are available, thus, T needs to be large to
+guarantee a sufficient number of measurements mnT .
+G. Non-Negative Least Squares
+To estimate the channel geometry and, in particular, the
+AoA-AoDs of the dominant scatterers, we need to solve the
+equations (46) repeated here for the convenience
+q? = B? + ?21 + w?. (47)
+As an additional constraint, we know that ? is sparse, with
+only a few nonzero elements corresponding to the dominant
+scatterers which are also non-negative. Moreover, although the
+exact statistics of the noise w? is not known, it is known that
+it is symmetric, has zero mean, and can be approximated with
+a complex Gaussian random variable when the number of
+subcarriers per data stream F ? is sufficiently large (see (40)).
+To solve an equation such as (47), it is traditional to apply a
+Regularized Least Squares of the form
+?? = arg min
+?
+1
+2
+?B? + ?21? q??2 + ?R(?) (48)
+where R(?) is a regularization function and where ? > 0 is
+a regularization parameter. R(?) promotes a specific structure
+of the solution ? in (48) such as its sparsity or non-negativity.
+A regularizer traditionally used is the l1-norm of ? given
+by R(?) =
+?MN
+i=1 |?i| which simplifies to R(?) =
+?MN
+i=1 ?i
+when ?i > 0. Recent progress in CS shows that when
+the underlying parameter ? is non-negative, a simple Least
+Squares as in
+?? = arg min
+??RMN+
+1
+2
+?B? + ?21? q??2 (49)
+9
+9
+??2
+?
+2
+BS with AoD subset Us,i
+??2
+?
+2
+UE with AoA subset Vs,j
+(a)
+Us,i
+?
+??
+?
+Vs,j ????
+(b)
+Fig. 5: Illustration of (a) the subset of AoA-AoDs at time slot s probed by i-th RF chain at the BS side and j-th RF chain at
+the user side respectively, (b) the channel gain matrix ?? (with two off-grid scatterers) measure along Us,i × Vs,j .
+is still enough to impose the sparse structure of ? without
+any extra regularization [22, 23] . The Least Squares problem
+with additional non-negativity constraint in (49) is called the
+Non-Negative Least Squares (NNLS) and is quite well-known
+in the statistics. A quite early reference is [24] where it
+shows that depending on the structure of the measurement
+matrix (e.g., B in our case) NNLS might illustrate a
+“Super-Resolution” property, thus, allowing the underlying
+parameter ? to be estimated very well. More recently, by
+the advent of CS [25, 26], the NNLS has reemerged in the
+context of sparse signal recovery, where it has been shown that
+the non-negativity constraint alone might suffice to recover
+the underlying signal ? in the noiseless [27–30] as well as
+the noisy case [22, 23]. Moreover, [22] illustrates that the
+performance of NNLS is comparable to that of the LASSO
+[31] even though it does not apply any regularization per
+se. [22] also illustrates that NNLS along with an appropriate
+thresholding provides state-of-the-art performance in terms
+of support estimation. This is beneficial for identifying the
+underlying sparse geometry of a mm-Wave channel, encoded
+by the vectors ?, that we address in this paper. Recently, NNLS
+has also been of huge interest in other related areas such as
+Machine Learning.
+In terms of numerical implementations, the NNLS can be
+posed as an unconstrained Least Squares problem over the
+positive orthant and can be solved by many possible techniques
+such as Gradient Projection, Primal-Dual techniques, etc. [32]
+with an affordable computational complexity. We refer to [33,
+34] for the recent progress on the numerical solution of NNLS
+and a discussion on other related work in the literature.
+IV. PERFORMANCE EVALUATION
+In this section, we evaluate the the performance of our
+proposed algorithm via numerical simulations. To run the
+NNLS optimization in (49), we use the implementation of
+NNLS in MATLAB© called lsqnonneg.m.
+0 20 40 60 80 100 120 140 160
+0
+0.2
+0.4
+0.6
+0.8
+1
+Number of slots T
+P
+D
+BS codebook CBS #1
+BS codebook CBS #2
+BS codebook CBS #3
+BS codebook CBS #4
+Fig. 6: Comparison of the detection probability PD of different
+pseudo-random codebooks (denoted by CBS) achieved by the
+proposed NNLS scheme, for M = N = 32, F ? = 3, m = 3,
+n = 2, SNRCEBBF = ?10 dB, ?u = ?v = 16.
+A. Channel and Signal Model
+For simplicity, we consider a very sparse channel model
+with only one path (one scatterer). The system is assumed to
+operate at 28 GHz carrier frequency and has a bandwidth of
+B = 100 MHz [11]. We adopt OFDM signaling, where each
+OFDM symbol has an effective duration of 71.3 µs with 66.7
+µs and a CP of 4.7 µs. The subcarrier spacing is 15 KHz,
+namely around 6.7× 103 orthogonal subcarriers are available
+[35]. We assume that the BS has M = 32 antennas and m = 3
+RF chains, and the UE has N = 32 antennas and n = 2 RF
+chains. For simulations, we assume that each OFDM signal
+used for channel estimation probes F ? = 3 subcarriers, i.e.,
+the total probing power Ptot is uniformly distributed across
+m = 3 RF chains and across F ? = 3 subcarriers in each
+OFDM symbol (mF ? = 9 subcarriers in total). The SNR
+Fig. 5: Illustration of (a) the subset of A A-AoDs at time slot s probed y i-th RF chain at the BS side and j-th RF chain at
+the user side respectively, (b) the channel gain matrix ?? (with two off-grid scatterers) measure along Us,i × Vs,j .
+is still enough to impose the sparse structure of ? without
+any extra regularization [22, 23] . The Least Squares problem
+with additional non-negativity constraint in (49) is called the
+Non-Negative Least Squares (NNLS) and is quite well-known
+in the statistics. A quite early reference is [24] where it
+shows that depending on the structure of the measurement
+matrix (e.g., B in our case) NNLS might illustrate a
+“Super-Resolution” property, thus, allowing the underlying
+parameter ? to be estimated very well. More recently, by
+the advent of CS [25, 26], the NNLS has reemerged in the
+context of sparse signal recovery, where it has been shown that
+the non-negativity constraint alone might suffice to recover
+the underlying signal ? in the noiseless [27–30] as well as
+the noisy case [22, 23]. Moreover, [22] illustrates that the
+performance of NNLS is comparable to that of the LASSO
+[31] even though it does not apply any regularization per
+se. [22] also illustrates that NNLS along with an appropriate
+thresholding provides state-of-the-art performance in terms
+of support estimation. This is beneficial for identifying the
+underlying sparse geometry of a mm-Wave channel, encoded
+by the vectors ?, that we address in this paper. Recently, NNLS
+has also been of huge interest in other related areas such as
+Machine Learning.
+In terms of numerical implementations, the NNLS can be
+posed as an unconstrained Least Squares problem over the
+positive orthant and can be solved by many possible techniques
+such as Gradient Projection, Primal-Dual techniques, etc. [32]
+with an affordable computational complexity. We refer to [33,
+34] for the recent progress on the numerical solution of NNLS
+and a discussion on other related work in the literature.
+IV. PERFORMANCE EVALUATION
+In this section, we evaluate the the performance of our
+proposed algorithm via numerical simulations. To run the
+NNLS optimization in (49), we use the implementation of
+NNLS in MATLAB© called lsqnonneg.m.
+0 20 40 60 80 100 120 140 160
+0
+0.2
+0.4
+0.6
+0.8
+1
+Number of sl ts T
+P
+D
+BS codeb ok CBS #1
+BS codeb ok CBS #2
+BS codeb ok CBS #3
+BS codeb ok CBS #4
+Fig. 6: Comparison of the det ction probability PD of different
+pseudo-random codeb oks (denot d by CBS) achieved by the
+proposed NNLS scheme, for M = N = 32, F ? = 3, m = 3,
+n = 2, SNRCEBBF = ?10 dB, ?u = ?v = 16.
+A. Channel and Signal Model
+For simplicity, we consider a very sparse channel model
+with only one path (one scatterer). The system is assumed to
+operate at 28 GHz carrier frequency and has a bandwidth of
+B = 100 MHz [11]. We adopt OFDM signaling, where each
+OFDM symbol has an effective duration of 71.3 µs with 66.7
+µs and a CP of 4.7 µs. The subcarrier spacing is 15 KHz,
+namely around 6.7× 103 orthogonal subcarriers are available
+[35]. We assume that the BS has M = 32 antennas and m = 3
+RF chains, and the UE has N = 32 antennas and n = 2 RF
+chains. For simulations, we assume that each OFDM signal
+used for channel estimation probes F ? = 3 subcarriers, i.e.,
+the total probing power Ptot is uniformly distributed across
+m = 3 RF chains and across F ? = 3 subcarriers in each
+OFDM symbol (mF ? = 9 subcarriers in total). The SNR
+before beamforming at each subcarrier is SNRCEBBF = ?10 dB.
+We announce a individual experiment to be successful if the
+10
+0 50 100 150 200
+0
+0.2
+0.4
+0.6
+0.8
+1
+Number of slots T
+P
+D
+?u = ?v = 4
+?u = ?v = 8
+?u = ?v = 20
+?u = ?v = 32
+Fig. 7: Detection probability of our proposed scheme for
+different power spreading factors (?u, ?v), where M = N =
+32, F ? = 3, m = 3, n = 2, SNRCEBBF = ?10 dB per subcarrier.
+index of the strongest component in ? is correctly estimated.
+B. Concentration Result for the Random BS Codebook
+We randomly generate 4 probing codebooks at the BS
+side, which are known to all the users. Fig. 6 illustrates the
+detection probability for different pseudo-random codebooks,
+where the power spreading factors at the BS and the user
+sides are set to ?u = ?v = 16 respectively. We repeat
+the experiment 200 times and plot the resulting detection
+probability versus training period length T . It is seen that,
+as expected, increasing T improves the detection probability
+significantly. More importantly, different codebooks have quite
+similar performances. This illustrates that the performance is
+statistically concentrated for a random BS codebook, i.e., it is
+not sensitive to the specific transmit codebook design, as far
+as it is random.
+C. Dependence on the Beam Spreading factors ?u and ?v
+Note that in the proposed NNLS method, the spreading
+factors ?u and ?v impose a trade-off between the coverage
+of the probing window B (exploration) and its receive SNR
+at the user side (exploitation). This is illustrated in Fig. 7. It is
+seen that increasing the spreading factor from ?u = ?v = 4 to
+?u = ?v = 8 improves the performance. However, increasing
+?u, ?v to ?u = ?v = 20, 32 degrades the performance
+considerably.
+D. System-level Scalability
+We consider a multi-user scenario. We denote by K the
+total number of active users in the system, and by K(T ) the
+number of users that are able to estimate their channel within
+T time slots. Fig. 8 compares the fraction K(T )K of those users
+in our scheme with that in the interactive bisection method
+proposed in [11]. As we can see, the training overhead of
+hierarchical interactive methods scales proportionally with the
+number of active users, whereas in our scheme all the users are
+trained more or less simultaneously, thus, the overhead does
+not grow with the number of users. This is due to the fact
+0 50 100 150 200
+0
+0.2
+0.4
+0.6
+0.8
+1
+Number of slots T
+E
+[K
+(T
+)
+K
+]
+NNLS K = 5
+NNLS K = 10
+NNLS K = 20
+Bisec K = 5
+Bisec K = 10
+Bisec K = 20
+Fig. 8: Comparison of the performance of our proposed
+scheme with that of interactive bisection method in [11] in
+terms of the fraction of users whose channel is estimated until
+a given time slot T given by K(T )K . We take M = N = 32,
+F ? = 3, m = 3, n = 2, SNRCEBBF = ?10 dB per subcarrier,
+?u = ?v = 8.
+in our proposed algorithm, the BS probing patterns are not
+adapted to any specific user (in contrast with the interactive
+methods) and cover the channels of all the users within the
+BS coverage simultaneously.
+E. Robustness w.r.t. Variations in Channel Statistics
+As we explained in Section I, the existing CS-based methods
+in the literature assume that the instantaneous channel remains
+constant during the whole training stage, which is quite
+difficult to meet in mm-Waves. To investigate the sensitivity of
+the proposed CS techniques to channel variations, we consider
+a very simple model for temporal channel variations given by
+?s,l = ??s?1,l +
+?
+1? |?|2 ?s,l, s ? Z+, (50)
+where we adopt the initialization ?0,l ? CN (0, ?l), and where
+?s,l ? CN (0, ?l) is the white noise innovation term for the
+instantaneous channel gain ?s,l, which is i.i.d. across time
+(temporally white) as well as across l (spatially white), and
+where |?| ? [0, 1] is an update factor controlling the temporal
+variations of the channel gain ?s,l, which is assumed, for
+simplicity, to be the same for all the scatterers. Note that
+for |?| = 0 the path gains ?s,l change i.i.d. whereas for
+|?| = 1 they are sampled once (initialized with ?0,l at time
+slot s = 0) and remain invariant afterwards during the whole
+channel estimation. Fig. 9 illustrates the comparison of the
+performance of our proposed scheme with that of CS-based
+technique (OMP method) in [15]. It is seen that our proposed
+method exhibits much robust performance across a wide range
+of variations in channel statistics whereas the algorithm in [15]
+is quite fragile and fails to estimate the channel properly when
+the channel varies during the channel estimation.
+11
+0 50 100 150 200
+0
+0.2
+0.4
+0.6
+0.8
+1
+Number of slots T
+P
+D
+NNLS ? = 0
+NNLS ? = 0.7
+NNLS ? = 0.9
+NNLS ? = 1
+OMP ? = 0
+OMP ? = 0.7
+OMP ? = 0.9
+OMP ? = 1
+Fig. 9: Comparison of detection probability between proposed
+NNLS and OMP in [15] for different statistic path gains, where
+M = N = 32, F ? = 3, m = 3, n = 2, SNRCEBBF = ?10 dB
+per subcarrier, ?u = ?v = 8, the path gains change from i.i.d.
+(? = 0) to constant (? = 1).
+V. CONCLUSION
+In this paper, we proposed an efficient beam alignment scheme
+for mm-Wave multi-user MIMO systems. In our proposed
+scheme, the channel is always probed by the BS in the DL,
+providing all the users within the BS coverage sufficiently
+many measurements to estimate the AoA-AoD of strong
+scatterers connecting them to the BS. In contrast with the
+conventional interactive BA algorithms, where at each time
+slot the BS interacts with only a single user, in our proposed
+scheme all the users are trained simultaneously, thus, the
+BA scales very well with the number of active users in the
+system. We posed the BA as the estimation of the second
+order statistics of the channel and proposed a novel NNLS
+technique to guarantee a reliable recovery. We illustrated, via
+numerical simulations and comparison with other competitive
+techniques in the literature, that our algorithm is highly robust
+to variations in the channel statistics.
+ACKNOWLEDGMENTS
+X.S. is sponsored by the China Scholarship Council
+(201604910530).
+REFERENCES
+[1] R. W. Heath, N. Gonzalez-Prelcic, S. Rangan, W. Roh, and A. M.
+Sayeed, “An overview of signal processing techniques for millimeter
+wave mimo systems,” IEEE journal of selected topics in signal
+processing, vol. 10, no. 3, pp. 436–453, 2016.
+[2] T. S. Rappaport, S. Sun, R. Mayzus, H. Zhao, Y. Azar, K. Wang, G. N.
+Wong, J. K. Schulz, M. Samimi, and F. Gutierrez, “Millimeter wave
+mobile communications for 5g cellular: It will work!” Access, IEEE,
+vol. 1, pp. 335–349, 2013.
+[3] A. M. Sayeed, “Deconstructing multiantenna fading channels,” IEEE
+Transactions on Signal Processing, vol. 50, no. 10, pp. 2563–2579, 2002.
+[4] T. Nitsche, C. Cordeiro, A. B. Flores, E. W. Knightly, E. Perahia, and
+J. C. Widmer, “Ieee 802.11 ad: directional 60 ghz communication for
+multi-gigabit-per-second wi-fi [invited paper],” IEEE Communications
+Magazine, vol. 52, no. 12, pp. 132–141, 2014.
+[5] Z. Chen and C. Yang, “Pilot decontamination in wideband massive mimo
+systems by exploiting channel sparsity,” IEEE Transactions on Wireless
+Communications, vol. 15, no. 7, pp. 5087–5100, 2016.
+[6] S. Haghighatshoar and G. Caire, “The beam alignment problem in
+mmwave wireless networks,” in Signals, Systems and Computers, 2016
+50th Asilomar Conference on. IEEE, 2016, Conference Proceedings,
+pp. 741–745.
+[7] V. Desai, L. Krzymien, P. Sartori, W. Xiao, A. Soong, and A. Alkhateeb,
+“Initial beamforming for mmwave communications,” in 2014 48th
+Asilomar Conference on Signals, Systems and Computers, 2014,
+Conference Proceedings, pp. 1926–1930.
+[8] J. Wang, Z. Lan, C.-W. Pyo, T. Baykas, C.-S. Sum, M. A. Rahman,
+J. Gao, R. Funada, F. Kojima, H. Harada et al., “Beam codebook based
+beamforming protocol for multi-gbps millimeter-wave wpan systems,”
+Selected Areas in Communications, IEEE Journal on, vol. 27, no. 8, pp.
+1390–1399, 2009.
+[9] L. Chen, Y. Yang, X. Chen, and W. Wang, “Multi-stage beamforming
+codebook for 60ghz wpan,” in Communications and Networking in
+China (CHINACOM), 2011 6th International ICST Conference on.
+IEEE, 2011, pp. 361–365.
+[10] S. Hur, T. Kim, D. J. Love, J. V. Krogmeier, T. Thomas, A. Ghosh
+et al., “Millimeter wave beamforming for wireless backhaul and access
+in small cell networks,” Communications, IEEE Transactions on, vol. 61,
+no. 10, pp. 4391–4403, 2013.
+[11] A. Alkhateeb, O. El Ayach, G. Leus, and R. W. Heath, “Channel
+estimation and hybrid precoding for millimeter wave cellular systems,”
+Selected Topics in Signal Processing, IEEE Journal of, vol. 8, no. 5, pp.
+831–846, 2014.
+[12] M. Kokshoorn, H. Chen, P. Wang, Y. Li, and B. Vucetic, “Millimeter
+wave mimo channel estimation using overlapped beam patterns and rate
+adaptation,” IEEE Transactions on Signal Processing, vol. 65, no. 3, pp.
+601–616, 2017.
+[13] P. Xia, R. W. Heath, and N. Gonzalez-Prelcic, “Robust analog precoding
+designs for millimeter wave mimo transceivers with frequency and time
+division duplexing,” IEEE Transactions on Communications, vol. 64,
+no. 11, pp. 4622–4634, Nov 2016.
+[14] D. E. Berraki, S. M. D. Armour, and A. R. Nix, “Application of
+compressive sensing in sparse spatial channel recovery for beamforming
+in mmwave outdoor systems,” in 2014 IEEE Wireless Communications
+and Networking Conference (WCNC), 2014, Conference Proceedings,
+pp. 887–892.
+[15] A. Alkhateeby, G. Leusz, and R. W. Heath, “Compressed sensing
+based multi-user millimeter wave systems: How many measurements are
+needed?” in 2015 IEEE International Conference on Acoustics, Speech
+and Signal Processing (ICASSP), 2015, Conference Proceedings, pp.
+2909–2913.
+[16] J. Choi, “Beam selection in mm-wave multiuser mimo systems using
+compressive sensing,” IEEE Transactions on Communications, vol. 63,
+no. 8, pp. 2936–2947, 2015.
+[17] R. Mndez-Rial, C. Rusu, N. Gonzlez-Prelcic, A. Alkhateeb, and
+R. W. Heath, “Hybrid mimo architectures for millimeter wave
+communications: Phase shifters or switches?” IEEE Access, vol. 4, pp.
+247–267, 2016.
+[18] K. Venugopal, A. Alkhateeb, N. G. Prelcic, and R. W. Heath, “Channel
+estimation for hybrid architecture based wideband millimeter wave
+systems,” IEEE Journal on Selected Areas in Communications, 2017.
+[19] R. J. Weiler, M. Peter, W. Keusgen, and M. Wisotzki, “Measuring
+the busy urban 60 ghz outdoor access radio channel,” in 2014
+IEEE International Conference on Ultra-WideBand (ICUWB), 2014,
+Conference Proceedings, pp. 166–170.
+[20] V. Va, J. Choi, and R. W. Heath, “The impact of beamwidth on temporal
+channel variation in vehicular channels and its implications,” IEEE
+Transactions on Vehicular Technology, vol. 66, no. 6, pp. 5014–5029,
+2017.
+[21] A. Adhikary, E. Al Safadi, M. K. Samimi, R. Wang, G. Caire, T. S.
+Rappaport, and A. F. Molisch, “Joint spatial division and multiplexing
+for mm-wave channels,” IEEE J. on Sel. Areas on Commun. (JSAC),
+vol. 32, no. 6, pp. 1239–1255, 2014.
+[22] M. Slawski, M. Hein et al., “Non-negative least squares for
+high-dimensional linear models: Consistency and sparse recovery
+without regularization,” Electronic Journal of Statistics, vol. 7, pp.
+3004–3056, 2013.
+[23] R. Kueng and P. Jung, “Robust nonnegative sparse recovery
+and the nullspace property of 0/1 measurements,” arXiv preprint
+arXiv:1603.07997, 2016.
+[24] D. L. Donoho, I. M. Johnstone, J. C. Hoch, and A. S. Stern, “Maximum
+entropy and the nearly black object,” Journal of the Royal Statistical
+Society. Series B (Methodological), pp. 41–81, 1992.
+12
+[25] D. L. Donoho, “Compressed sensing,” Information Theory, IEEE
+Transactions on, vol. 52, no. 4, pp. 1289–1306, 2006.
+[26] E. J. Candes and T. Tao, “Near-optimal signal recovery from random
+projections: Universal encoding strategies?” Information Theory, IEEE
+Transactions on, vol. 52, no. 12, pp. 5406–5425, 2006.
+[27] A. M. Bruckstein, M. Elad, and M. Zibulevsky, “On the uniqueness
+of non-negative sparse & redundant representations,” in Acoustics,
+Speech and Signal Processing, 2008. ICASSP 2008. IEEE International
+Conference on. IEEE, 2008, pp. 5145–5148.
+[28] D. L. Donoho and J. Tanner, “Counting the faces of randomly-projected
+hypercubes and orthants, with applications,” Discrete & computational
+geometry, vol. 43, no. 3, pp. 522–541, 2010.
+[29] M. Wang and A. Tang, “Conditions for a unique non-negative solution
+to an underdetermined system,” in Communication, Control, and
+Computing, 2009. Allerton 2009. 47th Annual Allerton Conference on.
+IEEE, 2009, pp. 301–307.
+[30] M. Wang, W. Xu, and A. Tang, “A unique nonnegative solution to an
+underdetermined system: From vectors to matrices,” IEEE Transactions
+on Signal Processing, vol. 59, no. 3, pp. 1007–1016, 2011.
+[31] R. Tibshirani, “Regression shrinkage and selection via the lasso,”
+Journal of the Royal Statistical Society. Series B (Methodological), pp.
+267–288, 1996.
+[32] D. P. Bertsekas and A. Scientific, Convex optimization algorithms.
+Athena Scientific Belmont, 2015.
+[33] D. Kim, S. Sra, and I. S. Dhillon, “Tackling box-constrained
+optimization via a new projected quasi-newton approach,” SIAM Journal
+on Scientific Computing, vol. 32, no. 6, pp. 3548–3563, 2010.
+[34] D. K. Nguyen and T. B. Ho, “Anti-lopsided algorithm for large-scale
+nonnegative least square problems,” arXiv preprint arXiv:1502.01645,
+2015.
+[35] J. Zyren and W. McCoy, “Overview of the 3gpp long term evolution
+physical layer,” Freescale Semiconductor, Inc., white paper, 2007.

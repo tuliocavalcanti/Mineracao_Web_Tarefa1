@@ -1,0 +1,3132 @@
+ar
+X
+iv
+:1
+70
+9.
+00
+87
+3v
+1 
+ [
+cs
+.I
+T
+] 
+ 4
+ S
+ep
+ 2
+01
+7
+1
+A Probabilistic Peeling Decoder to Efficiently
+Analyze Generalized LDPC Codes Over the
+BEC
+Yanfang Liu, Pablo M. Olmos, Tobias Koch
+Universidad Carlos III de Madrid & Gregorio Maran?o?n Health Research Institute
+Email: {vivian,olmos,koch}@tsc.uc3m.es
+Abstract
+In this paper, we analyze the tradeoff between coding rate and asymptotic performance of a class
+of generalized low-density parity-check (GLDPC) codes constructed by including a certain fraction of
+generalized constraint (GC) nodes in the graph. The rate of the GLDPC ensemble is bounded using
+classical results on linear block codes, namely Hamming bound and Varshamov bound. We also study
+the impact of the decoding method used at GC nodes. To incorporate both bounded-distance (BD) and
+Maximum Likelihood (ML) decoding at GC nodes into our analysis without resorting on multi-edge
+type of degree distributions (DDs), we propose the probabilistic peeling decoding (P-PD) algorithm,
+which models the decoding step at every GC node as an instance of a Bernoulli random variable with a
+successful decoding probability that depends on both the GC block code as well as its decoding algorithm.
+The P-PD asymptotic performance over the BEC can be efficiently predicted using standard techniques
+for LDPC codes such as density evolution (DE) or the differential equation method. Furthermore, for
+a class of GLDPC ensembles, we demonstrate that the simulated P-PD performance accurately predicts
+the actual performance of the GLPDC code under ML decoding at GC nodes. We illustrate our analysis
+for GLDPC code ensembles with regular DDs. In all cases, we show that a large fraction of GC nodes
+is required to reduce the original gap to capacity, but the optimal fraction is strictly smaller than one.
+We then consider techniques to further reduce the gap to capacity by means of random puncturing, and
+the inclusion of a certain fraction of generalized variable nodes in the graph.
+Index Terms
+Generalized low-density parity-check codes, codes on graphs, maximum-likelihood decoding
+September 5, 2017 DRAFT
+2
+I. INTRODUCTION
+Generalized low-density parity-check (GLDPC) block codes were first proposed by Tanner [1]. In
+contrast to standard LDPC codes, which are represented by bipartite Tanner graphs where variable nodes
+and single parity-check (SPC) nodes are connected according to a given degree distribution (DD), in
+GLDPC codes the SPC nodes in the graph are replaced by generalized constraint (GC) nodes [1]. The
+sub-code associated to each GC node is referred to as the component code. Examples of component
+codes used in the GLDPC literature are Hamming codes [2], Hadamard codes [3] or expurgated random
+codes [4], [5]. For powerful component codes, GLDPC codes have many potential advantages, including
+improved performance in noisy channels, fast convergence speed and low error floor [4], [6].
+Upon selecting a particular class of component codes, the DD of the GLDPC code ensemble can
+be optimized, and near-capacity iterative decoding thresholds can be achieved [2], [4], [7]. Capacity-
+achieving GLDPC code ensembles can also be obtained by spatially-coupling GLDPC block codes
+with regular DDs [8], [9]. Furthermore, the asymptotic exponents of the weight/stopping set spectrum
+for irregular and spatially-coupled GLDPC ensembles have been derived in [6] and [10], respectively.
+Based on these works, it is possible to design asymptotically good GLDPC code ensembles to achieve
+capacity-approaching iterative decoding thresholds and a minimum distance that grows linearly with the
+blocklength.
+In this paper, we analyze GLDPC code ensembles using a different approach. Instead of selecting a
+particular class of component codes and optimizing the graph DD, we are interested in analyzing the
+tradeoff between coding rate and iterative decoding threshold of GLDPC code ensembles with fixed DD,
+referred to as the base DD, as we increase the fraction ? of GC nodes in the graph. This approach is novel
+in the literature and we believe it is appealing from a design perspective, since one might be interested in
+introducing a certain amount of GC nodes in the Tanner graph of a given LDPC code, aiming at reducing
+the gap to channel capacity at the resulting coding rate, and at the same time improving the minimum
+distance of the code and thus the error floor.
+This work has been funded in part by the Spanish Ministerio de Econom??a y Competitividad and the Agencia Espan?ola de
+Investigacio?n under Grant TEC2016-78434-C3-3-R (AEI/FEDER, EU) and by the Comunidad de Madrid in Spain under Grant
+S2103/ICE-2845. T. Koch has further received funding from the European Research Council (ERC) under the European Union’s
+Horizon 2020 research and innovation programme (grant agreement number 714161), from the 7th European Union Framework
+Programme under Grant 333680, and from the Spanish Ministerio de Econom??a y Competitividad under Grants TEC2013-
+41718-R and RYC-2014-16332. Pablo M. Olmos has further received funding from the Spanish Ministerio de Econom??a y
+Competitividad under Grant IJCI-2014-19150. This paper was presented in part at 2017 IEEE International Symposium on
+Information Theory.
+September 5, 2017 DRAFT
+3
+For the BEC, iterative decoding of graph-based codes, such as LDPC or GLDPC codes, can be
+performed by means of peeling decoding (PD) algorithms [11], [12], [13], which iteratively remove
+from the Tanner graph variable nodes whose value is known. As a result, the decoding process yields
+a sequence of graphs whose mean coincides with the asymptotic (in the blocklength) evolution of the
+ensemble. Furthermore, this evolution can be computed by solving a particular set of differential equations
+[11]. In the case of GLDPC codes the derivation of such differential equations requires to specify in
+advance the DD of the graph, and a description of what kind of erasure patterns are locally decodable at
+any GC node, which depends on both the component codes and the corresponding decoding algorithm.
+In fact, the resulting decoding threshold of GLDPC codes heavily depends on this latter point [3], [5],
+[13]. For instance, as we demonstrated in this paper, for a (2, 7) base DD in which all check nodes are
+(7, 4)-Hamming GC nodes, the asymptotic threshold over the BEC is ?? ? 0.7025 if maximum likelihood
+(ML) decoding is performed at each GC nodes. However, it drops to ?? ? 0.5135 if suboptimal bounded
+distance (BD) decoding is used instead of ML. In both cases, the coding rate is exactly the same. The
+reason for this difference in performance is that BD-decoded GC nodes only resolve erasure patterns up
+to degree d ? 1, where d is the minimum distance of the component code, whereas ML-decoded GC
+nodes can resolve a subset of erasure patterns of degree above d? 1.
+While deriving the asymptotic differential equations to analyze PD with BD decoding at GC nodes (BD-
+PD for short) follows a straightforward extension of the standard PD differential equations for LDPC codes
+[11], the GLDPC asymptotic analysis of PD under ML-decoded component codes (ML-PD, for short)
+requires the use of multi-edge-type DDs [14] to track down all possible decodable erasure patterns at GC
+nodes [8], [13]. As a consequence, the list of code parameters to jointly optimize becomes cumbersome.
+Specifically, the parameters include the description of the multi-edge DD, the position of GC nodes in the
+graph, the edge labelling at every GC node used to determine positions in the component block code, and
+the list of locally ML-decodable erasure patterns. In [5], the authors were able to incorporate ML-decoded
+GC nodes without resorting to multi-edge type DDs by analyzing the GLDPC average performance using
+extrinsic information (EXIT) charts when each GC node in the graph is selected at random within the
+family of block component codes with fixed block length and minimum distance larger than 2. This
+approach has a design caveat though, as it does neither allow the use of a single type of component
+codes, nor to narrow down the family of component codes by fixing the minimum distance.
+In this paper, we propose an analysis methodology that allows to easily incorporate into the PD
+algorithm ML-decoded GC nodes with specific properties, such a particular value of the minimum distance
+d or how many erasure patterns beyond minimum distance it can decode. We develop a probabilistic
+description of all components of the GLDPC code, namely the base DD, the presence of GC nodes
+September 5, 2017 DRAFT
+4
+in the graph, and the decoding method implemented at GC nodes. Regarding the latter aspect, we
+parameterize the decoding capabilities of at every node with a blocklength-K component code by a
+vector (p1, p2, ..., pK), where pw ? [0, 1], w ? {1, . . . ,K}, is the probability that a weight-w erasure
+pattern chosen at random is decodable. Thus, pw is the fraction of decodable weight-w erasure patterns.
+Note that if we take pw = 1 for w ? d ? 1 and pw = 0 for w = {d, . . . ,K}, we recover BD-PD.
+We show how to properly incorporate such a probabilistic description of component codes into the PD
+algorithm, and denote the resulting algorithm as probabilistic PD (P-PD). Due to its probabilistic nature,
+the asymptotic analysis of P-PD does not require the use of multi-edge type DDs. We show by computer
+simulations that the P-PD performance accurately predicts the actual GLDPC performance when ML
+decoding is performed at GC nodes.
+The performance predicted using P-PD is valid for any linear component code of blocklength-K and
+decoding profile (p1, p2, ..., pK). To analyze a family of linear component codes of blocklength-K and
+minimum distance d, we employ two bounds to compute the GLDPC coding rate. The Hamming or
+sphere-packing bound [15] is used to determine a converse bound on the rate of the GLDPC code
+ensemble as a function of a triplet of (?, d,K). The Varshamov bound is considered to determine an
+achievable rate of the GLDPC code ensemble [16]. In many scenarios of interest, we show that these
+bounds are sufficiently tight and thus relevant for the code designer.
+By employing a probabilistic description of the decoding capabilities at GC nodes, we are able to
+analyze a large class of GLDPC code ensembles and beyond-BD decoding methods with a fairly small
+set of parameters. We illustrate our analysis for GLDPC code ensembles using (2, 6), (2, 7), (2, 8) and
+(2, 15) base DDs. To obtain realistic values for the coding capabilities of the component codes, we have
+performed an exhaustive search of linear block codes of lengths r ? [6, 7, 8, 15], including Hamming
+codes, Cyclic codes, Quasi Cyclic codes and Cordaro-Wagner Codes, and tabulated their corresponding
+description in terms of minimum distance d and (p1, p2, ..., pK). In all cases, we show that a large fraction
+of GC nodes is required in the GLDPC graph to reduce the original gap to capacity. However, the closest
+gap to capacity is not achieved at ? = 1, but a smaller value must be used. Namely, there exists a
+critical ?? value for which the gap to capacity is minimum. Furthermore, the best results are obtained
+for high-rate component codes, suggesting that the use of very powerful component codes does not pay
+off, since the gain in threshold does not compensate for the severe decrease of the GLDPC code rate.
+We conclude the paper by combining the asymptotic threshold results with the weight spectral analysis
+of GLDPC ensembles in [10] to explore the range of ? values for which the GLDPC ensembles reduce the
+original gap to capacity and at the same time maintain a linear growth of the minimum distance with the
+block length. Finally, we illustrate how to incorporate further design techniques that can help to reduce
+September 5, 2017 DRAFT
+5
+the gap to capacity of the code ensembles. Specifically, we discuss both random puncturing [17] and
+a simple class of doubly generalized LDPC (DG-LDPC) codes [18], [19]. In general, the methodology
+presented in this paper is flexible and decouples the problems of bounding the GLDPC coding rate and
+the asymptotic analysis of the ensemble. In this regard, broader classes of component codes at variable
+nodes and GC nodes could also be incorporated in a systematic way.
+The paper is organized as follows. In Section II, we introduce GLDPC code ensembles and the notation
+used to characterize the DDs. Sections III and IV present the decoding algorithm and its asymptotic
+analysis. In Section V we bound the GLDPC code rate and analyze the rate-threshold tradeoff as a
+function of the fraction ? of GC nodes in the graph. The behavior of the GLDPC code ensembles with
+specific component codes is analyzed in VI. Finally, Sections VII and VIII consider further techniques to
+improve the asymptotic behavior of the code ensemble, by means of random puncturing and generalized
+variable nodes. We conclude the paper in Section IX with a discussion of our results.
+II. GLDPC ENSEMBLES
+In this section, we introduce the GLDPC code ensembles that will be analyzed in the rest of the paper
+and the notation used to define their DD.
+A. Degree distribution
+As illustrated in Fig. 1, the Tanner graph of every member in the ensemble contains n variable nodes
+(coded bits) and c parity-check nodes, among which a fraction ? corresponds to GC nodes while the rest
+corresponds to SPC nodes. We denote by E the number of edges in the Tanner graph and we define the
+degree of a node as the number of edges connected to it.
+The DD of the ensemble is characterized as follows. The vector ? = (?1, ?2, ..., ?J ) is the left DD,
+where ?i represents the fraction of edges (w.r.t. E) connected to a variable node of degree i. Given ?, n
+and E are related by [14]
+n = E
+J
+?
+i=1
+?i/i. (1)
+The right DD is defined by two vectors ?p = (?p1, ?p2, ..., ?pK) and ?c = (?c1, ?c2, ..., ?cK), where
+?pj denotes the fraction of edges (w.r.t. E) connected to a SPC node that has degree j and ?cj denotes
+the fraction of edges (w.r.t. E) connected to a GC node that has degree j. Throughout the paper, we use
+the subscript p for any DD component related to standard parity check nodes and the subscript c for
+any DD component related to generalized component codes. The DD is then characterized by the tuple
+September 5, 2017 DRAFT
+6
++
++
++
+...
++
+...
+...
+n
+variable nodes
+(1??)c
+SPC nodes
+?c
+GC nodes
+Fig. 1. Tanner graph of a GLDPC code.
+(?, ?p, ?c, ?) and the ensemble of codes generated by this DD is denoted by C?,?p,?c,? . Since the fraction
+of GC nodes in the graph is ?, the following must hold:
+? =
+?K
+j=1 ?cj/j
+?K
+u=1(?cu + ?pu)/u
+. (2)
+For simplicity, we restrict our analysis to the class of GLDPC ensembles characterized by SPC and
+GC nodes with constant degree J and K, respectively. The Tanner graph of any code in this ensemble
+contains n variable nodes, E = Jn edges, ? JK n GC nodes, and (1 ? ?)
+J
+K n SPC nodes. The DD of the
+GLDPC codes is characterized by the triple (J,K, ?), and the ensemble of codes generated by this DD
+is denoted by CJ,K,? . The DD of the LDPC ensemble obtained by taking ? = 0 is defined as the base
+DD, and the corresponding LDPC code ensemble is referred to as the base ensemble. The coding rate
+of the base ensemble is denoted by R0 and can be computed as:
+R0 = 1?
+J
+K
+. (3)
+Finally, we assume that the incoming edges to every degree-K GC nodes are assigned uniformly at
+random to each position of the component code.
+B. The coding rate of the CJ,K,? ensemble
+As discussed in the introduction of the paper, we propose tools to analyze the decoding performance
+of GLDPC under ML-decoded GC nodes that do not require to set in advance a specific component code
+to be used as the GC nodes. Instead, we consider the family of linear block codes with blocklength K
+and minimum distance d, and we use the classical results on linear block codes to bound the coding rate
+of the GLDPC code ensembles.
+September 5, 2017 DRAFT
+7
+Let k(?) ? N+, ? = 1, . . . , ?E/K, be the number of rows in the parity-check matrix associated with
+the component code of the ?-th GC node.
+Lemma 1: The design rate R(?) of the CJ,K,? ensemble is
+R(?) = R0 ? ?(1? R0)(kavg ? 1), (4)
+where kavg , (?
+E
+K )
+?1??
+E
+K
+?=1 k
+(?) is the average number of rows in the parity-check matrix of the
+component codes.
+Proof: Any SPC node in the Tanner graph accounts for a single row in the parity-check matrix of
+the GLDPC code, and any GC node accounts for k(?) rows. Thus, the design rate R(?) is given by
+R(?) = 1?
+(1? ?) EK +
+?? E
+K
+?=1 k
+(?)
+n
+= 1?
+(1? ?) EK + ?
+E
+K kavg
+E/J
+= R0 ? ?(1? R0)(kavg ? 1). (5)
+Note that the second term in (4) accounts for the rate loss at GC nodes. When the component codes
+are linear block codes with minimum distance d, we obtain the following bounds on R(?):
+Lemma 2: If all component codes in the CJ,K,? ensemble are linear block codes with minimum distance
+d > 2, then
+R(?) ? R0 ? ?(1? R0) log2
+?
+?
+1
+2
+? d?1
+2
+?
+?
+q=0
+(
+K
+q
+)
+?
+? . (6)
+Furthermore, there exists a set of linear block codes to be used as component codes such that
+R(?) ? R0 ? ?(1? R0)
+?
+?
+?
+?
+log2
+?
+?
+1
+2
++
+1
+2
+d?2
+?
+q=0
+(
+K ? 1
+q
+)
+?
+?
+?
+?
+?
+?
+. (7)
+Here, we use ?·? and ?·? to denote the ceiling and floor functions, respectively. The two bounds coincide,
+for example, when d = 3 and r = 2z ? 1, where z ? Z+.
+Proof: First, the condition d > 2 is required to differentiate between the rate loss at SPC nodes, which
+are block codes with minimum distance 2, and at GC nodes. We start by proving the converse bound
+in (6). By the sphere-packing bound [15, Theorem 12, p.531], any component code with blocklength K
+and minimum distance d must satisfy
+2K?k ?
+2K
+?? d?1
+2
+?
+q=0
+(K
+q
+)
+, (8)
+where k is the number of rows in the parity-check matrix. This implies that the term (kavg ? 1) in (4) is
+bounded by
+kavg ? log2
+?
+?
+? d?1
+2
+?
+?
+q=0
+(
+K
+q
+)
+?
+? , (9)
+September 5, 2017 DRAFT
+8
+which proves (6). Regarding the achievable bound in (7), the Varshamov Bound [16, Theorem 2.9.3]
+guarantees the existence of a linear component code with blocklength K and minimum distance at least
+d if
+2K?k ? 2
+n?
+?
+log
+2
+(
+1+
+?
+d?2
+q=0 (
+K?1
+q
+)
+)?
+. (10)
+If the above condition is satisfied, then there exists a set of linear block codes to be used as component
+codes with blocklength K and minimum distance at least d such that
+kavg ? 1 ?
+?
+?
+?
+?
+log2
+?
+?
+1
+2
++
+1
+2
+d?2
+?
+q=0
+(
+K ? 1
+q
+)
+?
+?
+?
+?
+?
+?
+, (11)
+which proves (7).
+Finally, if we substitute d = 3 and K = 2z ? 1 for some z ? Z+ into (6) and (7), a straightforward
+computation shows that the converse bound in (6) can be simplified to
+R(?) ? R0 ? ?(1? R0)(z ? 1), (12)
+and, likewise, the achievable bound in (7) simplifies to
+R(?) ? R0 ? ?(1? R0)(z ? 1). (13)
+C. Growth rate of the weight distribution of the CJ,K,? ensemble
+A useful tool for analysis and design of LDPC codes and their generalizations is the asymptotic
+exponent of the weight distribution. The growth rate of the weight distribution was introduced in [20] to
+show that the minimum distance of a randomly-generated regular LDPC code with a variable nodes of
+degree of at least three is a linear function of the codeword length with high probability. The growth rate
+of the weight distribution for a class of doubly generalized LDPC (D-GLDPC) codes was introduced in
+[10]. The CJ,K,? GLDPC code ensemble can be seen as a particular instance of the codes analyzed in
+that work. The weight spectral shape of the CJ,K,? ensemble captures the behavior of codewords whose
+weight is linear in the block length n and is defined by
+G(?) , lim
+n??
+1
+n
+logECJ,K,? [X?n] (14)
+for ? > 0, where Xw denotes the number of codewords of weight-w of a randomly chosen code in the
+CJ,K,? code ensemble. This limit assumes the inclusion of only those positive integers for which ?n ? Z.
+We define the critical exponent codeword weight ratio as ?? , inf{? ? 0|G(?) ? 0}. If ?? > 0, then the
+code’s minimum distance asymptotically grows as O(??n) and the ensemble is said to have good growth
+September 5, 2017 DRAFT
+9
+rate behavior. If ?? = 0, then the minimum distance of the code may still grow with the block length n
+but at a slower rate, e.g., as O(log(n)).
+Lemma 3: If all component codes in the CJ,K,? ensemble are linear block codes with minimum distance
+d > 2, then ?? > 0 for J > 2. For J = 2, ?? > 0 if and only if
+? >
+K ? 2
+K ? 1
+, ??. (15)
+Otherwise, ?? = 0.
+Proof: The lemma follows directly by particularizing the results in [10] [Section II] to the CJ,K,?
+ensemble.
+III. PROBABILISTIC PEELING DECODING OVER THE BEC
+Suppose we use a random sample of the CJ,K,? ensemble to transmit over a BEC(?). For this channel,
+each of the n coded bits is erased with probability ?. Without loss of generality, we assume that the
+all-zero codeword is transmitted, hence the received vector y belongs to the set {0, ?}n, where ? denotes
+an erasure. Let ?y ? {1, . . . , n} be the index set of the bits correctly received, namely yi = 0 for all
+i ? ?y . Decoding will be performed using a generalization of the PD algorithm [11] similar to that
+proposed for GLDPC codes in [13]. The final formulation of the decoding algorithm depends on the
+decoding capabilities we assume at GC nodes. For instance, if we assume BD decoding at component
+codes, then the generalized PD algorithm, denoted as BD-PD, proceeds as described in Algorithm 1.
+Algorithm 1 BD-PD
+Remove from the Tanner graph of the GLDPC code all variable nodes with indexes in ?y .
+Construct ?, the index set of check nodes that correspond to either degree-one SPC nodes or GC
+nodes of degree less or equal to d? 1.
+repeat
+1) Select at random a member of ?.
+2) Remove from the Tanner graph the check node with the index drawn in Step 1). Further, remove
+all connected variable nodes, and all attached edges.
+3) Update ?.
+until All variable nodes have been removed (successful decoding) or ? = ? (decoding failure).
+BD-PD is a suboptimal decoding method that considers decodable all GC nodes up to degree d ? 1
+[9], [21]. However, it ignores the fact that any component code will be able to decode a certain fraction
+September 5, 2017 DRAFT
+10
+of erasure patterns of weight equal to or greater than d. As already reported in various works, e.g., [8],
+[13], the GLPDC code performance dramatically improves if we consider ML decoding at GC nodes.
+In principle, to consider ML decoding at GC nodes, we have to specify a full list of decodable erasure
+patterns and, label each of the incoming edges at every GC node to differentiate between decodable and
+non-decodable GC nodes. As shown in [13], incorporating this labelling into the asymptotic analysis
+requires the use of multi-edge type DDs.
+Algorithm 2 P-PD
+Remove from the Tanner graph of the GLDPC code all variable nodes with indexes in ?y .
+for all GC nodes do
+If the GC has degree w, tag the check node as decodable with probability pw.
+end for
+Construct ?, the index set of check nodes corresponding to either degree-one SPC nodes or GC nodes
+tagged as decodable.
+repeat
+1) Select at random a member of ?.
+2) Remove from the Tanner graph the check node with the index drawn in Step 1). Further remove
+all connected variable nodes and all attached edges.
+3)
+for every non-decodable GC node that has lost one or more edges do
+If the GC has degree w, tag the check node as decodable with probability pw.
+end for
+4) Update ?.
+until All variable nodes have been removed (successful decoding) or ? = ? (decoding failure).
+In order to incorporate beyond-BD decoding at GC nodes into our analysis, and at the same time
+maintain a formulation compatible with the random definition of the CJ,K,? ensemble, we will further
+constrain the family of component codes to be used at degree-K GC nodes. More specifically, we
+assume that the fraction of ML-decodable weight-w erasure patterns at every GC node is given by
+some pw ? [0, 1], w = 1, . . . ,K. Thus, the family of component codes under analysis is the family of
+blocklength-K linear block codes with minimum distance d and with decoding profile described by the
+vector p = (p1, . . . , pK). Note that if the minimum distance of the component code is d, then pw = 1
+for w ? d? 1.
+September 5, 2017 DRAFT
+11
+By exploiting the fact that incoming edges at every GC node are assigned to each position of the
+component code uniformly at random, we can incorporate ML-decoded GC nodes into the PD as shown
+in Algorithm 2, denoted as probabilistic PD (P-PD). Observe that the key P-PD feature is to tag GC
+check nodes as decodable with probabilities given by p only when they lose one or more edges, which
+may happen either at the initialization or after a connected variable is removed. If only one decodable
+check node is removed per iteration, after every P-PD iteration only a few GC nodes can change its state
+(from non-decodable to decodable). Thus, at every iteration, P-PD emulates the ML decoding operation
+of a degree-w GC node by drawing the decoding capability according to a Bernoulli distribution with
+parameter pw, w ? {1, . . . ,K}. Note that P-PD is a procedure that allows for simpler analysis rather
+than a practical decoding algorithm. Further, note that we recover the bounded distance PD (BD-PD)
+algorithm from P-PD if we set pw = 0 for w ? d and pw = 1 otherwise.
+The bounds on R(?), predicted in Lemma 2, could in principle be refined according to p. While this is
+an interesting open question, we will later show that the bounds are tight in certain scenarios and there
+is little room for refinement.
+A. Comparing the P-PD and ML-PD performances by Monte Carlo simulation
+If we select a specific component code, we can compare the simulation performance of the CJ,K,?
+ensemble for the corresponding parameters under P-PD with that of the practical GLDPC codes with GC
+nodes that are decoded via ML, using the actual parity-check matrix of the component codes. We refer
+to this latter case as ML-PD.
+More precisely, for a given finite blocklength n, fixed ? ? [0, 1], and base DD, we generate a member
+of the CJ,K,? ensemble as follows:
+1) Generate at random a Tanner graph according to the (J,K) base DD. Then, select at random a
+fraction ? of check nodes to be used as GC nodes. Overall, the graph contains n variable nodes,
+?E/K GC nodes and (1? ?)E/K SPC nodes.
+2) For each of the ?E/K GC nodes, we generate uniformly at random a permutation of the set
+{1, 2, . . . ,K}, which is used to associate each of the incoming edges to the GC node to a position
+in the component code.
+We estimate by Monte Carlo simulation the bit error rate (BER) over the BEC achieved by both P-PD,
+which follows Algorithm 2, and ML-PD, which uses a look-up table of decodable erasure patterns. In Fig.
+2 (a), we plot the BER as a function of the channel erasure probability of P-PD and ML-PD for a (2, 6)-
+regular base DD with a rate-1/2 Hamming (6, 3) linear block code as component code. In Fig. 2 (b), we
+plot the same quantities for a (2, 8)-regular base DD using a rate-1/2 (8, 4) Hamming component code.
+September 5, 2017 DRAFT
+12
+0.5 0.6 0.7 0.8 0.9 1
+10
+?4
+10
+?3
+10
+?2
+10
+?1
+10
+0
+Channel erasure probability
+B
+it
+er
+ro
+r
+ra
+te
+d = 3, ML-PD, Code A, ? = 70%
+d = 3, P-PD, Code A, ? = 70%
+d = 3, ML-PD, Code A, ? = 75%
+d = 3, P-PD, Code A, ? = 75%
+0.5 0.6 0.7 0.8 0.9 1
+10
+?4
+10
+?3
+10
+?2
+10
+?1
+10
+0
+Channel erasure probability
+B
+it
+er
+ro
+r
+ra
+te
+d = 4, ML-PD, Code E, ? = 70%
+d = 4, P-PD, Code E, ? = 70%
+d = 4, ML-PD, Code E, ? = 75%
+d = 4, P-PD, Code E, ? = 75%
+(a) (b)
+Fig. 2. In Fig. 2 (a), we plot the BER as a function of the channel erasure probability for a (2, 6) base DD and a rate-1/2
+Hamming (6, 3) linear block code as component code. In Fig. 2 (b), we plot the BER as a function of the channel erasure
+probability for a (2, 8) base DD and a rate-1/2 (8, 4) Hamming component code. Results have been averaged over 10 generated
+samples from the CJ,K,? ensemble with a blocklength of 10000 bits.
+Results have been averaged over 10 generated samples from the CJ,K,? ensemble. Observe the perfect
+match between the BERs for P-PD and ML-PD in all cases. This illustrates that we are not sacrificing
+accuracy with the probabilistic description of the decoder, as long as GLDPC codes are generated as
+described above.
+IV. ASYMPTOTIC ANALYSIS
+The P-PD decoder yields a sequence of residual graphs by sequentially removing degree-one SPC
+nodes and decodable GC nodes from the GLDPC Tanner graph. Our next goal is to predict the asymptotic
+behaviour of the CJ,K,? ensemble under P-PD by extending the methodology proposed in [11] to analyze
+the asymptotic behavior of LDPC ensembles under PD. In [11], it is shown that if we apply the PD
+to elements of an LDPC ensemble, then the expected DD of the sequence of residual graphs can be
+described as the solution of a set of differential equations. Furthermore, the deviation of the process
+w.r.t. the expected evolution decreases exponentially fast with the LDPC blocklength. This analysis is
+based on a result on the evolution of Markov processes due to Wormald [22]. The proof that the GLDPC
+September 5, 2017 DRAFT
+13
+asymptotic graph evolution under P-PD can be predicted using the same result is given in Appendix A.
+In this section, we introduce the notation used to characterize the DDs of the residual Tanner graphs
+of GLDPC ensembles with P-PD decoding and then present the system of differential equations that
+describes the asymptotic GLDPC graph evolution.
+In order to characterize the DDs of the residual Tanner graphs of GLDPC ensembles is to augment
+the DD notation introduced in Section II to differentiate between GC nodes that have been tagged as
+decodable and those tagged as non-decodable. In order to simplify the formulation, we restrict ourselves
+to the case pw = 0 for w ? d+ 2, i.e., we consider component codes can only decode a certain fraction
+of erasure patterns of degrees d and d + 1 and all erasure patterns of degree below d. This may not be
+an strong assumption. After exhaustive search of short linear block component codes (blocklengths up to
+15 bits), we have not found any component code with pw > 0 for w ? d+ 2. In any case, the analysis
+provided here directly generalizes to any arbitrary pw.
+As introduced in Section II, any edge adjacent to a degree i variable node is said to have left degree
+i. Similarly, any edge adjacent to a degree j SPC (GC) node is said to have right SPC (GC) degree j.
+Given the residual graph at the ?-th iteration of the P-PD algorithm, let L
+(?)
+i denote the number of edges
+with left degree i at iteration ?, i = 1, ..., J . Similarly, let R
+(?)
+pj denote the number of edges with right
+SPC degree j and R
+(?)
+cj denote the number of edges with right GC degree j at iteration ?, j = 1, ...,K.
+For j ? {d, d + 1}, we split R
+(?)
+cj into two terms, R?
+(?)
+cj and R?
+(?)
+cj , where R?
+(?)
+cj , j ? {d, d + 1} denotes the
+number of edges with right GC degree j connected to GC nodes tagged as decodable, and R?
+(?)
+cj denotes
+the number of edges with right GC degree j connected to GC nodes tagged as not-decodable. Clearly,
+we have R
+(?)
+cj = R?
+(?)
+cj + R?
+(?)
+cj , j = d, d + 1. Recall that E denotes the number of edges in the original
+GLPDC graph.
+Theorem 4: Consider a BEC with erasure probability ? and assume we use elements of the C?,?p,?c,?
+code ensemble for transmission. If we use P-PD with parameters (d, pd, pd+1), in the limit as E ? ?
+the DD of the residual graph at iteration ? can be computed as follows:
+lim
+E??
+L
+(?)
+i = El
+(?/E)
+i , i ? {1, . . . , J} (16)
+lim
+E??
+R
+(?)
+pj = Er
+(?/E)
+pj , j ? {1, . . . ,K} (17)
+lim
+E??
+R
+(?)
+cj = Er
+(?/E)
+cj , j ? {1, . . . ,K} and j /? {d, d + 1} (18)
+lim
+E??
+R?
+(?)
+cj = Er?
+(?/E)
+cj , j ? {d, d+ 1} (19)
+lim
+E??
+R?
+(?)
+cj = Er?
+(?/E)
+cj , j ? {d, d+ 1} (20)
+September 5, 2017 DRAFT
+14
+where l
+(?)
+i , r
+(?)
+pj , r
+(?)
+cj , r?
+(?)
+cj , r?
+(?)
+cj ? ? [0,
+?J
+i=1 l
+(?)
+i /i] are the solutions to the following system of differential
+equations:
+dl
+(?)
+i
+d?
+= ?
+il
+(?)
+i
+e(?)
+(
+P
+(?)
+p1 +
+d+1
+?
+w=1
+wP (?)cw
+)
+, (21)
+dr
+(?)
+pj
+d?
+= P
+(?)
+p1
+(
+(r
+(?)
+p(j+1) ? r
+(?)
+pj )
+j(a(?) ? 1)
+e(?)
+? I[j = 1]
+)
++
+d+1
+?
+w=1
+P (?)cw (r
+(?)
+p(j+1) ? r
+(?)
+pj )
+jw(a(?) ? 1)
+e(?)
+, (22)
+drcj(?)
+d?
+= P
+(?)
+p1
+(
+(r
+(?)
+c(j+1) ? r
+(?)
+cj )
+j(a(?) ? 1)
+e(?)
+)
++
+d+1
+?
+w=1
+P (?)cw
+(
+(r
+(?)
+c(j+1) ? r
+(?)
+cj )
+jw(a(?) ? 1)
+e(?)
+? wI[j = w]
+)
+, j /? {d, d+ 1} (23)
+dr?
+(?)
+cj
+d?
+= P
+(?)
+p1
+(
+(pj r?
+(?)
+c(j+1) + r?
+(?)
+c(j+1) ? r?
+(?)
+cj )
+j(a(?) ? 1)
+e(?)
+)
++
+j+1
+?
+w=1
+P (?)cw
+(
+(pj r?
+(?)
+c(j+1) + r?
+(?)
+c(j+1) ? r?
+(?)
+cj )
+jw(a(?) ? 1)
+e(?)
+? wI[w = j]
+)
+, j ? {d, d + 1} (24)
+dr?
+(?)
+cj
+d?
+= P
+(?)
+p1
+(
+((1? pj)r?
+(?)
+c(j+1) ? r?
+(?)
+cj )
+j(a(?) ? 1)
+e(?)
+)
++
+j+1
+?
+w=1
+P (?)cw
+(
+((1? pj)r?
+(?)
+c(j+1) ? r?
+(?)
+cj )
+jw(a(?) ? 1)
+e(?)
+? wI[w = j]
+)
+, j ? {d, d + 1} (25)
+In (21)-(25), I[·] denotes the indicator function, and
+e(?) =
+J
+?
+i=1
+l
+(?)
+i =
+K
+?
+j=1
+[r
+(?)
+pj + r
+(?)
+cj ], (26)
+a(?) =
+?
+i
+il
+(?)
+i /e
+(?), (27)
+P
+(?)
+p1 =
+r
+(?)
+p1
+s(?)
+, (28)
+Pcj(?) =
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+r
+(?)
+cj /j
+s(?)
+j < d
+r?
+(?)
+cj /j
+s(?)
+j ? {d, d + 1}
+(29)
+s(?) = r
+(?)
+p1 +
+d?1
+?
+w=1
+r
+(?)
+cw
+w
++
+r?
+(?)
+cd
+d
++
+r?
+(?)
+c(d+1)
+d+ 1
+. (30)
+September 5, 2017 DRAFT
+15
+The initial conditions of the system of differential equations (21)-(25) are given by
+l
+(0)
+i = ??i, (31)
+r
+(0)
+pj =
+?
+??j
+?p?
+(
+?? 1
+j ? 1
+)
+?j(1? ?)??j , (32)
+r
+(0)
+cj =
+?
+??j
+?c?
+(
+?? 1
+j ? 1
+)
+?j(1? ?)??j , (33)
+r?(0)c? = p?r
+(0)
+c? , (34)
+r?(0)c? = (1? p?)r
+(0)
+c? (35)
+for i = 1, . . . J , j = 1, . . . ,K, and ? = d, d+ 1.
+Proof: See Appendix A.
+Using Theorem 4, we can predict the P-PD threshold for the CJ,K,? code ensemble by setting ?i =
+I[i = J ] in (31), ?p? = (1 ? ?)I[? = K] in (32), and ?c? = ?I[? = K] in (33). We then numerically
+search for the highest ? value for which the function r
+(?)
+p1 +
+?
+d?1
+w=1 r
+(?)
+cw /w + r?
+(?)
+cd /d + r?
+(?)
+c(d+1)/(d + 1)
+remains strictly positive for any ? ? [0,
+?J
+i=1 l
+(?)
+i /i] such that e
+(?) > 0.
+V. ANALYSIS OF THE CJ,K,? ENSEMBLE UNDER P-PD
+In this section, we study the asymptotic performance of the CJ,K,? ensemble for different base DDs as
+we vary the fraction ? of GC nodes in the graph. We use high rate base DDs that correspond to regular
+LDPC code ensembles with variable degree equal to J = 2. Further examples with J > 2 are discussed
+in Section VIII. We summarize the parameter of the base DD considered here in Table I. We denote by
+?0 the PD threshold of the base LDPC ensemble. Recall that pw = 1 for w ? d ? 1 and pw = 0 for
+w ? d + 2. In order to determine pd, pd+1, we performed an exhaustive search over the database [23],
+[24], which implements MAGMA [25] to design block codes with the largest minimum distance. For
+every K, we search for the code with the largest minimum distance d, and we use the corresponding pd
+and pd+1 parameters. Like this, we ensure that there exists at least one linear block code that satisfies
+these requirements. We use this specific block code as the reference of a family of linear block codes
+with the same decoding capabilities. The values found are listed in Table II and used as a reference for
+a whole family of linear block codes. The corresponding reference block codes are listed in Appendix
+C. Note that despite having different blocklength and rate, many reference block codes share the same
+pd, pd+1 parameters.
+We construct CJ,K,? ensembles by combining various base DDs with the component code families
+summarized in Table II. For each code ensemble, we compute the P-PD threshold ?? as a function of ?.
+September 5, 2017 DRAFT
+16
+TABLE I
+BASE DDS, THEIR DESIGN RATES AND ITERATIVE DECODING THRESHOLDS UNDER PD
+Base DD K R0 ?0 Gap to capacity (1? R0 ? ?0)
+(2, 6)-regular 6 2/3 0.206 0.127
+(2, 7)-regular 7 5/7 0.167 0.119
+(2, 8)-regular 8 3/4 0.147 0.103
+(2, 15)-regular 15 13/15 0.071 0.062
+TABLE II
+FAMILIES OF COMPONENT LINEAR BLOCK CODES.
+Code Family Index blocklength K d pd pd+1
+I 6 3 0.8 0
+II 6 4 0.8 0
+III 7 3 0.8 0
+IV 7 4 0.8 0
+V 8 4 0.8 0
+VI 8 4 0.9143 0.5714
+VII 8 5 0.9643 0.75
+VIII 15 3 0.9231 0.6154
+IX 15 4 0.9231 0.6154
+A. Results for (2, 6) and (2, 7) base DDs
+Fig. 3 shows the computed P-PD threshold ?? of the CJ,K,? ensemble for a base DD (2, 6)-regular
+as a function of ?. We consider GC nodes with minimum distance d equal to 3 and 4 and parameters
+given by Families I and II in Table II. We also include the BD-PD threshold, which only depends on the
+minimum distance d of the component codes and can be computed by solving the system of differential
+equations in Theorem 4 by setting pd = pd+1 = 0. First of all, observe that the P-PD gains in threshold
+w.r.t. BD-PD are only significant for large values of ?. Furthermore, for both P-PD and BD-PD, using
+component codes with larger minimum distance (d = 4 instead of d = 3) pays off only for very large
+values of ?.
+Since increasing ? also modifies the code rate R(?) in (4), the comparison in Fig. 3 can be misleading, as
+we cannot directly evaluate the distance to the channel capacity. In fact, not all values of ? are achievable,
+since they would give rise to a negative rate R(?). We overcome this issue by directly comparing the
+asymptotic threshold and code rate, both defined as parametric curves w.r.t. ?. Denote by ??(?) the
+September 5, 2017 DRAFT
+17
+0 0.2 0.4 0.6 0.8 1
+0
+0.2
+0.4
+0.6
+0.8
+1
+?
+??
+(?
+)
+(2,6), d = 3, P-PD, Code 1
+(2,6), d = 3, BD-PD
+(2,6), d = 4, P-PD, Code 2
+(2,6), d = 4, BD-PD
+Fig. 3. P-PD and BD-PD thresholds as a function of ? for the (2, 6) base DD.
+threshold ?? as a function of ? ? [0, 1]. From Fig. 3 we see that ??(?) is a continuous, strictly increasing
+function of ? and that for ? = 0 its value is equal to ?0, the threshold of the base LDPC ensemble.
+The inverse of this function, which can be obtained numerically, is denoted by ?(??) and provides the
+minimum fraction of GC nodes in the graph required to achieve an ensemble threshold at least ??. Given
+the function ?(??) described above, we use Lemma 2 to determine bounds on R(?) for a given targeted
+decoding threshold ??. More precisely, by using ?(??) in (6), we obtain a converse bound on the coding
+rate required to achieve a P-PD decoding threshold equal to ?? using component codes with minimum
+distance d. Similarly, using ?(??) in (7), we obtain an achievable bound on the coding rate required to
+achieve a P-PD decoding threshold equal to ?? using linear component codes with minimum distance d.
+We proceed along the same lines to obtain bounds on the CJ,K,? rate for the BD-PD thresholds.
+In Fig. 4 (a) we plot these bounds as a function of ??, both for P-PD and BD-PD, using Code Family
+I component codes with minimum distance d = 3. In Fig. 4 (b), we show the gap to channel capacity
+computed for each case, and indicate the threshold ??(??) with ?? given in (15). Since ??(?) is monotonically
+increasing in ?, any configuration with threshold larger than ??(??) has a minimum distance that grows
+linearly with the block length n. Observe that the performance of both BD-PD and P-PD overlaps for
+coding rates close to the original rate of the base DD, i.e., for small values of ?. However, as ??(?)
+increases, P-PD significantly outperforms BD-PD. Furthermore, there are values of ? for which the gap
+to capacity of P-PD is smaller than that for the base LDPC ensemble under PD. For the (2, 6) base DD,
+September 5, 2017 DRAFT
+18
+0.2 0.4 0.6 0.8 1
+0
+0.2
+0.4
+0.6
+Threshold ?*(?)
+R
+at
+e
+(?
+)
+(2,6), d = 3, P-PD, Fam. I
+(2,6), d = 3, BD-PD
+Capacity
+0.2 0.4 0.6 0.8 1
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+Threshold ?*(?)
+G
+ap
+to
+ca
+p
+ac
+it
+y
+(?
+)
+(2,6), d = 3, P-PD, Fam. I
+(2,6), d = 3, BD-PD
+(2,6) LDPC ensemble with PD
+P-PD threshold with ? = ??
+(a) (b)
+Fig. 4. In Fig. 4 (a), we plot the bounds on the CJ,K,? coding rate in (6) and (7) for the base DD (2, 6) and component codes
+of minimum distance d = 3 as a function of the P-PD and BD-PD thresholds. In Fig. 4 (b), we show their gap to channel
+capacity. We also indicate the P-PD threshold for ? = ??.
+the minimum gap to capacity of P-PD, measured using the achievable rate bound, is 0.0823 for a coding
+rate of 0.1667. For ? = ??, the gap to capacity grows to 0.0987 but it is still below the base LDPC gap
+to capacity, which is 0.1273 according to Table I. Thus, for ? slightly above ?? we are able to reduce the
+original gap to capacity and at the same time obtain a good ensemble from minimum distance point of
+view. Observe also that the region where the CJ,K,? ensemble outperforms the base LDPC ensemble is
+very narrow, and it does not include the case where all check nodes are GC nodes (? = 1).
+Fig. 5 reproduces the results for the Code Family II with minimum distance d = 4. However, in this
+case the two bounds are loose and it is uncertain whether we can find an specific block component
+code in the family that is able to operate close to the converse bound. In fact, for large ??(?), the P-PD
+converse bound coincides with the capacity. Furthermore, the bounds for P-PD and BD-PD overlap in a
+large region despite the fact that P-PD using component codes from Family II resolves degree-d erasure
+patterns with high probability (0.8).
+In Fig. 6 we show the asymptotic behaviour of the CJ,K,? ensemble constructed using a (2, 7) base DD
+with d = 3 component codes. As predicted by Lemma 2, when using component codes of blocklength
+r = 7 with minimum distance d = 3, the converse and achievable bound on the CJ,K,? coding rate
+coincide. Thus, the existence of a linear block component code that satisfies the properties of Code
+Family III and for which the CJ,K,? ensemble asymptotically achieves the results in Fig. 6 is guaranteed.
+September 5, 2017 DRAFT
+19
+0.2 0.4 0.6 0.8 1
+0
+0.2
+0.4
+0.6
+Threshold ?*(?)
+R
+at
+e
+(?
+)
+(2,6), d = 4, P-PD, Fam. II
+(2,6), d = 4, BD-PD
+Capacity
+Fig. 5. Bounds on the CJ,K,? coding rate in (6) and (7) for a base DD (2, 6) and d = 4 component codes as a function of the
+P-PD and BD-PD thresholds.
+Again, there is a region where the gap to capacity of P-PD can be reduced with respect to that of the
+base LDPC ensemble.
+0.2 0.4 0.6 0.8
+0.2
+0.4
+0.6
+0.8
+Threshold ?*(?)
+R
+at
+e
+(?
+)
+(2,7), d = 3, P-PD, Fam. III
+(2,7), d = 3, BD-PD
+Capacity
+0.2 0.4 0.6 0.8
+0
+0.1
+0.2
+0.3
+0.4
+Threshold ?*(?)
+G
+ap
+to
+ca
+p
+ac
+it
+y
+(?
+)
+(2,7), d = 3, P-PD, Fam. III
+(2,7), d = 3, BD-PD
+(2,7) LDPC ensemble with PD
+P-PD threshold with ? = ??
+(a) (b)
+Fig. 6. In (a), we plot the bounds on the CJ,K,? coding rate in (6) and (7) for a base DD (2, 7) as a function of the P-PD and
+BD-PD thresholds. Note that the bounds overlap in this case. In (b), we show the gap to channel capacity for each case. We
+also indicate the P-PD threshold for ? = ??.
+September 5, 2017 DRAFT
+20
+B. Results for higher-density base DDs
+We finish this section by extending the above results to base DDs with higher check degree and,
+thus higher ensemble density. In Fig. 7(a), we show the asymptotic behavior of the CJ,K,? ensemble
+constructed using a (2, 8) base DD with component codes in Code Families V, VI and VII (See Table II).
+Observe first that the rate bounds for Code Families V and VI coincide, even though Code Family VI
+has better decoding capabilities. In both cases the bounds are loose, but we can still observe a significant
+improvement w.r.t. the Code Family VII, which has but very large (d = 5) minimum distance and, hence,
+and small coding rate. This again demonstrates that the use of more robust and powerful component
+codes does not compensate for the quick decay in the GLDPC ensemble coding rate. In Fig. 7(b), we
+consider a (2, 15) base DDs with a component code of Code Families VIII (d = 3). In this case, as
+predicted by lemma 2, the bounds coincide and the gap to capacity is minimized at a coding rate R ? 0.54
+and threshold ?? ? 0.379, resulting in a gap capacity equal to 0.074. This is slightly above the gap to
+capacity for the base LDPC ensemble (0.062). Also, at this point the GLDPC ensemble does not have
+linear growth of the minimum distance, since for this ensemble, ??(??) = 0.493.
+0.2 0.4 0.6 0.8 1
+0
+0.2
+0.4
+0.6
+0.8
+Threshold ?*(?)
+R
+at
+e
+(?
+)
+(2,8), d = 4, P-PD, Fam. V
+(2,8), d = 4, P-PD, Fam. VI
+(2,8), d = 5, P-PD, Fam. VII
+Capacity
+0.1 0.2 0.3 0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+Threshold ?*(?)
+R
+at
+e
+(?
+)
+(2,15), d = 3, P-PD, Fam. VIII
+Capacity
+(a) (b)
+Fig. 7. We plot the bounds on the CJ,K,? coding rate in (6) and (7) for a base DD (2, 8) (Fig. 7 (a)) and (2, 15) (Fig. 7 (b))
+as a function of the P-PD threshold.
+VI. SELECTING SPECIFIC COMPONENT CODES
+By using the bounds on the CJ,K,? code rate, we have been able to assess the performance of CJ,K,?
+ensembles for a family of linear component codes. In certain scenarios the proposed bounds on the CJ,K,?
+September 5, 2017 DRAFT
+21
+code rate provide meaningful design information about the asymptotic behavior of the ensemble. The
+natural question that arises at this point is whether we can find specific component codes within the
+family that outperform the achievable bound in (7), reducing the gap to the rate converse bound in (6). In
+this section, we analyze the asymptotic performance of CJ,K,? when component codes are chosen from
+the the list of reference linear block component codes summarized in Table III. The construction of these
+linear block codes is detailed in [23], and their generator matrix is given in Appendix C. We use the
+notation R-I to denote the reference linear block code of Code Family I.
+TABLE III
+REFERENCE COMPONENT CODES. THE PARAMETER k DESCRIBES THE NUMBER OF ROWS IN THE PARITY-CHECK MATRIX.
+Code index Blocklength K k Rate Code family in Table II
+R-I 6 3 1/2 I
+R-II 6 4 1/3 II
+R-III 7 3 4/7 III
+R-IV 7 4 3/7 IV
+R-V 8 4 1/2 V
+R-VI 8 5 3/8 VI
+R-VII 8 6 1/4 VII
+R-VIII 15 4 11/15 VIII
+R-IX 15 5 2/3 IX
+Once we fix a particular class of component codes to be used at GC nodes, we can replace the CJ,K,?
+code bounds by the actual code rate in (4). In Fig. 8 we plot the CJ,K,? coding rate and the achievable
+bound of the corresponding family of codes for (2, 6) and (2, 7) base DDs. Results for (2, 8) and (2, 15)
+base DDs can be found in Fig. 9. Observe that, with the proposed component codes, we are able to
+perform at least as good as the achievable bound of the corresponding family of block component codes.
+In some cases, e.g. the (2, 8) base DD, the achievable bound is significantly outperformed. Recall that
+for the (2, 8) base DD the rate bounds in Fig. 7(a) are lose. Also, we highlight those points for which,
+asymptotically, the CJ,K,? ensemble with the proposed linear component codes under P-PD operates
+closer to channel capacity than the base LDPC code ensemble under PD. For both the (2, 6), (2, 7), and
+the (2, 8) base DDs we were able to find such points. For the (2, 15) ensemble, the minimum gap to
+capacity obtained is slightly above the one of the base LDPC code ensemble under PD (0.0743 and 0.0623
+respectively). As already discussed in Section V, observe that for every base DD the use of component
+codes with higher minimum distance does not improve the GLDPC asymptotic performance.
+September 5, 2017 DRAFT
+22
+0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9
+0
+0.2
+0.4
+0.6
+Threshold ?*(?)
+R
+at
+e
+(?
+)
+(2,6), d = 3, P-PD, Code R-I
+(2,6), d = 3, P-PD, Fam. I, Ach. Bound
+(2,6), d = 4, P-PD, Code R-II
+(2,6), d = 4, P-PD, Fam. II, Ach. Bound
+(2,7), d = 3, P-PD, Code R-III
+(2,7), d = 3, P-PD, Fam. III, Ach. Bound
+(2,7), d = 4, P-PD, Code R-IV
+(2,7), d = 4, P-PD, Fam. IV, Ach. Bound
+Capacity
+Rate=0.2857, ?=75%, gap to capacity=0.0762
+Rate=0.1667, ?=75%, gap to capacity=0.0823
+Fig. 8. CJ,K,? coding rate and achievable bound in (7) for (2, 6) and (2, 7) base DDs and component codes from Table II and
+III as a function of the P-PD decoding threshold.
+0.2 0.4 0.6 0.8 1
+0
+0.2
+0.4
+0.6
+0.8
+Threshold ?*(?)
+R
+at
+e
+(?
+)
+(2,8), d = 4, P-PD, Code R-V
+(2,8), d = 4, P-PD, Fam. V, Ach. Bound
+(2,15), d = 3, P-PD, Code R-VIII
+(2,15), d = 3, P-PD, Fam. VIII, Ach. Bound
+(2,15), d = 4, P-PD, Code R-IX
+(2,15), d = 4, P-PD, Fam. IX, Ach. Bound
+Capacity
+Rate=0.1500, ?=60%, gap to capacity=0.1015
+Fig. 9. CJ,K,? coding rate and achievable bound in (7) for (2, 8) and (2, 15) base DDs and component codes from Tables II
+and III as a function of the P-PD decoding threshold.
+A. Growth Rate of the Weight Distribution
+Upon selecting a specific block code, we can compute the weight spectral shape G(?) in (14) using
+the tools proposed in [10]. In Fig. 10, we plot G(?) for different values of ?, computed for the (2, 6)
+September 5, 2017 DRAFT
+23
+base DD with Code R-I as component code (Fig. 10 (a)) and the (2, 7)-regular base DD with Code R-III
+as component code (Fig. 10 (b)). Recall that the critical exponent codeword weight ratio is defined as
+?? , inf{? ? 0|G(?) ? 0}. In the plots, we highlight ?? with a star. By Lemma 3, we have ?? = 0 at
+? = ??. As ? grows, ?? grows, too, and it achieves its maximum at ? = 1. These results indicate that there
+is a trade-off between the gap to capacity and ??(?), the critical exponent codeword weight ratio. As an
+example, we include values of both quantities in Table IV for the (2, 6)-regular base DD with Code R-I
+as component code.
+0 0.2 0.4 0.6
+-0.05
+0
+0.05
+0.1
+?
+G
+(?
+)
+? = 80% (??)
+? = 90%
+? = 95%
+? = 100%
+0 0.1 0.2 0.3 0.4 0.5
+0
+0.05
+0.1
+0.15
+?
+G
+(?
+)
+? = 83% (??)
+? = 90%
+? = 95%
+? = 100%
+(a) (b)
+Fig. 10. In Fig. 10 (a), we plot the weight spectral shape G(?) in (14) of the CJ,K,? ensemble for a (2, 6) base DD and with
+Code R-I as component code. In Fig. 10 (b), we plot the same quantity for the CJ,K,? ensemble for a (2, 7) base DD and with
+Code R-II as component code (b).
+TABLE IV
+??, ?? AND GAP TO CAPACITY FOR DIFFERENT VALUES OF ? , COMPUTED FOR THE (2, 6)-BASE DD WITH CODE R-I
+COMPONENT CODES
+? ? ?? Gap to capacity
+80% 0 0.768 0.0987
+87.5% 0.2049 0.788 0.1287
+90% 0.2556 0.792 0.1413
+92.5% 0.3038 0.797 0.1530
+95% 0.3526 0.801 0.1657
+97.5% 0.4056 0.806 0.1773
+100% 0.6078 0.809 0.1910
+September 5, 2017 DRAFT
+24
+VII. RANDOM PUNCTURING
+We have proposed the P-PD algorithm as a flexible model to analyze beyond-BD decoding algorithm
+at GC nodes. Observe that for the P-PD algorithm, the evaluation of the coding rate and the iterative
+decoding threshold are decoupled problems. This provides a flexible analysis framework that allows the
+exploration of additional techniques to modify the designs presented above and further reduce the gap
+to capacity. In this section and the following one, we consider two relevant examples. Specifically, in
+this section we consider the use of random puncturing to accommodate the coding rate by dropping the
+transmission of a fraction of coded bits [17]. In the next section, a simple model of doubly-generalized
+LDPC (DG-LDPC) code ensembles is analyzed [18], [19], [5].
+As illustrated in [17], a linear code is punctured by removing a set of columns from its generator
+matrix. After puncturing at random a fraction ? of the coded bits in the CJ,K,? ensemble, the resulting
+coding rate is
+R(?, ?) =
+R(?)
+1? ?
+, ? ? [0, 1), (36)
+where we recall that R(?) denotes the coding rate of the original CJ,K,? ensemble. In [17], the authors
+derive a simple analytic expression for the iterative belief propagation (BP) decoding threshold of a
+randomly punctured LDPC code ensemble on the binary erasure channel (BEC). Following their proof,
+it can be verified that the same results apply to a randomly punctured GLDPC code ensemble. The result
+reads as follows. Given a CJ,K,? ensemble with iterative decoding threshold ?
+?(?), the threshold ??(?, ?)
+of the GLDPC ensemble that follows by randomly puncturing a fraction ? of the coded bits is related to
+the unpunctured case as follows:
+??(?, ?) = 1?
+1? ??(?)
+1? ?
+. (37)
+Observe that the larger the unpunctured threshold ??(?) is, the larger the threshold of the punctured
+ensemble will be. In this regard, we can think of the design of a punctured GLDPC ensemble as a two
+stage process: First, the GLDPC code ensemble can be designed by choosing ? to minimize the gap to
+capacity. Second, for a fixed ?, we can analyze the overall gap to capacity as we increasing the code rate
+by combining (36) and (37). We perform this experiment in Fig. 11 (a) for the (2, 6) and the (2, 7) base
+DDs and component codes R-I and R-III, respectively. With markers we show the CJ,K,? threshold-rate
+curve as we increase the fraction of GC nodes in the graph. Solid lines indicate the evolution of the rate
+and threshold of the punctured ensemble for fixed ? as we increase the puncturing fraction ?. Observe that
+with puncturing it is possible to increase the coding rate and obtain an iterative decoding threshold that
+is closer to capacity than those obtained by the original CJ,K,? ensemble. The accuracy of the predicted
+September 5, 2017 DRAFT
+25
+threshold can be observed in Fig. 11 (b), where we include both the threshold predicted by (37) (dashed
+lines) and the simulated P-PD performance for the (2, 6) base DD with component code R-I, n = 10000
+bits, and different values of the puncturing rate ? (solid lines).
+0.2 0.4 0.6 0.8
+0.2
+0.4
+0.6
+0.8
+??(?)
+R
+at
+e
+(?
+)
+(2,6), d = 3, P-PD, Code 1
+Punctured, (2,6), d = 3, P-PD, Code 1, ? = 75%
+(2,7), d = 3, P-PD, Code 3
+Punctured, (2,7), d = 3, P-PD, Code 1, ? = 77%
+Capacity
+0.5 0.6 0.7 0.8 0.9 1
+10
+?4
+10
+?3
+10
+?2
+10
+?1
+10
+0
+Channel erasure probability
+B
+it
+er
+ro
+r
+ra
+te
+ML-PD, ? = 0
+ML-PD, ? = 10%
+ML-PD, ? = 30%
+ML-PD, ? = 50%
+(a) (b)
+Fig. 11. In Fig. 11 (a), we show with markers the CJ,K,? threshold-rate curve for the (2, 6) and the (2, 7) base DDs and
+component codes A and C, respectively. Solid lines indicate the evolution of the rates and thresholds of the punctured ensemble
+for a fixed ? as we increase the puncturing fraction ?. In Fig. 11 (b), we show the simulated P-PD performance for the (2, 6)
+base DD with component code A, n = 10000 bits, and different values of the puncturing rate ?. Vertical dashed lines indicate
+the thresholds predicted by (37).
+VIII. DOUBLY-GENERALIZED LDPC CODES
+A different technique that can potentially help to find a better balance between coding rate and threshold
+is the inclusion of generalized variable nodes, giving rise to a doubly-generalized LDPC code ensemble
+[18]. In this section we develop an example with a simple class of a DG-LDPC ensemble. We modify the
+CJ,K,? ensemble by replacing a certain fraction ? of regular variable (RV) nodes by generalized variable
+(GV) nodes, see Fig. 12 (a). Degree-J RV nodes in the CJ,K,? graph can be seen as rate 1/J repetition
+code of block length J , where the input to the repetition code represents one bit of the DG-LDPC
+codeword. On the other hand, degree-J GV nodes are characterized by a (J, m) linear block code, where
+September 5, 2017 DRAFT
+26
++
++
++
+...
++
+...
+...
+(1??)n
+RV nodes
+?n
+GV nodes
+(1??)c
+SPC nodes
+?c
+GC nodes
+Fig. 12. Tanner graph of the DG-LDPC code ensemble.
+the input to the variable component code represents m bits of the DG-LDPC codeword. Thus, the total
+block length of the DG-LDPC code ensemble is n? = (1??)n+?nm, where n is the number of variable
+nodes (both RV and GV) in the graph. In the following, we will assume J = 3, m = 2 and the following
+generator matrix for GV nodes:
+G =
+?
+?
+1 1 0
+0 1 1
+?
+? . (38)
+Thus, each GV node encodes two bits of the DG-LDPC codeword. Denote this ensemble by C3,K,?,?.
+If the component codes at GC nodes are linear block codes with a k-row parity check matrix, an easy
+calculation shows that the coding rate of the ensemble is
+R(?, ?) = 1? (1? R0)
+(
+1 + (k? 1)?
+1 + ?
+)
+. (39)
+As before, we characterize the component codes at GC nodes by the triple (d, pd, pd+1). Furthermore,
+the code associated with the generator matrix (38) has minimum distance 2 and can only decode erasure
+patterns of weight one.
+A. Decoding via P-PD
+Suppose we use a random sample of the C3,K,?,? code ensemble to transmit over a BEC(?). RV nodes
+are removed from the graph with probability 1??. Regarding GV nodes, we have to consider the following
+three scenarios:
+• With probability (1? ?)2 the two DG-LDPC coded bits are correctly received and the GV node can
+be removed from the graph.
+• With probability 2?(1? ?), only of the two coded bits is received. Since the node is only encoding
+one unknown bit, note that we can replace the GV node in the graph by a degree-2 RV node.
+September 5, 2017 DRAFT
+27
+• With probability ?2 the GV node remains in the graph as a degree-3 GV node.
+Decoding will be performed via P-PD. Since the code spanned by (38) can only decode one error, during
+the P-PD procedure every GV node needs to lose at least two edges before it can be removed from
+the graph. Further, once it loses one edge, it can be replaced by a degree-2 RV node. Hence, a small
+modification is required at step 2) in the P-PD Algorithm in Section III. Now, it reads as follows:
+2) Remove from the Tanner graph the check node with the index drawn in Step 1). Further remove
+all connected RV nodes, connected degree-2 GV nodes and all attached edges.
+B. Degree Distribution and Asymptotic Analysis
+While no change is needed to describe the evolution of the check nodes of the residual DG-LDPC code
+ensemble during P-PD, additional definitions at the variable side are needed to tackle both RV nodes and
+GV nodes. Let L
+(?)
+r2 and L
+(?)
+r3 represent the total number of edges in the graph connected to RV nodes
+of degree 2 and 3, respectively, after iteration ? of the decoder. Further let L
+(?)
+g3 be the total number of
+edges in the graph connected to GV nodes of degree 3.
+Theorem 5: Consider a BEC with erasure probability ? and assume we use elements of the C3,K,?,?
+code ensemble for transmission. If we use P-PD with parameters (d, pd, pd+1), in the limit as E ? ?
+the DD of the residual graph at iteration ? can be computed as follows:
+lim
+E??
+L
+(?)
+r2 = El
+(?/E)
+r2 , (40)
+lim
+E??
+L
+(?)
+r3 = El
+(?/E)
+r3 , (41)
+lim
+E??
+L
+(?)
+g3 = El
+(?/E)
+g3 , (42)
+lim
+E??
+R
+(?)
+pj = Er
+(?/E)
+pj , j ? {1, . . . ,K} (43)
+lim
+E??
+R
+(?)
+cj = Er
+(?/E)
+cj , j ? {1, . . . ,K} and j /? {d, d + 1} (44)
+lim
+E??
+R?
+(?)
+cj = Er?
+(?/E)
+cj , j ? {d, d+ 1} (45)
+lim
+E??
+R?
+(?)
+cj = Er?
+(?/E)
+cj , j ? {d, d+ 1} (46)
+where l
+(?)
+r2 , l
+(?)
+r3 , l
+(?)
+g3 r
+(?)
+pj , r
+(?)
+cj , r?
+(?)
+cj , r?
+(?)
+cj ? ? [0, 1/J ] are the solutions to the system of differential
+September 5, 2017 DRAFT
+28
+equations given by (21)-(25) using a(?) = (3l
+(?)
+r3 + 2l
+(?)
+r2 + l
+(?)
+g3 )/e
+(?) and
+dl
+(?)
+r2
+d?
+= 2
+(
+l
+(?)
+g3 ? l
+(?)
+r2
+e(?)
+)(
+P
+(?)
+p1 +
+d+1
+?
+w=1
+wP (?)cw
+)
+(47)
+dl
+(?)
+r3
+d?
+= ?
+3l
+(?)
+r3
+e(?)
+(
+P
+(?)
+p1 +
+d+1
+?
+w=1
+wP (?)cw
+)
+(48)
+dl
+(?)
+g3
+d?
+= ?
+3l
+(?)
+g3
+e(?)
+(
+P
+(?)
+p1 +
+d+1
+?
+w=1
+wP (?)cw
+)
+, (49)
+Here, e(?), P
+(?)
+p1 and P
+(?)
+cw are defined in (26), (28), and (29), respectively. The initial conditions of the
+system of differential equations in (21)-(25) and (90)-(92) are given by
+l
+(0)
+g3 = ?
+2?, (50)
+l
+(0)
+r3 = ?(1? ?), (51)
+l
+(0)
+r2 = 4??(1 ? ?)/3 (52)
+and by (32)-(35) evaluated at ?? = ?(1 + ?(1? ?)/3).
+Proof: See Appendix B.
+C. Results for the (3, 6) and (3, 7) base DDs
+Fig. 13 shows the computed rate-threshold curve parametrized by ? for both the C3,K,?,? ensembles,
+both with ? = 0, i.e., when the code graph has no generalized variable nodes, and with ? = 0.3. We use
+a (3, 6) base DD with code R-I (see Table III) as component code. While in the former case the minimun
+gap to capacity is achieved for the base LDPC code ensemble (with a gap to capacity of 0.0710), by
+using a certain amount of generalized variable nodes we are able to reduce this gap to 0.0592. Further,
+since all variable nodes in the graph have degree 3, by Lemma 3, for any value of ? the code ensemble
+has a minimum distance that grows linearly with the block length. Fig. 14 shows similar results for a
+(3, 7) base DD with Code R-III as component code.
+IX. CONCLUSIONS AND FUTURE WORK
+We proposed the P-PD algorithm as a flexible and efficient decoding algorithm that allows us to easily
+incorporate ML-decoded GC nodes with specific properties into the asymptotic analysis and still maintain
+a random definition of the graph degree distribution. Using P-PD, asymptotic analysis of the GLDPC
+ensemble is carried out by a simple generalization of the original PD analysis by Luby et al. in [11]. The
+only information required about the component code and its decoding method is the fraction of decodable
+September 5, 2017 DRAFT
+29
+0.4 0.5 0.6 0.7 0.8
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+??(?, ?)
+R
+at
+e
+(?
+,?
+)
+(3,6), GLDPC, d = 3, P-PD
+(3,6), DG-LDPC, d = 3, ? = 0.3, P-PD
+Capacity
+Rate=0.5000, ?=0, ? = 0, gap to capacity=0.0710
+Rate=0.2308, ?=50%, ? = 0.3, gap to capacity=0.0592
+Rate=0.2000, ?=30%, ? = 0, gap to capacity=0.1108
+Fig. 13. C3,K,?,? coding rate for a (3,6) base DD with Code R-I as component code, GV nodes constructed using the generator
+matrix in (38), and ? = 0.3.
+0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+??(?, ?)
+R
+at
+e
+(?
+,?
+)
+(3,7), GLDPC, d = 4, P-PD
+(3,7), DG-LDPC, d = 4, P-PD ? = 0.3
+Capacity
+Rate=0.5714, ?=0, ? = 0, gap to capacity=0.0626
+Rate=0.3407, ?=50%, ? = 0.3, gap to capacity=0.0603
+Rate=0.3143, ?=30%, ? = 0, gap to capacity=0.0997
+Fig. 14. C3,K,?,? coding rate for (3,7) base DD, Code R-III component code, GV nodes constructed using the generator matrix
+in (38), and ? = 0.3.
+September 5, 2017 DRAFT
+30
+erasure patterns of a certain weight. We consider a class of GLDPC code ensembles characterized by a
+regular base DD where we include a certain fraction of GC nodes, and we study the tradeoff between
+iterative decoding threshold, coding rate and minimum distance. We have shown that one can find a
+fraction of GC nodes required that reduces the original gap to capacity and yields a GLDPC ensemble with
+linear growth of the minimum distance w.r.t. the block length. Finally, we show how the P-PD analysis
+can be combined with additional techniques to find a better balance between coding rate and asymptotic
+gap to capacity. In particular, we consider random puncturing and the use of generalized variable nodes.
+We would like to emphasize that, in the proposed analysis framework, the evaluation of both coding rate
+and of iterative decoding threshold are decoupled problems. Consequently, broader classes of component
+codes or improved decoding methods at GC nodes can be incorporated in a systematic way.
+Future lines of work include the analysis of GLDPC codes with regular base DD and a certain fraction
+of GC nodes in the finite-length regime. Due to their regularity of the DD, we expect such codes to
+possess a robust finite-length behavior compared to GLDPC code designs proposed in the literature,
+characterized by capacity-achieving DDs. We will extend the finite-length analysis of regular LDPC
+ensembles in [26] to GLDPC codes under P-PD decoding and assess its accuracy in the finite-length
+regime. Following [27], we will also incorporate techniques to improve the code minimum distance.
+We further intend to extend our analysis to the design of spatially-coupled GLDPC (SC-GLDPC) code
+ensembles [28]. The combination of capacity achieving SC-GLDPC code ensembles at a certain coding
+rate and puncturing techniques is a promising design approach to construct SC-GLDPC code ensembles
+with improved finite-length scaling properties [29], [30].
+APPENDIX A
+WORMALD’S THEOREM AND THE PROOF OF THEOREM 4
+Proving Theorem 4 is tantamount to showing that the conditions of Wormald’s theorem are satisfied
+[22]. In this case, Theorem 4 follows directly from (55) and (56) below.
+A. Wormald’s theorem [22]
+Let {Z(?)(a)}a?1 be a d-dimensional discrete-time Markov random process with state space {0, 1, . . . , ?a??}d
+for ? > 0 and ? ? N+ denotes the time index. Further let Z
+(?)
+i (a), i = 1, . . . , d denote the i-th component
+of Z(?)(a). Let D be some open connected bounded set containing the closure of
+{
+(z1, ..., zd) : P
+(
+Z
+(0)
+i (a)
+a
+= zi, 1 ? i ? d
+)
+> 0 for some a
+}
+. (53)
+September 5, 2017 DRAFT
+31
+We define the stopping time ?D to be the smallest time index ? such that
+(Z
+(?D)
+1 (a)/a, ..., Z
+(?D)
+d (a)/a) /? D (54)
+Furthermore, let fi(·), i = 1, . . . , d, be functions from R
+d+1 to R. Assume that the following conditions
+are satisfied:
+1) (Boundedness) There exists a constant ? such that for all i = 1, . . . d, ? = 0, . . . , ?D?1 and a ? 1,
+?
+?
+?Z
+(?+1)
+i (a)? Z
+(?)
+i (a)
+?
+?
+? ? ?.
+2) (Trend functions) For all i = 1, . . . , d, ? = 0, . . . , ?D ? 1 and a ? 1,
+E
+[
+Z
+(?+1)
+i (a)/a ? Z
+(?)
+i (a)/a
+?
+?
+?
+Z(?)(a)/a
+]
+= fi
+(
+?/a, Z
+(?)
+1 (a)/a, ..., Z
+(?)
+d (a)/a
+)
++O(1/a).
+3) (Lipschitz continuity) Each function fi(· ), i = 1, . . . , d, is Lipschitz continuous on D. Namely, for
+any pair b, c ? D that belongs to such intersection, there exists a constant ? such that
+|fi(b)? fi(c)| ? ?
+d+1
+?
+j=1
+|bj ? cj |.
+Under these conditions, the following holds:
+• The system of differential equations
+?zi
+??
+= fi(?, z1, ..., zd), i = 1, ..., d, (55)
+has a unique solution for any initial condition (b1, ..., bd) ? D.
+• There exists a strictly positive constant ? such that
+P
+(?
+?
+?
+Z
+(?)
+i (a)/a? zi(?/a)
+?
+?
+?
+> ?a?
+1
+6
+)
+= O
+(
+e?
+?
+a
+)
+(56)
+for i = 1, ..., d and 0 ? t ? tD, where zi(?/a) is the solution to (55) for
+bi = E[Z
+(0)
+i (a)]/a, i = 1, . . . , d. (57)
+The result in (56) states that any realization of the process Z
+(t)
+i (a) concentrates around the solution
+predicted by (55) in the limit as a ? ?. In the next subsection we show that this theorem is suitable to
+describe the expected GLDPC graph evolution of the P-PD.
+September 5, 2017 DRAFT
+32
+B. Expected graph evolution under P-PD
+To analyze the asymptotic behavior of the CJ,K,? ensemble under P-PD using Wormald’s theorem,
+we identify the Markov random process Z(?)(a) in the previous section by the random process G(?)(E),
+where
+G(?)(E) =
+{
+L
+(?)
+i , R
+(?)
+pj , R
+(?)
+cj , R?
+(?)
+cd , R?
+(?)
+cd , R?
+(?)
+c(d+1), R?
+(?)
+c(d+1)
+}
+i=1,...,J
+j=1,...,d?1,d+2,...,K
+(58)
+namely G(?)(E) is the random process that contains all terms in the DD of the residual graph after ?? 1
+iterations. Note that any component in G(?)(E) belongs to the set {0, 1, . . . , E}, and recall that E is the
+number of edges in the original GLPDC graph. Thus, E will play the role of the parameter a. In this
+subsection we prove that the evolution of G(?)(E) under P-PD satisfies the three conditions of Wormald’s
+theorem stated in the previous subsection. We start by computing the conditional expected evolution of
+all elements in G(?)(E) after one P-PD iteration. We define the following normalized quantities:
+? ,
+?
+E
+, l
+(?)
+i ,
+L
+(?)
+i
+E
+, r
+(?)
+pj ,
+R
+(?)
+pj
+E
+, r
+(?)
+cj ,
+R
+(?)
+cj
+E
+, r?(?)c? ,
+R?
+(?)
+c?
+E
+, r?(?)c? ,
+R?
+(?)
+c?
+E
+, (59)
+for i ? {1, . . . , J}, j ? {1, . . . , d? 1, d + 2, . . . ,K} and ? ? {d, d + 1}. We have that
+r(?)c? = r?
+(?)
+c? + r?
+(?)
+c? , ? = d, d+ 1, (60)
+e(?) ,
+J
+?
+i=1
+l
+(?)
+i =
+K
+?
+j=1
+[r
+(?)
+pj + r
+(?)
+cj ], (61)
+and e(?) is the fraction of edges remaining in the residual graph at time ?. The P-PD process starts at
+? = 0, after BEC transmission and initialization. The following relation holds between the quantities
+defined above at ? = 0 and the CJ,K,? DD described in Section II:
+E[l
+(0)
+i ] = ??i, (62)
+E[r
+(0)
+pj ] =
+?
+??j
+?p?
+(
+?? 1
+j ? 1
+)
+?j(1? ?)??j , (63)
+E[r
+(0)
+cj ] =
+?
+??j
+?c?
+(
+?? 1
+j ? 1
+)
+?j(1? ?)??j , (64)
+for i = 1, . . . J and j = 1, . . . ,K, where the expectation is computed w.r.t. the CJ,K,? ensemble and the
+channel output. Upon initialization, every degree-d GC node is tagged as decodable with probability pd,
+and every degree-(d+1) GC node is tagged as decodable with probability pd+1. Recall that all GC nodes
+September 5, 2017 DRAFT
+33
+with degree less than d are decodable and, by assumption, all GC nodes with degree more than d + 1
+are not decodable. We thus have the following initial conditions
+E[r?
+(0)
+cj ] = pjE[r
+(0)
+cj ],
+E[r?
+(0)
+cj ] = (1? pj)E[r
+(0)
+cj ], j = d, d+ 1. (65)
+The equations (62)-(65) correspond to the initial conditions in (57). Observe that since the largest GC
+degree is K and the largest variable node degree is J , the graph loses at most JK edges per iteration.
+This is an upper bound on the absolute variation of any component in G(?)(E) between two consecutive
+iterations. Hence, Condition 1) of Wormald’s theorem is satisfied.
+Suppose we observe G(?)(E). To derive the conditional expectations in Condition 2) of Wormald’s
+Theorem, the so-called trend functions, we have to average among every possible scenario that we can
+observe after a P-PD iteration. According to Step 1) in Algorithm 2, we chose at random a decodable
+check node. Let P
+(?)
+p1 be the probability of selecting a degree-one SPC node, and let P
+(?)
+cj denote the
+probability of selecting a decodable degree-j GC node, j = 1, . . . , d+1. By a simple counting argument,
+if the check node is selected uniformly at random then
+P
+(?)
+p1 =
+r
+(?)
+p1
+s(?)
+, (66)
+P
+(?)
+cj =
+r
+(?)
+cj /j
+s(?)
+, j < d, (67)
+P
+(?)
+cj =
+r?
+(?)
+cj /j
+s(?)
+, j ? {d, d + 1}. (68)
+In (66)-(68),
+s(?) = r
+(?)
+p1 +
+d?1
+?
+w=1
+r
+(?)
+cw
+w
++
+r?
+(?)
+cd
+d
++
+r?
+(?)
+c(d+1)
+d+ 1
+(69)
+is the normalized sum of decodable check nodes at the ?-th iteration.
+1) Evolution of left edge degrees in the Tanner graph after one P-PD iteration: Suppose we observe
+the residual graph G(?) at iteration ?. Our aim is to evaluate
+E
+[
+L
+(?+1)
+i ? L
+(?)
+i
+?
+?
+?
+G(?)(E)
+]
+, (70)
+for i = 1, 2, ..., J . Given the graph DD G(?), recall that P
+(?)
+p1 denotes the probability of P-PD selecting
+a degree-one SPC node in the current iteration, and P
+(?)
+cj denotes the probability of selecting a degree-j
+September 5, 2017 DRAFT
+34
+decodable GC node. We can decompose the expectation in (70) according to each possible type of check
+node to be removed, namely,
+E
+[
+L
+(?+1)
+i ? L
+(?)
+i
+?
+?
+?G(?)(E)
+]
+= P
+(?)
+p1 E
+[
+L
+(?+1)
+i ? L
+(?)
+i
+?
+?
+?G(?)(E),Degp1
+]
++
+d+1
+?
+w=1
+P (?)cw E
+[
+L
+(?+1)
+i ? L
+(?)
+i
+?
+?
+?G(?)(E),Degcw
+]
+,
+(71)
+where Degp1 indicates that the P-PD removes a degree-one SPC node from the graph, and Degcw indicates
+that P-PD removes a degree-w decodable GC node from the graph. Computing the expectation in the
+first case is similar to the derivation carried out in [11] for PD with LDPC ensembles. Indeed probability
+that the edge adjacent to the removed degree-one SPC node has left degree i is l
+(?)
+i /e
+(?). In such a case,
+after deleting this variable node, the graph loses i? 1 additional edges adjacent to this variable node, so
+E
+[
+L
+(?+1)
+i ? L
+(?)
+i
+?
+?
+?
+G(?)(E),Degp1
+]
+= ?
+il
+(?)
+i
+e(?)
+. (72)
+When the P-PD decoder removes a decodable degree-w GC node, this node is connected to w variable
+nodes that are also removed from the residual Tanner graph, along with their connected edges (assuming
+the graph does not have double edges). Note that left degrees of the w edges connected to the removed
+GC node are, in general, not independent. Let Xu ? {1, . . . , J} the RV that indicates the left degree
+of the u-th edge, u = 1, . . . , w. Arbitrarily, we can decompose the joint probability of X1, . . . ,Xw as
+follows
+P (X1, . . . ,Xw) = P (X1)P (X2|X1)P (X3|X1,X2) . . . P (Xw|X1, . . . ,Xw?1). (73)
+While P (X1 = x1) = l
+(?)
+x1 /e
+(?), x1 = 1, . . . , J , the conditional distribution of X2 given X1 is given by
+P (X2 = x2|X1 = x1) =
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+l
+(?)
+x2
+e(?) ? 1/E
+x2 6= x1
+l
+(?)
+x2 ? 1/E
+e(?) ? 1/E
+x2 = x1
+, (74)
+for x1, x2 ? {1, . . . , J}, where the 1/E terms appear due to the fact that the DD has to be reparameterized
+after we condition on X1 = x1. The above expression can be generalized to any of the factors in (73)
+as follows:
+P (Xu = xu|X1 = x1, . . . ,Xu?1 = xu?1) =
+l(?)xu ?
+?u
+u?=1 I[x
+?
+u = xu]
+E
+e(?) ?
+u? 1
+E
+=
+(
+l
+(?)
+xu
+e(?)
+?
+?u
+u?=1 I[x
+?
+u = xu]
+e(?)E
+)
+e(?)E
+e(?)E? (u? 1)
+. (75)
+September 5, 2017 DRAFT
+35
+Note that e(?)E is the number of edges in the graph at time ?. Since u ? w < J and J is a constant
+independent of E, the second factor in (75) is of order 1?O(1/E). Thus
+P (X1 = x1, . . . ,Xw = xw) =
+w
+?
+u=1
+(
+l
+(?)
+xu
+e(?)
+?
+?u
+u?=1 I[x
+?
+u = xu]
+e(?)E
+)
++O(1/E), (76)
+using again that w ? d+1 ? J where J is a constant independent of E, and that l
+(?)
+xu /e
+(?) is independent
+of E, we can write (73) as follows
+P (X1 = x1, . . . ,Xw = xw) =
+w
+?
+u=1
+l
+(?)
+xu
+e(?)
++O(1/E). (77)
+Thus, the joint probability distribution of the left degrees of w edges connected to a degree-w GC node
+asymptotically factorizes as E ? ? and the number of edges with left degree-i connected to the removed
+GC node can be roughly described by a binomial RV with parameter l
+(?)
+i /e
+(?). Hence, we obtain
+E
+[
+L
+(?+1)
+i ? L
+(?)
+i
+?
+?
+?
+G(?)(E),Degcw
+]
+= ?
+iwl
+(?)
+i
+e(?)
++O(1/E). (78)
+Combining (78) and (72) with (71), we obtain
+E
+[
+L
+(?+1)
+i ? L
+(?)
+i
+?
+?
+?
+G(?)(E)
+]
+= ?
+il
+(?)
+i
+e(?)
+(
+P
+(?)
+p1 +
+d+1
+?
+w=1
+wP (?)cw
+)
++O(1/E) , fi(G
+(?)(E)/E) +O(1/E). (79)
+Note that fi(G
+(?)(E)/E) depends on every component in G(?), normalized by E. Observe that fi(G
+(?)(E)/E)
+in (79) is of the form required by Condition 2) of Wormald’s theorem.
+2) Evolution of right edge degrees in the Tanner graph after one P-PD iteration: Our goal now is to
+evaluate
+E
+[
+R
+(?+1)
+pj ?R
+(?)
+pj
+?
+?
+?
+G(?)(E)
+]
+, j = 1, . . . ,K,
+E
+[
+R
+(?+1)
+cj ?R
+(?)
+cj
+?
+?
+?
+G(?)(E)
+]
+, j = 1, . . . ,K and j /? {d, d+ 1}
+E
+[
+R?
+(?+1)
+cj ? R?
+(?)
+cj
+?
+?
+?
+G(?)(E)
+]
+, j ? {d, d + 1}
+E
+[
+R?
+(?+1)
+cj ? R?
+(?)
+cj
+?
+?
+?G(?)(E)
+]
+, j ? {d, d + 1}
+As before, we evaluated these terms by conditioning on the type of check node to be removed at the
+current P-PD iteration. Using (77), the average number of edges removed from the graph after a degree-w
+GC node is removed is given by ?
+(?)
+w , wa(?)+O(1/E), where a(?) =
+?
+il
+(?)
+i /e
+(?). Among those, w are
+connected to the same degree-w GC node, i.e. they have right degree w. Consider the remaining ?w?w
+edges. Following a similar argument as in (77), it can be shown that the joint probability distribution
+of their right degree asymptotically factorizes as E ? ? and that the deviation in the finite case is
+dominated by O(1/E) terms. By taking w = 1, the same arguments hold for the case where decoder
+September 5, 2017 DRAFT
+36
+removes a degree-1 SPC node. In addition to this results, in order to evaluate the expected variation in
+the number of edges of certain right degree we also have to take into account that, when we remove
+one edge from the graph, we modify the right degree of the rest of edges still connected to the same
+SPC/GC node. For example, if one of the edges that are removed from the graph has right SPC degree
+j, after deleting such edge the graph loses j edges with right SPC degree j and gains j ? 1 edges with
+right SPC degree j ? 1.
+Following the above arguments, conditioned on G(?)(E), the expected change in the number of edges
+with right SPC degree j is given by the following expression
+E
+[
+R
+(?+1)
+pj ?R
+(?)
+pj
+?
+?
+?
+G(?)(E)
+]
+= P
+(?)
+p1
+(
+(r
+(?)
+p(j+1) ? r
+(?)
+pj )
+j(a(?) ? 1)
+e(?)
+? I[j = 1]
+)
++
+d+1
+?
+w=1
+P (?)cw (r
+(?)
+p(j+1) ? r
+(?)
+pj )
+j(wa(?) ? w)
+e(?)
++O(1/E)
+, gpj(G
+(?)/E) +O(1/E). (80)
+It can be further shown that the expected variation in the number of edges of right GC degree j with
+j 6= d, d+ 1 satisfies
+E
+[
+R
+(?+1)
+cj ?R
+(?)
+cj
+?
+?
+?G(?)(E)
+]
+= P
+(?)
+p1
+(
+(r
+(?)
+c(j+1) ? r
+(?)
+cj )
+j(a(?) ? 1)
+e(?)
+)
++
+d+1
+?
+w=1
+P (?)cw
+(
+(r
+(?)
+c(j+1) ? r
+(?)
+cj )
+j(wa(?) ? w)
+e(?)
+? wI[j = w]
+)
++O(1/E)
+, gcj(G
+(?)/E) +O(1/E). (81)
+To analyze the expected change in the number of edges connected to decodable and not decodable GC
+nodes of degree d and d+1, we have to take into account that if a non-decodable degree-(d+2) GC node
+loses one edge, it becomes decodable with probability pd+1. Similarly, if a non-decodable degree-(d+1)
+GC node loses one edge, it becomes decodable with probability pd. Also note that if a decodable GC
+node of degree d+1 loses one edge, it becomes a decodable GC node of degree d with probability 1. It
+follows that the expected change in the fraction of edges connected to decodable and not decodable GC
+nodes of degree j = d, d+ 1, are given by
+E
+[
+R?
+(?+1)
+cj ? R?
+(?)
+cj
+?
+?
+?G(?)(E)
+]
+= P
+(?)
+p1
+(
+(pj r?
+(?)
+c(j+1) + r?
+(?)
+c(j+1) ? r?
+(?)
+cj )
+j(a(?) ? 1)
+e(?)
+)
++
+j+1
+?
+w=1
+P (?)cw
+(
+(pj r?
+(?)
+c(j+1) + r?
+(?)
+c(j+1) ? r?
+(?)
+cj )
+j(wa(?) ? w)
+e(?)
+? wI[w = j]
+)
++O(1/E)
+, g?cj(G
+(?)/E) +O(1/E) (82)
+September 5, 2017 DRAFT
+37
+E
+[
+R?
+(?+1)
+cj ? R?
+(?)
+cj
+?
+?
+?
+G(?)(E)
+]
+= P
+(?)
+p1
+(
+((1? pj)r?
+(?)
+c(j+1) ? r?
+(?)
+cj )
+j(a(?) ? 1)
+e(?)
+)
++
+j+1
+?
+w=1
+P (?)cw
+(
+((1 ? pj)r?
+(?)
+c(j+1) ? r?
+(?)
+cj )
+j(wa(?) ? w)
+e(?)
+? wI[w = j]
+)
++O(1/E)
+, g?cj(G
+(?)/E) +O(1/E) (83)
+Note that R?
+(?)
+c(d+2) = R
+(?)
+c(d+2) and R?
+(?)
+c(d+2) = 0. Further, observe that (79)-(83) are of the form required
+by Condition 2) of Wormald’s theorem.
+3) On the Lipschitz continuity of the trend functions in (79)-(83): Condition 3) of Wormald’s theorem
+requires that the trend functions in (79)-(83) are Lipschitz in the set of all possible DDs. First, we note
+that if we would restrict the P-PD to remove only decodable check nodes (either degree-1 SPC nodes
+or GC nodes of one particular degree), then (79)-(83) are still valid by simply setting the corresponding
+probabilities P
+(?)
+p1 and P
+(?)
+cj , j = 1, . . . , d+1 to either zero or one. In such a case, (79)-(83) are equal up
+to a multiplicative constant to the PD trend functions for LDPC codes in [11], hence they are Lipschitz
+continuous. When we drop the restriction to remove one particular type of decodable check node, then
+the trend functions in (79)-(83) are convex the combinations of Lipschitz continuous functions, with the
+coefficients given by the functions P
+(?)
+p1 and P
+(?)
+cj , j = 1, . . . , d+1 in (66)-(68), which are also Lipschitz
+continuous (note their similarity in form with (72), which is Lipschitz continuous [11]). Since they are
+all bounded functions, we conclude that Condition 3) of Wormald’s theorem is also satisfied.
+APPENDIX B
+PROOF OF THEOREM 5
+The proof of Theorem 5 closely follows that of Theorem 4 given in Appendix A. As before, it is
+sufficient to show that the conditions of Wormald’s theorem introduced in Appendix A-A are satisfied.
+Following the definitions given in Section VIII-B, the left DD of the residual graph of the C3,K,?,? code
+ensemble during P-PD has three components: the number of edges connected to degree-2 or degree-3
+RV nodes (L
+(?)
+r2 and L
+(?)
+r3 respectively), and the number of edges connected to degree-3 GV nodes (L
+(?)
+g3 ).
+The right DD of the residual graph has the same elements as those defined for the CJ,K,? ensemble in
+Appendix A-B. Thus, the DD of the residual graph is defined by the random process
+G(?)(E) =
+{
+L
+(?)
+r2 , L
+(?)
+r3 , L
+(?)
+3g , R
+(?)
+pj , R
+(?)
+cj , R?
+(?)
+cd , R?
+(?)
+cd , R?
+(?)
+c(d+1), R?
+(?)
+c(d+1)
+}
+j=1,...,d?1,d+2,...,K
+. (84)
+We define
+l
+(?)
+r2 ,
+L
+(?)
+r2
+E
+, l
+(?)
+r3 ,
+L
+(?)
+r3
+E
+, l
+(?)
+g3 ,
+L
+(?)
+g3
+E
+. (85)
+September 5, 2017 DRAFT
+38
+After P-PD initialization, i.e. ? = 0, it can be shown that
+E
+[
+l
+(0)
+g3
+]
+= ?2?, (86)
+E
+[
+l
+(0)
+r3
+]
+= ?(1? ?), (87)
+E
+[
+l
+(0)
+r2
+]
+= 4??(1? ?)/3. (88)
+To evaluate (88), we compute the average number of GV nodes for which one of the two DG-LDPC
+coded bits is received. According to the generator matrix in (38), GV nodes can be viewed as degree-2
+variable nodes. Based on (86)-(88), the average fraction of edges remaining in the graph after P-PD
+initialization is
+?? = ?(1? ?) + 4??(1 ? ?)/3 + ?2? = ?
+(
+1 +
+?(1? ?)
+3
+)
+. (89)
+We can further determine expected initial conditions of the right DD of the residual graph after P-PD
+initialization by using (32) and (34) and replacing ? by ??.
+By following a similar procedure as in Appendix A-B, it can be shown that conditioned, on G(?)(E),
+the expected variation in L
+(?)
+r2 , L
+(?)
+r3 , and L
+(?)
+3g after one P-PD iteration is given by
+E
+[
+L
+(?+1)
+r3 ? L
+(?)
+r3
+?
+?
+?
+G(?)
+]
+= ?
+3l
+(?)
+r3
+e(?)
+(
+P
+(?)
+p1 +
+d+1
+?
+w=1
+wP (?)cw
+)
++O(1/E), (90)
+E
+[
+L
+(?+1)
+r2 ? L
+(?)
+r2
+?
+?
+?G(?)
+]
+=
+(
+2l
+(?)
+g3
+e(?)
+?
+2l
+(?)
+r2
+e(?)
+)(
+P
+(?)
+p1 +
+d+1
+?
+w=1
+wP (?)cw
+)
++O(1/E), (91)
+E
+[
+L
+(?+1)
+g3 ? L
+(?)
+g3
+?
+?
+?
+G(?)
+]
+= ?
+3l
+(?)
+g3
+e(?)
+(
+P
+(?)
+p1 +
+d+1
+?
+w=1
+wP (?)cw
+)
++O(1/E), (92)
+where e(?) = l
+(?)
+r3 + l
+(?)
+g3 + l
+(?)
+g3 and P
+(?)
+p1 and P
+(?)
+cw are given in (28) and (29) respectively. In (91), we
+have used that that if a degree-3 GV node loses one edge, then the graph loses 3 edges with left GV
+degree 3 and gains 2 edges with left RV degree 2. The conditional expected variation of the right DD of
+the residual graph can be computed using (80)-(83) by taking a(?) = (3l
+(?)
+r3 + 2l
+(?)
+r2 + l
+(?)
+g3 )/e
+(?). Finally,
+proving that the conditions in Wormald’s Theorem ”follows by the same arguments as in the proof of
+Theorem 4 in Appendix A.
+APPENDIX C
+GENERATOR MATRICES OF REFERENCE CODES
+Reference codes have been found by performing an exhaustive search over the database [23], [24],
+which implements MAGMA [25] to design block codes with the largest minimum distance.
+September 5, 2017 DRAFT
+39
+Code R-I: Rate-1/2 Hamming (6, 3) linear block code with generator matrix
+GR-I =
+?
+?
+?
+?
+?
+1 0 0 1 1 0
+0 1 0 1 0 1
+0 0 1 0 1 1
+?
+?
+?
+?
+?
+(93)
+Code R-II: Rate-1/3 Cordaro-Wagner 2-dimensional repetition code of length 6 with generator matrix
+GR-II =
+?
+?
+1 1 1 1 0 0
+0 0 1 1 1 1
+?
+? (94)
+Code R-III: Rate-4/7 Hamming (7,4) code with generator matrix
+GR-III =
+?
+?
+?
+?
+?
+?
+?
+?
+1 1 1 0 0 0 0
+1 0 0 1 1 0 0
+0 1 0 1 0 1 0
+1 1 0 1 0 0 1
+?
+?
+?
+?
+?
+?
+?
+?
+(95)
+Code R-IV: Rate-3/7 linear block code with generator matrix
+GR-IV =
+?
+?
+?
+?
+?
+0 1 1 1 1 0 0
+1 1 0 1 0 1 0
+1 0 1 1 0 0 1
+?
+?
+?
+?
+?
+(96)
+Code R-V: Rate-1/2 extended (7, 4)-Hamming code with extra parity bit, i.e., (8, 4) Hamming code.
+Another example is a Quasi-Cyclic (8, 4, 4) code with generator matrix
+GR-V =
+?
+?
+?
+?
+?
+?
+?
+?
+1 0 0 1 0 1 0 1
+0 1 1 0 0 1 0 1
+0 1 0 1 1 0 0 1
+0 1 0 1 0 1 1 0
+?
+?
+?
+?
+?
+?
+?
+?
+(97)
+Code R-VI: Rate-3/8 cyclic linear block code with generator matrix
+September 5, 2017 DRAFT
+40
+GR-VI =
+?
+?
+?
+?
+?
+1 0 0 1 1 0 0 1
+0 1 0 1 0 1 0 1
+0 0 1 1 0 0 1 1
+?
+?
+?
+?
+?
+(98)
+Code R-VII: Rate-1/4 Cordaro-Wagner 2-dimensional repetition code length 8 with generator matrix
+GR-VII =
+?
+?
+1 0 1 1 0 1 1 1
+0 1 0 0 1 1 1 1
+?
+? (99)
+Code R-VIII: Rate-11/15 linear block code with generator matrix
+GR-VIII =
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+0 1 0 1 0 1 1 0 0 0 0 0 0 0 0
+0 0 0 1 0 1 0 0 1 0 0 0 0 0 0
+0 0 0 1 0 1 0 0 0 1 0 0 0 0 1
+0 0 0 1 0 0 1 0 0 0 1 0 0 0 0
+0 0 0 1 0 0 1 0 0 0 0 1 0 0 1
+0 0 0 0 0 1 1 0 0 0 0 0 1 0 0
+0 0 0 0 0 1 1 0 0 0 0 0 0 1 1
+0 0 0 0 0 0 1 1 0 0 0 0 0 0 1
+0 0 0 0 1 1 0 0 0 0 0 0 0 0 1
+0 0 1 1 0 0 0 0 0 0 0 0 0 0 1
+1 0 0 1 0 1 1 0 0 0 0 0 0 0 1
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+(100)
+Code R-IX: Rate-2/3 linear block code with generator matrix
+September 5, 2017 DRAFT
+41
+GR-IX =
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+0 1 1 0 0 1 0 1 0 0 0 0 0 0 0
+0 0 1 0 0 1 0 0 1 0 0 0 0 0 1
+0 0 1 0 0 0 0 1 0 1 0 0 0 1 0
+0 0 1 0 0 1 0 0 0 0 1 0 0 1 0
+0 0 1 0 0 0 0 1 0 0 0 1 0 0 1
+0 0 0 0 0 1 0 1 0 0 0 0 1 0 1
+0 0 0 0 0 1 1 0 0 0 0 0 0 1 1
+0 0 0 0 1 0 0 1 0 0 0 0 0 1 1
+0 0 1 1 0 1 0 1 0 0 0 0 0 1 1
+1 0 1 0 0 0 0 0 0 0 0 0 0 1 1
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+?
+(101)
+REFERENCES
+[1] R. Tanner, “A recursive approach to low complexity codes,” IEEE Transactions on Information Theory, vol. 27, no. 5, pp.
+533 – 547, Sept. 1981.
+[2] M. Lentmaier and K. Zigangirov, “On generalized low-density parity-check codes based on Hamming component codes,”
+IEEE Communications Letters, vol. 3, no. 8, pp. 248–250, Aug 1999.
+[3] G. Yue, L. Ping, and X. Wang, “Generalized Low-Density Parity-Check Codes Based on Hadamard Constraints,” IEEE
+Transactions on Information Theory,, vol. 53, no. 3, pp. 1058–1079, March 2007.
+[4] G. Liva, W. Ryan, and M. Chiani, “Quasi-cyclic generalized LDPC codes with low error floors,” IEEE Transactions on
+Communications, vol. 56, no. 1, pp. 49–57, January 2008.
+[5] Paolini, E. and Fossorier, M.P.C. and Chiani, M., “Generalized and Doubly Generalized LDPC Codes With Random
+Component Codes for the Binary Erasure Channel,” IEEE Transactions on Information Theory, vol. 56, no. 4, pp. 1651–
+1672, April 2010.
+[6] D. Mitchell, M. Lentmaier, and D. Costello, “On the minimum distance of generalized spatially coupled LDPC codes,” in
+Proc. IEEE International Symposium on Information Theory (ISIT), Istanbul, Turkey, July 2013, pp. 1874–1878.
+[7] S. Abu-Surra, D. Divsalar, and W. E. Ryan, “Enumerators for protograph-based ensembles of LDPC and generalized LDPC
+codes,” IEEE Transactions on Information Theory, vol. 57, no. 2, pp. 858–886, Feb. 2011.
+[8] M. Lentmaier and G. Fettweis, “On the thresholds of generalized LDPC convolutional codes based on protographs,” in
+Proc. IEEE International Symposium on Information Theory Proceedings (ISIT), Austin, USA., June 2010, pp. 709–713.
+[9] Y. Y. Jian, H. D. Pfister, and K. R. Narayanan, “Approaching capacity at high rates with iterative hard-decision decoding,”
+in Information Theory Proceedings (ISIT), 2012 IEEE International Symposium on, July 2012, pp. 2696–2700.
+[10] M. F. Flanagan, E. Paolini, M. Chiani, and M. P. C. Fossorier, “Spectral shape of doubly-generalized ldpc codes: Efficient
+and exact evaluation,” IEEE Transactions on Information Theory, vol. 59, no. 11, pp. 7212–7228, Nov 2013.
+[11] M. Luby, M. Mitzenmacher, M. Shokrollahi, and D. Spielman, “Efficient erasure correcting codes,” IEEE Transactions on
+Information Theory, vol. 47, no. 2, pp. 569 –584, Feb. 2001.
+[12] C. Measson, A. Montanari, and R. Urbanke, “Maxwell construction: The hidden bridge between iterative and maximum a
+posteriori decoding,” IEEE Transactions on Information Theory, vol. 54, no. 12, pp. 5277 –5307, Dec. 2008.
+September 5, 2017 DRAFT
+42
+[13] P. Olmos, D. Mitchell, and J. Costello, D.J., “Analyzing the finite-length performance of generalized LDPC codes,” in
+Proc. 2015 IEEE International Symposium on Information Theory (ISIT), Hong Kong, China, June 2015, pp. 2683–2687.
+[14] T. J. Richardson and R. Urbanke, Modern Coding Theory. Cambridge University Press, Mar. 2008.
+[15] F. J. MacWilliams and N. J. A. Sloane, The theory of error correcting codes. North-Holland Pub. Co. New York, 1977.
+[16] W. C. Huffman and V. Pless, Fundamentals of error-correcting codes. Cambridge, U.K., New York: Cambridge University
+Press, 2003.
+[17] D. Mitchell, M. Lentmaier, A. Pusane, and D. Costello, “Randomly Punctured LDPC Codes,” IEEE Journal on Selected
+Areas in Communications, vol. 34, no. 2, pp. 408–421, Feb 2016.
+[18] Y. Wang and M. Fossorier, “Doubly generalized ldpc codes,” in 2006 IEEE International Symposium on Information
+Theory, July 2006, pp. 669–673.
+[19] ——, “Doubly Generalized LDPC Codes over the AWGN Channel,” IEEE Transactions on Communications, vol. 57,
+no. 5, pp. 1312–1319, May 2009.
+[20] R. G. Gallager, Low Density Parity Check Codes. MIT Press, 1963.
+[21] N. Miladinovic and M. Fossorier, “Generalized LDPC codes and generalized stopping sets,” IEEE Transactions on
+Communications, vol. 56, no. 2, pp. 201–212, February 2008.
+[22] N. C. Wormald, “Differential equations for random processes and random graphs,” Annals of Applied Probability, vol. 5,
+no. 4, pp. 1217–1235, 1995.
+[23] M. Grassl, “Bounds on the minimum distance of linear codes and quantum codes,” Online available at
+http://www.codetables.de, 2007, accessed on 2017-01-07.
+[24] ——, “Searching for linear codes with large minimum distance,” in Discovering Mathematics with Magma — Reducing the
+Abstract to the Concrete, ser. Algorithms and Computation in Mathematics, W. Bosma and J. Cannon, Eds. Heidelberg:
+Springer, 2006, vol. 19, pp. 287–313.
+[25] W. Bosma, J. Cannon, and C. Playoust, “The Magma Algebra System I: The User Language,” Journal of Symbolic
+Computation, vol. 24, no. 3-4, pp. 235–265, Oct. 1997.
+[26] A. Amraoui, A. Montanari, T. Richardson, and R. Urbanke, “Finite-length scaling for iteratively decoded LDPC ensembles,”
+IEEE Transactions on Information Theory, vol. 55, no. 2, pp. 473 –498, Feb. 2009.
+[27] I. Andriyanova and J. P. Tillich, “Designing a good low-rate sparse-graph code,” IEEE Transactions on Communications,
+vol. 60, no. 11, pp. 3181–3190, November 2012.
+[28] M. Lentmaier, A. Sridharan, D. J. Costello, Jr., and K. Sh. Zigangirov, “Iterative Decoding Threshold Analysis for LDPC
+Convolutional Codes,” IEEE Transactions on Information Theory, vol. 56, no. 10, pp. 5274–5289, 2010.
+[29] P. M. Olmos and R. Urbanke, “A Scaling Law to Predict the Finite-length Performance of Spatially Coupled LDPC Codes.”
+IEEE Transactions on Information Theory, vol. 61, no. 6, pp. 3164 – 3184, 2015.
+[30] M. Stinner and P. M. Olmos, “On the Waterfall Performance of Finite-Length SC-LDPC Codes Constructed From
+Protographs,” IEEE Journal on Selected Areas in Communications, vol. 34, no. 2, pp. 345–361, Feb 2016.
+September 5, 2017 DRAFT
