@@ -20,6 +20,8 @@ public class RelevanceMatrixManager{
     	
     	Map<String,Boolean> mapQuery1 = new HashMap<String, Boolean>();
     	Map<String,Boolean> mapQuery2 = new HashMap<String, Boolean>();
+    	int numberOfRelevantDocsQuery1 = 0;
+    	int numberOfRelevantDocsQuery2 = 0;
 
         FileInputStream inputStream = new FileInputStream(new File(matrixPath));
         
@@ -48,6 +50,13 @@ public class RelevanceMatrixManager{
         	val1 = query1Iterator.next().getNumericCellValue() == 1 ? true : false;
         	val2 = query2Iterator.next().getNumericCellValue() == 1 ? true : false;
         	
+        	if(val1) {
+        		numberOfRelevantDocsQuery1++;
+        	}
+        	if(val2) {
+        		numberOfRelevantDocsQuery2++;
+        	}
+        	
         	mapQuery1.put(key, val1);
         	mapQuery2.put(key, val2);
         }
@@ -55,6 +64,6 @@ public class RelevanceMatrixManager{
         workbook.close();
         inputStream.close();
         
-        return new ResultMap(mapQuery1, mapQuery2);
+        return new ResultMap(mapQuery1, mapQuery2, numberOfRelevantDocsQuery1,numberOfRelevantDocsQuery2);
     }
 }
