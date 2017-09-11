@@ -19,25 +19,6 @@ public class Result extends JFrame {
 
 	private JPanel contentPane;
 
-	/**
-	 * Launch the application.
-	 */
-	public static void main(String[] args) {
-		EventQueue.invokeLater(new Runnable() {
-			public void run() {
-				try {
-					Result frame = new Result(null);
-					frame.setVisible(true);
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-		});
-	}
-
-	/**
-	 * Create the frame.
-	 */
 	public Result(ArrayList<String> urls) {
 		setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 		setBounds(100, 100, 450, 300);
@@ -58,7 +39,7 @@ public class Result extends JFrame {
         JScrollPane scrollPane = new JScrollPane(list);
 		contentPane.add(scrollPane);
 		
-		JLabel lblEmDocumentos = new JLabel(urls.size() +  " documento(s) encontrado(s)");
+		JLabel lblEmDocumentos = new JLabel(urls.size() +  " document(s) found");
 		scrollPane.setColumnHeaderView(lblEmDocumentos);
 		lblEmDocumentos.setBounds(10, 62, 414, 39);
 		lblEmDocumentos.setHorizontalAlignment(SwingConstants.CENTER);

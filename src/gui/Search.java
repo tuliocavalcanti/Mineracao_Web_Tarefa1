@@ -66,9 +66,9 @@ public class Search extends JFrame implements ItemListener {
 		textField.setColumns(10);
 		
 		JCheckBox btnStemming = new JCheckBox("with Stemming", false);
-		JCheckBox btnStopWords = new JCheckBox("with Stop Words", false);
-		btnStopWords.setBounds(66, 150, 135, 23);
-		btnStemming.setBounds(210, 150, 135, 23);
+		JCheckBox btnStopWords = new JCheckBox("without Stop Words", false);
+		btnStopWords.setBounds(66, 150, 150, 23);
+		btnStemming.setBounds(230, 150, 135, 23);
 
 		frame.getContentPane().add(btnStopWords);
 		frame.getContentPane().add(btnStemming);
